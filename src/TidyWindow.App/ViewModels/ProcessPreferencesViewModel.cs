@@ -35,6 +35,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
     private readonly ProcessStateStore _processStateStore;
     private readonly ProcessQuestionnaireEngine _questionnaireEngine;
     private readonly ProcessAutoStopEnforcer _autoStopEnforcer;
+    private readonly ProcessControlService _processControlService;
+    private readonly ServiceResolver _serviceResolver;
     private readonly IRelativeTimeTicker _relativeTimeTicker;
     private readonly IUserConfirmationService _confirmationService;
     private readonly ObservableCollection<ProcessPreferenceRowViewModel> _processEntries = new();
@@ -49,6 +51,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
         ProcessStateStore processStateStore,
         ProcessQuestionnaireEngine questionnaireEngine,
         ProcessAutoStopEnforcer autoStopEnforcer,
+        ProcessControlService processControlService,
+        ServiceResolver serviceResolver,
         IUserConfirmationService confirmationService,
         IRelativeTimeTicker relativeTimeTicker)
     {
@@ -57,10 +61,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
         _processStateStore = processStateStore ?? throw new ArgumentNullException(nameof(processStateStore));
         _questionnaireEngine = questionnaireEngine ?? throw new ArgumentNullException(nameof(questionnaireEngine));
         _autoStopEnforcer = autoStopEnforcer ?? throw new ArgumentNullException(nameof(autoStopEnforcer));
+        _processControlService = processControlService ?? throw new ArgumentNullException(nameof(processControlService));
+        _serviceResolver = serviceResolver ?? throw new ArgumentNullException(nameof(serviceResolver));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
         _autoStopEnforcer.SettingsChanged += OnAutoStopSettingsChanged;
+        _autoStopEnforcer.GuardStatusUpdated += OnGuardStatusUpdated;
         _relativeTimeTicker.Tick += OnRelativeTimeTick;
 
         ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
@@ -88,6 +95,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
 
         _disposed = true;
         _autoStopEnforcer.SettingsChanged -= OnAutoStopSettingsChanged;
+        _autoStopEnforcer.GuardStatusUpdated -= OnGuardStatusUpdated;
         _relativeTimeTicker.Tick -= OnRelativeTimeTick;
     }
 
@@ -97,7 +105,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
 
     public ReadOnlyObservableCollection<ProcessPreferenceSegmentViewModel> Segments { get; }
 
-    public IReadOnlyList<int> AutoStopIntervalOptions { get; } = new[] { 5, 10, 15, 30, 60, 120 };
+    // Smart Guard no longer exposes a user-configurable interval.
 
     [ObservableProperty]
     private bool _isProcessSettingsBusy;
@@ -136,16 +144,19 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
     private bool _isAutoStopAutomationEnabled;
 
     [ObservableProperty]
-    private int _autoStopIntervalMinutes = ProcessAutomationSettings.MinimumIntervalMinutes;
-
-    [ObservableProperty]
     private DateTimeOffset? _autoStopLastRunUtc;
 
     [ObservableProperty]
-    private string _autoStopStatusMessage = "Automation is disabled.";
+    private string _autoStopStatusMessage = "Smart Guard is disabled.";
 
     [ObservableProperty]
-    private bool _hasAutomationChanges;
+    private string _smartGuardDetail = string.Empty;
+
+    [ObservableProperty]
+    private int _smartGuardWatchedCount;
+
+    [ObservableProperty]
+    private int _smartGuardRunningCount;
 
     partial void OnProcessFilterTextChanged(string value)
     {
@@ -172,27 +183,6 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
             return;
         }
 
-        HasAutomationChanges = true;
-        UpdateAutomationStatus();
-    }
-
-    partial void OnAutoStopIntervalMinutesChanged(int value)
-    {
-        if (_suspendAutomationStateUpdates)
-        {
-            return;
-        }
-
-        var clamped = Math.Clamp(value, ProcessAutomationSettings.MinimumIntervalMinutes, ProcessAutomationSettings.MaximumIntervalMinutes);
-        if (clamped != value)
-        {
-            _suspendAutomationStateUpdates = true;
-            AutoStopIntervalMinutes = clamped;
-            _suspendAutomationStateUpdates = false;
-            return;
-        }
-
-        HasAutomationChanges = true;
         UpdateAutomationStatus();
     }
 
@@ -260,27 +250,26 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
         try
         {
             IsAutomationBusy = true;
-            _mainViewModel.SetStatusMessage("Applying auto-stop automation...");
+            _mainViewModel.SetStatusMessage("Applying Smart Guard...");
 
             var result = await _autoStopEnforcer.ApplySettingsAsync(snapshot, enforceImmediately: true);
-            HasAutomationChanges = false;
 
             if (result is ProcessAutoStopResult runResult && !runResult.WasSkipped)
             {
                 AutoStopLastRunUtc = runResult.ExecutedAtUtc;
-                _mainViewModel.LogActivityInformation("Process settings", $"Auto-stop enforced for {runResult.TargetCount} service(s).");
+                _mainViewModel.LogActivityInformation("Smart Guard", $"Enforced for {runResult.TargetCount} service(s).");
             }
             else
             {
                 var status = snapshot.AutoStopEnabled
-                    ? $"Auto-stop automation enabled (every {FormatInterval(snapshot.AutoStopIntervalMinutes)})."
-                    : "Auto-stop automation disabled.";
-                _mainViewModel.LogActivityInformation("Process settings", status);
+                    ? "Smart Guard enabled — watching for target services."
+                    : "Smart Guard disabled.";
+                _mainViewModel.LogActivityInformation("Smart Guard", status);
             }
         }
         catch (Exception ex)
         {
-            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", "Failed to apply automation settings.", new[] { ex.Message });
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Smart Guard", "Failed to apply Smart Guard settings.", new[] { ex.Message });
         }
         finally
         {
@@ -310,21 +299,21 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
             }
 
             var message = result.WasSkipped
-                ? "Auto-stop automation was skipped."
+                ? "Smart Guard one-shot was skipped."
                 : (result.TargetCount == 0
                     ? "No auto-stop targets required enforcement."
-                    : $"Auto-stop enforced for {result.TargetCount} service(s).");
+                    : $"Enforced for {result.TargetCount} service(s).");
 
             if (wasDisabled && !result.WasSkipped)
             {
-                message += " Automation remains disabled; this was a one-time run.";
+                message += " Smart Guard remains disabled; this was a one-time run.";
             }
 
-            _mainViewModel.LogActivityInformation("Process settings", message);
+            _mainViewModel.LogActivityInformation("Smart Guard", message);
         }
         catch (Exception ex)
         {
-            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", "Failed to enforce auto-stop preferences.", new[] { ex.Message });
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Smart Guard", "Failed to enforce auto-stop preferences.", new[] { ex.Message });
         }
         finally
         {
@@ -593,7 +582,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
 
     private ProcessAutomationSettings BuildAutomationSettingsSnapshot()
     {
-        return new ProcessAutomationSettings(IsAutoStopAutomationEnabled, AutoStopIntervalMinutes, AutoStopLastRunUtc);
+        return new ProcessAutomationSettings(IsAutoStopAutomationEnabled, ProcessAutomationSettings.MinimumIntervalMinutes, AutoStopLastRunUtc);
     }
 
     private void OnAutoStopSettingsChanged(object? sender, ProcessAutomationSettings settings)
@@ -611,13 +600,9 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
     {
         AutoStopLastRunUtc = settings.LastRunUtc;
 
-        if (!HasAutomationChanges)
-        {
-            _suspendAutomationStateUpdates = true;
-            IsAutoStopAutomationEnabled = settings.AutoStopEnabled;
-            AutoStopIntervalMinutes = settings.AutoStopIntervalMinutes;
-            _suspendAutomationStateUpdates = false;
-        }
+        _suspendAutomationStateUpdates = true;
+        IsAutoStopAutomationEnabled = settings.AutoStopEnabled;
+        _suspendAutomationStateUpdates = false;
 
         UpdateAutomationStatus();
     }
@@ -626,9 +611,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
     {
         _suspendAutomationStateUpdates = true;
         IsAutoStopAutomationEnabled = settings.AutoStopEnabled;
-        AutoStopIntervalMinutes = settings.AutoStopIntervalMinutes;
         AutoStopLastRunUtc = settings.LastRunUtc;
-        HasAutomationChanges = false;
         _suspendAutomationStateUpdates = false;
         UpdateAutomationStatus();
     }
@@ -637,27 +620,26 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
     {
         if (!IsAutoStopAutomationEnabled)
         {
-            AutoStopStatusMessage = "Automation is disabled.";
+            AutoStopStatusMessage = "Smart Guard is disabled.";
+            SmartGuardDetail = string.Empty;
             return;
         }
 
-        var intervalLabel = FormatInterval(AutoStopIntervalMinutes);
         var lastRunLabel = AutoStopLastRunUtc is null
-            ? "Never enforced yet."
-            : $"Last enforced {FormatRelative(AutoStopLastRunUtc.Value)}.";
+            ? "No actions taken yet."
+            : $"Last action {FormatRelative(AutoStopLastRunUtc.Value)}.";
 
-        AutoStopStatusMessage = $"Runs every {intervalLabel}. {lastRunLabel}";
-    }
-
-    private static string FormatInterval(int minutes)
-    {
-        if (minutes % 60 == 0 && minutes >= 60)
+        var watchLabel = SmartGuardWatchedCount switch
         {
-            var hours = minutes / 60;
-            return hours == 1 ? "1 hour" : $"{hours} hours";
-        }
+            0 => "No services configured.",
+            1 => "Watching 1 service.",
+            _ => $"Watching {SmartGuardWatchedCount} services."
+        };
 
-        return $"{minutes} minutes";
+        AutoStopStatusMessage = $"Smart Guard active \u2014 {watchLabel}";
+        SmartGuardDetail = SmartGuardRunningCount > 0
+            ? $"{SmartGuardRunningCount} running (will be stopped). {lastRunLabel}"
+            : $"All quiet \u2014 no targets running. {lastRunLabel}";
     }
 
     private static string FormatRelative(DateTimeOffset timestamp)
@@ -685,6 +667,29 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
 
     private void OnRelativeTimeTick(object? sender, EventArgs e)
     {
+        UpdateAutomationStatus();
+    }
+
+    private void OnGuardStatusUpdated(object? sender, SmartGuardStatus status)
+    {
+        if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(new Action(() => ApplyGuardStatus(status)));
+            return;
+        }
+
+        ApplyGuardStatus(status);
+    }
+
+    private void ApplyGuardStatus(SmartGuardStatus status)
+    {
+        SmartGuardWatchedCount = status.WatchedServices;
+        SmartGuardRunningCount = status.RunningServices;
+        if (status.LastActionUtc is not null)
+        {
+            AutoStopLastRunUtc = status.LastActionUtc;
+        }
+
         UpdateAutomationStatus();
     }
 
@@ -855,10 +860,52 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDispos
             UpdateProcessSummaries();
             UpdateSegmentSummaries();
             _mainViewModel.LogActivityInformation("Process settings", $"{row.DisplayName} set to {row.StatusLabel}.");
+
+            // When switching away from AutoStop, re-enable the service so it can run normally
+            // and clear the guard's stop-history (so it gets a fresh log entry if re-added later).
+            if (action != ProcessActionPreference.AutoStop)
+            {
+                _ = TryReEnableServiceAsync(row.Identifier, row.ServiceIdentifier, row.DisplayName);
+            }
         }
         catch (Exception ex)
         {
             _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", $"Failed to update {row.DisplayName}.", new[] { ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Re-enables a service that was previously disabled by Smart Guard.
+    /// </summary>
+    private async Task TryReEnableServiceAsync(string processIdentifier, string? serviceIdentifier, string displayName)
+    {
+        try
+        {
+            var rawId = serviceIdentifier ?? processIdentifier;
+            if (string.IsNullOrWhiteSpace(rawId) || rawId.Contains('\\') || rawId.Contains('/'))
+            {
+                return; // Task entries; not a service.
+            }
+
+            var resolution = _serviceResolver.ResolveMany(rawId, displayName);
+            if (resolution.Status != ServiceResolutionStatus.Available || resolution.Candidates.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var candidate in resolution.Candidates)
+            {
+                var result = await _processControlService.EnableAsync(candidate.ServiceName).ConfigureAwait(false);
+                if (result.Success)
+                {
+                    _autoStopEnforcer.ClearStopHistory(candidate.ServiceName);
+                    _mainViewModel.LogActivityInformation("Smart Guard", $"Re-enabled {displayName} ({candidate.ServiceName}).");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Smart Guard", $"Could not re-enable {displayName}.", new[] { ex.Message });
         }
     }
 
