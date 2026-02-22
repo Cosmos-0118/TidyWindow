@@ -156,9 +156,15 @@ jobs:
                   Write-Host "Updated $manifestPath with:" 
                   Write-Host $manifestJson
 
-            - name: Commit manifest update
-              uses: stefanzweifel/git-auto-commit-action@v5
+            - name: Create pull request with manifest update
+              uses: peter-evans/create-pull-request@v7
               with:
-                  commit_message: "chore: refresh release manifest"
-                  file_pattern: data/catalog/latest-release.json
-                  branch: ${{ github.event.release.target_commitish }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  commit-message: "chore: refresh release manifest"
+                  branch: chore/refresh-release-manifest
+                  base: ${{ github.event.release.target_commitish }}
+                  title: "chore: refresh release manifest for ${{ github.event.release.tag_name }}"
+                  body: |
+                      Automated update of `data/catalog/latest-release.json` triggered by release **${{ github.event.release.tag_name }}**.
+                  add-paths: data/catalog/latest-release.json
+                  delete-branch: true
