@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -11,6 +13,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using WindowsClipboard = System.Windows.Clipboard;
@@ -24,6 +27,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IUpdateService _updateService;
     private readonly IUpdateInstallerService _updateInstallerService;
     private readonly ITrayService _trayService;
+    private readonly IUserConfirmationService _confirmationService;
     private readonly string _currentVersion;
 
     private bool _telemetryEnabled;
@@ -61,13 +65,15 @@ public sealed class SettingsViewModel : ViewModelBase
         UserPreferencesService preferences,
         IUpdateService updateService,
         IUpdateInstallerService updateInstallerService,
-        ITrayService trayService)
+        ITrayService trayService,
+        IUserConfirmationService confirmationService)
     {
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _updateService = updateService ?? throw new ArgumentNullException(nameof(updateService));
         _updateInstallerService = updateInstallerService ?? throw new ArgumentNullException(nameof(updateInstallerService));
         _trayService = trayService ?? throw new ArgumentNullException(nameof(trayService));
+        _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _currentPrivilegeMode = privilegeService?.CurrentMode ?? PrivilegeMode.Administrator;
         _currentVersion = string.IsNullOrWhiteSpace(_updateService.CurrentVersion)
             ? "0.0.0"
@@ -82,6 +88,8 @@ public sealed class SettingsViewModel : ViewModelBase
         CloseReleaseNotesCommand = new RelayCommand(CloseReleaseNotes);
         CopyReleaseNotesCommand = new RelayCommand(CopyReleaseNotes, () => HasReleaseNotesContent);
         OpenReleaseNotesLinkCommand = new RelayCommand(OpenReleaseNotesLink, () => LatestReleaseNotesUri is not null);
+
+        DataLocations = BuildDataLocations();
     }
 
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
@@ -1213,5 +1221,188 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsInstallerProgressIndeterminate));
         OnPropertyChanged(nameof(InstallerDownloadStatus));
         OnPropertyChanged(nameof(ShowInstallerProgress));
+    }
+
+    // ── App Data Locations ──────────────────────────────────────────────
+
+    public ReadOnlyObservableCollection<AppDataLocationViewModel> DataLocations { get; }
+
+    private ReadOnlyObservableCollection<AppDataLocationViewModel> BuildDataLocations()
+    {
+        var appName = "TidyWindow";
+        var items = new ObservableCollection<AppDataLocationViewModel>
+        {
+            new(
+                "Roaming AppData",
+                "Preferences, process state, service start types",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appName),
+                this),
+            new(
+                "Local AppData",
+                "Automation settings, UI preferences, crash logs",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), appName),
+                this),
+            new(
+                "ProgramData",
+                "Startup backups, guards, registry backups",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), appName),
+                this),
+            new(
+                "Documents",
+                "Cleanup reports, Reset Rescue archives",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), appName),
+                this),
+            new(
+                "Temp Files",
+                "Downloaded updates, transient files",
+                Path.Combine(Path.GetTempPath(), appName),
+                this),
+        };
+
+        return new ReadOnlyObservableCollection<AppDataLocationViewModel>(items);
+    }
+
+    internal void OpenDataLocation(AppDataLocationViewModel location)
+    {
+        if (!Directory.Exists(location.Path))
+        {
+            PublishStatus($"Directory does not exist: {location.Path}");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = location.Path,
+                UseShellExecute = true
+            });
+            PublishStatus($"Opened {location.Title} folder.");
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Could not open folder: {ex.Message}");
+        }
+    }
+
+    internal void DeleteDataLocation(AppDataLocationViewModel location)
+    {
+        if (!Directory.Exists(location.Path))
+        {
+            PublishStatus($"Nothing to delete — {location.Title} folder does not exist.");
+            location.RefreshSize();
+            return;
+        }
+
+        if (!_confirmationService.Confirm(
+            $"Delete {location.Title} data",
+            $"This will permanently delete all files in:\n{location.Path}\n\nAre you sure?"))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(location.Path, recursive: true);
+            PublishStatus($"Deleted {location.Title} folder.");
+            _mainViewModel.LogActivityInformation("Settings", $"Deleted app data: {location.Path}");
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Could not delete {location.Title}: {ex.Message}");
+            _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Settings", $"Failed to delete {location.Path}.", new[] { ex.Message });
+        }
+
+        location.RefreshSize();
+    }
+}
+
+/// <summary>
+/// Represents a single app data storage location shown in the Settings page.
+/// </summary>
+public sealed partial class AppDataLocationViewModel : ObservableObject
+{
+    private readonly SettingsViewModel _owner;
+
+    public AppDataLocationViewModel(string title, string description, string path, SettingsViewModel owner)
+    {
+        Title = title;
+        Description = description;
+        Path = path;
+        _owner = owner;
+
+        OpenCommand = new RelayCommand(() => _owner.OpenDataLocation(this));
+        DeleteCommand = new RelayCommand(() => _owner.DeleteDataLocation(this));
+
+        RefreshSize();
+    }
+
+    public string Title { get; }
+
+    public string Description { get; }
+
+    public string Path { get; }
+
+    [ObservableProperty]
+    private string _sizeDisplay = "—";
+
+    [ObservableProperty]
+    private bool _exists;
+
+    public IRelayCommand OpenCommand { get; }
+
+    public IRelayCommand DeleteCommand { get; }
+
+    public void RefreshSize()
+    {
+        if (!Directory.Exists(Path))
+        {
+            Exists = false;
+            SizeDisplay = "Not found";
+            return;
+        }
+
+        Exists = true;
+
+        try
+        {
+            var dirInfo = new DirectoryInfo(Path);
+            var totalBytes = dirInfo.EnumerateFiles("*", SearchOption.AllDirectories)
+                .Sum(f => f.Length);
+            SizeDisplay = FormatBytes(totalBytes);
+        }
+        catch
+        {
+            SizeDisplay = "Unknown";
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "Empty";
+        }
+
+        const long OneKb = 1024;
+        const long OneMb = 1024 * 1024;
+        const long OneGb = 1024L * 1024 * 1024;
+
+        if (bytes >= OneGb)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0:F1} GB", bytes / (double)OneGb);
+        }
+
+        if (bytes >= OneMb)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0:F1} MB", bytes / (double)OneMb);
+        }
+
+        if (bytes >= OneKb)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0:F1} KB", bytes / (double)OneKb);
+        }
+
+        return $"{bytes} B";
     }
 }

@@ -82,13 +82,15 @@ public sealed class SettingsViewModelTests
         var privilegeService = new StubPrivilegeService();
         var preferences = CreatePreferences(out var cleanup);
         var trayService = new StubTrayService();
+        var confirmationService = new AlwaysConfirmService();
         var viewModel = new SettingsViewModel(
             mainViewModel,
             privilegeService,
             preferences,
             updateService,
             new StubUpdateInstallerService(),
-            trayService);
+            trayService,
+            confirmationService);
 
         dispose = () =>
         {
@@ -215,5 +217,10 @@ public sealed class SettingsViewModelTests
         public void Dispose()
         {
         }
+    }
+
+    private sealed class AlwaysConfirmService : IUserConfirmationService
+    {
+        public bool Confirm(string title, string message) => true;
     }
 }
