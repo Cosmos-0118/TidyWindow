@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -245,6 +246,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
         RestoreFromBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(RestoreFromBackupAsync, CanRestoreFromBackup);
         DeleteBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DeleteBackupAsync, CanDeleteBackup);
+        SearchOnlineCommand = new RelayCommand<StartupEntryItemViewModel>(SearchOnline);
 
         StartupGuardEnabled = _preferences.Current.StartupGuardEnabled;
         ShowStartupHero = _preferences.Current.ShowStartupHero;
@@ -288,6 +290,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DeleteBackupCommand { get; }
 
+    public IRelayCommand<StartupEntryItemViewModel> SearchOnlineCommand { get; }
+
     [RelayCommand]
     private void DismissReenabledAlert()
     {
@@ -318,6 +322,28 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
         _currentPage++;
         RefreshPagedEntries(raisePageChanged: true);
+    }
+
+    private static void SearchOnline(StartupEntryItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var name = item.Name ?? item.Item?.ExecutablePath ?? "unknown";
+        var publisher = item.Publisher ?? string.Empty;
+        var query = Uri.EscapeDataString($"Is it safe to disable \"{name}\" {publisher} Windows startup");
+        var url = $"https://www.google.com/search?q={query}";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Browser launch failed – nothing we can do.
+        }
     }
 
     private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && !item.IsBackupOnly;

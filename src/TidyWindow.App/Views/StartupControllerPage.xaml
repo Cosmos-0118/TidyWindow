@@ -796,7 +796,7 @@
                                             </ToggleButton>
 
                                             <!-- Delay Button -->
-                                            <Button Style="{StaticResource BtnSecondary}" Padding="12,6"
+                                            <Button Style="{StaticResource BtnSecondary}" Padding="12,6" Margin="0,0,8,0"
                                                     Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}"
                                                     IsEnabled="{Binding CanDelay}"
@@ -804,6 +804,17 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                     <TextBlock Text="Delay Start" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Search Online: Is it safe to disable? -->
+                                            <Button Style="{StaticResource BtnSecondary}" Padding="12,6"
+                                                    Command="{Binding DataContext.SearchOnlineCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Search the web to check if it's safe to disable this startup">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xF6FA;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Is it Safe?" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
