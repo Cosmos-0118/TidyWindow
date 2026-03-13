@@ -1,6 +1,6 @@
 # TidyWindow
 
-Windows maintenance companion for builders who prioritize safety, repeatability, and observability. TidyWindow coordinates PowerShell 7 automations through managed .NET services so every action is guarded, logged, and reversible.
+Windows maintenance companion for builders who prioritize safety, repeatability, and observability. TidyWindow coordinates PowerShell 7 automations through managed .NET services so every action is guarded, logged, and reversible and heavily secure.
 
 ## At a Glance
 
