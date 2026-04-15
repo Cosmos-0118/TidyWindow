@@ -2,443 +2,302 @@ param(
     [switch] $SkipShellExtensionCleanup,
     [switch] $SkipFileAssociationRepair,
     [switch] $SkipLibraryRestore,
-    [switch] $SkipDoubleClickReset,
+    [switch] $DryRun,
     [string] $ResultPath
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# ── Module bootstrap ──────────────────────────────────────────────────
 $callerModulePath = $MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
-    $callerModulePath = $PSCommandPath
-}
-
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) { $callerModulePath = $PSCommandPath }
 $scriptDirectory = Split-Path -Parent $callerModulePath
-if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
-    $scriptDirectory = (Get-Location).Path
-}
-
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
-$modulePath = [System.IO.Path]::GetFullPath($modulePath)
-if (-not (Test-Path -Path $modulePath)) {
-    throw "Automation module not found at path '$modulePath'."
-}
-
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) { $scriptDirectory = (Get-Location).Path }
+$modulePath = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'))
+if (-not (Test-Path $modulePath)) { throw "Automation module not found at '$modulePath'." }
 Import-Module $modulePath -Force
 
-$script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
-$script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
+# ── Result tracking ───────────────────────────────────────────────────
+$script:TidyOutputLines  = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines   = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
-$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:UsingResultFile  = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DryRunMode       = $DryRun.IsPresent
+if ($script:UsingResultFile) { $ResultPath = [System.IO.Path]::GetFullPath($ResultPath) }
 
-if ($script:UsingResultFile) {
-    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+function Write-TidyOutput { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyOutputLines.Add($t); Write-TidyLog -Level Information -Message $t
 }
-
-function Write-TidyOutput {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
+function Write-TidyError { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyErrorLines.Add($t); TidyWindow.Automation\Write-TidyError -Message $t
 }
-
-function Write-TidyError {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyError -Message $text
-}
-
 function Save-TidyResult {
-    if (-not $script:UsingResultFile) {
-        return
-    }
-
+    if (-not $script:UsingResultFile) { return }
     $payload = [pscustomobject]@{
         Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
         Output  = $script:TidyOutputLines
         Errors  = $script:TidyErrorLines
     }
-
-    $json = $payload | ConvertTo-Json -Depth 5
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+    Set-Content -Path $ResultPath -Value ($payload | ConvertTo-Json -Depth 5) -Encoding UTF8
 }
-
-function Invoke-TidyCommand {
-    param(
-        [Parameter(Mandatory = $true)]
-        [scriptblock] $Command,
-        [string] $Description = 'Running command.',
-        [object[]] $Arguments = @(),
-        [switch] $RequireSuccess,
-        [int[]] $AcceptableExitCodes = @()
-    )
-
-    Write-TidyLog -Level Information -Message $Description
-
-    if (Test-Path -Path 'variable:LASTEXITCODE') {
-        $global:LASTEXITCODE = 0
-    }
-
-    $output = & $Command @Arguments 2>&1
-    $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
-
-    if ($exitCode -eq 0 -and $output) {
-        $lastItem = ($output | Select-Object -Last 1)
-        if ($lastItem -is [int] -or $lastItem -is [long]) {
-            $exitCode = [int]$lastItem
-        }
-    }
-
-    foreach ($entry in @($output)) {
-        if ($null -eq $entry) { continue }
-
-        if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            Write-TidyError -Message $entry
-        }
-        else {
-            Write-TidyOutput -Message $entry
-        }
-    }
-
-    if ($RequireSuccess -and $exitCode -ne 0) {
-        $acceptsExitCode = $false
-        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
-            $acceptsExitCode = $true
-        }
-
-        if (-not $acceptsExitCode) {
-            throw "$Description failed with exit code $exitCode."
-        }
-    }
-
-    return $exitCode
-}
-
 function Test-TidyAdmin {
-    return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    [bool](New-Object System.Security.Principal.WindowsPrincipal(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Ensure-RegistryKey {
-    param([Parameter(Mandatory = $true)][string] $Path)
-
-    if (Test-Path -LiteralPath $Path) {
+function Invoke-Step {
+    param(
+        [Parameter(Mandatory)][string]      $Name,
+        [Parameter(Mandatory)][scriptblock] $Action,
+        [switch] $Critical
+    )
+    if ($script:DryRunMode) {
+        Write-TidyOutput -Message "[DryRun] Would run: $Name"
         return
     }
-
+    Write-TidyOutput -Message "-> $Name"
     try {
-        [void](New-Item -Path $Path -Force)
+        & $Action
+        Write-TidyOutput -Message "  OK: $Name succeeded."
     }
     catch {
+        $msg = $_.Exception.Message
+        if ($Critical) {
+            Write-TidyError -Message "  FAIL: $Name (critical): $msg"
+            $script:OperationSucceeded = $false
+            throw
+        }
+        Write-TidyError -Message "  FAIL: $Name: $msg"
         $script:OperationSucceeded = $false
-        Write-TidyError -Message ("Failed to create registry key {0}: {1}" -f $Path, $_.Exception.Message)
-        throw
     }
 }
 
-function Get-InProcServerPath {
-    param([Parameter(Mandatory = $true)][string] $Clsid)
-
-    $clsidPath = "Registry::HKEY_CLASSES_ROOT\CLSID\$Clsid\InprocServer32"
-    try {
-        $value = (Get-ItemProperty -Path $clsidPath -ErrorAction Stop).'(default)'
-        return $value
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
+try {
+    if (-not (Test-TidyAdmin)) {
+        throw 'Explorer and context repair requires an elevated PowerShell session.'
     }
-    catch {
-        return $null
+
+    $backupDir = Get-TidyBackupDirectory -FeatureName 'ExplorerRepair'
+    Write-TidyOutput -Message "Backup directory: $backupDir"
+    Write-TidyOutput -Message 'Starting Explorer and context menu repair.'
+
+    # ── 1. Clean stale shell extensions (opt-out) ─────────────────────
+    if ($SkipShellExtensionCleanup.IsPresent) {
+        Write-TidyOutput -Message 'Shell extension cleanup skipped.'
     }
-}
+    else {
+        Invoke-Step -Name 'Clean stale shell extensions' -Action {
+            $handlerPaths = @(
+                'Registry::HKEY_CLASSES_ROOT\*\shellex\ContextMenuHandlers',
+                'Registry::HKEY_CLASSES_ROOT\Directory\shellex\ContextMenuHandlers',
+                'Registry::HKEY_CLASSES_ROOT\Directory\Background\shellex\ContextMenuHandlers',
+                'Registry::HKEY_CLASSES_ROOT\Folder\shellex\ContextMenuHandlers'
+            )
 
-function Clean-ShellExtensions {
-    $approvedKeys = @(
-        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved',
-        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved'
-    )
+            $removed = 0
+            foreach ($basePath in $handlerPaths) {
+                if (-not (Test-Path -LiteralPath $basePath)) { continue }
+                $handlers = Get-ChildItem -LiteralPath $basePath -ErrorAction SilentlyContinue
+                foreach ($handler in $handlers) {
+                    try {
+                        $clsid = (Get-ItemProperty -LiteralPath $handler.PSPath -Name '(default)' -ErrorAction SilentlyContinue).'(default)'
+                        if ([string]::IsNullOrWhiteSpace($clsid)) { continue }
 
-    $blockedKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked'
-    Ensure-RegistryKey -Path $blockedKey
+                        # Verify the CLSID exists and has a valid InprocServer32.
+                        $clsidPath = "Registry::HKEY_CLASSES_ROOT\CLSID\$clsid\InprocServer32"
+                        if (-not (Test-Path -LiteralPath $clsidPath)) {
+                            # Backup before removal.
+                            Backup-TidyRegistryKey -KeyPath $handler.PSPath -BackupDirectory $backupDir -Label 'shellex'
+                            Remove-Item -LiteralPath $handler.PSPath -Recurse -Force -ErrorAction Stop
+                            $removed++
+                            continue
+                        }
 
-    $blocked = 0
-    foreach ($key in $approvedKeys) {
-        if (-not (Test-Path -LiteralPath $key)) { continue }
-
-        $properties = (Get-ItemProperty -Path $key -ErrorAction SilentlyContinue).PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' }
-        foreach ($prop in $properties) {
-            $clsid = $prop.Name
-            if ([string]::IsNullOrWhiteSpace($clsid)) { continue }
-
-            $dllPath = Get-InProcServerPath -Clsid $clsid
-            $isMissing = [string]::IsNullOrWhiteSpace($dllPath) -or -not (Test-Path -LiteralPath $dllPath)
-            if (-not $isMissing) { continue }
-
-            try {
-                New-ItemProperty -Path $blockedKey -Name $clsid -PropertyType String -Value '' -Force | Out-Null
+                        $dllPath = (Get-ItemProperty -LiteralPath $clsidPath -Name '(default)' -ErrorAction SilentlyContinue).'(default)'
+                        if (-not [string]::IsNullOrWhiteSpace($dllPath)) {
+                            $resolved = [Environment]::ExpandEnvironmentVariables($dllPath)
+                            if (-not (Test-Path -LiteralPath $resolved)) {
+                                Backup-TidyRegistryKey -KeyPath $handler.PSPath -BackupDirectory $backupDir -Label 'shellex'
+                                Remove-Item -LiteralPath $handler.PSPath -Recurse -Force -ErrorAction Stop
+                                $removed++
+                            }
+                        }
+                    }
+                    catch {
+                        Write-TidyLog -Level Warning -Message "Shell handler check failed for '$($handler.Name)': $($_.Exception.Message)"
+                    }
+                }
             }
-            catch {
-                $script:OperationSucceeded = $false
-                Write-TidyError -Message ("Failed to block shell extension {0}: {1}" -f $clsid, $_.Exception.Message)
-                continue
-            }
-
-            try {
-                Remove-ItemProperty -Path $key -Name $clsid -ErrorAction SilentlyContinue
-            }
-            catch {
-                Write-TidyOutput -Message ("Could not remove stale entry {0} from Approved: {1}" -f $clsid, $_.Exception.Message)
-            }
-
-            $blocked++
-            Write-TidyOutput -Message ("Blocked stale shell extension {0} (missing handler)." -f $clsid)
+            Write-TidyOutput -Message "  Removed $removed stale shell extension handler(s)."
         }
     }
 
-    if ($blocked -eq 0) {
-        Write-TidyOutput -Message 'No stale shell extensions found in Approved lists.'
+    # ── 2. Repair .exe and .lnk file associations (opt-out) ──────────
+    if ($SkipFileAssociationRepair.IsPresent) {
+        Write-TidyOutput -Message 'File association repair skipped.'
     }
     else {
-        Write-TidyOutput -Message ("Blocked {0} stale shell extension(s) and pruned Approved entries." -f $blocked)
+        Invoke-Step -Name 'Repair .exe and .lnk associations' -Action {
+            # Backup current associations before modifying.
+            foreach ($ext in @('.exe', '.lnk')) {
+                $extKey = "Registry::HKEY_CLASSES_ROOT\$ext"
+                if (Test-Path -LiteralPath $extKey) {
+                    Backup-TidyRegistryKey -KeyPath $extKey -BackupDirectory $backupDir -Label "assoc-$ext"
+                }
+            }
+
+            # Ensure .exe association is set to exefile.
+            $exeKeyPath = 'Registry::HKEY_CLASSES_ROOT\.exe'
+            if (-not (Test-Path -LiteralPath $exeKeyPath)) {
+                New-Item -Path $exeKeyPath -Force | Out-Null
+            }
+            $current = (Get-ItemProperty -LiteralPath $exeKeyPath -Name '(default)' -ErrorAction SilentlyContinue).'(default)'
+            if ($current -ne 'exefile') {
+                Set-ItemProperty -Path $exeKeyPath -Name '(default)' -Value 'exefile' -Type String
+                Write-TidyOutput -Message '  Restored .exe -> exefile association.'
+            }
+
+            # Ensure exefile\shell\open\command is correct.
+            $openCmdPath = 'Registry::HKEY_CLASSES_ROOT\exefile\shell\open\command'
+            if (-not (Test-Path -LiteralPath $openCmdPath)) {
+                New-Item -Path $openCmdPath -Force | Out-Null
+            }
+            Set-ItemProperty -Path $openCmdPath -Name '(default)' -Value '"%1" %*' -Type String
+
+            # Ensure .lnk association is set to lnkfile.
+            $lnkKeyPath = 'Registry::HKEY_CLASSES_ROOT\.lnk'
+            if (-not (Test-Path -LiteralPath $lnkKeyPath)) {
+                New-Item -Path $lnkKeyPath -Force | Out-Null
+            }
+            $currentLnk = (Get-ItemProperty -LiteralPath $lnkKeyPath -Name '(default)' -ErrorAction SilentlyContinue).'(default)'
+            if ($currentLnk -ne 'lnkfile') {
+                Set-ItemProperty -Path $lnkKeyPath -Name '(default)' -Value 'lnkfile' -Type String
+                Write-TidyOutput -Message '  Restored .lnk -> lnkfile association.'
+            }
+        }
     }
-}
 
-function Repair-FileAssociations {
-    try {
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\.exe'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile\shell\open\command'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile\DefaultIcon'
-
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\.exe' -Name '(default)' -Value 'exefile' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile' -Name 'FriendlyTypeName' -Value '@%SystemRoot%\System32\shell32.dll,-10150' -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile\shell\open\command' -Name '(default)' -Value '"%1" %*' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile\DefaultIcon' -Name '(default)' -Value '"%1"' -ErrorAction SilentlyContinue
-
-        Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.exe\UserChoice' -Recurse -Force -ErrorAction SilentlyContinue
-
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\.lnk'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile\ShellEx'
-
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\.lnk' -Name '(default)' -Value 'lnkfile' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile' -Name 'IsShortcut' -Value '' -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile' -Name 'NeverShowExt' -Value '' -ErrorAction SilentlyContinue
-
-        Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.lnk\UserChoice' -Recurse -Force -ErrorAction SilentlyContinue
-
-        Write-TidyOutput -Message 'Repaired .exe and .lnk file associations to defaults.'
+    # ── 3. Restore default Windows libraries (opt-out) ────────────────
+    if ($SkipLibraryRestore.IsPresent) {
+        Write-TidyOutput -Message 'Library restore skipped.'
     }
-    catch {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message ("File association repair failed: {0}" -f $_.Exception.Message)
-    }
-}
+    else {
+        Invoke-Step -Name 'Restore default libraries' -Action {
+            $librariesDir = Join-Path $env:APPDATA 'Microsoft\Windows\Libraries'
+            if (-not (Test-Path -LiteralPath $librariesDir)) {
+                New-Item -Path $librariesDir -ItemType Directory -Force | Out-Null
+            }
 
-function New-LibraryXml {
-    param(
-        [Parameter(Mandatory = $true)][string] $DisplayName,
-        [Parameter(Mandatory = $true)][string] $ShellUrl,
-        [Parameter(Mandatory = $true)][string] $FolderTypeGuid,
-        [Parameter(Mandatory = $true)][string] $IconReference
-    )
+            $defaultLibs = @(
+                @{ Name = 'Documents'; FolderType = '{7D49D726-3C21-4F05-99AA-FDC2C9474656}'; KnownFolder = '{FDD39AD0-238F-46AF-ADB4-6C85480369C7}'; Icon = 'imageres.dll,-112' },
+                @{ Name = 'Music';     FolderType = '{94D6DDCC-4A68-4175-A374-BD584A510B78}'; KnownFolder = '{4BD8D571-6D19-48D3-BE97-422220080E43}'; Icon = 'imageres.dll,-108' },
+                @{ Name = 'Pictures';  FolderType = '{B3690E58-E961-423B-B687-386EBFD83239}'; KnownFolder = '{33E28130-4E1E-4676-835A-98395C3BC3BB}'; Icon = 'imageres.dll,-113' },
+                @{ Name = 'Videos';    FolderType = '{5FA96407-7E77-483C-AC93-691D05850DE8}'; KnownFolder = '{18989B1D-99B5-455B-841C-AB7C74E4DDFC}'; Icon = 'imageres.dll,-189' }
+            )
 
-    return @"
+            # Try to copy from system templates first.
+            $templateRoots = @(
+                (Join-Path $env:SystemRoot 'SysWOW64'),
+                (Join-Path $env:SystemRoot 'System32')
+            )
+
+            foreach ($lib in $defaultLibs) {
+                $targetPath = Join-Path $librariesDir "$($lib.Name).library-ms"
+                $restored = $false
+
+                foreach ($root in $templateRoots) {
+                    $templateFile = Join-Path $root "$($lib.Name).library-ms"
+                    if (Test-Path -LiteralPath $templateFile) {
+                        Copy-Item -LiteralPath $templateFile -Destination $targetPath -Force
+                        $restored = $true
+                        break
+                    }
+                }
+
+                if (-not $restored) {
+                    # Generate minimal library XML as a last resort.
+                    $xml = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <libraryDescription xmlns="http://schemas.microsoft.com/windows/2009/library">
-  <name>$DisplayName</name>
-  <version>6</version>
+  <name>@shell32.dll,-34575</name>
+  <version>1</version>
   <isLibraryPinned>true</isLibraryPinned>
-  <iconReference>$IconReference</iconReference>
-  <templateInfo>
-    <folderType>$FolderTypeGuid</folderType>
-  </templateInfo>
+  <iconReference>$($lib.Icon)</iconReference>
+  <templateInfo><folderType>$($lib.FolderType)</folderType></templateInfo>
   <searchConnectorDescriptionList>
-    <searchConnectorDescription>
-      <isDefaultSaveLocation>true</isDefaultSaveLocation>
-      <isPinnedToNavigationPane>true</isPinnedToNavigationPane>
-      <simpleLocation>
-        <url>$ShellUrl</url>
-      </simpleLocation>
+    <searchConnectorDescription><isDefaultSaveLocation>true</isDefaultSaveLocation>
+      <simpleLocation><url>knownfolder:$($lib.KnownFolder)</url></simpleLocation>
     </searchConnectorDescription>
   </searchConnectorDescriptionList>
 </libraryDescription>
 "@
-}
-
-function Restore-DefaultLibraries {
-    $libraryRoot = Join-Path -Path $env:APPDATA -ChildPath 'Microsoft\Windows\Libraries'
-    Ensure-RegistryKey -Path $libraryRoot
-
-    $templates = @(
-        (Join-Path -Path $env:SystemDrive -ChildPath 'Users\Default\AppData\Roaming\Microsoft\Windows\Libraries'),
-        (Join-Path -Path $env:PUBLIC -ChildPath 'Libraries')
-    )
-
-    $definitions = @(
-        @{ Name = 'Documents'; ShellUrl = 'shell:Personal'; FolderType = '{7d49d726-3c21-4f05-99aa-fdc2c9474656}'; Icon = 'imageres.dll,-1002' },
-        @{ Name = 'Music'; ShellUrl = 'shell:My Music'; FolderType = '{94d6ddcc-4a68-4175-a374-bd584a510b78}'; Icon = 'imageres.dll,-108' },
-        @{ Name = 'Pictures'; ShellUrl = 'shell:My Pictures'; FolderType = '{b3690e58-e961-423b-b687-386ebfd83239}'; Icon = 'imageres.dll,-113' },
-        @{ Name = 'Videos'; ShellUrl = 'shell:My Video'; FolderType = '{5fa96407-7e77-483c-ac93-691d05850de8}'; Icon = 'imageres.dll,-189' }
-    )
-
-    $restored = 0
-    foreach ($entry in $definitions) {
-        $targetPath = Join-Path -Path $libraryRoot -ChildPath ("{0}.library-ms" -f $entry.Name)
-        if (Test-Path -LiteralPath $targetPath) {
-            Write-TidyOutput -Message ("Library '{0}' already present." -f $entry.Name)
-            continue
-        }
-
-        $copied = $false
-        foreach ($templateRoot in $templates) {
-            if ([string]::IsNullOrWhiteSpace($templateRoot)) { continue }
-
-            $templatePath = Join-Path -Path $templateRoot -ChildPath ("{0}.library-ms" -f $entry.Name)
-            if (Test-Path -LiteralPath $templatePath) {
-                try {
-                    Copy-Item -LiteralPath $templatePath -Destination $targetPath -Force
-                    $copied = $true
-                    break
-                }
-                catch {
-                    Write-TidyOutput -Message ("Failed to copy template for {0}: {1}" -f $entry.Name, $_.Exception.Message)
+                    Set-Content -Path $targetPath -Value $xml -Encoding UTF8
                 }
             }
+            Write-TidyOutput -Message "  Restored $($defaultLibs.Count) default library definitions."
+        }
+    }
+
+    # ── 4. Graceful Explorer restart ──────────────────────────────────
+    Invoke-Step -Name 'Restart Explorer' -Action {
+        # Give Explorer a chance to close gracefully rather than force-killing.
+        $explorerProcs = @(Get-Process -Name explorer -ErrorAction SilentlyContinue)
+        if ($explorerProcs.Count -eq 0) {
+            Write-TidyOutput -Message '  Explorer is not running. Starting it.'
+            Start-Process explorer.exe
+            return
         }
 
-        if (-not $copied) {
+        foreach ($proc in $explorerProcs) {
             try {
-                $xml = New-LibraryXml -DisplayName $entry.Name -ShellUrl $entry.ShellUrl -FolderTypeGuid $entry.FolderType -IconReference $entry.Icon
-                Set-Content -Path $targetPath -Value $xml -Encoding UTF8 -Force
-                $copied = $true
+                # Try graceful close first (sends WM_CLOSE).
+                $closed = $proc.CloseMainWindow()
+                if ($closed) {
+                    $proc.WaitForExit(5000) | Out-Null
+                }
             }
-            catch {
-                $script:OperationSucceeded = $false
-                Write-TidyError -Message ("Failed to generate library file for {0}: {1}" -f $entry.Name, $_.Exception.Message)
-                continue
-            }
+            catch { }
         }
 
-        if ($copied) {
-            $restored++
-            Write-TidyOutput -Message ("Restored '{0}' library." -f $entry.Name)
+        # If any explorer processes remain, force-stop them.
+        $remaining = @(Get-Process -Name explorer -ErrorAction SilentlyContinue)
+        foreach ($proc in $remaining) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+        }
+
+        Start-Sleep -Milliseconds 500
+        Start-Process explorer.exe
+
+        # Wait for Explorer to fully start.
+        $waited = 0
+        while ($waited -lt 10) {
+            Start-Sleep -Seconds 1; $waited++
+            $running = Get-Process -Name explorer -ErrorAction SilentlyContinue
+            if ($running) { break }
+        }
+
+        if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) {
+            # Emergency: start Explorer if it didn't come back.
+            Start-Process explorer.exe
+            Write-TidyError -Message '  Explorer did not restart within 10 seconds. Emergency start issued.'
         }
     }
 
-    if ($restored -eq 0) {
-        Write-TidyOutput -Message 'No libraries required restoration.'
-    }
-    else {
-        Write-TidyOutput -Message ("Restored {0} library file(s)." -f $restored)
-    }
-}
-
-function Reset-DoubleClickAndExplorerTweaks {
-    try {
-        Ensure-RegistryKey -Path 'HKCU:\Control Panel\Mouse'
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Mouse' -Name 'DoubleClickSpeed' -Value '500' -ErrorAction Stop
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Mouse' -Name 'DoubleClickWidth' -Value 4 -ErrorAction Stop
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Mouse' -Name 'DoubleClickHeight' -Value 4 -ErrorAction Stop
-
-        Ensure-RegistryKey -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
-        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'LaunchTo' -ErrorAction SilentlyContinue
-
-        foreach ($policyKey in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer')) {
-            if (-not (Test-Path -LiteralPath $policyKey)) { continue }
-            foreach ($name in @('NoViewContextMenu', 'NoFolderOptions', 'NoFileAssociate')) {
-                Remove-ItemProperty -Path $policyKey -Name $name -ErrorAction SilentlyContinue
-            }
-        }
-
-        Invoke-TidyCommand -Command { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue } -Description 'Restarting explorer to apply double-click and policy resets.'
-        Start-Sleep -Milliseconds 300
-        Invoke-TidyCommand -Command { Start-Process explorer.exe } -Description 'Starting explorer.' -RequireSuccess
-
-        Write-TidyOutput -Message 'Reset double-click thresholds and cleared Explorer policy overrides.'
-    }
-    catch {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message ("Double-click/Explorer reset failed: {0}" -f $_.Exception.Message)
-    }
-}
-
-try {
-    if (-not (Test-TidyAdmin)) {
-        throw 'File Explorer and context repair requires an elevated PowerShell session. Restart as administrator.'
-    }
-
-    Write-TidyLog -Level Information -Message 'Starting File Explorer and context menu repair pack.'
-
-    if (-not $SkipShellExtensionCleanup.IsPresent) {
-        Clean-ShellExtensions
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping shell extension cleanup per operator request.'
-    }
-
-    if (-not $SkipFileAssociationRepair.IsPresent) {
-        Repair-FileAssociations
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping file association repair per operator request.'
-    }
-
-    if (-not $SkipLibraryRestore.IsPresent) {
-        Restore-DefaultLibraries
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping default library restore per operator request.'
-    }
-
-    if (-not $SkipDoubleClickReset.IsPresent) {
-        Reset-DoubleClickAndExplorerTweaks
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping double-click and Explorer reset per operator request.'
-    }
-
-    Write-TidyOutput -Message 'File Explorer and context repair pack completed.'
+    Write-TidyOutput -Message ''
+    Write-TidyOutput -Message 'Explorer and context menu repair completed.'
+    Write-TidyOutput -Message "Registry backups saved to: $backupDir"
 }
 catch {
     $script:OperationSucceeded = $false
-    $message = $_.Exception.Message
-    if ([string]::IsNullOrWhiteSpace($message)) {
-        $message = $_ | Out-String
-    }
-
-    Write-TidyLog -Level Error -Message $message
-    Write-TidyError -Message $message
-    if (-not $script:UsingResultFile) {
-        throw
-    }
+    Write-TidyError -Message "Explorer repair failed: $($_.Exception.Message)"
 }
 finally {
     Save-TidyResult
-    Write-TidyLog -Level Information -Message 'File Explorer and context repair script finished.'
-}
-
-if ($script:UsingResultFile) {
-    $wasSuccessful = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-    if ($wasSuccessful) {
-        exit 0
-    }
-
-    exit 1
 }

@@ -15,10 +15,14 @@ using System.Text.Json;
 namespace TidyWindow.Core.Automation;
 
 /// <summary>
-/// Provides asynchronous execution helpers for PowerShell scripts using runspaces.
+/// Provides asynchronous execution helpers for PowerShell scripts using a shared
+/// <see cref="RunspacePool"/> to avoid the massive overhead of creating a new
+/// runspace for every invocation (~500 ms – 2 s each).
 /// </summary>
-public sealed class PowerShellInvoker
+public sealed class PowerShellInvoker : IDisposable
 {
+    private const int MinPoolSize = 1;
+    private const int MaxPoolSize = 4;
     private const int MaxDetailDepth = 4;
     private const int MaxSerializedLength = 4096;
 
@@ -48,27 +52,44 @@ public sealed class PowerShellInvoker
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public async Task<PowerShellInvocationResult> InvokeScriptAsync(
-        string scriptPath,
-        IReadOnlyDictionary<string, object?>? parameters = null,
-        CancellationToken cancellationToken = default)
+    private RunspacePool? _pool;
+    private readonly object _poolLock = new();
+    private volatile bool _poolFaulted;
+    private bool _disposed;
+
+    private RunspacePool EnsurePool()
     {
-        _ = TypeAcceleratorsInitialized.Value; // Ensure PowerShell type accelerator cache is populated once.
+        if (_disposed) throw new ObjectDisposedException(nameof(PowerShellInvoker));
 
-        if (string.IsNullOrWhiteSpace(scriptPath))
+        if (_pool is { RunspacePoolStateInfo.State: RunspacePoolState.Opened } existing && !_poolFaulted)
+            return existing;
+
+        lock (_poolLock)
         {
-            throw new ArgumentException("Script path must be provided.", nameof(scriptPath));
-        }
+            if (_pool is { RunspacePoolStateInfo.State: RunspacePoolState.Opened } existingInner && !_poolFaulted)
+                return existingInner;
 
-        if (!File.Exists(scriptPath))
-        {
-            throw new FileNotFoundException("The specified PowerShell script was not found.", scriptPath);
-        }
+            // Dispose any faulted/closed pool before recreating.
+            if (_pool is not null)
+            {
+                try { _pool.Dispose(); } catch { /* best effort */ }
+                _pool = null;
+            }
 
-        // Use the PS Core default session so core modules like Microsoft.PowerShell.Utility load correctly.
+            var initialState = CreateInitialSessionState();
+            var pool = RunspaceFactory.CreateRunspacePool(MinPoolSize, MaxPoolSize, initialState, TypeAcceleratorsInitialized.Value ? null! : null!);
+            pool.ThreadOptions = PSThreadOptions.UseNewThread;
+            pool.Open();
+            _poolFaulted = false;
+            _pool = pool;
+            return pool;
+        }
+    }
+
+    private static InitialSessionState CreateInitialSessionState()
+    {
         var initialState = InitialSessionState.CreateDefault2();
 
-        // ImportPSCoreModules exists on PS 6+ and pulls in the intrinsic modules packaged with PowerShell.
         var importProperty = typeof(InitialSessionState).GetProperty("ImportPSCoreModules");
         if (importProperty?.CanWrite == true)
         {
@@ -82,26 +103,55 @@ public sealed class PowerShellInvoker
             executionPolicyProperty.SetValue(initialState, bypassValue);
         }
 
-        using var runspace = RunspaceFactory.CreateRunspace(initialState);
-        runspace.Open();
+        return initialState;
+    }
+
+    public async Task<PowerShellInvocationResult> InvokeScriptAsync(
+        string scriptPath,
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        CancellationToken cancellationToken = default)
+    {
+        _ = TypeAcceleratorsInitialized.Value;
+
+        if (string.IsNullOrWhiteSpace(scriptPath))
+        {
+            throw new ArgumentException("Script path must be provided.", nameof(scriptPath));
+        }
+
+        if (!File.Exists(scriptPath))
+        {
+            throw new FileNotFoundException("The specified PowerShell script was not found.", scriptPath);
+        }
 
         var scriptDirectory = Path.GetDirectoryName(scriptPath);
-        if (!string.IsNullOrEmpty(scriptDirectory))
+
+        RunspacePool pool;
+        try
         {
-            runspace.SessionStateProxy.Path.SetLocation(scriptDirectory);
+            pool = EnsurePool();
+        }
+        catch
+        {
+            // If pool creation fails entirely, fall back to external process.
+            return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
         }
 
         using PowerShell ps = PowerShell.Create();
-        ps.Runspace = runspace;
+        ps.RunspacePool = pool;
 
-        ps.AddCommand(scriptPath, useLocalScope: false);
+        // Set the working directory for the script via a Set-Location preamble so the
+        // pooled runspace doesn't permanently change its location for other callers.
+        if (!string.IsNullOrEmpty(scriptDirectory))
+        {
+            ps.AddCommand("Set-Location").AddParameter("LiteralPath", scriptDirectory).AddStatement();
+        }
+
+        ps.AddCommand(scriptPath, useLocalScope: true);
 
         if (parameters is not null)
         {
             foreach (var kvp in parameters)
             {
-                // For the in-process runspace we can add parameters directly; let the PowerShell host
-                // handle proper conversion of booleans, arrays, etc.
                 ps.AddParameter(kvp.Key, kvp.Value);
             }
         }
@@ -186,6 +236,7 @@ public sealed class PowerShellInvoker
         {
             if (IsMissingBuiltInModuleError(ex))
             {
+                _poolFaulted = true;
                 return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
             }
 
@@ -195,9 +246,14 @@ public sealed class PowerShellInvoker
             }
             encounteredRuntimeError = true;
         }
+        catch (InvalidRunspacePoolStateException)
+        {
+            // The pool broke mid-invocation — mark it faulted so next call rebuilds it,
+            // and fall back to external process for this invocation.
+            _poolFaulted = true;
+            return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
+        }
 
-        // If the runspace failed due to missing built-in modules (common when hosting on Core without $PSHOME),
-        // fall back to launching an external PowerShell process which has the full environment.
         List<string> outputSnapshot;
         List<string> errorSnapshot;
         lock (output)
@@ -212,6 +268,7 @@ public sealed class PowerShellInvoker
 
         if (errorSnapshot.Any(IsMissingBuiltInModuleMessage))
         {
+            _poolFaulted = true;
             try
             {
                 return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
@@ -236,6 +293,22 @@ public sealed class PowerShellInvoker
             new ReadOnlyCollection<string>(outputSnapshot),
             new ReadOnlyCollection<string>(errorSnapshot),
             ps.HadErrors || encounteredRuntimeError ? 1 : 0);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        lock (_poolLock)
+        {
+            if (_pool is not null)
+            {
+                try { _pool.Close(); } catch { /* best effort */ }
+                try { _pool.Dispose(); } catch { /* best effort */ }
+                _pool = null;
+            }
+        }
     }
 
     private static IEnumerable<string> FormatErrorRecord(ErrorRecord? record)

@@ -370,13 +370,16 @@ public partial class MainWindow : Window
         ContentFrame.Content = null; // Release the visual tree so memory can drop while in the tray.
         _navigationService.ClearCache();
 
-        // Hint the GC so large visuals are reclaimed promptly; does not affect automation services.
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-
-        TrimWorkingSet();
         _contentDetached = true;
+
+        // GC on a background thread so the UI thread stays responsive.
+        _ = Task.Run(() =>
+        {
+            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(0, GCCollectionMode.Optimized, blocking: false);
+            TrimWorkingSet();
+        });
     }
 
     private void RestoreContentAfterBackground()

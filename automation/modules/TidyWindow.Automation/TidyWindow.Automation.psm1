@@ -4,7 +4,8 @@ $moduleParts = @(
     'packages.ps1',
     'registry.ps1',
     'apps.ps1',
-    'core.ps1'
+    'core.ps1',
+    'safety.ps1'
 )
 
 foreach ($part in $moduleParts) {
@@ -56,7 +57,15 @@ $exportedFunctions = @(
     'Stop-TidyProcesses',
     'ConvertTo-TidyRegistryPath',
     'Measure-TidyDirectoryBytes',
-    'New-TidyArtifactId'
+    'New-TidyArtifactId',
+    'Invoke-TidySafeServiceRestart',
+    'Invoke-TidySafeServiceStop',
+    'Restore-TidyServiceState',
+    'Backup-TidyRegistryKey',
+    'Test-TidyGroupPolicyManaged',
+    'Wait-TidyServiceStatus',
+    'Invoke-TidyNativeCommand',
+    'Get-TidyBackupDirectory'
 )
 
 Export-ModuleMember -Function $exportedFunctions

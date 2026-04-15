@@ -254,6 +254,8 @@ function Repair-ProfileImagePath {
             Write-TidyOutput -Message 'ProfileImagePath already matches USERPROFILE. No change needed.'
         }
         else {
+            # SAFETY: Backup the ProfileList registry key before modification.
+            Backup-TidyRegistryKey -Path ('HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{0}' -f $sid)
             Write-TidyOutput -Message ("Setting ProfileImagePath for SID {0} to {1}." -f $sid, $userProfilePath)
             Set-ItemProperty -LiteralPath $profileKey -Name ProfileImagePath -Value $userProfilePath -Force -ErrorAction Stop
         }
@@ -322,6 +324,8 @@ function Reset-ProfSvcAndUserinit {
             Write-TidyOutput -Message 'Userinit registry value is correct.'
         }
         else {
+            # SAFETY: Backup critical Winlogon key before modifying Userinit.
+            Backup-TidyRegistryKey -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
             Write-TidyOutput -Message ("Setting Userinit to {0}." -f $expected)
             Set-ItemProperty -LiteralPath $userinitPath -Name Userinit -Value $expected -Force -ErrorAction Stop
         }

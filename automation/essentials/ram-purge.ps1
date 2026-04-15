@@ -687,7 +687,15 @@ try {
         $beforeSysMain = $currentSnapshot
         Invoke-SysMainToggle -Disable $true
         Start-Sleep -Seconds 5
-        Invoke-SysMainToggle -Disable $false
+        try {
+            Invoke-SysMainToggle -Disable $false
+        } catch {
+            Write-TidyError -Message ('Failed to re-enable SysMain: {0}. Attempting guaranteed restart.' -f $_.Exception.Message)
+            $sysMainSvc = Get-Service -Name 'SysMain' -ErrorAction SilentlyContinue
+            if ($sysMainSvc) {
+                try { Start-Service -Name 'SysMain' -ErrorAction Stop } catch { Write-TidyError -Message ('SysMain restart fallback also failed: {0}' -f $_.Exception.Message) }
+            }
+        }
         Start-Sleep -Seconds 2
         $currentSnapshot = Get-TidyMemorySnapshot
         Write-TidyMemoryDelta -Before $beforeSysMain -After $currentSnapshot -Label 'SysMain toggle'

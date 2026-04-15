@@ -325,6 +325,8 @@ function Enable-TidySystemRestoreRegistry {
                 }
 
                 if ($shouldReset) {
+                    # SAFETY: Backup registry key before modifying System Restore flags.
+                    Backup-TidyRegistryKey -Path $path
                     Write-TidyOutput -Message ("Resetting System Restore flag {0} at {1}." -f $name, $path)
                     Set-ItemProperty -LiteralPath $path -Name $name -Value 0 -ErrorAction Stop
                     $changesApplied = $true

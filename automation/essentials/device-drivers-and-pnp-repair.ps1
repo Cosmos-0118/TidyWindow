@@ -769,25 +769,12 @@ function Restart-PnpStack {
             continue
         }
 
-        try {
-            $description = if ($svc.Status -eq 'Stopped') { "Starting {0}" -f $name } else { "Restarting {0}" -f $name }
-            if ($svc.Status -eq 'Stopped') {
-                Invoke-TidyCommand -Command { param($svcName) Start-Service -Name $svcName -ErrorAction Stop } -Arguments @($name) -Description $description -RequireSuccess
-            }
-            else {
-                Invoke-TidyCommand -Command { param($svcName) Restart-Service -Name $svcName -Force -ErrorAction Stop } -Arguments @($name) -Description $description -RequireSuccess
-            }
-
-            if (-not (Wait-TidyServiceState -Name $name -DesiredStatus 'Running' -TimeoutSeconds 10)) {
-                Write-TidyOutput -Message ("{0} did not report Running state after restart." -f $name)
-            }
-            else {
-                Write-TidyOutput -Message ("{0} is running." -f $name)
-            }
-        }
-        catch {
+        $result = Invoke-TidySafeServiceRestart -Name $name -TimeoutSeconds 15
+        if ($result) {
+            Write-TidyOutput -Message ("{0} is running." -f $name)
+        } else {
             $script:OperationSucceeded = $false
-            Write-TidyError -Message ("{0} restart failed: {1}" -f $name, $_.Exception.Message)
+            Write-TidyError -Message ("{0} restart failed or did not reach Running state." -f $name)
         }
     }
 

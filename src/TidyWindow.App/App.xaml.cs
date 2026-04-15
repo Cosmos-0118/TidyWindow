@@ -307,6 +307,10 @@ public partial class App : WpfApplication
     {
         if (_host is not null)
         {
+            // Dispose the PowerShell runspace pool before stopping the host.
+            var invoker = _host.Services.GetService<PowerShellInvoker>();
+            invoker?.Dispose();
+
             await _host.StopAsync();
             _host.Dispose();
         }
