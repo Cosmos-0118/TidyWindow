@@ -162,7 +162,11 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                     continue;
                 }
 
-                var stopResult = await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var stopResult = target.IsProcessOnly
+                    ? await _controlService.KillProcessByNameAsync(target.ProcessName!, cancellationToken).ConfigureAwait(false)
+                    : !string.IsNullOrWhiteSpace(target.ProcessName)
+                        ? await _controlService.StopServiceAndProcessAsync(target.ServiceName!, target.ProcessName, cancellationToken: cancellationToken).ConfigureAwait(false)
+                        : await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: cancellationToken).ConfigureAwait(false);
                 actions.Add(new ProcessAutoStopActionResult(target.Label, stopResult.Success, stopResult.Message));
             }
 
@@ -259,21 +263,56 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
             var actions = new List<ProcessAutoStopActionResult>();
             var silentReStops = 0;
 
-            // Re-check and stop+disable services that are still running after debounce.
+            // Re-check and stop+disable services/processes that are still running after debounce.
             // Always stop — never skip. But suppress log entries for re-stops within the silence window.
             foreach (var target in runningServices)
             {
-                if (!IsServiceStillRunning(target.ServiceName!))
+                if (target.IsProcessOnly)
                 {
+                    // Process-only target: kill by executable name.
+                    var trackingKey = target.ProcessName!;
+                    var isReStop = IsRecentlyStoppedService(trackingKey);
+                    var killResult = await _controlService.KillProcessByNameAsync(target.ProcessName!, CancellationToken.None).ConfigureAwait(false);
+                    RecordStopTime(trackingKey);
+
+                    if (isReStop && killResult.Success)
+                    {
+                        silentReStops++;
+                    }
+                    else
+                    {
+                        actions.Add(new ProcessAutoStopActionResult(target.Label, killResult.Success, killResult.Message));
+                    }
+
                     continue;
                 }
 
-                var isReStop = IsRecentlyStoppedService(target.ServiceName!);
+                if (!string.IsNullOrWhiteSpace(target.ServiceName) && !IsServiceStillRunning(target.ServiceName))
+                {
+                    // Service stopped on its own during debounce — but still try process kill if applicable.
+                    if (!string.IsNullOrWhiteSpace(target.ProcessName) && ProcessControlService.IsProcessRunning(target.ProcessName))
+                    {
+                        var killResult = await _controlService.KillProcessByNameAsync(target.ProcessName, CancellationToken.None).ConfigureAwait(false);
+                        actions.Add(new ProcessAutoStopActionResult(target.Label, killResult.Success, killResult.Message));
+                    }
 
-                var stopResult = await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: CancellationToken.None).ConfigureAwait(false);
-                RecordStopTime(target.ServiceName!);
+                    continue;
+                }
 
-                if (isReStop && stopResult.Success)
+                var serviceTrackingKey = target.ServiceName!;
+                var isServiceReStop = IsRecentlyStoppedService(serviceTrackingKey);
+
+                // Use StopServiceAndProcessAsync to stop service AND kill process as fallback.
+                var stopResult = await _controlService.StopServiceAndProcessAsync(target.ServiceName!, target.ProcessName, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                RecordStopTime(serviceTrackingKey);
+
+                // Also disable the service so Windows doesn't auto-restart it.
+                if (stopResult.Success)
+                {
+                    await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                }
+
+                if (isServiceReStop && stopResult.Success)
                 {
                     // Silently re-enforced — don't create a new log entry.
                     silentReStops++;
@@ -446,12 +485,20 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         var running = new List<ProcessAutoStopTarget>();
         foreach (var target in targets)
         {
-            if (target.IsTask || string.IsNullOrWhiteSpace(target.ServiceName))
+            if (target.IsTask)
             {
                 continue;
             }
 
-            if (IsServiceStillRunning(target.ServiceName))
+            // Check if the Windows service is running.
+            if (!string.IsNullOrWhiteSpace(target.ServiceName) && IsServiceStillRunning(target.ServiceName))
+            {
+                running.Add(target);
+                continue;
+            }
+
+            // Fallback: check if the process executable is running (covers UWP apps and user-mode processes).
+            if (!string.IsNullOrWhiteSpace(target.ProcessName) && ProcessControlService.IsProcessRunning(target.ProcessName))
             {
                 running.Add(target);
             }
@@ -532,6 +579,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
             catalogLookup.TryGetValue(preference.ProcessIdentifier, out var entry);
 
             var displayName = entry?.DisplayName ?? preference.ProcessIdentifier;
+            var processName = entry?.ProcessName;
             var rawIdentifier = entry?.ServiceIdentifier
                 ?? preference.ServiceIdentifier
                 ?? entry?.Identifier
@@ -547,23 +595,31 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                 case ServiceResolutionStatus.Available when resolution.Candidates.Count > 0:
                     foreach (var candidate in resolution.Candidates)
                     {
-                        actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, candidate.ServiceName, null, IsTask: false, TaskPattern: null));
+                        actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, candidate.ServiceName, processName, null, IsTask: false, TaskPattern: null));
                     }
                     break;
                 case ServiceResolutionStatus.NotInstalled when looksLikeTask:
-                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, null, IsTask: true, TaskPattern: rawIdentifier));
+                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, processName, null, IsTask: true, TaskPattern: rawIdentifier));
+                    break;
+                case ServiceResolutionStatus.NotInstalled when !string.IsNullOrWhiteSpace(processName):
+                    // Service not installed, but we have a process name — target it as a process kill.
+                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, processName, null, IsTask: false, TaskPattern: null));
                     break;
                 case ServiceResolutionStatus.NotInstalled:
-                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, resolution.Reason ?? "Service not installed on this PC.", IsTask: false, TaskPattern: null));
+                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, null, resolution.Reason ?? "Service not installed on this PC.", IsTask: false, TaskPattern: null));
                     break;
                 case ServiceResolutionStatus.InvalidName when looksLikeTask:
-                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, null, IsTask: true, TaskPattern: rawIdentifier));
+                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, processName, null, IsTask: true, TaskPattern: rawIdentifier));
+                    break;
+                case ServiceResolutionStatus.InvalidName when !string.IsNullOrWhiteSpace(processName):
+                    // Invalid service name but we have a process name — target it as a process kill.
+                    actionableTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, processName, null, IsTask: false, TaskPattern: null));
                     break;
                 case ServiceResolutionStatus.InvalidName:
-                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, resolution.Reason ?? "Service identifier is invalid.", IsTask: false, TaskPattern: null));
+                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, null, resolution.Reason ?? "Service identifier is invalid.", IsTask: false, TaskPattern: null));
                     break;
                 default:
-                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, "Service could not be resolved on this PC.", IsTask: false, TaskPattern: null));
+                    skippedTargets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, null, null, "Service could not be resolved on this PC.", IsTask: false, TaskPattern: null));
                     break;
             }
         }
@@ -581,9 +637,11 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         return (distinctActionable, distinctSkipped);
     }
 
-    private sealed record ProcessAutoStopTarget(string ProcessId, string DisplayName, string? ServiceName, string? SkipReason, bool IsTask, string? TaskPattern)
+    private sealed record ProcessAutoStopTarget(string ProcessId, string DisplayName, string? ServiceName, string? ProcessName, string? SkipReason, bool IsTask, string? TaskPattern)
     {
-        public bool IsActionable => !string.IsNullOrWhiteSpace(ServiceName);
+        public bool IsActionable => !string.IsNullOrWhiteSpace(ServiceName) || !string.IsNullOrWhiteSpace(ProcessName);
+
+        public bool IsProcessOnly => string.IsNullOrWhiteSpace(ServiceName) && !string.IsNullOrWhiteSpace(ProcessName);
 
         public string Label => string.IsNullOrWhiteSpace(DisplayName) ? ProcessId : DisplayName;
     }

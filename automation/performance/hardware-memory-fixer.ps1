@@ -70,13 +70,15 @@ function Clear-BcdMemoryCaps {
 
 function Disable-MemoryCompression {
     if ($PSCmdlet.ShouldProcess('Memory compression', 'Disable')) {
-        Disable-MMAgent -MemoryCompression -ErrorAction SilentlyContinue
+        try { Disable-MMAgent -MemoryCompression -ErrorAction Stop }
+        catch { Write-Verbose "Failed to disable memory compression: $($_.Exception.Message)" }
     }
 }
 
 function Enable-MemoryCompression {
     if ($PSCmdlet.ShouldProcess('Memory compression', 'Enable')) {
-        Enable-MMAgent -MemoryCompression -ErrorAction SilentlyContinue
+        try { Enable-MMAgent -MemoryCompression -ErrorAction Stop }
+        catch { Write-Verbose "Failed to enable memory compression: $($_.Exception.Message)" }
     }
 }
 
@@ -93,6 +95,15 @@ if ($ApplyFix -or $RestoreCompression) {
 }
 
 if ($ApplyFix) {
+    # Create restore point before modifying BCD
+    try {
+        Checkpoint-Computer -Description 'TidyWindow: Before hardware memory fix' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+        Write-Verbose 'Restore point created before BCD changes.'
+    }
+    catch {
+        Write-Warning "Could not create restore point: $($_.Exception.Message). Proceeding with changes."
+    }
+
     Clear-BcdMemoryCaps
     Disable-MemoryCompression
     Write-Host 'Cleared BCD memory caps (truncatememory/removememory/maxmem).' -ForegroundColor Cyan

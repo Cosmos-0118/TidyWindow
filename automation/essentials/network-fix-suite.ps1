@@ -1,5 +1,363 @@
 param(
     [string] $TargetHost = '8.8.8.8',
+    [int]    $LatencySamples = 8,
+    [int]    $TcpPort,
+    [switch] $SkipTraceroute,
+    [switch] $SkipPathPing,
+    [switch] $DiagnosticsOnly,
+    [switch] $SkipDnsRegistration,
+    [switch] $ResetAdapters,
+    [switch] $RenewDhcp,
+    [switch] $ResetIpv6NeighborCache,
+    [switch] $DryRun,
+    [string] $ResultPath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+# ── Module bootstrap ──────────────────────────────────────────────────
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) { $callerModulePath = $PSCommandPath }
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) { $scriptDirectory = (Get-Location).Path }
+$modulePath = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'))
+if (-not (Test-Path $modulePath)) { throw "Automation module not found at '$modulePath'." }
+Import-Module $modulePath -Force
+
+# ── Result tracking ───────────────────────────────────────────────────
+$script:TidyOutputLines  = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines   = [System.Collections.Generic.List[string]]::new()
+$script:OperationSucceeded = $true
+$script:UsingResultFile  = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DryRunMode       = $DryRun.IsPresent
+if ($script:UsingResultFile) { $ResultPath = [System.IO.Path]::GetFullPath($ResultPath) }
+
+function Write-TidyOutput { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyOutputLines.Add($t); Write-TidyLog -Level Information -Message $t
+}
+function Write-TidyError { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyErrorLines.Add($t); TidyWindow.Automation\Write-TidyError -Message $t
+}
+function Save-TidyResult {
+    if (-not $script:UsingResultFile) { return }
+    $payload = [pscustomobject]@{
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
+    }
+    Set-Content -Path $ResultPath -Value ($payload | ConvertTo-Json -Depth 5) -Encoding UTF8
+}
+function Test-TidyAdmin {
+    [bool](New-Object System.Security.Principal.WindowsPrincipal(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-Step {
+    param(
+        [Parameter(Mandatory)][string]      $Name,
+        [Parameter(Mandatory)][scriptblock] $Action,
+        [switch] $Critical
+    )
+    if ($script:DryRunMode) {
+        Write-TidyOutput -Message "[DryRun] Would run: $Name"
+        return
+    }
+    Write-TidyOutput -Message "-> $Name"
+    try {
+        & $Action
+        Write-TidyOutput -Message "  OK: $Name succeeded."
+    }
+    catch {
+        $msg = $_.Exception.Message
+        if ($Critical) {
+            Write-TidyError -Message "  FAIL: $Name (critical): $msg"
+            $script:OperationSucceeded = $false
+            throw
+        }
+        Write-TidyError -Message "  FAIL: $Name: $msg"
+        $script:OperationSucceeded = $false
+    }
+}
+
+# ══════════════════════════════════════════════════════════════════════
+#  Helpers
+# ══════════════════════════════════════════════════════════════════════
+
+function Test-IpAddress {
+    param([string] $Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    [System.Net.IPAddress] $parsed = $null
+    return [System.Net.IPAddress]::TryParse($Value, [ref]$parsed)
+}
+
+function Test-TcpProbe {
+    param([string] $Host_, [int] $Port, [int] $TimeoutMs = 4000)
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $async = $client.BeginConnect($Host_, $Port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne($TimeoutMs)
+        if (-not $wait) { $client.Close(); return $false }
+        $client.EndConnect($async)
+        $client.Close()
+        return $true
+    }
+    catch { return $false }
+}
+
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
+try {
+    if (-not (Test-TidyAdmin)) {
+        throw 'Network fix suite requires an elevated PowerShell session.'
+    }
+
+    $TargetHost = $TargetHost.Trim()
+    if ([string]::IsNullOrWhiteSpace($TargetHost)) { throw 'TargetHost cannot be empty.' }
+    $LatencySamples = [Math]::Clamp($LatencySamples, 1, 100)
+
+    # Auto-detect TCP port for well-known DNS resolvers.
+    $effectivePort = if ($TcpPort -gt 0) { $TcpPort } else {
+        $dnsIps = @('8.8.8.8','8.8.4.4','1.1.1.1','1.0.0.1','9.9.9.9','149.112.112.112','208.67.222.222','208.67.220.220')
+        if ((Test-IpAddress $TargetHost) -and $dnsIps -contains $TargetHost) { 53 } else { 443 }
+    }
+
+    $isDnsName = -not (Test-IpAddress $TargetHost)
+    $executionStart = Get-Date
+
+    Write-TidyOutput -Message "Starting network fix suite for target '$TargetHost' (port $effectivePort)."
+
+    # ── Remediation steps (skipped in DiagnosticsOnly mode) ───────────
+    if ($DiagnosticsOnly.IsPresent) {
+        Write-TidyOutput -Message 'Diagnostics-only mode: remediation steps skipped.'
+    }
+    else {
+        # Clear ARP cache.
+        Invoke-Step -Name 'Clear ARP cache' -Action {
+            if (Get-Command Remove-NetNeighbor -ErrorAction SilentlyContinue) {
+                Remove-NetNeighbor -Confirm:$false -ErrorAction SilentlyContinue
+            }
+            else {
+                $r = Invoke-TidyNativeCommand -FilePath 'arp.exe' -Arguments '-d *' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+            }
+        }
+
+        # NetBIOS operations.
+        Invoke-Step -Name 'Reload NetBIOS name cache' -Action {
+            $r = Invoke-TidyNativeCommand -FilePath 'nbtstat.exe' -Arguments '-R' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+        }
+
+        Invoke-Step -Name 'Re-register NetBIOS names' -Action {
+            $r = Invoke-TidyNativeCommand -FilePath 'nbtstat.exe' -Arguments '-RR' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+        }
+
+        # IPv4 neighbor cache.
+        Invoke-Step -Name 'Reset IPv4 neighbor cache' -Action {
+            $r = Invoke-TidyNativeCommand -FilePath 'netsh.exe' -Arguments 'interface ip delete arpcache' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+        }
+
+        # IPv6 neighbor cache (opt-in).
+        if ($ResetIpv6NeighborCache.IsPresent) {
+            Invoke-Step -Name 'Reset IPv6 neighbor cache' -Action {
+                $r = Invoke-TidyNativeCommand -FilePath 'netsh.exe' -Arguments 'interface ipv6 delete neighbors' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+            }
+        }
+
+        # TCP heuristics.
+        Invoke-Step -Name 'Reset TCP heuristics' -Action {
+            $r1 = Invoke-TidyNativeCommand -FilePath 'netsh.exe' -Arguments 'interface tcp set heuristics disabled' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+            $r2 = Invoke-TidyNativeCommand -FilePath 'netsh.exe' -Arguments 'interface tcp set global autotuninglevel=normal' -TimeoutSeconds 10 -AcceptableExitCodes @(0, 1)
+        }
+
+        # DNS registration.
+        if (-not $SkipDnsRegistration.IsPresent) {
+            Invoke-Step -Name 'Register DNS with DHCP' -Action {
+                $r = Invoke-TidyNativeCommand -FilePath 'ipconfig.exe' -Arguments '/registerdns' -TimeoutSeconds 15 -AcceptableExitCodes @(0)
+            }
+        }
+
+        # DHCP renew (opt-in, only DHCP-enabled adapters).
+        if ($RenewDhcp.IsPresent) {
+            Invoke-Step -Name 'Renew DHCP leases' -Action {
+                # Only target DHCP-enabled adapters.
+                $dhcpAdapters = @(Get-NetIPInterface -AddressFamily IPv4 -Dhcp Enabled -ErrorAction SilentlyContinue |
+                                   Where-Object { $_.ConnectionState -eq 'Connected' })
+                if ($dhcpAdapters.Count -eq 0) {
+                    Write-TidyOutput -Message '  No DHCP-enabled connected adapters found.'
+                    return
+                }
+
+                $r1 = Invoke-TidyNativeCommand -FilePath 'ipconfig.exe' -Arguments '/release' -TimeoutSeconds 15 -AcceptableExitCodes @(0, 1)
+                Start-Sleep -Seconds 2
+                $r2 = Invoke-TidyNativeCommand -FilePath 'ipconfig.exe' -Arguments '/renew' -TimeoutSeconds 30 -AcceptableExitCodes @(0, 1)
+            }
+        }
+
+        # Adapter reset (opt-in, with rollback).
+        if ($ResetAdapters.IsPresent) {
+            Invoke-Step -Name 'Reset network adapters' -Action {
+                if (-not (Get-Command Get-NetAdapter -ErrorAction SilentlyContinue)) {
+                    Write-TidyOutput -Message '  Get-NetAdapter not available. Skipped.'
+                    return
+                }
+
+                $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue |
+                              Where-Object { $_.Status -eq 'Up' -and -not $_.Virtual })
+                if ($adapters.Count -eq 0) {
+                    Write-TidyOutput -Message '  No physical up adapters found.'
+                    return
+                }
+
+                foreach ($adapter in $adapters) {
+                    $name = $adapter.Name
+                    $disabled = $false
+                    try {
+                        Disable-NetAdapter -Name $name -Confirm:$false -ErrorAction Stop
+                        $disabled = $true
+                        # Wait up to 10s for disable to take effect.
+                        $waited = 0
+                        while ($waited -lt 10) {
+                            Start-Sleep -Seconds 1; $waited++
+                            $state = (Get-NetAdapter -Name $name -ErrorAction SilentlyContinue).Status
+                            if ($state -eq 'Disabled' -or $state -eq 'Not Present') { break }
+                        }
+                    }
+                    catch {
+                        Write-TidyLog -Level Warning -Message "  Could not disable $name`: $($_.Exception.Message)"
+                    }
+                    finally {
+                        # ALWAYS re-enable.
+                        try {
+                            Enable-NetAdapter -Name $name -Confirm:$false -ErrorAction Stop
+                        }
+                        catch {
+                            Write-TidyError -Message "  CRITICAL: Could not re-enable adapter $name"
+                        }
+                        # Wait for adapter to come back up.
+                        $waited = 0
+                        while ($waited -lt 15) {
+                            Start-Sleep -Seconds 1; $waited++
+                            $state = (Get-NetAdapter -Name $name -ErrorAction SilentlyContinue).Status
+                            if ($state -eq 'Up') { break }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    # ── Diagnostics ───────────────────────────────────────────────────
+
+    # DNS resolution.
+    if ($isDnsName) {
+        Invoke-Step -Name "Resolve DNS for $TargetHost" -Action {
+            $resolved = $false
+            if (Get-Command Resolve-DnsName -ErrorAction SilentlyContinue) {
+                try {
+                    $records = @(Resolve-DnsName -Name $TargetHost -Type A, AAAA -ErrorAction Stop)
+                    foreach ($rec in $records) {
+                        if ($rec.IPAddress) {
+                            Write-TidyOutput -Message "  Resolved: $($rec.IPAddress)"
+                        }
+                    }
+                    $resolved = $true
+                }
+                catch {
+                    Write-TidyLog -Level Warning -Message "  Resolve-DnsName failed: $($_.Exception.Message)"
+                }
+            }
+
+            if (-not $resolved) {
+                $addrs = [System.Net.Dns]::GetHostAddresses($TargetHost)
+                foreach ($a in $addrs) {
+                    Write-TidyOutput -Message "  Resolved (.NET): $($a.IPAddressToString)"
+                }
+            }
+        }
+    }
+
+    # TCP connectivity probe.
+    Invoke-Step -Name "TCP connectivity probe ($TargetHost`:$effectivePort)" -Action {
+        $ok = $false
+        if (Get-Command Test-NetConnection -ErrorAction SilentlyContinue) {
+            try {
+                $result = Test-NetConnection -ComputerName $TargetHost -Port $effectivePort -InformationLevel Detailed -ErrorAction Stop
+                $ok = $result.TcpTestSucceeded
+                Write-TidyOutput -Message "  TCP test succeeded: $ok"
+            }
+            catch {
+                Write-TidyLog -Level Warning -Message "  Test-NetConnection failed: $($_.Exception.Message)"
+            }
+        }
+
+        if (-not $ok) {
+            $ok = Test-TcpProbe -Host_ $TargetHost -Port $effectivePort
+            Write-TidyOutput -Message "  TCP socket probe: $($ok ? 'connected' : 'failed')"
+        }
+    }
+
+    # Ping sweep.
+    Invoke-Step -Name "Latency sweep ($LatencySamples pings)" -Action {
+        $r = Invoke-TidyNativeCommand -FilePath 'ping.exe' -Arguments "-n $LatencySamples $TargetHost" -TimeoutSeconds 60 -AcceptableExitCodes @(0, 1)
+        if ($r.Output) { Write-TidyOutput -Message $r.Output }
+    }
+
+    # Traceroute.
+    if (-not $SkipTraceroute.IsPresent) {
+        Invoke-Step -Name 'Traceroute' -Action {
+            if (-not (Get-Command tracert.exe -ErrorAction SilentlyContinue)) {
+                Write-TidyOutput -Message '  tracert.exe not found. Skipped.'
+                return
+            }
+            $r = Invoke-TidyNativeCommand -FilePath 'tracert.exe' -Arguments "-d -h 15 -w 2000 $TargetHost" -TimeoutSeconds 120 -AcceptableExitCodes @(0)
+            if ($r.Output) { Write-TidyOutput -Message $r.Output }
+        }
+    }
+
+    # PathPing.
+    if (-not $SkipPathPing.IsPresent) {
+        Invoke-Step -Name 'PathPing' -Action {
+            if (-not (Get-Command pathping.exe -ErrorAction SilentlyContinue)) {
+                Write-TidyOutput -Message '  pathping.exe not found. Skipped.'
+                return
+            }
+            $r = Invoke-TidyNativeCommand -FilePath 'pathping.exe' -Arguments "-d -h 15 -w 2000 $TargetHost" -TimeoutSeconds 300 -AcceptableExitCodes @(0)
+            if ($r.Output) { Write-TidyOutput -Message $r.Output }
+        }
+    }
+
+    # Adapter statistics.
+    Invoke-Step -Name 'Adapter statistics' -Action {
+        if (-not (Get-Command Get-NetAdapterStatistics -ErrorAction SilentlyContinue)) {
+            Write-TidyOutput -Message '  Get-NetAdapterStatistics not available.'
+            return
+        }
+        $stats = Get-NetAdapterStatistics -IncludeHidden -ErrorAction SilentlyContinue
+        if ($stats) {
+            foreach ($s in $stats) {
+                Write-TidyOutput -Message "  $($s.Name): Sent=$($s.SentBytes) Recv=$($s.ReceivedBytes)"
+            }
+        }
+    }
+
+    # Summary.
+    $elapsed = (Get-Date) - $executionStart
+    Write-TidyOutput -Message ''
+    Write-TidyOutput -Message "Network fix suite completed in $([math]::Round($elapsed.TotalSeconds, 1))s."
+}
+catch {
+    $script:OperationSucceeded = $false
+    Write-TidyError -Message "Network fix suite failed: $($_.Exception.Message)"
+}
+finally {
+    Save-TidyResult
+}
+param(
+    [string] $TargetHost = '8.8.8.8',
     [int] $LatencySamples = 8,
     [int] $TcpPort,
     [switch] $SkipTraceroute,

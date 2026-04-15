@@ -1,0 +1,37 @@
+okay we have some very very critical issues:
+
+1) this is the main issue. all the coding agaents that tried to fix this has failed. but i think you can do
+it(flattery takes you everywhere lol), so the issue is, user uses our app right -> but after few mintues of use 
+our app starts to become laggy.
+
+2)essentials page -> currently its very dangerous and not works good. like some of the scripts work on some pc but not on others. and 
+somje of the scripts cause issue. like they stop smtg and not start it again. and some of the scripts
+are very bad at what they do. so i want production level reowrk on all the scripts. i want you to use
+the best method exist. the only script that is good is rampurge.
+
+3) install hub page scripts also maintainance page. are soo cooked. its soo complexed its actually insane.
+the files are soo large and bad. so use temp scripts to breake them down and fix it. -> like this needs massive rework.
+
+4)processes page also is not good at what it does. its now workinmg properly. lot of issues. only stops like 4 
+processes.
+
+5)startup page also doesnot work well -> like it stops processes from start -> okay right -> but this causes massive issues
+i guess the processes will ahve some helper? and that helper files -> singe main process is not running on startup
+-> causes machine to breakdown. i dunno for sure. also this page also doesnt work that well.
+
+6)performance lab page is like kinda decent. but here also the scripts and restore are not that good.
+very bad. restore pressing -> should show popup -> user selects what point to restore. -> kinda like
+registeroptimize.
+
+7)pathpilot -> this page kinda works. -> the main issues is for changing the path it takes very long time.
+and on some machines the runtimes doesnt even load.
+
+8)registeropttimiz3er -> it seems like it works. but im pretty sure this also have very many issues.
+
+9)reset rescue -> i dunno why this exist lol. -> do smth and make it useful.
+
+10)deepscan -. this page is honestly good. but we can improve speed. -> and im also sure this page also has 
+lot of issues in backend.
+
+11)cleanup page -> this page also works -> the main isues is this page haqs phases and most of the pases are
+very laggy and blurry. -> and here also the backend is very complexed. -> and im pretty sure has lot of bugs.

@@ -56,6 +56,34 @@ function Get-WingetInstalledCache {
 
     $exe = if ($wingetCommand.Source) { $wingetCommand.Source } else { 'winget' }
 
+    # Try structured JSON output first (winget 1.7+), fall back to table parsing.
+    try {
+        $jsonRaw = & $exe 'list' '--accept-source-agreements' '--disable-interactivity' '--output' 'json' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $jsonRaw) {
+            $jsonText = ($jsonRaw -join "`n").Trim()
+            if ($jsonText.StartsWith('{') -or $jsonText.StartsWith('[')) {
+                $parsed = ConvertFrom-Json -InputObject $jsonText -ErrorAction Stop
+                $packages = if ($parsed.Sources) { $parsed.Sources | ForEach-Object { $_.Packages } } else { @($parsed) }
+                foreach ($pkg in $packages) {
+                    foreach ($item in @($pkg)) {
+                        $id = $null
+                        $version = $null
+                        if ($item.PackageIdentifier) { $id = $item.PackageIdentifier }
+                        elseif ($item.Id) { $id = $item.Id }
+                        if ($item.InstalledVersion) { $version = $item.InstalledVersion }
+                        elseif ($item.Version) { $version = $item.Version }
+                        if ($id -and $version) { $cache[$id] = $version }
+                    }
+                }
+                if ($cache.Count -gt 0) { return $cache }
+            }
+        }
+    }
+    catch {
+        Write-Verbose ("Winget JSON list failed, falling back to table parsing: {0}" -f $_.Exception.Message)
+    }
+
+    # Fallback: parse table output.
     try {
         $lines = & $exe 'list' '--accept-source-agreements' '--disable-interactivity' 2>$null
         if ($LASTEXITCODE -eq 0 -and $lines) {
@@ -83,7 +111,7 @@ function Get-WingetInstalledCache {
         }
     }
     catch {
-        # ignore failures and return partial cache
+        Write-Verbose ("Winget table list also failed: {0}" -f $_.Exception.Message)
     }
 
     return $cache
@@ -97,6 +125,33 @@ function Get-WingetUpgradeCache {
 
     $exe = if ($wingetCommand.Source) { $wingetCommand.Source } else { 'winget' }
 
+    # Try JSON output first (winget 1.7+).
+    try {
+        $jsonRaw = & $exe 'upgrade' '--include-unknown' '--accept-source-agreements' '--disable-interactivity' '--output' 'json' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $jsonRaw) {
+            $jsonText = ($jsonRaw -join "`n").Trim()
+            if ($jsonText.StartsWith('{') -or $jsonText.StartsWith('[')) {
+                $parsed = ConvertFrom-Json -InputObject $jsonText -ErrorAction Stop
+                $packages = if ($parsed.Sources) { $parsed.Sources | ForEach-Object { $_.Packages } } else { @($parsed) }
+                foreach ($pkg in $packages) {
+                    foreach ($item in @($pkg)) {
+                        $id = if ($item.PackageIdentifier) { $item.PackageIdentifier } elseif ($item.Id) { $item.Id } else { $null }
+                        $installed = if ($item.InstalledVersion) { $item.InstalledVersion } elseif ($item.Version) { $item.Version } else { '' }
+                        $available = if ($item.AvailableVersion) { $item.AvailableVersion } elseif ($item.Available) { $item.Available } else { '' }
+                        if ($id) {
+                            $cache[$id] = [pscustomobject]@{ Installed = $installed; Available = $available }
+                        }
+                    }
+                }
+                if ($cache.Count -gt 0) { return $cache }
+            }
+        }
+    }
+    catch {
+        Write-Verbose ("Winget JSON upgrade failed, falling back to table: {0}" -f $_.Exception.Message)
+    }
+
+    # Fallback: table parsing.
     try {
         $lines = & $exe 'upgrade' '--include-unknown' '--accept-source-agreements' '--disable-interactivity' 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $lines) {
@@ -131,7 +186,7 @@ function Get-WingetUpgradeCache {
         }
     }
     catch {
-        # ignore failures
+        Write-Verbose ("Winget table upgrade also failed: {0}" -f $_.Exception.Message)
     }
 
     return $cache

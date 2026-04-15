@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualBasic.Devices;
@@ -21,11 +22,21 @@ namespace TidyWindow.App.ViewModels;
 
 public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 {
+    private static readonly nint HWND_BROADCAST = 0xFFFF;
+    private const uint WM_SETTINGCHANGE = 0x001A;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern nint SendMessageTimeout(
+        nint hWnd, uint msg, nint wParam, string? lParam,
+        uint fuFlags, uint uTimeout, out nint lpdwResult);
+
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
     private readonly IRegistryOptimizerService _registryService;
     private readonly RegistryPreferenceService _registryPreferenceService;
     private readonly ISystemRestoreGuardService _restoreGuardService;
+    private readonly IUserConfirmationService _confirmation;
     private readonly Func<double>? _getTotalRamGb;
     private bool _isInitialized;
     private bool _isRestoringState;
@@ -40,6 +51,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         IRegistryOptimizerService registryService,
         RegistryPreferenceService registryPreferenceService,
         ISystemRestoreGuardService restoreGuardService,
+        IUserConfirmationService confirmation,
         Func<double>? getTotalRamGb = null)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
@@ -47,6 +59,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
         _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
         _restoreGuardService = restoreGuardService ?? throw new ArgumentNullException(nameof(restoreGuardService));
+        _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _getTotalRamGb = getTotalRamGb;
 
         Tweaks = new ObservableCollection<RegistryTweakCardViewModel>();
@@ -289,9 +302,48 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             return;
         }
 
+        // Confirm with user when any Moderate/Caution/Advanced risk tweaks are being enabled
+        var riskyTweaks = applicableTweaks
+            .Where(t => t.IsSelected && IsElevatedRisk(t.RiskLevel))
+            .ToList();
+        if (riskyTweaks.Count > 0)
+        {
+            var tweakList = string.Join(", ", riskyTweaks.Select(t => t.Title));
+            var confirmed = _confirmation.Confirm(
+                $"The following tweak(s) modify system-level settings and may affect stability:\n\n{tweakList}\n\nApply these changes?",
+                "Confirm Registry Changes");
+            if (!confirmed)
+            {
+                _mainViewModel.SetStatusMessage("Registry changes cancelled by user.");
+                return;
+            }
+        }
+
         IsBusy = true;
         try
         {
+            // Create restore point BEFORE applying to ensure rollback is always possible
+            RegistryRestorePoint? restorePoint = null;
+            try
+            {
+                restorePoint = await _registryService.SaveRestorePointAsync(filteredSelections, plan);
+                if (restorePoint is not null)
+                {
+                    UpdateRestorePointState(restorePoint);
+                    var rpMessage = string.Format(CultureInfo.CurrentCulture, RegistryOptimizerStrings.RestorePointCreated, restorePoint.FilePath);
+                    _activityLog.LogInformation("Registry", rpMessage);
+                    OnRestorePointCreated(restorePoint);
+                }
+            }
+            catch (Exception ex)
+            {
+                var failMessage = $"Cannot create restore point: {ex.Message}. Registry changes aborted.";
+                LastOperationSummary = failMessage;
+                _activityLog.LogError("Registry", failMessage, new[] { ex.ToString() });
+                _mainViewModel.SetStatusMessage("Registry changes aborted — restore point creation failed.");
+                return;
+            }
+
             var result = await _registryService.ApplyAsync(plan);
 
             if (!result.IsSuccess)
@@ -330,25 +382,8 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             _activityLog.LogSuccess("Registry", summary, result.Executions.SelectMany(exec => exec.Output));
             _mainViewModel.SetStatusMessage("Registry tweaks applied.");
 
-            // Refresh shell components after all tweaks complete to ensure Explorer\Advanced settings
-            // (like clock seconds, taskbar animations, etc.) take effect properly without race conditions.
+            // Broadcast WM_SETTINGCHANGE to notify Explorer of registry changes
             await RefreshShellComponentsAsync(applicableTweaks).ConfigureAwait(true);
-
-            try
-            {
-                var restorePoint = await _registryService.SaveRestorePointAsync(filteredSelections, plan);
-                if (restorePoint is not null)
-                {
-                    UpdateRestorePointState(restorePoint);
-                    var message = string.Format(CultureInfo.CurrentCulture, RegistryOptimizerStrings.RestorePointCreated, restorePoint.FilePath);
-                    _activityLog.LogInformation("Registry", message);
-                    OnRestorePointCreated(restorePoint);
-                }
-            }
-            catch (Exception ex)
-            {
-                _activityLog.LogWarning("Registry", $"Unable to save registry restore point: {ex.Message}");
-            }
         }
         finally
         {
@@ -670,9 +705,8 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     };
 
     /// <summary>
-    /// Refreshes shell components (ShellExperienceHost) after tweaks that modify Explorer\Advanced settings.
-    /// This ensures settings like clock seconds are applied correctly after all tweaks complete,
-    /// preventing race conditions where later tweaks trigger a shell refresh that resets earlier ones.
+    /// Broadcasts WM_SETTINGCHANGE to notify Explorer components of registry changes,
+    /// replacing the previous approach of killing ShellExperienceHost.exe.
     /// </summary>
     private async Task RefreshShellComponentsAsync(IEnumerable<RegistryTweakCardViewModel> appliedTweaks)
     {
@@ -686,58 +720,30 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         {
             try
             {
-                // Stop ShellExperienceHost (it auto-restarts) to pick up all Explorer\Advanced changes
-                foreach (var proc in Process.GetProcessesByName("ShellExperienceHost"))
-                {
-                    try
-                    {
-                        proc.Kill();
-                        proc.WaitForExit(2000);
-                    }
-                    catch
-                    {
-                        // Process may have already exited
-                    }
-                }
+                // Broadcast WM_SETTINGCHANGE so Explorer picks up registry changes
+                // without killing any shell processes.
+                SendMessageTimeout(
+                    HWND_BROADCAST, WM_SETTINGCHANGE,
+                    0, "Environment",
+                    SMTO_ABORTIFHUNG, 5000, out _);
 
-                // Wait for ShellExperienceHost to restart and apply settings
-                System.Threading.Thread.Sleep(1500);
-
-                // Verify clock seconds value if that tweak was applied
-                if (appliedTweaks.Any(t => string.Equals(t.Id, "taskbar-seconds", StringComparison.OrdinalIgnoreCase) && t.IsSelected))
-                {
-                    // Re-verify and re-apply if needed
-                    using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                        @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", writable: true);
-
-                    if (key is not null)
-                    {
-                        var value = key.GetValue("ShowSecondsInSystemClock");
-                        if (value is not int intValue || intValue != 1)
-                        {
-                            // Value was reset, re-apply it
-                            key.SetValue("ShowSecondsInSystemClock", 1, Microsoft.Win32.RegistryValueKind.DWord);
-
-                            // One more shell restart to pick up the fix
-                            System.Threading.Thread.Sleep(300);
-                            foreach (var proc in Process.GetProcessesByName("ShellExperienceHost"))
-                            {
-                                try
-                                {
-                                    proc.Kill();
-                                }
-                                catch { }
-                            }
-                        }
-                    }
-                }
+                SendMessageTimeout(
+                    HWND_BROADCAST, WM_SETTINGCHANGE,
+                    0, "Policy",
+                    SMTO_ABORTIFHUNG, 5000, out _);
             }
             catch (Exception ex)
             {
-                // Shell refresh is best-effort; don't fail the tweak application
                 System.Diagnostics.Debug.WriteLine($"Shell refresh warning: {ex.Message}");
             }
         }).ConfigureAwait(false);
+    }
+
+    private static bool IsElevatedRisk(string riskLevel)
+    {
+        return string.Equals(riskLevel, "Moderate", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(riskLevel, "Caution", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(riskLevel, "Advanced", StringComparison.OrdinalIgnoreCase);
     }
 
     private void UpdatePresetCustomizationState()

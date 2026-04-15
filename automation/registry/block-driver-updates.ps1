@@ -15,6 +15,14 @@ try {
     $apply = $Enable.IsPresent -and -not $Disable.IsPresent
     $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
 
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $path) {
+        Write-RegistryOutput 'WARNING: WindowsUpdate policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $path
+
     if ($apply) {
         $change = Set-RegistryValue -Path $path -Name 'ExcludeWUDriversInQualityUpdate' -Value 1 -Type 'DWord'
         Register-RegistryChange -Change $change -Description 'Excluded driver updates from quality updates.'

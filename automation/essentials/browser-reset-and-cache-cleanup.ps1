@@ -1,14 +1,9 @@
 param(
-    [switch] $IncludeEdge,
-    [switch] $IncludeChrome,
-    [switch] $IncludeBrave,
-    [switch] $IncludeFirefox,
-    [switch] $IncludeOpera,
-    [switch] $ClearProfileCaches,
-    [switch] $ClearWebViewCaches,
-    [switch] $ResetPolicies,
-    [switch] $RepairEdgeInstall,
-    [switch] $ForceCloseBrowsers,
+    [switch] $SkipEdge,
+    [switch] $SkipChrome,
+    [switch] $SkipFirefox,
+    [switch] $SkipDnsFlush,
+    [switch] $SkipProxyReset,
     [switch] $DryRun,
     [string] $ResultPath
 )
@@ -16,792 +11,245 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not ($IncludeEdge -or $IncludeChrome -or $IncludeBrave -or $IncludeFirefox -or $IncludeOpera)) {
-    $IncludeEdge = $true
-}
-
-if (-not ($ClearProfileCaches -or $ClearWebViewCaches -or $ResetPolicies -or $RepairEdgeInstall -or $ForceCloseBrowsers)) {
-    $ClearProfileCaches = $true
-    $ClearWebViewCaches = $true
-    $ForceCloseBrowsers = $true
-}
-
+# ── Module bootstrap ──────────────────────────────────────────────────
 $callerModulePath = $MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
-    $callerModulePath = $PSCommandPath
-}
-
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) { $callerModulePath = $PSCommandPath }
 $scriptDirectory = Split-Path -Parent $callerModulePath
-if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
-    $scriptDirectory = (Get-Location).Path
-}
-
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
-$modulePath = [System.IO.Path]::GetFullPath($modulePath)
-if (-not (Test-Path -Path $modulePath)) {
-    throw "Automation module not found at path '$modulePath'."
-}
-
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) { $scriptDirectory = (Get-Location).Path }
+$modulePath = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'))
+if (-not (Test-Path $modulePath)) { throw "Automation module not found at '$modulePath'." }
 Import-Module $modulePath -Force
 
-$script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
-$script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
+# ── Result tracking ───────────────────────────────────────────────────
+$script:TidyOutputLines  = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines   = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
-$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
-$script:CleanupDirectories = 0
-$script:CleanupBytes = [long]0
-$script:PolicyKeysCleared = 0
-$script:PolicyKeysSkipped = 0
-$script:RepairAttempted = $false
-$script:RepairSucceeded = $false
-$script:IsAdminSession = [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-$script:TargetBrowsers = [System.Collections.Generic.List[string]]::new()
+$script:UsingResultFile  = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DryRunMode       = $DryRun.IsPresent
+if ($script:UsingResultFile) { $ResultPath = [System.IO.Path]::GetFullPath($ResultPath) }
 
-if ($IncludeEdge)    { [void]$script:TargetBrowsers.Add('Edge') }
-if ($IncludeChrome)  { [void]$script:TargetBrowsers.Add('Chrome') }
-if ($IncludeBrave)   { [void]$script:TargetBrowsers.Add('Brave') }
-if ($IncludeFirefox) { [void]$script:TargetBrowsers.Add('Firefox') }
-if ($IncludeOpera)   { [void]$script:TargetBrowsers.Add('Opera') }
-
-if ($script:TargetBrowsers.Count -eq 0) {
-    $IncludeEdge = $true
-    [void]$script:TargetBrowsers.Add('Edge')
+function Write-TidyOutput { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyOutputLines.Add($t); Write-TidyLog -Level Information -Message $t
 }
-
-if ($script:UsingResultFile) {
-    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+function Write-TidyError { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyErrorLines.Add($t); TidyWindow.Automation\Write-TidyError -Message $t
 }
-
-function Write-TidyOutput {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
-}
-
-function Write-TidyError {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyError -Message $text
-}
-
 function Save-TidyResult {
-    if (-not $script:UsingResultFile) {
-        return
-    }
-
+    if (-not $script:UsingResultFile) { return }
     $payload = [pscustomobject]@{
         Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
         Output  = $script:TidyOutputLines
         Errors  = $script:TidyErrorLines
-        Metrics = [pscustomobject]@{
-            BrowsersTargeted   = $script:TargetBrowsers
-            ClearedDirectories = $script:CleanupDirectories
-            ReclaimedBytes     = $script:CleanupBytes
-            PolicyKeysCleared  = $script:PolicyKeysCleared
-            RepairAttempted    = $script:RepairAttempted
-            RepairSucceeded    = $script:RepairSucceeded
-        }
     }
-
-    $json = $payload | ConvertTo-Json -Depth 6
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+    Set-Content -Path $ResultPath -Value ($payload | ConvertTo-Json -Depth 5) -Encoding UTF8
+}
+function Test-TidyAdmin {
+    [bool](New-Object System.Security.Principal.WindowsPrincipal(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Format-TidySize {
-    param([long] $Bytes)
-
-    if ($Bytes -le 0) { return '0 B' }
-    $units = 'B','KB','MB','GB','TB'
-    $value = [double]$Bytes
-    $order = 0
-    while ($value -ge 1024 -and $order -lt ($units.Length - 1)) {
-        $value /= 1024
-        $order++
-    }
-    return ('{0:N1} {1}' -f $value, $units[$order])
-}
-
-function Join-TidyPath {
+function Invoke-Step {
     param(
-        [Parameter(Mandatory = $true)]
-        [string] $Root,
-        [Parameter(Mandatory = $true)]
-        [object] $Segments
+        [Parameter(Mandatory)][string]      $Name,
+        [Parameter(Mandatory)][scriptblock] $Action,
+        [switch] $Critical
     )
-
-    if (-not $Segments) {
-        return $Root
-    }
-
-    $current = $Root
-    $parts = @()
-    if ($Segments -is [System.Array]) {
-        $parts = $Segments
-    }
-    else {
-        $parts = @($Segments)
-    }
-
-    foreach ($segment in $parts) {
-        if ([string]::IsNullOrWhiteSpace($segment)) {
-            continue
-        }
-        $current = Join-Path -Path $current -ChildPath $segment
-    }
-
-    return $current
-}
-
-function Clear-TidyDirectory {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string] $Path,
-        [string] $Label = $Path
-    )
-
-    $resolved = Resolve-TidyPath -Path $Path
-    if ([string]::IsNullOrWhiteSpace($resolved)) {
+    if ($script:DryRunMode) {
+        Write-TidyOutput -Message "[DryRun] Would run: $Name"
         return
     }
-
-    if (-not (Test-Path -LiteralPath $resolved)) {
-        Write-TidyOutput -Message ("{0}: nothing to clear (path not found)." -f $Label)
-        return
-    }
-
-    $bytes = 0
+    Write-TidyOutput -Message "-> $Name"
     try {
-        $bytes = Measure-TidyDirectoryBytes -Path $resolved
+        & $Action
+        Write-TidyOutput -Message "  OK: $Name succeeded."
     }
     catch {
-        $bytes = 0
-    }
-
-    if ($DryRun.IsPresent) {
-        $hint = if ($bytes -gt 0) { " (~$((Format-TidySize -Bytes $bytes)))" } else { '' }
-        Write-TidyOutput -Message ("[DryRun] Would clear {0}{1}." -f $Label, $hint)
-        return
-    }
-
-    try {
-        Get-ChildItem -LiteralPath $resolved -Force -ErrorAction Stop | Remove-Item -Recurse -Force -ErrorAction Stop
-        $script:CleanupDirectories++
-        $script:CleanupBytes += $bytes
-        Write-TidyOutput -Message ("Cleared {0} (reclaimed {1})." -f $Label, (Format-TidySize -Bytes $bytes))
-    }
-    catch {
+        $msg = $_.Exception.Message
+        if ($Critical) {
+            Write-TidyError -Message "  FAIL: $Name (critical): $msg"
+            $script:OperationSucceeded = $false
+            throw
+        }
+        Write-TidyError -Message "  FAIL: $Name: $msg"
         $script:OperationSucceeded = $false
-        Write-TidyError -Message ("Failed to clear {0}: {1}" -f $Label, $_.Exception.Message)
     }
 }
 
-function Get-BrowserDisplayName {
-    param([string] $Browser)
+# ══════════════════════════════════════════════════════════════════════
+#  Helpers
+# ══════════════════════════════════════════════════════════════════════
 
-    switch ($Browser) {
-        'Edge'    { return 'Microsoft Edge' }
-        'Chrome'  { return 'Google Chrome' }
-        'Brave'   { return 'Brave Browser' }
-        'Firefox' { return 'Mozilla Firefox' }
-        'Opera'   { return 'Opera' }
-        default   { return $Browser }
-    }
-}
+function Remove-BrowserCache {
+    <#
+        .SYNOPSIS
+        Safely removes browser cache directories. Only targets well-known cache
+        folders — never profile data, passwords, bookmarks, or extensions.
+    #>
+    param(
+        [string]   $BrowserName,
+        [string[]] $CachePaths,
+        [string]   $ProcessName
+    )
 
-function Get-BrowserProcessNames {
-    param([string] $Browser)
-
-    switch ($Browser) {
-        'Edge'    { return @('msedge','msedgewebview2','msedgebroker','msedgeupdate') }
-        'Chrome'  { return @('chrome','googleupdate') }
-        'Brave'   { return @('brave','bravesoftwareupdate','bravevpn') }
-        'Firefox' { return @('firefox') }
-        'Opera'   { return @('opera','opera_browser','opera_autoupdate') }
-        default   { return @() }
-    }
-}
-
-function Warn-TidyBrowsersRunning {
-    if ($ForceCloseBrowsers.IsPresent) {
-        return
-    }
-
-    $processNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($browser in $script:TargetBrowsers) {
-        foreach ($name in (Get-BrowserProcessNames -Browser $browser)) {
-            if (-not [string]::IsNullOrWhiteSpace($name)) {
-                [void]$processNames.Add($name)
-            }
-        }
-    }
-
-    if ($processNames.Count -eq 0) {
-        return
-    }
-
-    $running = @()
-    foreach ($name in $processNames) {
-        $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
-        if ($procs) {
-            $running += $procs
-        }
-    }
-
+    # Ensure the browser is not running before cache deletion.
+    $running = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
     if ($running.Count -gt 0) {
-        $names = ($running | Select-Object -ExpandProperty ProcessName -Unique) -join ', '
-        Write-TidyOutput -Message ("Browsers appear to be running ({0}); cache clears may be locked. Re-run with -ForceCloseBrowsers to close them automatically." -f $names)
-    }
-}
-
-function Stop-TidyBrowserProcesses {
-    if (-not $ForceCloseBrowsers.IsPresent) {
-        return
+        Write-TidyOutput -Message "  $BrowserName is running ($($running.Count) process(es)). Skipping cache clear to avoid data corruption."
+        return 0
     }
 
-    $processNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($browser in $script:TargetBrowsers) {
-        foreach ($name in (Get-BrowserProcessNames -Browser $browser)) {
-            if (-not [string]::IsNullOrWhiteSpace($name)) {
-                [void]$processNames.Add($name)
-            }
-        }
-    }
-
-    if ($processNames.Count -eq 0) {
-        Write-TidyOutput -Message 'No known browser processes to close.'
-        return
-    }
-
-    foreach ($name in $processNames) {
-        $processes = Get-Process -Name $name -ErrorAction SilentlyContinue
-        if (-not $processes) {
-            continue
-        }
-
-        foreach ($proc in $processes) {
-            if ($DryRun.IsPresent) {
-                Write-TidyOutput -Message ("[DryRun] Would stop process {0} (Id {1})." -f $proc.ProcessName, $proc.Id)
-                continue
-            }
-
-            try {
-                if ($proc.MainWindowHandle -ne [IntPtr]::Zero) {
-                    $null = $proc.CloseMainWindow()
-                    Start-Sleep -Milliseconds 600
-                }
-
-                if (-not $proc.HasExited) {
-                    Stop-Process -Id $proc.Id -Force -ErrorAction Stop
-                }
-
-                Write-TidyOutput -Message ("Stopped process {0} (Id {1})." -f $proc.ProcessName, $proc.Id)
-            }
-            catch {
-                $script:OperationSucceeded = $false
-                Write-TidyError -Message ("Failed to stop {0} (Id {1}): {2}" -f $proc.ProcessName, $proc.Id, $_.Exception.Message)
-            }
-        }
-    }
-}
-
-$script:ChromiumProfileSubFolders = @(
-    @('Cache'),
-    @('Code Cache'),
-    @('GPUCache'),
-    @('Service Worker','CacheStorage'),
-    @('Service Worker','Database'),
-    @('IndexedDB'),
-    @('Local Storage'),
-    @('Session Storage'),
-    @('OptimizationGuidePredictionModels'),
-    @('GrShaderCache')
-)
-
-$script:ChromiumGlobalFolderSegments = @(
-    @('Crashpad'),
-    @('ShaderCache'),
-    @('SwReporter'),
-    @('CertificateTransparency'),
-    @('GrShaderCache'),
-    @('BrowserMetrics')
-)
-
-$script:FirefoxProfileSubFolders = @(
-    @('cache2'),
-    @('startupCache'),
-    @('offlineCache'),
-    @('safebrowsing'),
-    @('security_state'),
-    @('shader-cache'),
-    @('storage','default'),
-    @('storage','permanent'),
-    @('storage','temporary')
-)
-
-function Get-ChromiumProfileDirectories {
-    param(
-        [string] $Root,
-        [switch] $TreatRootAsProfile
-    )
-
-    $resolved = Resolve-TidyPath -Path $Root
-    if ([string]::IsNullOrWhiteSpace($resolved) -or -not (Test-Path -LiteralPath $resolved)) {
-        return @()
-    }
-
-    if ($TreatRootAsProfile.IsPresent) {
-        $item = Get-Item -LiteralPath $resolved -ErrorAction SilentlyContinue
-        if ($item -and $item.PSIsContainer) {
-            return @($item)
-        }
-        return @()
-    }
-
-    try {
-        $candidates = Get-ChildItem -LiteralPath $resolved -Directory -ErrorAction Stop
-    }
-    catch {
-        return @()
-    }
-
-    $filtered = @()
-    foreach ($candidate in $candidates) {
-        if ($candidate.Name -eq 'Default' -or $candidate.Name -like 'Profile *' -or $candidate.Name -eq 'Guest Profile') {
-            $filtered += $candidate
-        }
-    }
-
-    if ($filtered.Count -eq 0) {
-        return $candidates
-    }
-
-    return $filtered
-}
-
-function Get-ChromiumCacheTargets {
-    param(
-        [System.IO.DirectoryInfo[]] $Profiles,
-        [string] $BrowserLabel,
-        [string] $UserDataRoot,
-        [object[]] $GlobalFolders
-    )
-
-    $targets = [System.Collections.Generic.List[psobject]]::new()
-    foreach ($profile in $Profiles) {
-        foreach ($segments in $script:ChromiumProfileSubFolders) {
-            $path = Join-TidyPath -Root $profile.FullName -Segments $segments
-            $segmentLabel = ($segments -join '/')
-            $label = "{0} profile '{1}' - {2}" -f $BrowserLabel, $profile.Name, $segmentLabel
-            $targets.Add([pscustomobject]@{ Path = $path; Label = $label }) | Out-Null
-        }
-    }
-
-    $resolvedRoot = Resolve-TidyPath -Path $UserDataRoot
-    if ($resolvedRoot -and (Test-Path -LiteralPath $resolvedRoot) -and $GlobalFolders) {
-        foreach ($segments in $GlobalFolders) {
-            $path = Join-TidyPath -Root $resolvedRoot -Segments $segments
-            $segmentLabel = ($segments -join '/')
-            $label = "{0} global {1}" -f $BrowserLabel, $segmentLabel
-            $targets.Add([pscustomobject]@{ Path = $path; Label = $label }) | Out-Null
-        }
-    }
-
-    return $targets
-}
-
-function Get-LegacyEdgeTargets {
-    $targets = [System.Collections.Generic.List[psobject]]::new()
-    $legacyRoot = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Packages\Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe\AC\MicrosoftEdge\User\Default')
-    if (-not $legacyRoot -or -not (Test-Path -LiteralPath $legacyRoot)) {
-        return $targets
-    }
-
-    $folders = @('Cache','Databases','Indexed DB','LocalState','Service Worker')
-    foreach ($folder in $folders) {
-        $path = Join-TidyPath -Root $legacyRoot -Segments @($folder)
-        $targets.Add([pscustomobject]@{ Path = $path; Label = "Edge legacy $folder" }) | Out-Null
-    }
-
-    return $targets
-}
-
-function Get-OperaProfileDirectories {
-    $list = [System.Collections.Generic.List[System.IO.DirectoryInfo]]::new()
-    $candidateRoots = @(
-        Join-Path -Path $env:APPDATA -ChildPath 'Opera Software'
-        Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Opera Software'
-    )
-
-    foreach ($candidate in $candidateRoots) {
-        $root = Resolve-TidyPath -Path $candidate
-        if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path -LiteralPath $root)) {
-            continue
-        }
-
-        $dirs = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Opera*' }
-        foreach ($dir in $dirs) {
-            $list.Add($dir) | Out-Null
-        }
-    }
-
-    return $list.ToArray()
-}
-
-function Get-FirefoxCacheTargets {
-    $targets = [System.Collections.Generic.List[psobject]]::new()
-    $roots = @(
-        @{ Path = Resolve-TidyPath -Path (Join-Path -Path $env:APPDATA -ChildPath 'Mozilla\Firefox\Profiles'); Label = 'Firefox (Roaming)' },
-        @{ Path = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Mozilla\Firefox\Profiles'); Label = 'Firefox (Local)' }
-    )
-
-    foreach ($root in $roots) {
-        if (-not $root.Path -or -not (Test-Path -LiteralPath $root.Path)) {
-            continue
-        }
-
-        $profiles = Get-ChildItem -LiteralPath $root.Path -Directory -ErrorAction SilentlyContinue
-        foreach ($profile in $profiles) {
-            foreach ($segments in $script:FirefoxProfileSubFolders) {
-                $path = Join-TidyPath -Root $profile.FullName -Segments $segments
-                $segmentLabel = ($segments -join '/')
-                $label = "{0} profile '{1}' - {2}" -f $root.Label, $profile.Name, $segmentLabel
-                $targets.Add([pscustomobject]@{ Path = $path; Label = $label }) | Out-Null
-            }
-        }
-    }
-
-    return $targets
-}
-
-function Get-BrowserCacheTargets {
-    param([string] $Browser)
-
-    switch ($Browser) {
-        'Edge' {
-            $root = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\Edge\User Data')
-            $profiles = Get-ChromiumProfileDirectories -Root $root
-            $targets = Get-ChromiumCacheTargets -Profiles $profiles -BrowserLabel 'Edge' -UserDataRoot $root -GlobalFolders $script:ChromiumGlobalFolderSegments
-            foreach ($legacy in (Get-LegacyEdgeTargets)) {
-                $targets.Add($legacy) | Out-Null
-            }
-            return $targets
-        }
-        'Chrome' {
-            $root = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Google\Chrome\User Data')
-            $profiles = Get-ChromiumProfileDirectories -Root $root
-            return Get-ChromiumCacheTargets -Profiles $profiles -BrowserLabel 'Chrome' -UserDataRoot $root -GlobalFolders $script:ChromiumGlobalFolderSegments
-        }
-        'Brave' {
-            $root = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'BraveSoftware\Brave-Browser\User Data')
-            $profiles = Get-ChromiumProfileDirectories -Root $root
-            return Get-ChromiumCacheTargets -Profiles $profiles -BrowserLabel 'Brave' -UserDataRoot $root -GlobalFolders $script:ChromiumGlobalFolderSegments
-        }
-        'Opera' {
-            $profiles = Get-OperaProfileDirectories
-            return Get-ChromiumCacheTargets -Profiles $profiles -BrowserLabel 'Opera' -UserDataRoot $null -GlobalFolders @()
-        }
-        'Firefox' {
-            return Get-FirefoxCacheTargets
-        }
-        default { return [System.Collections.Generic.List[psobject]]::new() }
-    }
-}
-
-function Invoke-BrowserCacheCleanup {
-    if (-not $ClearProfileCaches.IsPresent) {
-        return
-    }
-
-    foreach ($browser in $script:TargetBrowsers) {
-        $displayName = Get-BrowserDisplayName -Browser $browser
-        $targets = @(Get-BrowserCacheTargets -Browser $browser)
-        if (-not $targets -or $targets.Count -eq 0) {
-            Write-TidyOutput -Message ("{0}: no cache directories found." -f $displayName)
-            continue
-        }
-
-        Write-TidyOutput -Message ("Clearing cache data for {0}." -f $displayName)
-        foreach ($target in $targets) {
-            Clear-TidyDirectory -Path $target.Path -Label $target.Label
-        }
-    }
-}
-
-function Invoke-WebViewCacheCleanup {
-    if (-not $ClearWebViewCaches.IsPresent) {
-        return
-    }
-
-    if (-not $script:TargetBrowsers.Contains('Edge')) {
-        Write-TidyOutput -Message 'WebView2 cleanup skipped (Microsoft Edge not selected).'
-        return
-    }
-
-    $webViewRoot = Resolve-TidyPath -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\EdgeWebView')
-    if (-not $webViewRoot -or -not (Test-Path -LiteralPath $webViewRoot)) {
-        Write-TidyOutput -Message 'Edge WebView2 root not found; nothing to clear.'
-        return
-    }
-
-    Write-TidyOutput -Message 'Clearing Edge WebView2 runtime caches.'
-
-    $containers = @()
-    try {
-        $containers = Get-ChildItem -LiteralPath $webViewRoot -Directory -ErrorAction Stop
-    }
-    catch {
-        $containers = @()
-    }
-
-    foreach ($container in $containers) {
-        $paths = @('Cache','Code Cache','GPUCache','Service Worker','EBWebView','User Data')
-        foreach ($relative in $paths) {
-            $fullPath = Join-TidyPath -Root $container.FullName -Segments @($relative)
-            Clear-TidyDirectory -Path $fullPath -Label ("WebView2 '{0}' - {1}" -f $container.Name, $relative)
-        }
-    }
-}
-
-function Get-PolicyDefinitions {
-    param([string] $Browser)
-
-    switch ($Browser) {
-        'Edge' {
-            return @(
-                @{ Path = 'HKCU:SOFTWARE\Policies\Microsoft\Edge'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\Edge'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\EdgeUpdate'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\EdgePerformance'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Microsoft\Edge'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Microsoft\EdgeUpdate'; RequiresAdmin = $true }
-            )
-        }
-        'Chrome' {
-            return @(
-                @{ Path = 'HKCU:SOFTWARE\Policies\Google\Chrome'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Google\Chrome'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Google\Update'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Google\Chrome'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Google\Update'; RequiresAdmin = $true }
-            )
-        }
-        'Brave' {
-            return @(
-                @{ Path = 'HKCU:SOFTWARE\Policies\BraveSoftware\Brave'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\BraveSoftware\Brave'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\BraveSoftware\Brave'; RequiresAdmin = $true }
-            )
-        }
-        'Opera' {
-            return @(
-                @{ Path = 'HKCU:SOFTWARE\Policies\Opera Software\Opera'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Opera Software\Opera'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Opera Software\Opera'; RequiresAdmin = $true }
-            )
-        }
-        default { return @() }
-    }
-}
-
-function Invoke-BrowserPolicyReset {
-    if (-not $ResetPolicies.IsPresent) {
-        return
-    }
-
-    foreach ($browser in $script:TargetBrowsers) {
-        $definitions = @(Get-PolicyDefinitions -Browser $browser)
-        if (-not $definitions -or $definitions.Count -eq 0) {
-            Write-TidyOutput -Message ("{0}: no registry policy keys defined for reset." -f (Get-BrowserDisplayName -Browser $browser))
-            continue
-        }
-
-        Write-TidyOutput -Message ("Resetting policy keys for {0}." -f (Get-BrowserDisplayName -Browser $browser))
-        foreach ($definition in $definitions) {
-            $path = $definition.Path
-            $resolved = ConvertTo-TidyRegistryPath -KeyPath $path
-            if (-not $resolved -or -not (Test-Path -LiteralPath $resolved)) {
-                Write-TidyOutput -Message ("{0}: no policy key found." -f $path)
-                continue
-            }
-
-            if ($definition.RequiresAdmin -and -not $script:IsAdminSession) {
-                $script:PolicyKeysSkipped++
-                Write-TidyOutput -Message ("Skipping {0}: administrator privileges required." -f $path)
-                continue
-            }
-
-            if ($DryRun.IsPresent) {
-                Write-TidyOutput -Message ("[DryRun] Would remove {0}." -f $path)
-                continue
-            }
-
-            try {
-                Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction Stop
-                $script:PolicyKeysCleared++
-                Write-TidyOutput -Message ("Removed {0}." -f $path)
-            }
-            catch {
-                $script:OperationSucceeded = $false
-                Write-TidyError -Message ("Failed to remove {0}: {1}" -f $path, $_.Exception.Message)
-            }
-        }
-    }
-}
-
-function Get-EdgeSetupPath {
-    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
-    $roots = @($env:ProgramFiles, $programFilesX86) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    foreach ($root in $roots) {
-        $applicationRoot = Join-Path -Path $root -ChildPath 'Microsoft\Edge\Application'
-        if (-not (Test-Path -LiteralPath $applicationRoot)) {
-            continue
-        }
-
-        $versions = @()
+    $bytesFreed = 0L
+    foreach ($cachePath in $CachePaths) {
+        $expanded = [Environment]::ExpandEnvironmentVariables($cachePath)
+        if (-not (Test-Path -LiteralPath $expanded)) { continue }
         try {
-            $versions = Get-ChildItem -LiteralPath $applicationRoot -Directory -ErrorAction Stop | Where-Object { $_.Name -match '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' }
+            $size = (Get-ChildItem -LiteralPath $expanded -Recurse -File -Force -ErrorAction SilentlyContinue |
+                     Measure-Object -Property Length -Sum).Sum
+            Remove-Item -LiteralPath $expanded -Recurse -Force -ErrorAction Stop
+            $bytesFreed += $size
         }
         catch {
-            $versions = @()
-        }
-
-        $ordered = $versions | Sort-Object { try { [version]$_.Name } catch { [version]'0.0.0.0' } } -Descending
-        $candidate = $ordered | Select-Object -First 1
-        if (-not $candidate) {
-            continue
-        }
-
-        $setupPath = Join-Path -Path $candidate.FullName -ChildPath 'Installer\setup.exe'
-        if (Test-Path -LiteralPath $setupPath) {
-            return $setupPath
+            Write-TidyLog -Level Warning -Message "  Could not fully remove '$expanded': $($_.Exception.Message)"
         }
     }
-
-    return $null
+    return $bytesFreed
 }
 
-function Invoke-EdgeRepair {
-    if (-not $RepairEdgeInstall.IsPresent) {
-        return
-    }
-
-    if (-not $script:TargetBrowsers.Contains('Edge')) {
-        Write-TidyOutput -Message 'Edge installer repair requested but Microsoft Edge is not selected; skipping.'
-        return
-    }
-
-    if (-not $script:IsAdminSession) {
-        throw 'Edge installer repair requires an elevated PowerShell session.'
-    }
-
-    $setupPath = Get-EdgeSetupPath
-    if (-not $setupPath) {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message 'Could not locate Microsoft Edge setup.exe for repair.'
-        return
-    }
-
-    if ($DryRun.IsPresent) {
-        Write-TidyOutput -Message ("[DryRun] Would run '{0}' with repair arguments." -f $setupPath)
-        return
-    }
-
-    Write-TidyOutput -Message 'Running Microsoft Edge installer repair (force reinstall).'
-    try {
-        $arguments = '--force-reinstall --system-level --repair --verbose-logging'
-        $process = Start-Process -FilePath $setupPath -ArgumentList $arguments -Wait -PassThru
-        $script:RepairAttempted = $true
-        if ($process.ExitCode -eq 0) {
-            $script:RepairSucceeded = $true
-            Write-TidyOutput -Message 'Edge installer repair completed successfully.'
-        }
-        else {
-            $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Edge installer repair exited with code {0}." -f $process.ExitCode)
-        }
-    }
-    catch {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message ("Edge installer repair failed: {0}" -f $_.Exception.Message)
-    }
-}
-
-function Write-TidySummary {
-    $sizeText = Format-TidySize -Bytes $script:CleanupBytes
-    $browserList = ($script:TargetBrowsers -join ', ')
-    Write-TidyOutput -Message '--- Browser reset summary ---'
-    $browserSummary = if ([string]::IsNullOrWhiteSpace($browserList)) { 'None' } else { $browserList }
-    Write-TidyOutput -Message ("Browsers targeted: {0}" -f $browserSummary)
-    Write-TidyOutput -Message ("Cleared directories: {0}" -f $script:CleanupDirectories)
-    Write-TidyOutput -Message ("Estimated space reclaimed: {0}" -f $sizeText)
-    if ($ResetPolicies.IsPresent) {
-        Write-TidyOutput -Message ("Policy keys removed: {0}" -f $script:PolicyKeysCleared)
-        if ($script:PolicyKeysSkipped -gt 0) {
-            Write-TidyOutput -Message ("Policy keys skipped (no admin): {0}" -f $script:PolicyKeysSkipped)
-        }
-    }
-    if ($RepairEdgeInstall.IsPresent) {
-        $status = if ($script:RepairSucceeded) { 'Success' } elseif ($script:RepairAttempted) { 'Failed' } else { 'Not run' }
-        Write-TidyOutput -Message ("Edge installer repair status: {0}" -f $status)
-    }
-}
-
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
 try {
-    Write-TidyLog -Level Information -Message ("Starting browser reset & cache cleanup task for: {0}." -f ($script:TargetBrowsers -join ', '))
+    Write-TidyOutput -Message 'Starting browser reset and cache cleanup.'
+    $totalFreed = 0L
 
-    Warn-TidyBrowsersRunning
-    Stop-TidyBrowserProcesses
-    Invoke-BrowserCacheCleanup
-    Invoke-WebViewCacheCleanup
-    Invoke-BrowserPolicyReset
-    Invoke-EdgeRepair
+    # ── 1. Microsoft Edge cache ───────────────────────────────────────
+    if (-not $SkipEdge.IsPresent) {
+        Invoke-Step -Name 'Clear Microsoft Edge cache' -Action {
+            $edgeBase = Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data'
+            if (-not (Test-Path -LiteralPath $edgeBase)) {
+                Write-TidyOutput -Message '  Edge profile directory not found. Skipped.'
+                return
+            }
 
-    Write-TidySummary
-    Write-TidyOutput -Message 'Browser reset & cleanup routine completed.'
+            # Collect cache folders from all profiles.
+            $profiles = @(Get-ChildItem -LiteralPath $edgeBase -Directory -ErrorAction SilentlyContinue |
+                          Where-Object { $_.Name -eq 'Default' -or $_.Name -match '^Profile \d+$' })
+            $cacheDirs = foreach ($prof in $profiles) {
+                Join-Path $prof.FullName 'Cache\Cache_Data'
+                Join-Path $prof.FullName 'Code Cache'
+                Join-Path $prof.FullName 'Service Worker\CacheStorage'
+            }
+
+            $freed = Remove-BrowserCache -BrowserName 'Edge' -CachePaths $cacheDirs -ProcessName 'msedge'
+            $totalFreed += $freed
+            Write-TidyOutput -Message "  Edge cache freed: $([math]::Round($freed / 1MB, 1)) MB"
+        }
+    }
+    else { Write-TidyOutput -Message 'Edge cache cleanup skipped.' }
+
+    # ── 2. Google Chrome cache ────────────────────────────────────────
+    if (-not $SkipChrome.IsPresent) {
+        Invoke-Step -Name 'Clear Google Chrome cache' -Action {
+            $chromeBase = Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data'
+            if (-not (Test-Path -LiteralPath $chromeBase)) {
+                Write-TidyOutput -Message '  Chrome profile directory not found. Skipped.'
+                return
+            }
+
+            $profiles = @(Get-ChildItem -LiteralPath $chromeBase -Directory -ErrorAction SilentlyContinue |
+                          Where-Object { $_.Name -eq 'Default' -or $_.Name -match '^Profile \d+$' })
+            $cacheDirs = foreach ($prof in $profiles) {
+                Join-Path $prof.FullName 'Cache\Cache_Data'
+                Join-Path $prof.FullName 'Code Cache'
+                Join-Path $prof.FullName 'Service Worker\CacheStorage'
+            }
+
+            $freed = Remove-BrowserCache -BrowserName 'Chrome' -CachePaths $cacheDirs -ProcessName 'chrome'
+            $totalFreed += $freed
+            Write-TidyOutput -Message "  Chrome cache freed: $([math]::Round($freed / 1MB, 1)) MB"
+        }
+    }
+    else { Write-TidyOutput -Message 'Chrome cache cleanup skipped.' }
+
+    # ── 3. Mozilla Firefox cache ──────────────────────────────────────
+    if (-not $SkipFirefox.IsPresent) {
+        Invoke-Step -Name 'Clear Mozilla Firefox cache' -Action {
+            $ffBase = Join-Path $env:LOCALAPPDATA 'Mozilla\Firefox\Profiles'
+            if (-not (Test-Path -LiteralPath $ffBase)) {
+                Write-TidyOutput -Message '  Firefox profile directory not found. Skipped.'
+                return
+            }
+
+            $profiles = @(Get-ChildItem -LiteralPath $ffBase -Directory -ErrorAction SilentlyContinue)
+            $cacheDirs = foreach ($prof in $profiles) {
+                Join-Path $prof.FullName 'cache2'
+            }
+
+            $freed = Remove-BrowserCache -BrowserName 'Firefox' -CachePaths $cacheDirs -ProcessName 'firefox'
+            $totalFreed += $freed
+            Write-TidyOutput -Message "  Firefox cache freed: $([math]::Round($freed / 1MB, 1)) MB"
+        }
+    }
+    else { Write-TidyOutput -Message 'Firefox cache cleanup skipped.' }
+
+    # ── 4. Flush DNS client cache ─────────────────────────────────────
+    if (-not $SkipDnsFlush.IsPresent) {
+        Invoke-Step -Name 'Flush DNS client cache' -Action {
+            if (Get-Command Clear-DnsClientCache -ErrorAction SilentlyContinue) {
+                Clear-DnsClientCache
+            }
+            else {
+                $r = Invoke-TidyNativeCommand -FilePath 'ipconfig.exe' -Arguments '/flushdns' -TimeoutSeconds 15
+                if (-not $r.Success) { throw "ipconfig /flushdns failed: $($r.Error)" }
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'DNS flush skipped.' }
+
+    # ── 5. Reset WinHTTP / IE proxy settings ──────────────────────────
+    if (-not $SkipProxyReset.IsPresent) {
+        Invoke-Step -Name 'Reset WinHTTP proxy settings' -Action {
+            if (-not (Test-TidyAdmin)) {
+                Write-TidyOutput -Message '  Proxy reset requires elevation. Skipped.'
+                return
+            }
+            $r = Invoke-TidyNativeCommand -FilePath 'netsh.exe' -Arguments 'winhttp reset proxy' -TimeoutSeconds 15
+            if (-not $r.Success) { throw "netsh winhttp reset proxy failed: $($r.Error)" }
+        }
+
+        Invoke-Step -Name 'Clear Internet Explorer / system SSL state' -Action {
+            # Delete cached SSL sessions in the registry (non-destructive).
+            $sslPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+            if (Test-Path -LiteralPath $sslPath) {
+                # Remove ZoneMap override entries that may have been injected.
+                $zonePath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+                if (Test-Path -LiteralPath $zonePath) {
+                    # Only clear user-scoped overrides, never machine-level policy.
+                    if (-not (Test-TidyGroupPolicyManaged -RegistryPath $zonePath)) {
+                        # Clearing UNCAsIntranet and AutoDetect re-enables defaults.
+                        Remove-ItemProperty -Path $zonePath -Name 'UNCAsIntranet' -ErrorAction SilentlyContinue
+                        Remove-ItemProperty -Path $zonePath -Name 'AutoDetect' -ErrorAction SilentlyContinue
+                    }
+                    else {
+                        Write-TidyOutput -Message '  ZoneMap is Group Policy managed. Skipped.'
+                    }
+                }
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'Proxy reset skipped.' }
+
+    # ── Summary ───────────────────────────────────────────────────────
+    Write-TidyOutput -Message ''
+    Write-TidyOutput -Message "Browser cache cleanup completed. Total freed: $([math]::Round($totalFreed / 1MB, 1)) MB"
 }
 catch {
     $script:OperationSucceeded = $false
-    $message = $_.Exception.Message
-    if ([string]::IsNullOrWhiteSpace($message)) {
-        $message = $_ | Out-String
-    }
-
-    Write-TidyLog -Level Error -Message $message
-    Write-TidyError -Message $message
-    if (-not $script:UsingResultFile) {
-        throw
-    }
+    Write-TidyError -Message "Browser reset failed: $($_.Exception.Message)"
 }
 finally {
     Save-TidyResult
-    Write-TidyLog -Level Information -Message 'Browser reset script finished.'
-}
-
-if ($script:UsingResultFile) {
-    $wasSuccessful = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-    if ($wasSuccessful) {
-        exit 0
-    }
-
-    exit 1
 }

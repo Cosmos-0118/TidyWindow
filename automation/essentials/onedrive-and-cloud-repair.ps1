@@ -304,6 +304,9 @@ function Repair-KfmMappings {
             'My Video'    = "$userProfile\Videos"
         }
 
+        # SAFETY: Backup Shell Folders registry before any modifications.
+        Backup-TidyRegistryKey -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+
         foreach ($name in $defaults.Keys) {
             $current = (Get-ItemProperty -Path $shellKey -Name $name -ErrorAction SilentlyContinue).$name
             $target = $defaults[$name]

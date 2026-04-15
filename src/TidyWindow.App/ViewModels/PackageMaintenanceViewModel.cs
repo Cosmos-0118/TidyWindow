@@ -32,12 +32,13 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly IAutomationWorkTracker _workTracker;
     private readonly UserPreferencesService _preferences;
 
-    private const int WingetCannotUpgradeExitCode = -1978334956;
-    private const int WingetUnknownVersionExitCode = -1978335189;
-    private const int WingetInstallerHashMismatchExitCode = -1978335215;
-    private const int MsiAnotherVersionInstalledExitCode = 1638;
-    private const int WingetDowngradeBlockedExitCode = -1978334963;
-    private const int WingetApplicationNotFoundExitCode = unchecked((int)0x800401F5);
+    // Winget HRESULT exit codes — see https://github.com/microsoft/winget-cli/blob/master/src/AppInstallerCLICore/Resources.h
+    private const int WingetCannotUpgradeExitCode = -1978334956;       // APPINSTALLER_CLI_ERROR_UPDATE_NOT_APPLICABLE
+    private const int WingetUnknownVersionExitCode = -1978335189;      // APPINSTALLER_CLI_ERROR_NO_APPLICABLE_INSTALLER
+    private const int WingetInstallerHashMismatchExitCode = -1978335215; // APPINSTALLER_CLI_ERROR_INSTALLER_HASH_MISMATCH
+    private const int MsiAnotherVersionInstalledExitCode = 1638;       // ERROR_PRODUCT_VERSION (Windows Installer)
+    private const int WingetDowngradeBlockedExitCode = -1978334963;    // APPINSTALLER_CLI_ERROR_PACKAGE_IS_NEWER
+    private const int WingetApplicationNotFoundExitCode = unchecked((int)0x800401F5); // APPINSTALLER_CLI_ERROR_NO_APPLICATIONS_FOUND
     private const int InstallerBusyMaxWaitAttempts = 6;
     private static readonly TimeSpan InstallerBusyInitialDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan InstallerBusyMaximumDelay = TimeSpan.FromSeconds(60);

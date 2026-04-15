@@ -1052,8 +1052,130 @@
                         </Grid>
                     </Border>
 
+                    <!-- System Restore Banner -->
+                    <Border Margin="0,8,0,0" Padding="20,16" CornerRadius="14"
+                            Background="#0A1525" BorderBrush="#1A3A5F" BorderThickness="1"
+                            Cursor="Hand" MouseLeftButtonDown="OnRestorePointBannerClick">
+                        <DockPanel>
+                            <Border Width="44" Height="44" CornerRadius="12" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#1E3A5F" Offset="0"/>
+                                        <GradientStop Color="#0F2038" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="💾" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                                <TextBlock Text="View Points →" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="13"/>
+                            </StackPanel>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="System Restore" FontWeight="SemiBold" FontSize="15" Foreground="#E2E8F0" TextOptions.TextFormattingMode="Display"/>
+                                <TextBlock Text="View and restore to a previous system state" FontSize="12" Foreground="#64748B" Margin="0,3,0,0" TextOptions.TextFormattingMode="Display"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
                 </StackPanel>
             </ScrollViewer>
+        </Grid>
+
+        <!-- System Restore Points Dialog -->
+        <Grid Panel.ZIndex="13" Background="#E0020617"
+              Visibility="{Binding IsRestorePointsDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              MouseDown="OnDialogOverlayClick">
+            <Border MaxWidth="640" MaxHeight="550" Margin="48" Padding="32"
+                    Background="#0C1829" BorderBrush="#1A3A5F" BorderThickness="1"
+                    CornerRadius="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="60" ShadowDepth="8" Opacity="0.7" Color="#000000"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,24">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="48" Height="48" CornerRadius="12" Margin="0,0,16,0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#1E3A5F" Offset="0"/>
+                                        <GradientStop Color="#0F2038" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="💾" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="System Restore Points" FontSize="22" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                                <TextBlock Text="Select a restore point to roll back your system" FontSize="14" Foreground="#64748B" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Restore Points List -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SystemRestorePoints}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#0A1525" BorderBrush="#152640" BorderThickness="1"
+                                            CornerRadius="14" Padding="18" Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"
+                                                           Foreground="#E2E8F0"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                    <Border Background="#0F2038" CornerRadius="6" Padding="8,4" Margin="0,0,10,0">
+                                                        <TextBlock Text="{Binding TimeAgo}" FontSize="11" Foreground="#38BDF8"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Description}" FontSize="12"
+                                                               Foreground="#64748B" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1" Content="Restore"
+                                                    Command="{Binding DataContext.RestoreToSelectedPointCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource CompactButton}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Empty state text (shown when no points) -->
+                    <TextBlock Grid.Row="1" Text="No system restore points found. Create one from Essentials to get started."
+                               Foreground="#64748B" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center" Margin="24">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSystemRestorePoints}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Footer -->
+                    <Button Grid.Row="2" Content="Close" Command="{Binding CloseRestorePointsDialogCommand}"
+                            Style="{StaticResource CompactButton}" HorizontalAlignment="Right"
+                            Margin="0,24,0,0" MinWidth="120"/>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- Boot Config Dialog - Modern Design -->

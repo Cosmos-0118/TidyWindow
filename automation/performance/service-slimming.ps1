@@ -78,16 +78,19 @@ if ($Restore) {
 
         if ($PSCmdlet.ShouldProcess($entry.Name, "Set start type to $($entry.StartType)")) {
             if ($entry.StartType -match 'Disabled|Manual|Automatic|Auto') {
-                Set-Service -Name $entry.Name -StartupType $entry.StartType -ErrorAction SilentlyContinue
+                try { Set-Service -Name $entry.Name -StartupType $entry.StartType -ErrorAction Stop }
+                catch { Write-Verbose "Failed to set start type for $($entry.Name): $($_.Exception.Message)" }
             }
         }
 
         if ($PSCmdlet.ShouldProcess($entry.Name, "Restore status $($entry.Status)")) {
             if ($entry.Status -eq 'Running' -and $svc.Status -ne 'Running') {
-                Start-Service -Name $entry.Name -ErrorAction SilentlyContinue
+                try { Start-Service -Name $entry.Name -ErrorAction Stop }
+                catch { Write-Verbose "Failed to start $($entry.Name): $($_.Exception.Message)" }
             }
             elseif ($entry.Status -eq 'Stopped' -and $svc.Status -eq 'Running') {
-                Stop-Service -Name $entry.Name -Force -ErrorAction SilentlyContinue
+                try { Stop-Service -Name $entry.Name -Force -ErrorAction Stop }
+                catch { Write-Verbose "Failed to stop $($entry.Name): $($_.Exception.Message)" }
             }
         }
     }
@@ -138,12 +141,14 @@ foreach ($svc in $baseline | Where-Object { $_.Exists }) {
     $desiredStart = if ($Template -eq 'Minimal') { 'Disabled' } else { 'Manual' }
 
     if ($PSCmdlet.ShouldProcess($svc.Name, "Set start type to $desiredStart")) {
-        Set-Service -Name $svc.Name -StartupType $desiredStart -ErrorAction SilentlyContinue
+        try { Set-Service -Name $svc.Name -StartupType $desiredStart -ErrorAction Stop }
+        catch { Write-Verbose "Failed to set start type for $($svc.Name): $($_.Exception.Message)" }
     }
 
     if ($PSCmdlet.ShouldProcess($svc.Name, 'Stop service')) {
         if ((Get-Service -Name $svc.Name).Status -eq 'Running') {
-            Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+            try { Stop-Service -Name $svc.Name -Force -ErrorAction Stop }
+            catch { Write-Verbose "Failed to stop $($svc.Name): $($_.Exception.Message)" }
         }
     }
 }

@@ -400,7 +400,11 @@ function Invoke-TidyWsReset {
             param($path)
 
             $process = Start-Process -FilePath $path -PassThru -WindowStyle Hidden
-            $process.WaitForExit()
+            if (-not $process.WaitForExit(60000)) {
+                Write-Warning 'wsreset.exe did not exit within 60 seconds; terminating.'
+                $process.Kill()
+                return 1
+            }
             return $process.ExitCode
         } -Arguments @($wsreset.Path) -Description 'Running wsreset.exe.'
 
@@ -774,30 +778,34 @@ function Invoke-LicensingRepair {
         }
     }
 
-    Write-TidyOutput -Message 'Resetting Store licensing cache.'
-    $licensePath = Join-Path -Path $env:ProgramData -ChildPath 'Microsoft\Windows\ClipSVC\TokenStore'
-    if (Test-Path -LiteralPath $licensePath) {
-        try {
-            Remove-Item -LiteralPath $licensePath -Recurse -Force -ErrorAction Stop
-            Write-TidyOutput -Message ("Removed ClipSVC token cache at {0}." -f $licensePath)
-            $script:LicensingCacheCleared = $true
-        }
-        catch {
-            Write-TidyError -Message ("Failed to clear licensing cache: {0}" -f $_.Exception.Message)
-            $script:OperationSucceeded = $false
-        }
-    }
-
-    foreach ($service in $stoppedServices) {
-        try {
-            Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($service) -Description ("Start service {0}" -f $service) | Out-Null
-            if (-not $script:RestartedServices.Contains($service)) {
-                $script:RestartedServices.Add($service)
+    try {
+        Write-TidyOutput -Message 'Resetting Store licensing cache.'
+        $licensePath = Join-Path -Path $env:ProgramData -ChildPath 'Microsoft\Windows\ClipSVC\TokenStore'
+        if (Test-Path -LiteralPath $licensePath) {
+            try {
+                Remove-Item -LiteralPath $licensePath -Recurse -Force -ErrorAction Stop
+                Write-TidyOutput -Message ("Removed ClipSVC token cache at {0}." -f $licensePath)
+                $script:LicensingCacheCleared = $true
+            }
+            catch {
+                Write-TidyError -Message ("Failed to clear licensing cache: {0}" -f $_.Exception.Message)
+                $script:OperationSucceeded = $false
             }
         }
-        catch {
-            $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $service, $_.Exception.Message)
+    }
+    finally {
+        # SAFETY: Guarantee all stopped services are restarted regardless of cache clear outcome.
+        foreach ($service in $stoppedServices) {
+            try {
+                Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($service) -Description ("Start service {0}" -f $service) | Out-Null
+                if (-not $script:RestartedServices.Contains($service)) {
+                    $script:RestartedServices.Add($service)
+                }
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $service, $_.Exception.Message)
+            }
         }
     }
 }

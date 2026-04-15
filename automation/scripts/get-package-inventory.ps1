@@ -454,6 +454,41 @@ function Collect-WingetInventory {
     $installed = New-ObjectDictionary
     $upgrades = New-ObjectDictionary
 
+    # Try structured JSON output first (winget 1.7+).
+    $jsonParsed = $false
+    try {
+        $jsonArgs = @('list', '--accept-source-agreements', '--disable-interactivity', '--output', 'json')
+        $jsonRaw = & $Command.Source @jsonArgs 2>$null
+        if ($LASTEXITCODE -eq 0 -and $jsonRaw) {
+            $jsonText = ($jsonRaw -join "`n").Trim()
+            if ($jsonText.StartsWith('{') -or $jsonText.StartsWith('[')) {
+                $parsed = ConvertFrom-Json -InputObject $jsonText -ErrorAction Stop
+                $packages = if ($parsed.Sources) { $parsed.Sources | ForEach-Object { $_.Packages } } else { @($parsed) }
+                foreach ($pkg in $packages) {
+                    foreach ($item in @($pkg)) {
+                        $id = if ($item.PackageIdentifier) { $item.PackageIdentifier } elseif ($item.Id) { $item.Id } else { $null }
+                        $ver = if ($item.InstalledVersion) { $item.InstalledVersion } elseif ($item.Version) { $item.Version } else { $null }
+                        $src = if ($item.Source) { Normalize-WingetSourceName -Value $item.Source } else { 'winget' }
+                        $name = if ($item.PackageName) { $item.PackageName } elseif ($item.Name) { $item.Name } else { $id }
+                        if ($id) {
+                            $canonicalId = Resolve-WingetIdentifier -Candidate $id -InstalledVersion $ver -Lookup $exportLookup
+                            if ([string]::IsNullOrWhiteSpace($canonicalId)) { $canonicalId = $id }
+                            if (-not $installed.ContainsKey($canonicalId)) {
+                                $installed[$canonicalId] = [pscustomobject]@{ Name = $name; Version = $ver; Source = $src }
+                            }
+                        }
+                    }
+                }
+                if ($installed.Count -gt 0) { $jsonParsed = $true }
+            }
+        }
+    }
+    catch {
+        Write-Verbose ("Winget JSON list failed, falling back to table: {0}" -f $_.Exception.Message)
+    }
+
+    # Fallback: table-based parsing.
+    if (-not $jsonParsed) {
     $args = @('list', '--accept-source-agreements', '--disable-interactivity')
     $lines = & $Command.Source @args 2>$null
 
@@ -541,6 +576,7 @@ function Collect-WingetInventory {
             }
         }
     }
+    } # end if (-not $jsonParsed)
 
     $upgradeArgs = @('upgrade', '--include-unknown', '--accept-source-agreements', '--disable-interactivity')
     $upgradeLines = & $Command.Source @upgradeArgs 2>$null

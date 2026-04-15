@@ -254,6 +254,14 @@ public sealed class InventoryService
         return results;
     }
 
+    private static readonly HashSet<string> PortableExcludedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".dotnet", ".nuget", ".npm", ".cargo", ".rustup", ".gradle", ".m2",
+        "node_modules", "bin", "obj", "packages", "AppData", ".git", ".vs",
+        "scoop", "chocolatey", ".vscode", ".docker", ".kube", "anaconda3",
+        "miniconda3", "OneDrive", "OneDriveTemp"
+    };
+
     private static IEnumerable<BackupApp> DiscoverPortableApps()
     {
         var results = new List<BackupApp>();
@@ -261,8 +269,6 @@ public sealed class InventoryService
         {
             var roots = new List<string>
             {
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "PortableApps")
             };
 
@@ -270,13 +276,18 @@ public sealed class InventoryService
             {
                 foreach (var dir in Directory.EnumerateDirectories(root))
                 {
+                    var name = Path.GetFileName(dir);
+                    if (string.IsNullOrWhiteSpace(name) || PortableExcludedNames.Contains(name))
+                    {
+                        continue;
+                    }
+
                     var exe = Directory.EnumerateFiles(dir, "*.exe", SearchOption.TopDirectoryOnly).FirstOrDefault();
                     if (exe is null)
                     {
                         continue;
                     }
 
-                    var name = Path.GetFileName(dir);
                     results.Add(new BackupApp
                     {
                         Id = dir,

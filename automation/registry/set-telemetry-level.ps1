@@ -15,6 +15,14 @@ try {
 
     $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
 
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $path) {
+        Write-RegistryOutput 'WARNING: DataCollection policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $path
+
     if ($RevertToWindowsDefault.IsPresent) {
         Write-RegistryOutput 'Reverting telemetry policy to Windows defaults.'
 

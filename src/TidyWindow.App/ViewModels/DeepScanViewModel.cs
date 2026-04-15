@@ -511,10 +511,11 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             _mainViewModel.SetStatusMessage(useForceDelete ? $"Force deleting '{name}'…" : $"Deleting '{name}'…");
             var result = useForceDelete
                 ? await ForceDeleteItemAsync(item)
-                : await Task.Run(() => TryDeleteItem(item));
+                : await TryDeleteItemAsync(item);
 
             if (result.Success)
             {
+                DeepScanService.InvalidateCache();
                 var removedCount = RemoveFinding(item.Finding);
                 var suffix = removedCount > 1 ? $" and {removedCount - 1} nested item(s)" : string.Empty;
                 var prefix = useForceDelete ? "Force deleted" : "Deleted";
@@ -985,7 +986,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
     }
 
-    private (bool Success, string? Error) TryDeleteItem(DeepScanItemViewModel item)
+    private async Task<(bool Success, string? Error)> TryDeleteItemAsync(DeepScanItemViewModel item)
     {
         try
         {
@@ -1020,8 +1021,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 AllowProtectedSystemPaths = AllowSystemDeletion
             };
 
-            var result = _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options)
-                .GetAwaiter().GetResult();
+            var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options).ConfigureAwait(true);
             var entry = result.Entries.FirstOrDefault();
 
             if (entry is null)
@@ -1048,82 +1048,6 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
     }
 
-    private static void ClearFileReadOnlyFlag(string filePath)
-    {
-        try
-        {
-            if (!File.Exists(filePath))
-            {
-                return;
-            }
-
-            var attributes = File.GetAttributes(filePath);
-            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-            {
-                File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
-            }
-        }
-        catch (Exception)
-        {
-        }
-    }
-
-    private static void ClearDirectoryReadOnlyFlags(string directoryPath)
-    {
-        try
-        {
-            var root = new DirectoryInfo(directoryPath);
-            if (!root.Exists)
-            {
-                return;
-            }
-
-            var stack = new Stack<DirectoryInfo>();
-            stack.Push(root);
-
-            while (stack.Count > 0)
-            {
-                var current = stack.Pop();
-                try
-                {
-                    current.Attributes &= ~FileAttributes.ReadOnly;
-                }
-                catch (Exception)
-                {
-                }
-
-                FileSystemInfo[] entries;
-                try
-                {
-                    entries = current.GetFileSystemInfos();
-                }
-                catch (Exception)
-                {
-                    continue;
-                }
-
-                for (var index = 0; index < entries.Length; index++)
-                {
-                    var entry = entries[index];
-                    try
-                    {
-                        entry.Attributes &= ~FileAttributes.ReadOnly;
-                    }
-                    catch (Exception)
-                    {
-                    }
-
-                    if (entry is DirectoryInfo directory)
-                    {
-                        stack.Push(directory);
-                    }
-                }
-            }
-        }
-        catch (Exception)
-        {
-        }
-    }
 }
 
 public sealed class DeepScanItemViewModel : System.ComponentModel.INotifyPropertyChanged

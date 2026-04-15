@@ -417,26 +417,32 @@ function Get-RuntimeVersion {
     }
 
     try {
-        # Wrap executable calls in timeout to prevent hangs on slow network drives
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $output = @()
-        try {
-            $output = & $ExecutablePath @arguments 2>&1
-        }
-        finally {
-            $sw.Stop()
-        }
+        $argString = ($arguments | ForEach-Object { $_ }) -join ' '
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $ExecutablePath
+        $psi.Arguments = $argString
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
 
-        # Skip if it took too long (likely hanging on network drive)
-        if ($sw.ElapsedMilliseconds -gt 5000) {
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $stdout = $proc.StandardOutput.ReadToEndAsync()
+        $stderr = $proc.StandardError.ReadToEndAsync()
+
+        if (-not $proc.WaitForExit(5000)) {
+            try { $proc.Kill() } catch { }
             if ($Warnings) {
-                $Warnings.Add("[$RuntimeId] Version detection took over 5 seconds for '$ExecutablePath' - skipped") | Out-Null
+                $Warnings.Add("[$RuntimeId] Version detection timed out (5s) for '$ExecutablePath' - killed") | Out-Null
             }
             return $null
         }
 
-        if ($output) {
-            $version = Select-TidyBestVersion -Values $output
+        [void][System.Threading.Tasks.Task]::WaitAll(@($stdout, $stderr))
+        $combined = @(($stdout.Result + "`n" + $stderr.Result) -split "`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+        if ($combined.Count -gt 0) {
+            $version = Select-TidyBestVersion -Values $combined
             if (-not [string]::IsNullOrWhiteSpace($version)) {
                 return $version.Trim()
             }
@@ -566,14 +572,9 @@ function Resolve-ActiveExecutable {
 
     try {
         if (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
-            # Get-Command can be slow - use timeout to prevent hangs
             try {
-                $cmdSw = [System.Diagnostics.Stopwatch]::StartNew()
                 $command = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
-                $cmdSw.Stop()
-
-                # If Get-Command took more than 3 seconds, skip to avoid slowdown
-                if ($cmdSw.ElapsedMilliseconds -lt 3000 -and $command) {
+                if ($command) {
                     $cmdPath = Resolve-CommandPath -Command $command
                     if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
                         $resolved = Resolve-InventoryPath -Value $cmdPath
@@ -604,14 +605,21 @@ function Resolve-ActiveExecutable {
 
             foreach ($target in $targets) {
                 try {
-                    # where.exe can be slow on systems with many PATH entries - add timeout
-                    $wSw = [System.Diagnostics.Stopwatch]::StartNew()
-                    $lines = & $whereExe.Source $target 2>$null
-                    $wSw.Stop()
-                    
-                    # If where.exe took too long, skip to avoid cascading timeouts
-                    if ($wSw.ElapsedMilliseconds -gt 2000) {
+                    $wPsi = New-Object System.Diagnostics.ProcessStartInfo
+                    $wPsi.FileName = $whereExe.Source
+                    $wPsi.Arguments = $target
+                    $wPsi.UseShellExecute = $false
+                    $wPsi.RedirectStandardOutput = $true
+                    $wPsi.RedirectStandardError = $true
+                    $wPsi.CreateNoWindow = $true
+                    $wProc = [System.Diagnostics.Process]::Start($wPsi)
+                    $wOut = $wProc.StandardOutput.ReadToEndAsync()
+                    if (-not $wProc.WaitForExit(3000)) {
+                        try { $wProc.Kill() } catch { }
                         $lines = @()
+                    } else {
+                        [void]$wOut.Wait()
+                        $lines = @($wOut.Result -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
                     }
                 }
                 catch {
@@ -1203,14 +1211,21 @@ function Get-RuntimeInventory {
             $whereExe = Get-Command -Name 'where.exe' -ErrorAction SilentlyContinue
             if (-not $whereExe) { break }
             try {
-                # where.exe can be slow on systems with many PATH entries - add timeout
-                $wSw = [System.Diagnostics.Stopwatch]::StartNew()
-                $lines = & $whereExe.Source $hint 2>$null
-                $wSw.Stop()
-                
-                # If where.exe took too long, skip to avoid cascading timeouts
-                if ($wSw.ElapsedMilliseconds -gt 2000) {
+                $whPsi = New-Object System.Diagnostics.ProcessStartInfo
+                $whPsi.FileName = $whereExe.Source
+                $whPsi.Arguments = $hint
+                $whPsi.UseShellExecute = $false
+                $whPsi.RedirectStandardOutput = $true
+                $whPsi.RedirectStandardError = $true
+                $whPsi.CreateNoWindow = $true
+                $whProc = [System.Diagnostics.Process]::Start($whPsi)
+                $whOut = $whProc.StandardOutput.ReadToEndAsync()
+                if (-not $whProc.WaitForExit(3000)) {
+                    try { $whProc.Kill() } catch { }
                     $lines = @()
+                } else {
+                    [void]$whOut.Wait()
+                    $lines = @($whOut.Result -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
                 }
             }
             catch {
@@ -1336,7 +1351,27 @@ if ($PSCmdlet.ParameterSetName -eq 'Switch') {
 
     $machinePathRaw = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
     $machinePathEntries = @(Get-MachinePathEntries -PathValue $machinePathRaw)
-    $runtimes = Build-RuntimeSnapshots -RuntimeConfig $runtimeConfig -MachinePathEntries $machinePathEntries -Warnings $warnings
+
+    # Only re-scan the single switched runtime instead of all 35+
+    $switchedRuntimeId = $switchRequest.runtimeId
+    $switchedConfig = $runtimeConfig | Where-Object {
+        $_.PSObject.Properties['id'] -and [string]::Equals($_.id, $switchedRuntimeId, [System.StringComparison]::OrdinalIgnoreCase)
+    } | Select-Object -First 1
+
+    if ($switchedConfig) {
+        $refreshed = Get-RuntimeInventory -Runtime $switchedConfig -MachinePathEntries $machinePathEntries -Warnings $warnings
+        if ($refreshed) {
+            $updatedRuntimes = New-Object 'System.Collections.Generic.List[psobject]'
+            foreach ($rt in $runtimes) {
+                if ($rt.id -and [string]::Equals($rt.id, $switchedRuntimeId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $updatedRuntimes.Add($refreshed) | Out-Null
+                } else {
+                    $updatedRuntimes.Add($rt) | Out-Null
+                }
+            }
+            $runtimes = $updatedRuntimes
+        }
+    }
 }
 
 $payload = [pscustomobject]@{

@@ -515,6 +515,20 @@ function Rebuild-TaskCacheRegistry {
         Write-TidyOutput -Message ("Exporting TaskCache registry to {0}." -f $tempBackup)
         Invoke-TidyCommand -Command { param($path) reg.exe export 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache' $path /y } -Arguments @($tempBackup) -Description 'Backing up TaskCache registry hive.'
 
+        # SAFETY: Verify backup was created and has meaningful content before proceeding.
+        if (-not (Test-Path -LiteralPath $tempBackup)) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'TaskCache registry backup was not created. Aborting hive rebuild for safety.'
+            return
+        }
+        $backupSize = (Get-Item -LiteralPath $tempBackup).Length
+        if ($backupSize -lt 100) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("TaskCache registry backup is suspiciously small ({0} bytes). Aborting hive rebuild." -f $backupSize)
+            return
+        }
+        Write-TidyOutput -Message ("  Backup verified: {0} bytes." -f $backupSize)
+
         $stopped = Stop-ScheduleServiceForRepair
         if (-not $stopped) {
             Write-TidyOutput -Message 'Schedule service could not be stopped; skipping registry hive rebuild to avoid corruption.'
@@ -549,6 +563,17 @@ function Rebuild-TaskCacheRegistry {
         catch {
             $script:OperationSucceeded = $false
             Write-TidyError -Message ("Failed to start Schedule service after registry removal: {0}" -f $_.Exception.Message)
+            # SAFETY: Attempt to restore backup if service fails to start after hive deletion.
+            if (Test-Path -LiteralPath $tempBackup) {
+                Write-TidyOutput -Message 'Attempting to restore TaskCache registry from backup...'
+                $restoreResult = Invoke-TidyNativeCommand -FilePath 'reg.exe' -ArgumentList @('import', $tempBackup) -TimeoutSeconds 30
+                if ($restoreResult.Success) {
+                    Write-TidyOutput -Message 'TaskCache registry restored from backup. Retrying service start.'
+                    try { Start-Service -Name 'Schedule' -ErrorAction SilentlyContinue } catch { }
+                } else {
+                    Write-TidyError -Message ("CRITICAL: Failed to restore TaskCache registry backup: {0}" -f ($restoreResult.StdErr -join ' '))
+                }
+            }
             return
         }
 

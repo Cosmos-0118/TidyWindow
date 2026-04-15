@@ -292,7 +292,15 @@ function Request-TpmClear {
         return
     }
 
-    Write-TidyOutput -Message 'Requesting TPM clear. A reboot and owner confirmation may be required; backup recovery keys first.'
+    Write-TidyOutput -Message 'Checking BitLocker status before TPM clear...'
+    $blVolume = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue
+    if ($blVolume -and $blVolume.ProtectionStatus -eq 'On') {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message 'BitLocker is active on the system drive. Suspend BitLocker or extract recovery keys before clearing TPM. Aborting for safety.'
+        return
+    }
+
+    Write-TidyOutput -Message 'Requesting TPM clear. A reboot and owner confirmation may be required.'
 
     try {
         $result = Clear-Tpm -ErrorAction Stop

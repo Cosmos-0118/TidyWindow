@@ -23,7 +23,7 @@ public class PerformanceLabViewModelTests
         autoTuneStore.Save(AutoTuneAutomationSettings.Default);
         var autoTuneScheduler = new AutoTuneAutomationScheduler(autoTuneStore, fake, activity, new AutomationWorkTracker());
 
-        return new PerformanceLabViewModel(fake, activity, automationRunner, autoTuneScheduler);
+        return new PerformanceLabViewModel(fake, activity, automationRunner, autoTuneScheduler, new AlwaysConfirmService());
     }
 
     private static PerformanceLabViewModel CreateArmedVm(FakePerformanceLabService fake)
@@ -31,6 +31,11 @@ public class PerformanceLabViewModelTests
         var vm = CreateVm(fake);
         vm.IsApplyArmed = true;
         return vm;
+    }
+
+    private sealed class AlwaysConfirmService : IUserConfirmationService
+    {
+        public bool Confirm(string title, string message) => true;
     }
 
     [Fact]
@@ -307,6 +312,16 @@ public class PerformanceLabViewModelTests
         {
             PlanStatus = new PowerPlanStatus("ultimate", "Ultimate Performance", true, "state.json");
             return Task.FromResult(SuccessResult("mode: Enabled"));
+        }
+
+        public Task<IReadOnlyList<SystemRestorePointInfo>> ListSystemRestorePointsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SystemRestorePointInfo>>(Array.Empty<SystemRestorePointInfo>());
+        }
+
+        public Task<PowerShellInvocationResult> RestoreToPointAsync(uint sequenceNumber, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult($"mode: RestoreTo #{sequenceNumber}"));
         }
 
         private static PowerShellInvocationResult SuccessResult(string line)

@@ -277,7 +277,8 @@ public sealed class ProcessCatalogParser
                     isPattern,
                     category.Order,
                     entryOrder,
-                    serviceIdentifier);
+                    serviceIdentifier,
+                    model.ProcessName);
 
                 entries.Add(entry);
             }
@@ -497,6 +498,8 @@ public sealed class ProcessCatalogParser
         public bool? IsPattern { get; init; }
 
         public int? Order { get; init; }
+
+        public string? ProcessName { get; init; }
     }
 
     private static ProcessRiskLevel ResolveRisk(string? value, bool isCaution)

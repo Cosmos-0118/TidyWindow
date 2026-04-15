@@ -5,6 +5,283 @@ param(
     [switch] $RebuildLicensingStore,
     [switch] $AttemptRearm,
     [switch] $CaptureLicenseStatus,
+    [switch] $DryRun,
+    [string] $ResultPath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+# ── Module bootstrap ──────────────────────────────────────────────────
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) { $callerModulePath = $PSCommandPath }
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) { $scriptDirectory = (Get-Location).Path }
+$modulePath = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'))
+if (-not (Test-Path $modulePath)) { throw "Automation module not found at '$modulePath'." }
+Import-Module $modulePath -Force
+
+# ── Result tracking ───────────────────────────────────────────────────
+$script:TidyOutputLines  = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines   = [System.Collections.Generic.List[string]]::new()
+$script:OperationSucceeded = $true
+$script:UsingResultFile  = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DryRunMode       = $DryRun.IsPresent
+if ($script:UsingResultFile) { $ResultPath = [System.IO.Path]::GetFullPath($ResultPath) }
+
+function Write-TidyOutput { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyOutputLines.Add($t); Write-TidyLog -Level Information -Message $t
+}
+function Write-TidyError { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyErrorLines.Add($t); TidyWindow.Automation\Write-TidyError -Message $t
+}
+function Save-TidyResult {
+    if (-not $script:UsingResultFile) { return }
+    $payload = [pscustomobject]@{
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
+    }
+    Set-Content -Path $ResultPath -Value ($payload | ConvertTo-Json -Depth 5) -Encoding UTF8
+}
+function Test-TidyAdmin {
+    [bool](New-Object System.Security.Principal.WindowsPrincipal(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-Step {
+    param(
+        [Parameter(Mandatory)][string]      $Name,
+        [Parameter(Mandatory)][scriptblock] $Action,
+        [switch] $Critical
+    )
+    if ($script:DryRunMode) {
+        Write-TidyOutput -Message "[DryRun] Would run: $Name"
+        return
+    }
+    Write-TidyOutput -Message "-> $Name"
+    try {
+        & $Action
+        Write-TidyOutput -Message "  OK: $Name succeeded."
+    }
+    catch {
+        $msg = $_.Exception.Message
+        if ($Critical) {
+            Write-TidyError -Message "  FAIL: $Name (critical): $msg"
+            $script:OperationSucceeded = $false
+            throw
+        }
+        Write-TidyError -Message "  FAIL: $Name: $msg"
+        $script:OperationSucceeded = $false
+    }
+}
+
+# ══════════════════════════════════════════════════════════════════════
+#  Helpers
+# ══════════════════════════════════════════════════════════════════════
+
+function Get-SlmgrPath {
+    $path = Join-Path $env:SystemRoot 'System32\slmgr.vbs'
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw 'slmgr.vbs not found under System32.'
+    }
+    return $path
+}
+
+function Invoke-Slmgr {
+    param([string] $Arguments, [string] $Description)
+    $slmgr = Get-SlmgrPath
+    $cscript = Join-Path $env:SystemRoot 'System32\cscript.exe'
+    if (-not (Test-Path -LiteralPath $cscript)) { throw 'cscript.exe not found.' }
+    $r = Invoke-TidyNativeCommand -FilePath $cscript -Arguments "//nologo `"$slmgr`" $Arguments" -TimeoutSeconds 60 -AcceptableExitCodes @(0)
+    if ($r.Output) { Write-TidyOutput -Message $r.Output }
+    return $r
+}
+
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
+try {
+    if (-not (Test-TidyAdmin)) {
+        throw 'Activation and licensing repair requires an elevated PowerShell session.'
+    }
+
+    $backupDir = Get-TidyBackupDirectory -FeatureName 'ActivationRepair'
+    Write-TidyOutput -Message "Backup directory: $backupDir"
+    Write-TidyOutput -Message 'Starting activation and licensing repair.'
+
+    # ── Pre-flight: capture license status ────────────────────────────
+    if ($CaptureLicenseStatus.IsPresent) {
+        Invoke-Step -Name 'Capture license status (before)' -Action {
+            $xpr = Invoke-Slmgr -Arguments '/xpr' -Description 'slmgr /xpr'
+            $dlv = Invoke-Slmgr -Arguments '/dlv' -Description 'slmgr /dlv'
+        }
+    }
+
+    # ── 1. Re-register activation DLLs ────────────────────────────────
+    if (-not $SkipDllReregister.IsPresent) {
+        Invoke-Step -Name 'Re-register activation DLLs' -Action {
+            $dlls = @('slc.dll', 'slwga.dll', 'sppcomapi.dll', 'sppuinotify.dll', 'sppwinob.dll')
+            foreach ($dll in $dlls) {
+                $fullPath = Join-Path $env:SystemRoot "System32\$dll"
+                if (-not (Test-Path -LiteralPath $fullPath)) {
+                    Write-TidyOutput -Message "  Skipping $dll (not found)."
+                    continue
+                }
+                $r = Invoke-TidyNativeCommand -FilePath 'regsvr32.exe' -Arguments "/s `"$fullPath`"" -TimeoutSeconds 15
+                if (-not $r.Success) {
+                    Write-TidyError -Message "  regsvr32 failed for $dll (exit $($r.ExitCode))."
+                }
+                else {
+                    Write-TidyOutput -Message "  Registered $dll."
+                }
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'DLL re-registration skipped.' }
+
+    # ── 2. Refresh Software Protection service ────────────────────────
+    if (-not $SkipProtectionServiceRefresh.IsPresent) {
+        Invoke-Step -Name 'Refresh Software Protection service (sppsvc)' -Action {
+            $svc = Get-Service -Name 'sppsvc' -ErrorAction SilentlyContinue
+            if (-not $svc) {
+                Write-TidyOutput -Message '  sppsvc not found. Skipping.'
+                return
+            }
+
+            # Respect disabled-by-policy state.
+            $svcInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='sppsvc'" -ErrorAction SilentlyContinue
+            if ($svcInfo -and $svcInfo.StartMode -eq 'Disabled') {
+                Write-TidyOutput -Message '  sppsvc is disabled by policy. Skipping restart.'
+                return
+            }
+
+            Invoke-TidySafeServiceRestart -ServiceName 'sppsvc' -RepairAction {
+                # No intermediate repair — the restart itself resolves most stuck states.
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'Service refresh skipped.' }
+
+    # ── 3. Rebuild licensing store (opt-in) ───────────────────────────
+    if ($RebuildLicensingStore.IsPresent) {
+        Invoke-Step -Name 'Rebuild licensing store (tokens.dat)' -Critical -Action {
+            $tokensPath = Join-Path $env:SystemRoot 'System32\spp\store\2.0\tokens.dat'
+            if (-not (Test-Path -LiteralPath $tokensPath)) {
+                Write-TidyOutput -Message '  tokens.dat not found. Skipping rebuild.'
+                return
+            }
+
+            # Verify sppsvc is not disabled.
+            $svcInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='sppsvc'" -ErrorAction SilentlyContinue
+            if ($svcInfo -and $svcInfo.StartMode -eq 'Disabled') {
+                Write-TidyOutput -Message '  sppsvc is disabled. Cannot rebuild licensing store.'
+                return
+            }
+
+            # Create backup COPY first (not rename — atomic safety).
+            $backupName = "tokens.dat.bak-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            $backupPath = Join-Path $backupDir $backupName
+            Copy-Item -LiteralPath $tokensPath -Destination $backupPath -Force -ErrorAction Stop
+            Write-TidyOutput -Message "  tokens.dat backed up to: $backupPath"
+
+            # Verify backup was created successfully before proceeding.
+            if (-not (Test-Path -LiteralPath $backupPath)) {
+                throw 'Backup verification failed: tokens.dat copy not found.'
+            }
+            $origSize = (Get-Item -LiteralPath $tokensPath).Length
+            $backSize = (Get-Item -LiteralPath $backupPath).Length
+            if ($backSize -ne $origSize) {
+                throw "Backup size mismatch: original=$origSize, backup=$backSize"
+            }
+
+            # Stop sppsvc, delete tokens.dat, restart to auto-rebuild.
+            $state = Invoke-TidySafeServiceStop -ServiceName 'sppsvc' -TimeoutSeconds 20
+            try {
+                Remove-Item -LiteralPath $tokensPath -Force -ErrorAction Stop
+                Write-TidyOutput -Message '  tokens.dat removed. Service restart will rebuild it.'
+            }
+            catch {
+                # Restore backup on failure.
+                Copy-Item -LiteralPath $backupPath -Destination $tokensPath -Force -ErrorAction SilentlyContinue
+                throw "Failed to remove tokens.dat: $($_.Exception.Message). Backup restored."
+            }
+            finally {
+                Restore-TidyServiceState -State $state -TimeoutSeconds 25
+            }
+
+            # Verify tokens.dat was recreated.
+            Start-Sleep -Seconds 3
+            if (-not (Test-Path -LiteralPath $tokensPath)) {
+                Write-TidyError -Message '  tokens.dat was not recreated by sppsvc. Restoring from backup.'
+                Copy-Item -LiteralPath $backupPath -Destination $tokensPath -Force -ErrorAction Stop
+            }
+        }
+    }
+
+    # ── 4. Attempt activation ─────────────────────────────────────────
+    if (-not $SkipActivationAttempt.IsPresent -and -not $RebuildLicensingStore.IsPresent) {
+        Invoke-Step -Name 'Online activation (slmgr /ato)' -Action {
+            $r = Invoke-Slmgr -Arguments '/ato' -Description 'slmgr /ato'
+            if (-not $r.Success) {
+                Write-TidyError -Message "  slmgr /ato failed (exit $($r.ExitCode)). A reboot may be required."
+            }
+        }
+    }
+    elseif ($RebuildLicensingStore.IsPresent -and -not $SkipActivationAttempt.IsPresent) {
+        Invoke-Step -Name 'Online activation after rebuild (slmgr /ato)' -Action {
+            $r = Invoke-Slmgr -Arguments '/ato' -Description 'slmgr /ato'
+            if (-not $r.Success) {
+                Write-TidyError -Message "  slmgr /ato failed (exit $($r.ExitCode)). A reboot may be required."
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'Activation attempt skipped.' }
+
+    # ── 5. License rearm (opt-in, dangerous) ──────────────────────────
+    if ($AttemptRearm.IsPresent) {
+        Invoke-Step -Name 'License rearm (slmgr /rearm)' -Action {
+            Write-TidyOutput -Message '  WARNING: /rearm consumes a limited rearm count!'
+            $r = Invoke-Slmgr -Arguments '/rearm' -Description 'slmgr /rearm'
+            if (-not $r.Success) {
+                Write-TidyError -Message "  slmgr /rearm failed (exit $($r.ExitCode)). Reboot and retry."
+            }
+            else {
+                Write-TidyOutput -Message '  Rearm succeeded. A reboot is required to complete.'
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'License rearm not requested.' }
+
+    # ── Post-flight: capture license status ───────────────────────────
+    if ($CaptureLicenseStatus.IsPresent) {
+        Invoke-Step -Name 'Capture license status (after)' -Action {
+            $xpr = Invoke-Slmgr -Arguments '/xpr' -Description 'slmgr /xpr'
+            $dlv = Invoke-Slmgr -Arguments '/dlv' -Description 'slmgr /dlv'
+        }
+    }
+
+    Write-TidyOutput -Message ''
+    Write-TidyOutput -Message 'Activation and licensing repair completed.'
+    Write-TidyOutput -Message "Backups saved to: $backupDir"
+}
+catch {
+    $script:OperationSucceeded = $false
+    Write-TidyError -Message "Activation repair failed: $($_.Exception.Message)"
+}
+finally {
+    Save-TidyResult
+}
+param(
+    [switch] $SkipActivationAttempt,
+    [switch] $SkipDllReregister,
+    [switch] $SkipProtectionServiceRefresh,
+    [switch] $RebuildLicensingStore,
+    [switch] $AttemptRearm,
+    [switch] $CaptureLicenseStatus,
     [string] $ResultPath
 )
 

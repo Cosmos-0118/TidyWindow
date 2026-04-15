@@ -216,6 +216,15 @@ function Exit-SafeMode {
             return
         }
 
+        # SAFETY: Export BCD before any modifications so it can be restored if needed.
+        $bcdBackup = Join-Path -Path $env:TEMP -ChildPath ('bcd-backup-{0}.bak' -f (Get-Date -Format 'yyyyMMddHHmmss'))
+        $bcdExport = Invoke-TidyNativeCommand -FilePath 'bcdedit.exe' -ArgumentList @('/export', $bcdBackup) -TimeoutSeconds 15
+        if ($bcdExport.Success) {
+            Write-TidyOutput -Message ("BCD exported to {0} before modification." -f $bcdBackup)
+        } else {
+            Write-TidyOutput -Message 'Warning: BCD export failed. Proceeding with caution.'
+        }
+
         Write-TidyOutput -Message 'Removing SafeBoot configuration from current BCD entry (if present).'
         Invoke-TidyCommand -Command { bcdedit /deletevalue {current} safeboot } -Description 'Clearing safeboot flag.' -AcceptableExitCodes @(0, 1)
 

@@ -1,725 +1,298 @@
 param(
-    [switch] $FullScan,
-    [string[]] $ScanPath,
-    [switch] $SkipSignatureUpdate,
-    [switch] $SkipThreatScan,
-    [switch] $SkipServiceHeal,
-    [switch] $SkipRealtimeHeal,
+    [switch] $SkipServiceRepair,
+    [switch] $SkipDefinitionUpdate,
+    [switch] $SkipScan,
+    [ValidateSet('Quick', 'Full')]
+    [string] $ScanType = 'Quick',
     [switch] $DryRun,
-    [string] $ResultPath,
-    [string] $LogPath,
-    [switch] $NoElevate
+    [string] $ResultPath
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# ── Module bootstrap ──────────────────────────────────────────────────
 $callerModulePath = $MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
-    $callerModulePath = $PSCommandPath
-}
-
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) { $callerModulePath = $PSCommandPath }
 $scriptDirectory = Split-Path -Parent $callerModulePath
-if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
-    $scriptDirectory = (Get-Location).Path
-}
-
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
-$modulePath = [System.IO.Path]::GetFullPath($modulePath)
-if (-not (Test-Path -Path $modulePath)) {
-    throw "Automation module not found at path '$modulePath'."
-}
-
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) { $scriptDirectory = (Get-Location).Path }
+$modulePath = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'))
+if (-not (Test-Path $modulePath)) { throw "Automation module not found at '$modulePath'." }
 Import-Module $modulePath -Force
 
-$script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
-$script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
+# ── Result tracking ───────────────────────────────────────────────────
+$script:TidyOutputLines  = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines   = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
-$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
-$script:DryRunMode = $DryRun.IsPresent
+$script:UsingResultFile  = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DryRunMode       = $DryRun.IsPresent
+if ($script:UsingResultFile) { $ResultPath = [System.IO.Path]::GetFullPath($ResultPath) }
 
-if ($script:UsingResultFile) {
-    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+function Write-TidyOutput { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyOutputLines.Add($t); Write-TidyLog -Level Information -Message $t
 }
-
-if ([string]::IsNullOrWhiteSpace($LogPath)) {
-    $timeStamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
-    $LogPath = Join-Path -Path $env:TEMP -ChildPath "TidyWindow_DefenderRepair_$timeStamp.json"
+function Write-TidyError { param([Parameter(Mandatory)][object]$Message)
+    $t = Convert-TidyLogMessage -InputObject $Message; if ([string]::IsNullOrWhiteSpace($t)) { return }
+    [void]$script:TidyErrorLines.Add($t); TidyWindow.Automation\Write-TidyError -Message $t
 }
-else {
-    $LogPath = [System.IO.Path]::GetFullPath($LogPath)
-}
-
-$logDirectory = Split-Path -Parent $LogPath
-if (-not [string]::IsNullOrWhiteSpace($logDirectory) -and -not (Test-Path -LiteralPath $logDirectory)) {
-    [void](New-Item -Path $logDirectory -ItemType Directory -Force)
-}
-
-$transcriptPath = [System.IO.Path]::ChangeExtension($LogPath, '.transcript.txt')
-
-$scanDescriptor = 'Quick'
-if ($ScanPath -and $ScanPath.Count -gt 0) {
-    $scanDescriptor = 'Custom'
-}
-elseif ($FullScan.IsPresent) {
-    $scanDescriptor = 'Full'
-}
-if ($SkipThreatScan.IsPresent) {
-    $scanDescriptor = 'Skipped'
-}
-
-$script:RunSummary = [pscustomobject]@{
-    SignatureUpdateAttempted = $false
-    SignatureUpdateSucceeded = $false
-    SignatureUpdateError    = $null
-    ServiceHealAttempted    = $false
-    ServicesRestarted       = [System.Collections.Generic.List[string]]::new()
-    ServiceHealFailures     = [System.Collections.Generic.List[string]]::new()
-    RealTimeHealAttempted   = $false
-    RealTimeHealSucceeded   = $false
-    RealTimeHealError       = $null
-    ScanRequested           = $scanDescriptor
-    ScanCompleted           = $false
-    ScanResult              = $null
-    ScanError               = $null
-    InitialStatus           = $null
-    FinalStatus             = $null
-    DryRun                  = $script:DryRunMode
-}
-
-function Write-TidyOutput {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
-}
-
-function Write-TidyError {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object] $Message
-    )
-
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyError -Message $text
-}
-
 function Save-TidyResult {
-    if (-not $script:UsingResultFile) {
-        return
-    }
-
+    if (-not $script:UsingResultFile) { return }
     $payload = [pscustomobject]@{
         Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
         Output  = $script:TidyOutputLines
         Errors  = $script:TidyErrorLines
     }
-
-    $json = $payload | ConvertTo-Json -Depth 5
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+    Set-Content -Path $ResultPath -Value ($payload | ConvertTo-Json -Depth 5) -Encoding UTF8
 }
-
-function Invoke-TidyCommand {
-    param(
-        [Parameter(Mandatory = $true)]
-        [scriptblock] $Command,
-        [string] $Description = 'Running command.',
-        [object[]] $Arguments = @(),
-        [switch] $RequireSuccess,
-        [int[]] $AcceptableExitCodes = @()
-    )
-
-    Write-TidyLog -Level Information -Message $Description
-
-    # Clear sticky LASTEXITCODE from prior native calls to avoid false failures.
-    if (Test-Path -Path 'variable:LASTEXITCODE') {
-        $global:LASTEXITCODE = 0
-    }
-
-    if ($script:DryRunMode) {
-        Write-TidyOutput -Message "[DryRun] Would run: $Description"
-        if ($Arguments -and $Arguments.Count -gt 0) {
-            Write-TidyOutput -Message ("[DryRun] Arguments: {0}" -f ($Arguments -join ', '))
-        }
-        return 0
-    }
-
-    $output = & $Command @Arguments 2>&1
-    $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
-
-    # If the scriptblock emitted a numeric code while LASTEXITCODE stayed 0, honor it.
-    if ($exitCode -eq 0 -and $output) {
-        $lastItem = ($output | Select-Object -Last 1)
-        if ($lastItem -is [int] -or $lastItem -is [long]) {
-            $exitCode = [int]$lastItem
-        }
-    }
-
-    foreach ($entry in @($output)) {
-        if ($null -eq $entry) {
-            continue
-        }
-
-        if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            Write-TidyError -Message $entry
-        }
-        else {
-            Write-TidyOutput -Message $entry
-        }
-    }
-
-    if ($RequireSuccess -and $exitCode -ne 0) {
-        $acceptsExitCode = $false
-        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
-            $acceptsExitCode = $true
-        }
-
-        if (-not $acceptsExitCode) {
-            throw "$Description failed with exit code $exitCode."
-        }
-    }
-
-    return $exitCode
-}
-
 function Test-TidyAdmin {
-    return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    [bool](New-Object System.Security.Principal.WindowsPrincipal(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Ensure-Elevation {
+function Invoke-Step {
     param(
-        [switch] $AllowNoElevate
+        [Parameter(Mandatory)][string]      $Name,
+        [Parameter(Mandatory)][scriptblock] $Action,
+        [switch] $Critical
     )
-
-    if (Test-TidyAdmin) { return $true }
-    if ($AllowNoElevate -or $NoElevate.IsPresent) { return $false }
-
-    try {
-        $scriptPath = $PSCommandPath
-        if ([string]::IsNullOrWhiteSpace($scriptPath)) { $scriptPath = $MyInvocation.MyCommand.Path }
-
-        $argList = @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$scriptPath")
-        foreach ($k in $PSBoundParameters.Keys) {
-            $val = $PSBoundParameters[$k]
-            if ($val -is [switch]) {
-                if ($val.IsPresent) { $argList += "-$k" }
-            }
-            else {
-                $argList += "-$k"; $argList += "`"$val`""
-            }
-        }
-
-        Start-Process -FilePath (Get-Command powershell).Source -ArgumentList $argList -Verb RunAs -WindowStyle Hidden
-        Write-TidyOutput -Message 'Elevating and re-launching as administrator. Exiting current process.'
-        exit 0
-    }
-    catch {
-        Write-TidyError -Message "Failed to elevate: $($_.Exception.Message)"
-        throw
-    }
-}
-
-function Get-DefenderStatusPropertyValue {
-    param(
-        [object] $Status,
-        [string[]] $PropertyNames
-    )
-
-    if ($null -eq $Status -or -not $PropertyNames) {
-        return $null
-    }
-
-    foreach ($name in $PropertyNames) {
-        if ([string]::IsNullOrWhiteSpace($name)) {
-            continue
-        }
-
-        $property = $Status.PSObject.Properties[$name]
-        if ($property) {
-            return $property.Value
-        }
-    }
-
-    return $null
-}
-
-function Get-DefenderStatusSnapshot {
-    try {
-        $status = Get-MpComputerStatus -ErrorAction Stop
-        if ($null -eq $status) {
-            return $null
-        }
-
-        $snapshot = [ordered]@{
-            AMEngineVersion               = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('AMEngineVersion')
-            AntivirusEnabled              = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('AntivirusEnabled')
-            RealTimeProtectionEnabled     = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('RealTimeProtectionEnabled')
-            BehaviorMonitorEnabled        = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('BehaviorMonitorEnabled')
-            AntivirusSignatureVersion     = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('AntivirusSignatureVersion')
-            AntivirusSignatureLastUpdated = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('AntivirusSignatureLastUpdated')
-            QuickScanEndTime              = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('QuickScanEndTime')
-            FullScanEndTime               = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('FullScanEndTime')
-            LastThreatName                = Get-DefenderStatusPropertyValue -Status $status -PropertyNames @('LastThreatName','LastThreatsFound','LastThreatDetected')
-        }
-
-        return [pscustomobject]$snapshot
-    }
-    catch {
-        Write-TidyLog -Level Warning -Message "Failed to retrieve Defender status: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-function Restart-DefenderService {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string] $ServiceName,
-        [Parameter(Mandatory = $true)]
-        [string] $FriendlyName
-    )
-
-    try {
-        $service = Get-Service -Name $ServiceName -ErrorAction Stop
-    }
-    catch {
-        Write-TidyLog -Level Warning -Message "Service '$ServiceName' not found. Skipping restart."
-        return $false
-    }
-
-    $description = "Repairing $FriendlyName service ($ServiceName)."
-    $exit = Invoke-TidyCommand -Command {
-        param($svcName)
-        try {
-            Set-Service -Name $svcName -StartupType Automatic -ErrorAction SilentlyContinue
-        }
-        catch {
-            # It is safe to continue if policy blocks startup type changes.
-        }
-
-        $current = Get-Service -Name $svcName -ErrorAction Stop
-        if ($current.Status -ne 'Running') {
-            try {
-                Start-Service -Name $svcName -ErrorAction Stop | Out-Null
-            }
-            catch {
-                Write-Output "Failed to start ${svcName}: $($_.Exception.Message)"
-            }
-        }
-        elseif (-not $current.CanStop) {
-            Write-Output "Service $svcName already running; restart not supported by the Service Control Manager."
-        }
-        else {
-            try {
-                Restart-Service -Name $svcName -ErrorAction Stop | Out-Null
-            }
-            catch {
-                Write-Output "Restart attempt for $svcName failed: $($_.Exception.Message)"
-            }
-        }
-
-        Start-Sleep -Seconds 2
-        $updated = Get-Service -Name $svcName -ErrorAction Stop
-        "Service $svcName state: $($updated.Status)"
-    } -Arguments @($ServiceName) -Description $description
-
     if ($script:DryRunMode) {
-        return ($exit -eq 0)
+        Write-TidyOutput -Message "[DryRun] Would run: $Name"
+        return
     }
-
+    Write-TidyOutput -Message "-> $Name"
     try {
-        $final = Get-Service -Name $ServiceName -ErrorAction Stop
-        if ($final.Status -eq 'Running') {
-            return $true
-        }
-
-        Write-TidyLog -Level Warning -Message "$FriendlyName ($ServiceName) is not running after remediation attempt."
-        return $false
+        & $Action
+        Write-TidyOutput -Message "  OK: $Name succeeded."
     }
     catch {
-        Write-TidyLog -Level Warning -Message "Unable to verify $FriendlyName ($ServiceName) state: $($_.Exception.Message)"
-        return $false
+        $msg = $_.Exception.Message
+        if ($Critical) {
+            Write-TidyError -Message "  FAIL: $Name (critical): $msg"
+            $script:OperationSucceeded = $false
+            throw
+        }
+        Write-TidyError -Message "  FAIL: $Name: $msg"
+        $script:OperationSucceeded = $false
     }
 }
 
-function Enable-DefenderRealtimeProtection {
-    $description = 'Ensuring Microsoft Defender real-time protection is enabled.'
-    $exit = Invoke-TidyCommand -Command {
-        Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
-    } -Description $description -RequireSuccess
-    return ($exit -eq 0)
-}
-
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
 try {
-    try {
-        Start-Transcript -Path $transcriptPath -Force -ErrorAction SilentlyContinue | Out-Null
-    }
-    catch {
-        # Non-fatal if transcript cannot be created (e.g., already active).
-    }
-
-    Write-TidyLog -Level Information -Message 'Starting Microsoft Defender repair and deep scan toolkit.'
-
     if (-not (Test-TidyAdmin)) {
-        $elevated = Ensure-Elevation -AllowNoElevate:$false
-        if (-not $elevated) {
-            throw 'Defender repair requires elevated privileges and elevation was disabled.'
-        }
+        throw 'Windows Defender repair requires an elevated PowerShell session.'
     }
 
-    $updateCmd = $null
-    if (-not $SkipSignatureUpdate.IsPresent) {
-        $updateCmd = Get-Command -Name 'Update-MpSignature' -ErrorAction SilentlyContinue
-        if (-not $updateCmd) {
-            throw 'Update-MpSignature cmdlet not available. Microsoft Defender may be disabled or removed.'
-        }
+    $backupDir = Get-TidyBackupDirectory -FeatureName 'DefenderRepair'
+    Write-TidyOutput -Message "Backup directory: $backupDir"
+    Write-TidyOutput -Message 'Starting Windows Defender repair and scan.'
+
+    # ── Check if Defender is available ────────────────────────────────
+    $defenderAvailable = $null -ne (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)
+    if (-not $defenderAvailable) {
+        Write-TidyError -Message 'Microsoft Defender cmdlets not available. Is a third-party AV installed?'
+        throw 'Defender cmdlets unavailable.'
     }
 
-    $scanCmd = $null
-    if (-not $SkipThreatScan.IsPresent) {
-        $scanCmd = Get-Command -Name 'Start-MpScan' -ErrorAction SilentlyContinue
-        if (-not $scanCmd) {
-            throw 'Start-MpScan cmdlet not available. Microsoft Defender may be disabled or removed.'
-        }
+    $status = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    if (-not $status) {
+        Write-TidyError -Message 'Could not query Defender status.'
+        throw 'Defender status unavailable.'
     }
 
-    $script:RunSummary.InitialStatus = Get-DefenderStatusSnapshot
-    if ($script:RunSummary.InitialStatus) {
-        Write-TidyOutput -Message 'Initial Defender status snapshot:'
-        foreach ($prop in $script:RunSummary.InitialStatus.PSObject.Properties) {
-            Write-TidyOutput -Message ("  {0}: {1}" -f $prop.Name, $prop.Value)
-        }
-    }
+    Write-TidyOutput -Message "  Antivirus enabled:   $($status.AntivirusEnabled)"
+    Write-TidyOutput -Message "  Real-time protection: $($status.RealTimeProtectionEnabled)"
+    Write-TidyOutput -Message "  Definitions age:     $($status.AntivirusSignatureAge) day(s)"
+    Write-TidyOutput -Message "  Engine version:      $($status.AMEngineVersion)"
 
-    if (-not $SkipServiceHeal.IsPresent) {
-        $script:RunSummary.ServiceHealAttempted = $true
-        $services = @(
-            @{ Name = 'WinDefend'; Friendly = 'Microsoft Defender Antivirus' },
-            @{ Name = 'WdNisSvc'; Friendly = 'Microsoft Defender Network Inspection' },
-            @{ Name = 'SecurityHealthService'; Friendly = 'Windows Security Health' }
-        )
-
-        foreach ($svc in $services) {
-            $serviceName = $svc.Name
-            $friendly = $svc.Friendly
-
-            Write-TidyOutput -Message ("Repairing {0} service." -f $friendly)
-            $success = $false
-            try {
-                $success = Restart-DefenderService -ServiceName $serviceName -FriendlyName $friendly
-            }
-            catch {
-                $success = $false
+    # ── 1. Defender service repair ────────────────────────────────────
+    if (-not $SkipServiceRepair.IsPresent) {
+        Invoke-Step -Name 'Verify WinDefend service' -Action {
+            $svc = Get-Service -Name 'WinDefend' -ErrorAction SilentlyContinue
+            if (-not $svc) {
+                Write-TidyError -Message '  WinDefend service not found.'
+                return
             }
 
-            if ($success) {
-                $label = if ($script:DryRunMode) { "$friendly ($serviceName) [dry-run]" } else { "$friendly ($serviceName)" }
-                [void]$script:RunSummary.ServicesRestarted.Add($label)
-            }
-            else {
-                $message = "$friendly ($serviceName) restart failed or was skipped."
-                [void]$script:RunSummary.ServiceHealFailures.Add($message)
-                if (-not $script:DryRunMode) {
-                    Write-TidyLog -Level Warning -Message $message
-                }
-            }
-        }
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping Defender service heal per operator request.'
-    }
-
-    if (-not $SkipSignatureUpdate.IsPresent) {
-        $script:RunSummary.SignatureUpdateAttempted = $true
-        Write-TidyOutput -Message 'Updating Microsoft Defender signatures.'
-
-        # Capture signature timestamp before update attempt for comparison.
-        $signatureTimeBefore = $null
-        try {
-            $statusBefore = Get-MpComputerStatus -ErrorAction SilentlyContinue
-            if ($statusBefore) {
-                $signatureTimeBefore = $statusBefore.AntivirusSignatureLastUpdated
-            }
-        }
-        catch {
-            # Non-fatal; we'll proceed without baseline comparison.
-        }
-
-        $maxRetries = 2
-        $retryCount = 0
-        $updateSucceeded = $false
-        $lastUpdateError = $null
-
-        while ($retryCount -lt $maxRetries -and -not $updateSucceeded) {
-            $retryCount++
-            try {
-                # Use SilentlyContinue to avoid terminating on transient errors.
-                $sigExit = Invoke-TidyCommand -Command {
-                    $ErrorActionPreference = 'SilentlyContinue'
-                    $updateError = $null
-                    try {
-                        Update-MpSignature -ErrorAction Stop
-                    }
-                    catch {
-                        $updateError = $_.Exception.Message
-                    }
-
-                    # Check if signatures were actually updated regardless of error.
-                    $statusAfter = Get-MpComputerStatus -ErrorAction SilentlyContinue
-                    if ($statusAfter) {
-                        $sigAge = (Get-Date) - $statusAfter.AntivirusSignatureLastUpdated
-                        # Consider update successful if signatures are less than 2 days old.
-                        if ($sigAge.TotalDays -lt 2) {
-                            return 0
-                        }
-                    }
-
-                    if ($updateError) {
-                        Write-Output "[WARNING] $updateError"
-                        return 1
-                    }
-
-                    return 0
-                } -Description "Updating Defender signatures (attempt $retryCount of $maxRetries)."
-
-                if ($sigExit -eq 0) {
-                    $updateSucceeded = $true
-                }
-            }
-            catch {
-                $lastUpdateError = $_.Exception.Message
-            }
-
-            if (-not $updateSucceeded -and $retryCount -lt $maxRetries) {
-                Write-TidyLog -Level Warning -Message "Signature update attempt $retryCount failed. Retrying..."
-                Start-Sleep -Seconds 3
-            }
-        }
-
-        # Verify final signature state.
-        $signatureTimeAfter = $null
-        $signaturesAreRecent = $false
-        try {
-            $statusAfter = Get-MpComputerStatus -ErrorAction SilentlyContinue
-            if ($statusAfter) {
-                $signatureTimeAfter = $statusAfter.AntivirusSignatureLastUpdated
-                $sigAge = (Get-Date) - $signatureTimeAfter
-                # Signatures less than 2 days old are acceptable.
-                $signaturesAreRecent = $sigAge.TotalDays -lt 2
-            }
-        }
-        catch {
-            # Non-fatal.
-        }
-
-        if ($updateSucceeded -or $signaturesAreRecent) {
-            $script:RunSummary.SignatureUpdateSucceeded = $true
-            if ($script:DryRunMode) {
-                $script:RunSummary.SignatureUpdateError = 'Dry-run only; command not executed.'
-            }
-            elseif ($signatureTimeAfter -and $signatureTimeBefore -and $signatureTimeAfter -gt $signatureTimeBefore) {
-                Write-TidyOutput -Message "Defender signatures updated successfully. New version timestamp: $signatureTimeAfter"
-            }
-            elseif ($signaturesAreRecent) {
-                Write-TidyOutput -Message "Defender signatures are current (last updated: $signatureTimeAfter)."
-            }
-        }
-        else {
-            # Only fail if signatures are actually outdated after all attempts.
-            $errorMsg = if ($lastUpdateError) { $lastUpdateError } else { 'Signature update completed with warnings.' }
-            $script:RunSummary.SignatureUpdateError = $errorMsg
-            Write-TidyLog -Level Warning -Message "Signature update encountered issues: $errorMsg"
-
-            # Check if signatures are critically outdated (more than 7 days).
-            if ($signatureTimeAfter) {
-                $sigAge = (Get-Date) - $signatureTimeAfter
-                if ($sigAge.TotalDays -gt 7) {
-                    throw "Defender signatures are critically outdated ($([int]$sigAge.TotalDays) days old) and update failed: $errorMsg"
+            if ($svc.Status -ne 'Running') {
+                Write-TidyOutput -Message '  WinDefend is not running. Attempting start.'
+                # WinDefend is a protected service; use sc.exe to start it.
+                $r = Invoke-TidyNativeCommand -FilePath 'sc.exe' -Arguments 'start WinDefend' -TimeoutSeconds 30
+                if (-not $r.Success) {
+                    Write-TidyError -Message "  Could not start WinDefend: $($r.Error)"
                 }
                 else {
-                    Write-TidyOutput -Message "Signature update had warnings but signatures are reasonably current ($([int]$sigAge.TotalDays) days old). Continuing."
-                    $script:RunSummary.SignatureUpdateSucceeded = $true
+                    Wait-TidyServiceStatus -ServiceName 'WinDefend' -TargetStatus 'Running' -TimeoutSeconds 30
+                    Write-TidyOutput -Message '  WinDefend started.'
+                }
+            }
+            else {
+                Write-TidyOutput -Message '  WinDefend is running.'
+            }
+        }
+
+        Invoke-Step -Name 'Verify Defender supporting services' -Action {
+            $supportServices = @('SecurityHealthService', 'Sense')
+            foreach ($name in $supportServices) {
+                $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
+                if (-not $svc) { continue }
+                if ($svc.Status -ne 'Running' -and $svc.StartType -ne 'Disabled') {
+                    try {
+                        Start-Service -Name $name -ErrorAction Stop
+                        Write-TidyOutput -Message "  Started $name."
+                    }
+                    catch {
+                        Write-TidyLog -Level Warning -Message "  Could not start '$name': $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+
+        Invoke-Step -Name 'Reset Defender preferences if Group Policy allows' -Action {
+            # Check if Defender is GP-managed.
+            $gpKey = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows Defender'
+            if (Test-TidyGroupPolicyManaged -RegistryPath $gpKey) {
+                Write-TidyOutput -Message '  Defender is Group Policy managed. Skipping preference reset.'
+                return
+            }
+
+            # Reset tampered exclusion paths (common malware tactic).
+            $prefs = Get-MpPreference -ErrorAction SilentlyContinue
+            if ($prefs -and $prefs.ExclusionPath -and $prefs.ExclusionPath.Count -gt 0) {
+                Backup-TidyRegistryKey -KeyPath 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths' -BackupDirectory $backupDir -Label 'DefenderExclusions'
+                Write-TidyOutput -Message "  Current exclusion paths: $($prefs.ExclusionPath.Count)"
+                # We report exclusions but do NOT remove them automatically.
+                # Removing user-configured exclusions could break legitimate workflows.
+                Write-TidyOutput -Message '  Review exclusions manually. Automated removal skipped for safety.'
+            }
+        }
+    }
+    else { Write-TidyOutput -Message 'Defender service repair skipped.' }
+
+    # ── 2. Definition update ──────────────────────────────────────────
+    if (-not $SkipDefinitionUpdate.IsPresent) {
+        Invoke-Step -Name 'Update Defender definitions' -Action {
+            $age = $status.AntivirusSignatureAge
+            if ($age -le 1) {
+                Write-TidyOutput -Message "  Definitions are current ($age day(s) old)."
+                return
+            }
+
+            Write-TidyOutput -Message "  Definitions are $age day(s) old. Updating..."
+            try {
+                Update-MpSignature -ErrorAction Stop
+                Write-TidyOutput -Message '  Definitions updated successfully.'
+            }
+            catch {
+                # Fallback: try MpCmdRun.exe.
+                $mpCmd = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+                if (-not (Test-Path -LiteralPath $mpCmd)) {
+                    $mpCmd = Join-Path $env:ProgramW6432 'Windows Defender\MpCmdRun.exe'
+                }
+
+                if (Test-Path -LiteralPath $mpCmd) {
+                    Write-TidyOutput -Message '  Falling back to MpCmdRun.exe for definition update.'
+                    $r = Invoke-TidyNativeCommand -FilePath $mpCmd -Arguments '-SignatureUpdate' -TimeoutSeconds 120
+                    if (-not $r.Success) {
+                        throw "Definition update failed via MpCmdRun: exit code $($r.ExitCode)"
+                    }
+                }
+                else {
+                    throw "Definition update failed and MpCmdRun.exe not found: $($_.Exception.Message)"
                 }
             }
         }
     }
-    else {
-        Write-TidyOutput -Message 'Skipping signature update per operator request.'
-    }
+    else { Write-TidyOutput -Message 'Definition update skipped.' }
 
-    if (-not $SkipRealtimeHeal.IsPresent) {
-        $setPreferenceCmd = Get-Command -Name 'Set-MpPreference' -ErrorAction SilentlyContinue
-        if (-not $setPreferenceCmd) {
-            Write-TidyOutput -Message 'Set-MpPreference cmdlet not available; skipping real-time protection remediation.'
-            $script:RunSummary.RealTimeHealError = 'Set-MpPreference cmdlet unavailable.'
-        }
-        else {
-            $script:RunSummary.RealTimeHealAttempted = $true
-            Write-TidyOutput -Message 'Validating Defender real-time protection state.'
+    # ── 3. Scan ───────────────────────────────────────────────────────
+    if (-not $SkipScan.IsPresent) {
+        Invoke-Step -Name "Run $ScanType scan" -Action {
+            $scanTypeVal = switch ($ScanType) {
+                'Quick' { 1 }
+                'Full'  { 2 }
+            }
+
+            Write-TidyOutput -Message "  Starting $ScanType scan (this may take a while)..."
             try {
-                if (Enable-DefenderRealtimeProtection) {
-                    $script:RunSummary.RealTimeHealSucceeded = -not $script:DryRunMode
-                    if ($script:DryRunMode) {
-                        $script:RunSummary.RealTimeHealError = 'Dry-run only; command not executed.'
+                Start-MpScan -ScanType $ScanType -ErrorAction Stop
+            }
+            catch {
+                # Fallback to MpCmdRun.exe.
+                $mpCmd = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+                if (-not (Test-Path -LiteralPath $mpCmd)) {
+                    $mpCmd = Join-Path $env:ProgramW6432 'Windows Defender\MpCmdRun.exe'
+                }
+
+                if (Test-Path -LiteralPath $mpCmd) {
+                    Write-TidyOutput -Message '  Falling back to MpCmdRun.exe for scan.'
+                    $r = Invoke-TidyNativeCommand -FilePath $mpCmd -Arguments "-Scan -ScanType $scanTypeVal" -TimeoutSeconds 600
+                    if (-not $r.Success -and -not $r.TimedOut) {
+                        throw "Scan failed via MpCmdRun: exit code $($r.ExitCode)"
+                    }
+                    if ($r.TimedOut) {
+                        Write-TidyOutput -Message '  Scan is running in background (timed out waiting for completion).'
+                    }
+                }
+                else {
+                    throw "Scan failed: $($_.Exception.Message)"
+                }
+            }
+
+            # Report threat detection results.
+            try {
+                $threats = Get-MpThreatDetection -ErrorAction SilentlyContinue
+                if ($threats) {
+                    $recentThreats = @($threats | Where-Object { $_.InitialDetectionTime -gt (Get-Date).AddHours(-1) })
+                    if ($recentThreats.Count -gt 0) {
+                        Write-TidyOutput -Message "  Threats detected in last hour: $($recentThreats.Count)"
+                        foreach ($t in $recentThreats | Select-Object -First 10) {
+                            Write-TidyOutput -Message "    - $($t.ThreatName) [$($t.ActionSuccess ? 'remediated' : 'action required')]"
+                        }
+                    }
+                    else {
+                        Write-TidyOutput -Message '  No threats detected.'
                     }
                 }
             }
             catch {
-                $script:RunSummary.RealTimeHealError = $_.Exception.Message
-                Write-TidyLog -Level Warning -Message "Failed to force real-time protection on: $($_.Exception.Message)"
+                Write-TidyLog -Level Warning -Message "Could not query threat detections: $($_.Exception.Message)"
             }
         }
     }
-    else {
-        Write-TidyOutput -Message 'Skipping real-time protection remediation per operator request.'
-    }
+    else { Write-TidyOutput -Message 'Scan skipped.' }
 
-    if (-not $SkipThreatScan.IsPresent) {
-        if ($ScanPath -and $ScanPath.Count -gt 0) {
-            $resolvedPaths = [System.Collections.Generic.List[string]]::new()
-            foreach ($path in $ScanPath) {
-                try {
-                    $resolved = Resolve-Path -Path $path -ErrorAction Stop
-                    foreach ($candidate in $resolved) {
-                        [void]$resolvedPaths.Add($candidate.ProviderPath)
-                    }
-                }
-                catch {
-                    throw "Scan path '$path' could not be resolved: $($_.Exception.Message)"
-                }
-            }
-
-            Write-TidyOutput -Message 'Running Microsoft Defender custom path scan.'
-            try {
-                $scanExit = Invoke-TidyCommand -Command {
-                    param($paths)
-                    Start-MpScan -ScanPath $paths -ErrorAction Stop | Out-Null
-                } -Arguments @([string[]]$resolvedPaths.ToArray()) -Description 'Running Defender custom scan.' -RequireSuccess
-                if ($scanExit -eq 0) {
-                    $script:RunSummary.ScanCompleted = -not $script:DryRunMode
-                    $script:RunSummary.ScanResult = if ($script:DryRunMode) { 'Custom scan planned (dry-run).' } else { 'Custom scan completed.' }
-                }
-            }
-            catch {
-                $script:RunSummary.ScanError = $_.Exception.Message
-                throw
-            }
+    # ── 4. Re-register Defender WMI provider ──────────────────────────
+    Invoke-Step -Name 'Re-register Defender WMI provider' -Action {
+        $mofPath = Join-Path $env:ProgramFiles 'Windows Defender\ProtectionManagement.mof'
+        if (-not (Test-Path -LiteralPath $mofPath)) {
+            $mofPath = Join-Path $env:ProgramW6432 'Windows Defender\ProtectionManagement.mof'
         }
-        elseif ($FullScan.IsPresent) {
-            Write-TidyOutput -Message 'Running Microsoft Defender full system scan (this can take a while).'
-            try {
-                $scanExit = Invoke-TidyCommand -Command {
-                    Start-MpScan -ScanType FullScan -ErrorAction Stop | Out-Null
-                } -Description 'Running Defender full scan.' -RequireSuccess
-                if ($scanExit -eq 0) {
-                    $script:RunSummary.ScanCompleted = -not $script:DryRunMode
-                    $script:RunSummary.ScanResult = if ($script:DryRunMode) { 'Full scan planned (dry-run).' } else { 'Full scan completed.' }
-                }
+        if (Test-Path -LiteralPath $mofPath) {
+            $r = Invoke-TidyNativeCommand -FilePath 'mofcomp.exe' -Arguments "`"$mofPath`"" -TimeoutSeconds 30
+            if ($r.Success) {
+                Write-TidyOutput -Message '  WMI provider re-registered.'
             }
-            catch {
-                $script:RunSummary.ScanError = $_.Exception.Message
-                throw
+            else {
+                Write-TidyLog -Level Warning -Message "  mofcomp returned exit code $($r.ExitCode)."
             }
         }
         else {
-            Write-TidyOutput -Message 'Running Microsoft Defender quick scan.'
-            try {
-                $scanExit = Invoke-TidyCommand -Command {
-                    Start-MpScan -ScanType QuickScan -ErrorAction Stop | Out-Null
-                } -Description 'Running Defender quick scan.' -RequireSuccess
-                if ($scanExit -eq 0) {
-                    $script:RunSummary.ScanCompleted = -not $script:DryRunMode
-                    $script:RunSummary.ScanResult = if ($script:DryRunMode) { 'Quick scan planned (dry-run).' } else { 'Quick scan completed.' }
-                }
-            }
-            catch {
-                $script:RunSummary.ScanError = $_.Exception.Message
-                throw
-            }
-        }
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping Microsoft Defender scan per operator request.'
-        $script:RunSummary.ScanResult = 'Scan skipped.'
-    }
-
-    $script:RunSummary.FinalStatus = Get-DefenderStatusSnapshot
-    if ($script:RunSummary.FinalStatus) {
-        Write-TidyOutput -Message 'Final Defender status snapshot:'
-        foreach ($prop in $script:RunSummary.FinalStatus.PSObject.Properties) {
-            Write-TidyOutput -Message ("  {0}: {1}" -f $prop.Name, $prop.Value)
+            Write-TidyOutput -Message '  ProtectionManagement.mof not found. Skipped.'
         }
     }
 
-    Write-TidyOutput -Message 'Microsoft Defender repair and scan routine completed.'
+    Write-TidyOutput -Message ''
+    Write-TidyOutput -Message 'Windows Defender repair and scan completed.'
+    Write-TidyOutput -Message "Registry backups saved to: $backupDir"
 }
 catch {
     $script:OperationSucceeded = $false
-    $message = $_.Exception.Message
-    if ([string]::IsNullOrWhiteSpace($message)) {
-        $message = $_ | Out-String
-    }
-
-    Write-TidyLog -Level Error -Message $message
-    Write-TidyError -Message $message
-    if (-not $script:UsingResultFile) {
-        throw
-    }
+    Write-TidyError -Message "Defender repair failed: $($_.Exception.Message)"
 }
 finally {
     Save-TidyResult
-    try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch {}
-
-    try {
-        $summary = [pscustomobject]@{
-            Time                     = (Get-Date).ToString('o')
-            Success                  = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-            SignatureUpdateAttempted = $script:RunSummary.SignatureUpdateAttempted
-            SignatureUpdateSucceeded = $script:RunSummary.SignatureUpdateSucceeded
-            SignatureUpdateError     = $script:RunSummary.SignatureUpdateError
-            ServiceHealAttempted     = $script:RunSummary.ServiceHealAttempted
-            ServicesRestarted        = @($script:RunSummary.ServicesRestarted)
-            ServiceHealFailures      = @($script:RunSummary.ServiceHealFailures)
-            RealTimeHealAttempted    = $script:RunSummary.RealTimeHealAttempted
-            RealTimeHealSucceeded    = $script:RunSummary.RealTimeHealSucceeded
-            RealTimeHealError        = $script:RunSummary.RealTimeHealError
-            ScanRequested            = $script:RunSummary.ScanRequested
-            ScanCompleted            = $script:RunSummary.ScanCompleted
-            ScanResult               = $script:RunSummary.ScanResult
-            ScanError                = $script:RunSummary.ScanError
-            InitialStatus            = $script:RunSummary.InitialStatus
-            FinalStatus              = $script:RunSummary.FinalStatus
-            DryRun                   = $script:RunSummary.DryRun
-            TranscriptPath           = $transcriptPath
-        }
-
-        $summary | ConvertTo-Json -Depth 6 | Out-File -FilePath $LogPath -Encoding UTF8
-    }
-    catch {
-        # Non-fatal if log write fails.
-    }
 }
-
-if ($script:UsingResultFile) {
-    $wasSuccessful = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-    if ($wasSuccessful) {
-        exit 0
-    }
-
-    exit 1
-}
-

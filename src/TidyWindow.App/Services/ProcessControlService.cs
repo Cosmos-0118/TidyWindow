@@ -429,6 +429,131 @@ public sealed class ProcessControlService
         return new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Stops a service and also kills any associated process by executable name.
+    /// If the service stop fails or the service doesn't exist, falls back to process kill.
+    /// </summary>
+    public async Task<ProcessControlResult> StopServiceAndProcessAsync(string serviceName, string? processName = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        var serviceResult = await StopAsync(serviceName, timeout, cancellationToken).ConfigureAwait(false);
+
+        // If the service stopped successfully and no process name specified, we're done.
+        if (serviceResult.Success && string.IsNullOrWhiteSpace(processName))
+        {
+            return serviceResult;
+        }
+
+        // Also try to kill the process by name as a fallback / supplement.
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            var killResult = await KillProcessByNameAsync(processName, cancellationToken).ConfigureAwait(false);
+            if (!serviceResult.Success && killResult.Success)
+            {
+                return killResult;
+            }
+        }
+
+        return serviceResult;
+    }
+
+    /// <summary>
+    /// Terminates all running processes that match the given process name (without .exe extension).
+    /// </summary>
+    public Task<ProcessControlResult> KillProcessByNameAsync(string processName, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() =>
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+            {
+                return ProcessControlResult.CreateFailure("Process name was not provided.");
+            }
+
+            var name = processName.Trim();
+            // Strip .exe extension if provided.
+            if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name[..^4];
+            }
+
+            try
+            {
+                var processes = Process.GetProcessesByName(name);
+                if (processes.Length == 0)
+                {
+                    return ProcessControlResult.CreateSuccess($"No running instances of {name} found.");
+                }
+
+                var killed = 0;
+                var failed = 0;
+                foreach (var proc in processes)
+                {
+                    try
+                    {
+                        if (!proc.HasExited)
+                        {
+                            proc.Kill(entireProcessTree: true);
+                            killed++;
+                        }
+                    }
+                    catch
+                    {
+                        failed++;
+                    }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
+                }
+
+                if (killed > 0 && failed == 0)
+                {
+                    return ProcessControlResult.CreateSuccess($"Terminated {killed} instance(s) of {name}.");
+                }
+                else if (killed > 0)
+                {
+                    return ProcessControlResult.CreateSuccess($"Terminated {killed} instance(s) of {name}; {failed} could not be killed.");
+                }
+                else
+                {
+                    return ProcessControlResult.CreateFailure($"Could not terminate any instance of {name}.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return ProcessControlResult.CreateFailure($"Failed to kill {name}: {ex.Message}");
+            }
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Checks whether any process with the given name is currently running.
+    /// </summary>
+    public static bool IsProcessRunning(string processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return false;
+        }
+
+        var name = processName.Trim();
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^4];
+        }
+
+        try
+        {
+            var processes = Process.GetProcessesByName(name);
+            var running = processes.Length > 0;
+            foreach (var p in processes) p.Dispose();
+            return running;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static ProcessControlResult ControlService(string? serviceName, TimeSpan? timeout, Func<ServiceController, TimeSpan, ProcessControlResult> action)
     {
         if (!OperatingSystem.IsWindows())

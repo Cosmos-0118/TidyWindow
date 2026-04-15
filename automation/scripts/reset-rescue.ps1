@@ -56,18 +56,17 @@ if (-not (Test-Path -LiteralPath $TargetPath)) {
 $shadowDevice = $null
 if ($CreateSnapshot) {
     try {
-        $class = Get-WmiObject -List Win32_ShadowCopy -ErrorAction Stop
-        $create = $class.Create('C:\\', 'ClientAccessible')
-        if ($create.ReturnValue -eq 0) {
-            $shadowId = $create.ShadowID
-            $shadow = Get-WmiObject -Query "SELECT * FROM Win32_ShadowCopy WHERE ID='$shadowId'" -ErrorAction Stop
+        $result_shadow = Invoke-CimMethod -ClassName Win32_ShadowCopy -MethodName Create -Arguments @{ Volume = 'C:\' } -ErrorAction Stop
+        if ($result_shadow.ReturnValue -eq 0) {
+            $shadowId = $result_shadow.ShadowID
+            $shadow = Get-CimInstance -ClassName Win32_ShadowCopy -Filter "ID='$shadowId'" -ErrorAction Stop
             $shadowDevice = $shadow.DeviceObject
             $result.snapshotId = $shadowId
             $result.snapshotPath = $shadowDevice
             Write-Log "Created shadow copy $shadowId at $shadowDevice"
         }
         else {
-            Write-Log "Shadow copy creation returned $($create.ReturnValue)" 'WARN'
+            Write-Log "Shadow copy creation returned $($result_shadow.ReturnValue)" 'WARN'
         }
     }
     catch {

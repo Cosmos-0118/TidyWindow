@@ -16,6 +16,10 @@ try {
     $explorerPath = 'HKCU:\Software\Policies\Microsoft\Windows\Explorer'
     $searchPath = 'HKCU:\Software\Policies\Microsoft\Windows\Windows Search'
 
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $explorerPath
+    Backup-TidyRegistryKey -Path $searchPath
+
     if ($apply) {
         $c1 = Set-RegistryValue -Path $explorerPath -Name 'DisableSearchBoxSuggestions' -Value 1 -Type 'DWord'
         Register-RegistryChange -Change $c1 -Description 'Disabled search box suggestions.'

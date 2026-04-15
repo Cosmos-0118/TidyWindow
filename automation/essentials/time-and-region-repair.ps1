@@ -456,6 +456,12 @@ function Reset-LocaleAndLanguage {
         Set-Culture -CultureInfo $targetLocale -ErrorAction Stop
 
         Write-TidyOutput -Message ("Resetting user language list to {0}." -f $targetLanguage)
+        # SAFETY: Save current language list before overwriting.
+        $existingLanguages = Get-WinUserLanguageList -ErrorAction SilentlyContinue
+        if ($existingLanguages) {
+            $langBackup = ($existingLanguages | ForEach-Object { $_.LanguageTag }) -join ', '
+            Write-TidyOutput -Message ("Existing language list: {0}" -f $langBackup)
+        }
         $languageList = New-WinUserLanguageList -Language $targetLanguage
         Set-WinUserLanguageList -LanguageList $languageList -Force -ErrorAction Stop
 

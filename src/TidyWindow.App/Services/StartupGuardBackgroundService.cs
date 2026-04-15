@@ -18,7 +18,8 @@ public sealed class StartupGuardBackgroundService : IDisposable
 {
     private static readonly TimeSpan DefaultInitialDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan DefaultScanInterval = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan RapidScanInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RapidScanInterval = TimeSpan.FromMinutes(2);
+    private const int MaxConsecutiveViolationsBeforeBackoff = 10;
 
     private readonly StartupInventoryService _inventory;
     private readonly StartupControlService _control;
@@ -338,7 +339,8 @@ public sealed class StartupGuardBackgroundService : IDisposable
         {
             try
             {
-                await RunOnceAsync(_cts?.Token ?? CancellationToken.None, terminateProcesses: true).ConfigureAwait(false);
+                // Reactive scans only disable entries — no process termination.
+                await RunOnceAsync(_cts?.Token ?? CancellationToken.None, terminateProcesses: false).ConfigureAwait(false);
             }
             catch
             {
@@ -366,10 +368,15 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var violationsFound = await RunOnceAsync(cancellationToken, terminateProcesses: true).ConfigureAwait(false);
+            // Automatic/reactive scans only disable the startup entry — they do NOT kill processes.
+            // Process termination is reserved for the explicit user-initiated ForceScanAsync.
+            var violationsFound = await RunOnceAsync(cancellationToken, terminateProcesses: false).ConfigureAwait(false);
 
-            // If violations keep occurring, use faster scan interval
-            var interval = _consecutiveViolations > 2 ? RapidScanInterval : _scanInterval;
+            // If too many consecutive violations, the application is actively fighting us.
+            // Back off to avoid an infinite disable/re-enable war.
+            var interval = _consecutiveViolations > MaxConsecutiveViolationsBeforeBackoff
+                ? TimeSpan.FromMinutes(10)
+                : _scanInterval;
 
             try
             {

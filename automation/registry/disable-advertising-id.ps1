@@ -16,6 +16,14 @@ try {
     $userPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo'
     $policyPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo'
 
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $policyPath) {
+        Write-RegistryOutput 'WARNING: AdvertisingInfo policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $policyPath
+
     if ($apply) {
         $c1 = Set-RegistryValue -Path $userPath -Name 'Enabled' -Value 0 -Type 'DWord'
         Register-RegistryChange -Change $c1 -Description 'Disabled advertising ID for the current user.'

@@ -34,6 +34,12 @@ function Get-RegistryOriginalUserSid {
         return $null
     }
 
+    # Validate SID format (S-1-5-21-...) to prevent modifying wrong user's registry
+    if ($trimmed -notmatch '^S-\d+-\d+-\d+(-\d+)*$') {
+        Write-Warning "Invalid SID format: '$trimmed'. Ignoring TIDYWINDOW_ORIGINAL_USER_SID."
+        return $null
+    }
+
     return $trimmed
 }
 
