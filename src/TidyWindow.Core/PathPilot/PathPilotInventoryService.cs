@@ -25,7 +25,12 @@ public sealed class PathPilotInventoryService
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
+
     private readonly PowerShellInvoker _powerShellInvoker;
+    private readonly object _cacheLock = new();
+    private PathPilotInventorySnapshot? _cachedSnapshot;
+    private DateTimeOffset _cachedAt;
 
     public PathPilotInventoryService(PowerShellInvoker powerShellInvoker)
     {
@@ -33,10 +38,30 @@ public sealed class PathPilotInventoryService
     }
 
     /// <summary>
+    /// Invalidates the cached inventory snapshot so the next call performs a fresh scan.
+    /// </summary>
+    public void InvalidateCache()
+    {
+        lock (_cacheLock)
+        {
+            _cachedSnapshot = null;
+        }
+    }
+
+    /// <summary>
     /// Executes the automation script and returns the current runtime inventory snapshot.
     /// </summary>
     public async Task<PathPilotInventorySnapshot> GetInventoryAsync(string? configOverridePath = null, CancellationToken cancellationToken = default)
     {
+        // Return cached snapshot if still fresh (avoids redundant full scans)
+        lock (_cacheLock)
+        {
+            if (_cachedSnapshot is not null && DateTimeOffset.UtcNow - _cachedAt < CacheTtl && configOverridePath is null)
+            {
+                return _cachedSnapshot;
+            }
+        }
+
         var parameters = new Dictionary<string, object?>();
 
         if (!string.IsNullOrWhiteSpace(configOverridePath))
@@ -47,7 +72,18 @@ public sealed class PathPilotInventoryService
         var result = await RunScriptAsync(parameters, cancellationToken).ConfigureAwait(false);
         EnsureSuccess(result, "PathPilot inventory script failed: ");
         var payload = DeserializePayload(result.Output, "PathPilot inventory");
-        return MapSnapshot(payload);
+        var snapshot = MapSnapshot(payload);
+
+        if (configOverridePath is null)
+        {
+            lock (_cacheLock)
+            {
+                _cachedSnapshot = snapshot;
+                _cachedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        return snapshot;
     }
 
     /// <summary>
@@ -69,6 +105,9 @@ public sealed class PathPilotInventoryService
         {
             throw new ArgumentException("Installation path is required for switching.", nameof(request));
         }
+
+        // Invalidate cache since PATH will change
+        InvalidateCache();
 
         var parameters = new Dictionary<string, object?>
         {
@@ -92,6 +131,14 @@ public sealed class PathPilotInventoryService
 
         var snapshot = MapSnapshot(payload);
         var switchResult = MapSwitchResult(payload.SwitchResult);
+
+        // Cache the post-switch snapshot
+        lock (_cacheLock)
+        {
+            _cachedSnapshot = snapshot;
+            _cachedAt = DateTimeOffset.UtcNow;
+        }
+
         return new PathPilotSwitchOperationResult(snapshot, switchResult);
     }
 

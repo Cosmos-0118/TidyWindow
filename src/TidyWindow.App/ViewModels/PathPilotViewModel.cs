@@ -192,8 +192,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         IsInventoryLoading = true;
         _mainViewModel.SetStatusMessage("Scanning runtimes...");
 
-        // Increased timeout from 60 to 120 seconds to accommodate slower systems with slow disk/network drives
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        // 180 seconds accommodates slower systems with 35+ runtimes and slow disk/network
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
         using var linkedCts = CreateLinkedCancellationSource(timeoutCts.Token);
         ReplaceInventoryCancellation(linkedCts);
 
@@ -339,39 +339,15 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
             var result = await Task.Run(async () =>
                 await _inventoryService.SwitchRuntimeAsync(request, cancellationToken: linkedCts.Token).ConfigureAwait(false), linkedCts.Token).ConfigureAwait(false);
-            var snapshotToApply = result.Snapshot;
 
             if (!IsOperational(linkedCts.Token))
             {
                 return;
             }
 
-            const int refreshAttempts = 3;
-            for (var attempt = 0; attempt < refreshAttempts; attempt++)
-            {
-                try
-                {
-                    var refreshedSnapshot = await _inventoryService.GetInventoryAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false);
-                    snapshotToApply = refreshedSnapshot;
-
-                    if (SwitchResultReflected(refreshedSnapshot, result.SwitchResult))
-                    {
-                        break;
-                    }
-                }
-                catch (Exception refreshEx)
-                {
-                    _activityLog.LogWarning("PathPilot", "Switch completed but refresh failed; showing immediate snapshot instead.", new[] { refreshEx.ToString() });
-                    break;
-                }
-
-                if (attempt < refreshAttempts - 1)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(750), linkedCts.Token).ConfigureAwait(false);
-                }
-            }
-
-            snapshotToApply = ApplySwitchResultSnapshot(snapshotToApply, result.SwitchResult);
+            // Use the snapshot returned by the switch directly (contains a targeted re-scan
+            // of the switched runtime only). Apply the switch result metadata on top.
+            var snapshotToApply = ApplySwitchResultSnapshot(result.Snapshot, result.SwitchResult);
 
             if (!IsOperational(linkedCts.Token))
             {

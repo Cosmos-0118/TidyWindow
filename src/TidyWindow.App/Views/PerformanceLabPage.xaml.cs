@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
@@ -21,5 +22,20 @@ public partial class PerformanceLabPage : Page
     {
         Loaded -= OnLoaded;
         await _viewModel.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+    }
+
+    private void OnRestorePointBannerClick(object sender, MouseButtonEventArgs e)
+    {
+        _viewModel.ShowRestorePointsDialogCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private void OnDialogOverlayClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is Grid grid && grid.Background != null)
+        {
+            _viewModel.IsRestorePointsDialogVisible = false;
+            e.Handled = true;
+        }
     }
 }

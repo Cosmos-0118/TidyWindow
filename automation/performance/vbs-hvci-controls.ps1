@@ -61,6 +61,13 @@ elseif ($Detect) { $intent = 'Detect' }
 
 Assert-Elevation
 
+# Import safety module for registry backup
+$safetyModulePath = Join-Path (Split-Path $MyInvocation.MyCommand.Path) '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
+$safetyModulePath = [System.IO.Path]::GetFullPath($safetyModulePath)
+if (Test-Path $safetyModulePath) {
+    Import-Module $safetyModulePath -Force
+}
+
 $state = Get-DeviceGuardState
 $hyperType = Get-HypervisorLaunchType
 $changes = @()
@@ -68,6 +75,11 @@ $failures = @()
 
 switch ($intent) {
     'Disable' {
+        # Backup registry before modifying HVCI
+        if (Get-Command -Name 'Backup-TidyRegistryKey' -ErrorAction SilentlyContinue) {
+            Backup-TidyRegistryKey -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Label 'vbs-hvci-disable'
+        }
+
         Ensure-RegistryKey -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity'
         try {
             Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name Enabled -Value 0 -Type DWord -Force
@@ -89,6 +101,11 @@ switch ($intent) {
         }
     }
     'RestoreDefaults' {
+        # Backup registry before restoring defaults
+        if (Get-Command -Name 'Backup-TidyRegistryKey' -ErrorAction SilentlyContinue) {
+            Backup-TidyRegistryKey -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Label 'vbs-hvci-restore'
+        }
+
         try {
             if (Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity') {
                 Remove-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name Enabled -ErrorAction SilentlyContinue

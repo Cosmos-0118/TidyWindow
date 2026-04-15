@@ -4,10 +4,12 @@ param(
     [ValidateSet('APPLICATION_INSTALL', 'APPLICATION_UNINSTALL', 'DEVICE_DRIVER_INSTALL', 'MODIFY_SETTINGS', 'CANCELLED_OPERATION')]
     [string] $RestorePointType = 'MODIFY_SETTINGS',
     [switch] $List,
+    [switch] $ListJson,
     [int] $KeepLatest = 0,
     [int] $PurgeOlderThanDays = 0,
     [switch] $EnableRestore,
     [switch] $DisableRestore,
+    [uint32] $RestoreTo = 0,
     [string[]] $Drives = @('C:'),
     [switch] $Force,
     [string] $ResultPath
@@ -480,12 +482,14 @@ function Enable-TidyRestoreSupport {
 
 $shouldCreate = $Create.IsPresent
 $shouldList = $List.IsPresent
+$shouldListJson = $ListJson.IsPresent
 $shouldEnable = $EnableRestore.IsPresent
 $shouldDisable = $DisableRestore.IsPresent
+$shouldRestoreTo = $RestoreTo -gt 0
 $keepCount = [Math]::Max(0, $KeepLatest)
 $purgeThreshold = if ($PurgeOlderThanDays -gt 0) { (Get-Date).AddDays(-1 * $PurgeOlderThanDays) } else { $null }
 
-if (-not ($shouldCreate -or $shouldList -or $shouldEnable -or $shouldDisable -or $keepCount -gt 0 -or $purgeThreshold)) {
+if (-not ($shouldCreate -or $shouldList -or $shouldListJson -or $shouldEnable -or $shouldDisable -or $shouldRestoreTo -or $keepCount -gt 0 -or $purgeThreshold)) {
     $shouldCreate = $true
     $shouldList = $true
 }
@@ -633,6 +637,42 @@ try {
                 Write-TidyOutput -Message ("  #{0} — {1:G} — {2}" -f $point.SequenceNumber, $point.CreationTime, $point.Description)
             }
         }
+    }
+
+    if ($shouldListJson) {
+        $allPoints = @(Get-TidyRestorePoints)
+        $jsonPayload = @($allPoints | ForEach-Object {
+            [PSCustomObject]@{
+                SequenceNumber = [uint32]$_.SequenceNumber
+                Description    = [string]$_.Description
+                CreationTime   = $_.CreationTime.ToString('o')
+            }
+        })
+        $jsonString = $jsonPayload | ConvertTo-Json -Compress -Depth 3
+        if ($allPoints.Count -eq 1) {
+            $jsonString = "[$jsonString]"
+        }
+        if ($allPoints.Count -eq 0) {
+            $jsonString = '[]'
+        }
+        Write-TidyOutput -Message $jsonString
+    }
+
+    if ($shouldRestoreTo) {
+        $targetPoint = Get-TidyRestorePoints | Where-Object { $_.SequenceNumber -eq $RestoreTo }
+        if (-not $targetPoint) {
+            throw ("Restore point #{0} was not found. Use -List to see available restore points." -f $RestoreTo)
+        }
+
+        Write-TidyOutput -Message ("Initiating system restore to point #{0} — {1:G} — {2}" -f $targetPoint.SequenceNumber, $targetPoint.CreationTime, $targetPoint.Description)
+        Write-TidyOutput -Message 'The system will need to restart to complete the restore.'
+
+        $restoreResult = Invoke-CimMethod -Namespace 'root/default' -ClassName 'SystemRestore' -MethodName 'Restore' -Arguments @{ SequenceNumber = [uint32]$RestoreTo } -ErrorAction Stop
+        if ($restoreResult.ReturnValue -ne 0) {
+            throw ("System restore failed with return code {0}." -f $restoreResult.ReturnValue)
+        }
+
+        Write-TidyOutput -Message 'System restore scheduled successfully. Please restart your computer to complete the process.'
     }
 }
 catch {

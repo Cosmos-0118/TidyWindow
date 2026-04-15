@@ -2,10 +2,13 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Management;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using TidyWindow.Core.Automation;
 
 namespace TidyWindow.Core.Performance;
+
+public sealed record SystemRestorePointInfo(uint SequenceNumber, string Description, DateTime CreationTime);
 
 public interface IPerformanceLabService
 {
@@ -37,6 +40,8 @@ public interface IPerformanceLabService
     Task<PowerPlanStatus> GetPowerPlanStatusAsync(CancellationToken cancellationToken = default);
     Task<KernelBootStatus> GetKernelBootStatusAsync(CancellationToken cancellationToken = default);
     ServiceSlimmingStatus GetServiceSlimmingStatus();
+    Task<IReadOnlyList<SystemRestorePointInfo>> ListSystemRestorePointsAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> RestoreToPointAsync(uint sequenceNumber, CancellationToken cancellationToken = default);
 }
 
 public sealed class PerformanceLabService : IPerformanceLabService
@@ -629,6 +634,81 @@ public sealed class PerformanceLabService : IPerformanceLabService
         return value.Equals("yes", StringComparison.OrdinalIgnoreCase)
             || value.Equals("true", StringComparison.OrdinalIgnoreCase)
             || value.Equals("on", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public async Task<IReadOnlyList<SystemRestorePointInfo>> ListSystemRestorePointsAsync(CancellationToken cancellationToken = default)
+    {
+        var scriptPath = GetEssentialsScriptPath("system-restore-manager.ps1");
+        if (!File.Exists(scriptPath))
+        {
+            return Array.Empty<SystemRestorePointInfo>();
+        }
+
+        var result = await _invoker.InvokeScriptAsync(scriptPath, new Dictionary<string, object?>
+        {
+            ["ListJson"] = true
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess || result.Output.Count == 0)
+        {
+            return Array.Empty<SystemRestorePointInfo>();
+        }
+
+        var jsonLine = result.Output.FirstOrDefault(l => l.TrimStart().StartsWith('['));
+        if (string.IsNullOrWhiteSpace(jsonLine))
+        {
+            return Array.Empty<SystemRestorePointInfo>();
+        }
+
+        try
+        {
+            var items = JsonSerializer.Deserialize<SystemRestorePointJsonEntry[]>(jsonLine, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (items is null)
+            {
+                return Array.Empty<SystemRestorePointInfo>();
+            }
+
+            return items.Select(e => new SystemRestorePointInfo(
+                e.SequenceNumber,
+                e.Description ?? string.Empty,
+                DateTime.TryParse(e.CreationTime, out var dt) ? dt : DateTime.MinValue
+            )).ToArray();
+        }
+        catch
+        {
+            return Array.Empty<SystemRestorePointInfo>();
+        }
+    }
+
+    public Task<PowerShellInvocationResult> RestoreToPointAsync(uint sequenceNumber, CancellationToken cancellationToken = default)
+    {
+        var scriptPath = GetEssentialsScriptPath("system-restore-manager.ps1");
+        if (!File.Exists(scriptPath))
+        {
+            var error = $"Automation script not found: {scriptPath}. Please reinstall or repair TidyWindow.";
+            return Task.FromResult(new PowerShellInvocationResult(Array.Empty<string>(), new[] { error }, 1));
+        }
+
+        return _invoker.InvokeScriptAsync(scriptPath, new Dictionary<string, object?>
+        {
+            ["RestoreTo"] = sequenceNumber
+        }, cancellationToken);
+    }
+
+    private string GetEssentialsScriptPath(string fileName)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "automation", "essentials", fileName);
+    }
+
+    private sealed class SystemRestorePointJsonEntry
+    {
+        public uint SequenceNumber { get; set; }
+        public string? Description { get; set; }
+        public string? CreationTime { get; set; }
     }
 }
 

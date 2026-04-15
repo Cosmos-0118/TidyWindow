@@ -29,12 +29,37 @@ public sealed class SchedulerPresetOption
     public string PriorityHint { get; init; } = "Normal";
 }
 
+public sealed class SystemRestorePointDisplayViewModel
+{
+    public SystemRestorePointDisplayViewModel(SystemRestorePointInfo point)
+    {
+        Point = point ?? throw new ArgumentNullException(nameof(point));
+    }
+
+    public SystemRestorePointInfo Point { get; }
+    public uint SequenceNumber => Point.SequenceNumber;
+    public string DisplayName => $"Restore point from {Point.CreationTime:MMM dd, yyyy 'at' h:mm tt}";
+    public string Description => string.IsNullOrWhiteSpace(Point.Description) ? "No description" : Point.Description;
+    public string TimeAgo => FormatTimeAgo(Point.CreationTime);
+
+    private static string FormatTimeAgo(DateTime time)
+    {
+        var delta = DateTime.Now - time;
+        if (delta < TimeSpan.FromMinutes(1)) return "just now";
+        if (delta < TimeSpan.FromHours(1)) return $"{Math.Max(1, (int)delta.TotalMinutes)}m ago";
+        if (delta < TimeSpan.FromDays(1)) return $"{Math.Max(1, (int)delta.TotalHours)}h ago";
+        if (delta < TimeSpan.FromDays(30)) return $"{Math.Max(1, (int)delta.TotalDays)}d ago";
+        return time.ToString("MMM dd, yyyy");
+    }
+}
+
 public sealed partial class PerformanceLabViewModel : ObservableObject
 {
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
     private readonly PerformanceLabAutomationRunner _automationRunner;
     private readonly AutoTuneAutomationScheduler _autoTuneAutomation;
+    private readonly IUserConfirmationService _confirmation;
     private readonly PerformanceLabProcessListStore _processListStore;
     private readonly Dispatcher _dispatcher;
     private bool _suspendBootAutomationUpdate;
@@ -240,6 +265,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isAutoTunePickerVisible;
 
     [ObservableProperty]
+    private bool isRestorePointsDialogVisible;
+
+    [ObservableProperty]
+    private bool hasSystemRestorePoints;
+
+    public ObservableCollection<SystemRestorePointDisplayViewModel> SystemRestorePoints { get; } = new();
+
+    [ObservableProperty]
     private string autoTunePresetId = "LatencyBoost";
 
     private static readonly Regex AnsiRegex = new("\\u001B\\[[0-9;]*m", RegexOptions.Compiled);
@@ -289,9 +322,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IRelayCommand ShowStatusCommand { get; }
     public IRelayCommand ShowStepInfoCommand => showStepInfoCommand ??= new RelayCommand<string?>(ShowStepInfo);
     public IRelayCommand CloseInfoDialogCommand => closeInfoDialogCommand ??= new RelayCommand(CloseInfoDialog);
+    public IRelayCommand ShowRestorePointsDialogCommand => showRestorePointsDialogCommand ??= new RelayCommand(ShowRestorePointsDialog);
+    public IRelayCommand CloseRestorePointsDialogCommand => closeRestorePointsDialogCommand ??= new RelayCommand(() => IsRestorePointsDialogVisible = false);
+    public IAsyncRelayCommand<SystemRestorePointDisplayViewModel?> RestoreToSelectedPointCommand { get; }
 
     private IRelayCommand? showStepInfoCommand;
     private IRelayCommand? closeInfoDialogCommand;
+    private IRelayCommand? showRestorePointsDialogCommand;
+    private IRelayCommand? closeRestorePointsDialogCommand;
     private IRelayCommand? openBootConfigCommand;
     private IRelayCommand? closeBootConfigDialogCommand;
     private IRelayCommand? closeSchedulerPickerCommand;
@@ -301,12 +339,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private IRelayCommand? addAutoTuneProcessCommand;
     private IRelayCommand? removeAutoTuneProcessCommand;
 
-    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner, AutoTuneAutomationScheduler autoTuneAutomation)
+    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner, AutoTuneAutomationScheduler autoTuneAutomation, IUserConfirmationService confirmation)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _automationRunner = automationRunner ?? throw new ArgumentNullException(nameof(automationRunner));
         _autoTuneAutomation = autoTuneAutomation ?? throw new ArgumentNullException(nameof(autoTuneAutomation));
+        _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _dispatcher = Dispatcher.CurrentDispatcher;
         _processListStore = new PerformanceLabProcessListStore();
 
@@ -380,6 +419,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         RunBootAutomationNowCommand = new AsyncRelayCommand(RunBootAutomationNowAsync, CanRunApplyAction);
         DisableAutomationCommand = new AsyncRelayCommand(DisableAutomationAsync, () => !IsBusy);
         ShowStatusCommand = new RelayCommand(ShowStatus);
+        RestoreToSelectedPointCommand = new AsyncRelayCommand<SystemRestorePointDisplayViewModel?>(RestoreToSelectedPointAsync, _ => !IsBusy);
 
         LoadBootAutomationSettings(_automationRunner.CurrentSettings);
         _automationRunner.SettingsChanged += OnBootAutomationSettingsChanged;
@@ -447,6 +487,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         ApplyBootAutomationCommand.NotifyCanExecuteChanged();
         RunBootAutomationNowCommand.NotifyCanExecuteChanged();
         DisableAutomationCommand.NotifyCanExecuteChanged();
+        RestoreToSelectedPointCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -601,6 +642,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             return;
         }
 
+        if (!_confirmation.Confirm("Apply kernel & boot tweaks?",
+            "This modifies BCD (Boot Configuration Data) flags including dynamic tick, platform clock, and TSC sync policy. " +
+            "A reboot is required for changes to take effect.\n\n" +
+            "A system restore point will be created automatically. Do you want to continue?"))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.ApplyKernelBootActionAsync("Recommended").ConfigureAwait(true);
@@ -634,6 +683,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private async Task DisableVbsHvciAsync()
     {
         if (!EnsureApplyArmed("Arm tweaks to change VBS/HVCI."))
+        {
+            return;
+        }
+
+        if (!_confirmation.Confirm("Disable Core Isolation?",
+            "This will turn off VBS and HVCI (Hypervisor-enforced Code Integrity). " +
+            "This can improve gaming performance but reduces security against kernel-level exploits.\n\n" +
+            "A reboot is required. Do you want to continue?"))
         {
             return;
         }
@@ -1338,6 +1395,68 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         InfoDialogTitle = title;
         InfoDialogBody = body;
         IsInfoDialogVisible = true;
+    }
+
+    private void ShowRestorePointsDialog()
+    {
+        _ = LoadRestorePointsAsync();
+        IsRestorePointsDialogVisible = true;
+    }
+
+    private async Task LoadRestorePointsAsync()
+    {
+        SystemRestorePoints.Clear();
+        HasSystemRestorePoints = false;
+
+        try
+        {
+            var points = await _service.ListSystemRestorePointsAsync().ConfigureAwait(true);
+            foreach (var point in points)
+            {
+                SystemRestorePoints.Add(new SystemRestorePointDisplayViewModel(point));
+            }
+            HasSystemRestorePoints = SystemRestorePoints.Count > 0;
+        }
+        catch
+        {
+            HasSystemRestorePoints = false;
+        }
+    }
+
+    private async Task RestoreToSelectedPointAsync(SystemRestorePointDisplayViewModel? selected)
+    {
+        if (selected is null)
+            return;
+
+        var confirmed = _confirmation.Confirm(
+            "Restore system to this point?",
+            $"This will restore your system to:\n\n" +
+            $"  {selected.DisplayName}\n" +
+            $"  {selected.Description}\n\n" +
+            $"Your computer will need to restart to complete the restore. " +
+            $"Personal files will not be affected, but recently installed programs and drivers may be removed.\n\n" +
+            $"Do you want to continue?");
+
+        if (!confirmed)
+            return;
+
+        IsRestorePointsDialogVisible = false;
+
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.RestoreToPointAsync(selected.SequenceNumber).ConfigureAwait(true);
+            if (result.IsSuccess)
+            {
+                _activityLog.LogSuccess("PerformanceLab", $"System restore to point #{selected.SequenceNumber} initiated", BuildDetails(result));
+                ShowStatusAction?.Invoke($"System restore to \"{selected.Description}\" has been scheduled.\n\nPlease restart your computer to complete the restore process.");
+            }
+            else
+            {
+                var error = result.Errors.FirstOrDefault() ?? "System restore failed.";
+                _activityLog.LogWarning("PerformanceLab", error, BuildDetails(result));
+                ShowStatusAction?.Invoke($"System restore failed:\n\n{error}");
+            }
+        }).ConfigureAwait(false);
     }
 
     private void CloseInfoDialog()

@@ -8,6 +8,9 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)] [string[]]$ExtraArgs
 )
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
 # Merge extra unnamed tokens and split on common separators so callers can pass
 # multiple processes as space/semicolon/comma separated values without binding errors.
 $names = @($ProcessNames) + @($ExtraArgs)
@@ -31,9 +34,7 @@ function Get-HalfMask {
 function Apply-Preset {
     param(
         [string]$Preset,
-        [System.Diagnostics.Process[]]$Targets,
-        $Warnings,
-        $Actions
+        [System.Diagnostics.Process[]]$Targets
     )
 
     $maskFull = Get-FullMask
@@ -60,10 +61,10 @@ function Apply-Preset {
             if ($priority) {
                 $proc.PriorityClass = $priority
             }
-            $Actions += "Applied $presetName to $($proc.ProcessName) (mask=$mask, priority=$priority)"
+            $script:actions += "Applied $presetName to $($proc.ProcessName) (mask=$mask, priority=$priority)"
         }
         catch {
-            $Warnings += "Failed to apply $presetName to $($proc.ProcessName): $_"
+            $script:warnings += "Failed to apply $presetName to $($proc.ProcessName): $_"
         }
     }
 
@@ -132,7 +133,7 @@ else {
     $warnings += "No process names provided; preset logged only."
 }
 
-$presetResult = Apply-Preset -Preset:$Preset -Targets:$targetsToApply -Warnings:$warnings -Actions:$actions
+$presetResult = Apply-Preset -Preset:$Preset -Targets:$targetsToApply
 
 if ($PassThru) {
     [PSCustomObject]@{
