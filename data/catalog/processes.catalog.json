@@ -1,6 +1,6 @@
 {
   "source": "listofknown.txt",
-  "generatedAtUtc": "2025-11-28T15:31:47.5053902+00:00",
+  "generatedAtUtc": "2025-11-28T21:01:47.5053902+05:30",
   "categories": [
     {
       "key": "A",
@@ -233,7 +233,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 7
+      "order": 7,
+      "processName": "GameBarPresenceWriter"
     },
     {
       "identifier": "gamebar",
@@ -245,7 +246,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 8
+      "order": 8,
+      "processName": "GameBar"
     },
     {
       "identifier": "xblauthmanager",
@@ -281,7 +283,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 11
+      "order": 11,
+      "processName": "HolographicShell"
     },
     {
       "identifier": "spatialaudioservice",
@@ -317,7 +320,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 14
+      "order": 14,
+      "processName": "MixedRealityPortal"
     },
     {
       "identifier": "spooler",
@@ -377,7 +381,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Error Reporting service/process",
       "isPattern": false,
-      "order": 19
+      "order": 19,
+      "processName": "WerFault"
     },
     {
       "identifier": "waasmedicsvc?*",
@@ -425,7 +430,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 23
+      "order": 23,
+      "processName": "DeviceAssociationBroker"
     },
     {
       "identifier": "devicepicker",
@@ -437,7 +443,8 @@
       "recommendedAction": "AutoStop",
       "rationale": null,
       "isPattern": false,
-      "order": 24
+      "order": 24,
+      "processName": "DevicePicker"
     },
     {
       "identifier": "wpnservice",
@@ -1317,7 +1324,8 @@
       "recommendedAction": "Keep",
       "rationale": "Cloud clipboard, OneDrive placeholders, and Store licensing (expect clipboard/store regressions).",
       "isPattern": false,
-      "order": 87
+      "order": 87,
+      "processName": "SyncHost"
     },
     {
       "identifier": "clipsvc",
@@ -1425,7 +1433,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows AI Host service for Copilot and on-device AI features.",
       "isPattern": false,
-      "order": 96
+      "order": 96,
+      "processName": "AIHost"
     },
     {
       "identifier": "microsoft.windows.ai.copilot.provider",
@@ -1461,7 +1470,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Runtime service for Windows Copilot AI assistant.",
       "isPattern": false,
-      "order": 99
+      "order": 99,
+      "processName": "WindowsCopilotRuntime"
     },
     {
       "identifier": "semanticindex",
@@ -1485,7 +1495,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Microsoft Cortana voice assistant; deprecated in Windows 11.",
       "isPattern": false,
-      "order": 101
+      "order": 101,
+      "processName": "Cortana"
     },
     {
       "identifier": "cortanaui",
@@ -1497,7 +1508,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Cortana user interface components.",
       "isPattern": false,
-      "order": 102
+      "order": 102,
+      "processName": "Cortana"
     },
     {
       "identifier": "searchui",
@@ -1509,7 +1521,8 @@
       "recommendedAction": "Keep",
       "rationale": "Windows Search UI; disabling breaks Start menu search.",
       "isPattern": false,
-      "order": 103
+      "order": 103,
+      "processName": "SearchUI"
     },
     {
       "identifier": "searchhost",
@@ -1521,7 +1534,8 @@
       "recommendedAction": "Keep",
       "rationale": "Windows 11 Search host process; needed for Start menu search.",
       "isPattern": false,
-      "order": 104
+      "order": 104,
+      "processName": "SearchHost"
     },
     {
       "identifier": "voiceactivationmanager",
@@ -1545,7 +1559,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Speech recognition runtime for voice commands.",
       "isPattern": false,
-      "order": 106
+      "order": 106,
+      "processName": "SpeechRuntime"
     },
     {
       "identifier": "wmpnscfg",
@@ -1557,7 +1572,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Media Player network sharing configuration.",
       "isPattern": false,
-      "order": 107
+      "order": 107,
+      "processName": "wmpnscfg"
     },
     {
       "identifier": "wmpnetwk",
@@ -1641,7 +1657,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Narrator screen reader; safe to stop if not visually impaired.",
       "isPattern": false,
-      "order": 114
+      "order": 114,
+      "processName": "Narrator"
     },
     {
       "identifier": "magnify",
@@ -1653,7 +1670,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Magnifier tool.",
       "isPattern": false,
-      "order": 115
+      "order": 115,
+      "processName": "Magnify"
     },
     {
       "identifier": "assistivetechnologymonitor",
@@ -1677,7 +1695,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Assistive Technology service broker.",
       "isPattern": false,
-      "order": 117
+      "order": 117,
+      "processName": "AtBroker"
     },
     {
       "identifier": "sensormonitorservice",
@@ -1977,7 +1996,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Spotify web helper for browser integration; often unnecessary.",
       "isPattern": false,
-      "order": 142
+      "order": 142,
+      "processName": "SpotifyWebHelper"
     },
     {
       "identifier": "discordupdater",
@@ -2013,7 +2033,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Logitech G Hub service; only needed for Logitech gaming peripherals.",
       "isPattern": false,
-      "order": 145
+      "order": 145,
+      "processName": "lghub"
     },
     {
       "identifier": "razercentral",
@@ -2025,7 +2046,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Razer Central service; only needed for Razer peripherals.",
       "isPattern": false,
-      "order": 146
+      "order": 146,
+      "processName": "RazerCentral"
     },
     {
       "identifier": "corsairservice",
@@ -2097,7 +2119,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Dropbox sync service; disable if not using Dropbox.",
       "isPattern": false,
-      "order": 152
+      "order": 152,
+      "processName": "Dropbox"
     },
     {
       "identifier": "onedrive",
@@ -2109,7 +2132,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Microsoft OneDrive sync; disable if not using cloud storage.",
       "isPattern": false,
-      "order": 153
+      "order": 153,
+      "processName": "OneDrive"
     },
     {
       "identifier": "sshd",
@@ -2313,7 +2337,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows web activity agent for usage tracking.",
       "isPattern": false,
-      "order": 170
+      "order": 170,
+      "processName": "WebAgent"
     },
     {
       "identifier": "compattelrunner",
@@ -2325,7 +2350,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Compatibility Telemetry runner; heavy disk and CPU usage.",
       "isPattern": false,
-      "order": 171
+      "order": 171,
+      "processName": "CompatTelRunner"
     },
     {
       "identifier": "devicecensus",
@@ -2337,7 +2363,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Device census for Windows telemetry.",
       "isPattern": false,
-      "order": 172
+      "order": 172,
+      "processName": "DeviceCensus"
     },
     {
       "identifier": "disw",
@@ -2349,7 +2376,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Device Install Software worker; telemetry component.",
       "isPattern": false,
-      "order": 173
+      "order": 173,
+      "processName": "DISW"
     },
     {
       "identifier": "\\microsoft\\windows\\settingsync\\*",
@@ -2493,7 +2521,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Windows Widgets service for news and weather panel; disable if not using Widgets.",
       "isPattern": false,
-      "order": 185
+      "order": 185,
+      "processName": "Widgets"
     },
     {
       "identifier": "startmenuexperiencehost",
@@ -2505,7 +2534,8 @@
       "recommendedAction": "Keep",
       "rationale": "Start Menu host process; DO NOT disable or Start menu will break.",
       "isPattern": false,
-      "order": 186
+      "order": 186,
+      "processName": "StartMenuExperienceHost"
     },
     {
       "identifier": "textinputhost",
@@ -2517,7 +2547,8 @@
       "recommendedAction": "AutoStop",
       "rationale": "Text input host for touch keyboard and handwriting; safe on non-touch devices.",
       "isPattern": false,
-      "order": 187
+      "order": 187,
+      "processName": "TextInputHost"
     },
     {
       "identifier": "tiworker",
@@ -2529,7 +2560,8 @@
       "recommendedAction": "Keep",
       "rationale": "Windows Modules Installer Worker; needed for Windows Update.",
       "isPattern": false,
-      "order": 188
+      "order": 188,
+      "processName": "TiWorker"
     },
     {
       "identifier": "msiexec",
@@ -2541,7 +2573,8 @@
       "recommendedAction": "Keep",
       "rationale": "Windows Installer service; DO NOT disable or apps won't install.",
       "isPattern": false,
-      "order": 189
+      "order": 189,
+      "processName": "msiexec"
     },
     {
       "identifier": "ctfmon",
@@ -2553,7 +2586,8 @@
       "recommendedAction": "Keep",
       "rationale": "CTF Loader for text input; may be needed for some language input methods.",
       "isPattern": false,
-      "order": 190
+      "order": 190,
+      "processName": "ctfmon"
     }
   ]
 }

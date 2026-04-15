@@ -110,6 +110,7 @@ public sealed class StartupControlService
 
     /// <summary>
     /// Terminates all running instances of an executable by path.
+    /// Attempts graceful close first (CloseMainWindow), then forceful kill as fallback.
     /// </summary>
     public static int TerminateProcessesByPath(string executablePath)
     {
@@ -145,8 +146,31 @@ public sealed class StartupControlService
                         continue;
                     }
 
-                    process.Kill();
-                    process.WaitForExit(5000);
+                    // Try graceful shutdown first
+                    var closedGracefully = false;
+                    try
+                    {
+                        if (process.MainWindowHandle != IntPtr.Zero)
+                        {
+                            closedGracefully = process.CloseMainWindow();
+                            if (closedGracefully)
+                            {
+                                closedGracefully = process.WaitForExit(3000);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Graceful close failed — fall through to Kill.
+                    }
+
+                    // Force kill if graceful close didn't work
+                    if (!closedGracefully && !process.HasExited)
+                    {
+                        process.Kill();
+                        process.WaitForExit(5000);
+                    }
+
                     terminated++;
                 }
                 catch
@@ -383,24 +407,49 @@ public sealed class StartupControlService
             var entryName = Path.GetFileName(item.RawCommand ?? item.ExecutablePath);
             var root = ResolveStartupFolderRoot(item.EntryLocation);
 
-            // Find the actual shortcut file in the startup folder
+            // Prefer StartupApproved registry disable — this is the native Windows mechanism
+            // that keeps the shortcut file intact while preventing it from running at logon.
+            // This avoids breaking applications that depend on the shortcut file existing.
+            if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+            {
+                if (TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: false, out _))
+                {
+                    var approvedBackup = new StartupEntryBackup(
+                        item.Id,
+                        item.SourceKind,
+                        RegistryRoot: null,
+                        RegistrySubKey: item.EntryLocation,
+                        RegistryValueName: entryName,
+                        RegistryValueData: null,
+                        FileOriginalPath: item.ExecutablePath,
+                        FileBackupPath: null,
+                        TaskPath: null,
+                        TaskEnabled: null,
+                        ServiceName: null,
+                        ServiceStartValue: null,
+                        ServiceDelayedAutoStart: null,
+                        CreatedAtUtc: DateTimeOffset.UtcNow);
+
+                    _backupStore.Save(approvedBackup);
+                    return new StartupToggleResult(true, item with { IsEnabled = false }, approvedBackup, null);
+                }
+            }
+
+            // Fallback only if StartupApproved fails: move the shortcut file to backup.
             var startupFolderPath = ResolveStartupFolderPath(item.EntryLocation);
             string? originalFilePath = null;
             string? backupFilePath = null;
 
             if (!string.IsNullOrWhiteSpace(startupFolderPath) && Directory.Exists(startupFolderPath))
             {
-                // Look for shortcut files (.lnk) that match the entry
                 var possibleFiles = Directory.GetFiles(startupFolderPath, "*.lnk")
                     .Concat(Directory.GetFiles(startupFolderPath, "*.url"))
                     .ToArray();
 
-                // Try to find the matching file by name
                 originalFilePath = possibleFiles.FirstOrDefault(f =>
                     Path.GetFileNameWithoutExtension(f).Equals(entryName, StringComparison.OrdinalIgnoreCase) ||
                     Path.GetFileName(f).Equals(entryName, StringComparison.OrdinalIgnoreCase));
 
-                // If not found by exact name, try matching by executable path in the shortcut
                 if (originalFilePath is null && !string.IsNullOrWhiteSpace(item.ExecutablePath))
                 {
                     var exeName = Path.GetFileNameWithoutExtension(item.ExecutablePath);
@@ -409,7 +458,6 @@ public sealed class StartupControlService
                 }
             }
 
-            // Move the file to backup location if found
             if (!string.IsNullOrWhiteSpace(originalFilePath) && File.Exists(originalFilePath))
             {
                 var backupFolder = Path.Combine(_backupStore.BackupDirectory, "StartupFiles");
@@ -418,7 +466,6 @@ public sealed class StartupControlService
                 var safeFileName = SanitizeFileName(Path.GetFileName(originalFilePath));
                 backupFilePath = Path.Combine(backupFolder, $"{item.Id.GetHashCode():X8}_{safeFileName}");
 
-                // Ensure unique filename if collision
                 var counter = 1;
                 var basePath = backupFilePath;
                 while (File.Exists(backupFilePath))
@@ -430,14 +477,7 @@ public sealed class StartupControlService
             }
             else
             {
-                // Fallback: use StartupApproved registry if we can't find/move the file
-                if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
-                {
-                    if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: false, out var approvedError))
-                    {
-                        return new StartupToggleResult(false, item, null, approvedError);
-                    }
-                }
+                return new StartupToggleResult(false, item, null, "Could not disable startup file via StartupApproved or file move.");
             }
 
             var backup = new StartupEntryBackup(
@@ -648,7 +688,10 @@ public sealed class StartupControlService
             var startValue = Convert.ToInt32(key.GetValue("Start", -1), CultureInfo.InvariantCulture);
             var delayed = Convert.ToInt32(key.GetValue("DelayedAutoStart", 0), CultureInfo.InvariantCulture);
 
-            // Backup recovery options before disabling
+            // Backup recovery options for potential future restore, but do NOT clear them.
+            // Setting Start=4 (Disabled) already prevents the service from starting, so recovery
+            // actions are effectively inert. Clearing them was causing permanent damage when the
+            // backup store was lost or the app was uninstalled.
             var failureActions = BackupServiceRecoveryOptions(serviceName);
 
             var backup = new StartupEntryBackup(
@@ -667,12 +710,12 @@ public sealed class StartupControlService
                 ServiceDelayedAutoStart: delayed,
                 CreatedAtUtc: DateTimeOffset.UtcNow);
 
-            // Disable the service
+            // Disable the service — Start=4 prevents the service from starting at boot.
             key.SetValue("Start", 4, RegistryValueKind.DWord);
             key.SetValue("DelayedAutoStart", 0, RegistryValueKind.DWord);
 
-            // Also disable recovery options to prevent automatic restart
-            DisableServiceRecoveryOptions(serviceName);
+            // Recovery actions are left intact — they're harmless when Start=4 and will
+            // automatically resume working if the user re-enables the service later.
 
             // Attempt to stop the service if it's running
             TryStopService(serviceName);

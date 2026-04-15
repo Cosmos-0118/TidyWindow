@@ -703,7 +703,7 @@ function Get-WingetAvailableVersion {
         }
     }
     catch {
-        # Ignore failures on primary show command and continue.
+        Write-Verbose ("Winget show failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
     }
 
     try {
@@ -730,7 +730,7 @@ function Get-WingetAvailableVersion {
         }
     }
     catch {
-        # Continue to additional fallbacks.
+        Write-Verbose ("Winget show --versions failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
     }
 
     try {
@@ -756,7 +756,7 @@ function Get-WingetAvailableVersion {
         }
     }
     catch {
-        # No additional fallback available.
+        Write-Verbose ("Winget search fallback failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
     }
 
     return $null
@@ -793,7 +793,9 @@ function Get-ChocoAvailableVersion {
             }
         }
     }
-    catch { }
+    catch {
+        Write-Verbose ("Choco search failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
+    }
 
     if ($versions.Count -eq 0) {
         try {
@@ -818,7 +820,9 @@ function Get-ChocoAvailableVersion {
                 }
             }
         }
-        catch { }
+        catch {
+            Write-Verbose ("Choco search --all-versions failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
+        }
     }
 
     if ($versions.Count -eq 0) {
@@ -848,7 +852,9 @@ function Get-ChocoAvailableVersion {
                 }
             }
         }
-        catch { }
+        catch {
+            Write-Verbose ("Choco info failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
+        }
     }
 
     if ($versions.Count -gt 0) {
@@ -977,7 +983,9 @@ function Get-ScoopAvailableVersion {
             if ($info.version) { return $info.version.ToString().Trim() }
         }
     }
-    catch { }
+    catch {
+        Write-Verbose ("Scoop JSON info failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
+    }
 
     try {
         $fallback = & $exe 'info' $PackageId 2>$null
@@ -988,7 +996,9 @@ function Get-ScoopAvailableVersion {
             if ($clean -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
         }
     }
-    catch { }
+    catch {
+        Write-Verbose ("Scoop text info failed for {0}: {1}" -f $PackageId, $_.Exception.Message)
+    }
 
     return $null
 }
@@ -1055,7 +1065,9 @@ function Reset-ScoopWorkspaceManifestIfOutdated {
         try {
             Copy-Item -Path $bucketPath -Destination $workspacePath -Force
         }
-        catch { }
+        catch {
+            Write-Verbose ("Failed to copy Scoop manifest to workspace: {0}" -f $_.Exception.Message)
+        }
         return
     }
 
@@ -1064,7 +1076,9 @@ function Reset-ScoopWorkspaceManifestIfOutdated {
         try {
             Copy-Item -Path $bucketPath -Destination $workspacePath -Force
         }
-        catch { }
+        catch {
+            Write-Verbose ("Failed to update Scoop workspace manifest: {0}" -f $_.Exception.Message)
+        }
     }
 }
 

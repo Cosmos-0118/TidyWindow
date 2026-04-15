@@ -165,27 +165,61 @@ public sealed class StartupBackupStore
 
     private Dictionary<string, StartupEntryBackup> ReadAll()
     {
-        if (!File.Exists(_filePath))
+        // Try primary file first, then fall back to .bak if primary is missing/corrupt.
+        var result = TryReadFile(_filePath);
+        if (result is not null)
         {
-            return new Dictionary<string, StartupEntryBackup>(StringComparer.OrdinalIgnoreCase);
+            return result;
+        }
+
+        var bakPath = _filePath + ".bak";
+        result = TryReadFile(bakPath);
+        return result ?? new Dictionary<string, StartupEntryBackup>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, StartupEntryBackup>? TryReadFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
         }
 
         try
         {
-            var json = File.ReadAllText(_filePath);
+            var json = File.ReadAllText(path);
             var items = JsonSerializer.Deserialize<List<StartupEntryBackup>>(json, SerializerOptions);
-            return items?.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, StartupEntryBackup>(StringComparer.OrdinalIgnoreCase);
+            if (items is not null)
+            {
+                return items.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+            }
         }
         catch
         {
-            return new Dictionary<string, StartupEntryBackup>(StringComparer.OrdinalIgnoreCase);
+            // Corrupted — return null to try fallback.
         }
+
+        return null;
     }
 
     private void Persist(IDictionary<string, StartupEntryBackup> map)
     {
         var list = map.Values.ToList();
         var json = JsonSerializer.Serialize(list, SerializerOptions);
+
+        // Rotate: keep previous version as .bak so a single corrupt write doesn't lose everything.
+        var bakPath = _filePath + ".bak";
+        try
+        {
+            if (File.Exists(_filePath))
+            {
+                File.Copy(_filePath, bakPath, overwrite: true);
+            }
+        }
+        catch
+        {
+            // Non-fatal — proceed with write even if rotation fails.
+        }
+
         File.WriteAllText(_filePath, json);
     }
 }

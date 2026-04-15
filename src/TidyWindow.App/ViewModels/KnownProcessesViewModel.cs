@@ -170,7 +170,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
             return;
         }
 
-        if (!card.SupportsServiceControl)
+        if (!card.SupportsServiceControl && !card.SupportsProcessControl)
         {
             card.LastActionMessage = "This catalog entry cannot be controlled automatically.";
             return;
@@ -186,14 +186,20 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         try
         {
             _mainViewModel.SetStatusMessage($"Stopping {card.DisplayName}...");
-            var serviceName = card.ServiceIdentifier;
-            if (string.IsNullOrWhiteSpace(serviceName))
+
+            ProcessControlResult result;
+            if (card.SupportsServiceControl)
             {
-                card.LastActionMessage = "No service identifier available for this entry.";
-                return;
+                var serviceName = card.ServiceIdentifier!;
+                // Use combined stop: service + process kill fallback.
+                result = await _controlService.StopServiceAndProcessAsync(serviceName, card.ProcessName);
+            }
+            else
+            {
+                // Process-only: kill by executable name.
+                result = await _controlService.KillProcessByNameAsync(card.ProcessName!);
             }
 
-            var result = await _controlService.StopAsync(serviceName);
             var message = BuildActionMessage(card, result.Message);
             card.LastActionMessage = message;
             _mainViewModel.LogActivity(result.Success ? ActivityLogLevel.Success : ActivityLogLevel.Warning, "Known Processes", message);
@@ -214,7 +220,10 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
 
         if (!card.SupportsServiceControl)
         {
-            card.LastActionMessage = "This catalog entry cannot be controlled automatically.";
+            // Process-only entries can't be restarted — only killed.
+            card.LastActionMessage = card.SupportsProcessControl
+                ? "This entry is a process, not a service — use Stop instead."
+                : "This catalog entry cannot be controlled automatically.";
             return;
         }
 
@@ -381,6 +390,7 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
         Identifier = entry.Identifier;
         DisplayName = entry.DisplayName;
         ServiceIdentifier = entry.ServiceIdentifier;
+        ProcessName = entry.ProcessName;
         CategoryKey = entry.CategoryKey;
         CategoryName = entry.CategoryName;
         Rationale = string.IsNullOrWhiteSpace(entry.Rationale)
@@ -389,6 +399,7 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
         RecommendedAction = entry.RecommendedAction;
         _isCaution = entry.RiskLevel == ProcessRiskLevel.Caution;
         SupportsServiceControl = entry.SupportsServiceControl;
+        SupportsProcessControl = entry.SupportsProcessControl;
         Notes = notes;
         ApplyPreference(action, source);
     }
@@ -398,6 +409,8 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
     public string DisplayName { get; }
 
     public string? ServiceIdentifier { get; }
+
+    public string? ProcessName { get; }
 
     public string CategoryKey { get; }
 
@@ -412,6 +425,8 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
     public bool IsCaution => _isCaution;
 
     public bool SupportsServiceControl { get; }
+
+    public bool SupportsProcessControl { get; }
 
     public string RecommendationLabel => RecommendedAction == ProcessActionPreference.AutoStop
         ? "Recommended: Auto-stop"
@@ -431,7 +446,7 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
 
     public bool IsAutoStop => EffectiveAction == ProcessActionPreference.AutoStop;
 
-    public bool CanControl => SupportsServiceControl && !IsActionInProgress;
+    public bool CanControl => (SupportsServiceControl || SupportsProcessControl) && !IsActionInProgress;
 
     [ObservableProperty]
     private ProcessActionPreference _effectiveAction;

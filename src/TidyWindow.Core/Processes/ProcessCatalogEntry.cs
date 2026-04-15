@@ -19,7 +19,8 @@ public sealed record ProcessCatalogEntry
         bool isPattern,
         int categoryOrder,
         int entryOrder,
-        string? serviceIdentifier = null)
+        string? serviceIdentifier = null,
+        string? processName = null)
     {
         if (string.IsNullOrWhiteSpace(identifier))
         {
@@ -38,6 +39,7 @@ public sealed record ProcessCatalogEntry
         CategoryOrder = categoryOrder;
         EntryOrder = entryOrder;
         ServiceIdentifier = isPattern ? null : NormalizeServiceIdentifier(string.IsNullOrWhiteSpace(serviceIdentifier) ? identifier : serviceIdentifier);
+        ProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
         if (!string.IsNullOrWhiteSpace(serviceIdentifier) && ServiceIdentifier is null)
         {
             throw new ArgumentException("Service identifier contains invalid characters.", nameof(serviceIdentifier));
@@ -68,7 +70,18 @@ public sealed record ProcessCatalogEntry
 
     public string? ServiceIdentifier { get; init; }
 
+    /// <summary>
+    /// Optional executable process name (without .exe) to target when the entry
+    /// is not a Windows Service or when the service stop fails.
+    /// </summary>
+    public string? ProcessName { get; init; }
+
     public bool SupportsServiceControl => !IsPattern && !string.IsNullOrWhiteSpace(ServiceIdentifier);
+
+    /// <summary>
+    /// Whether this entry can target a running process by executable name.
+    /// </summary>
+    public bool SupportsProcessControl => !IsPattern && !string.IsNullOrWhiteSpace(ProcessName);
 
     public static string NormalizeIdentifier(string value)
     {
