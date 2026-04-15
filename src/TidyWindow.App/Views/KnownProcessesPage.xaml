@@ -1071,7 +1071,7 @@
                                                         </Border>
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center">
-                                                        <Run Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" " /><Run Text="{Binding ObservedAt}" />
+                                                        <Run Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" " /><Run Text="{Binding ObservedAt, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </Grid>
 

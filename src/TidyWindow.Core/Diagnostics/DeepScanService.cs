@@ -179,6 +179,11 @@ public sealed class DeepScanService
 {
     private static readonly ConcurrentDictionary<CacheKey, CacheEntry> Cache = new(new CacheKeyComparer());
 
+    public static void InvalidateCache()
+    {
+        Cache.Clear();
+    }
+
     public Task<DeepScanResult> RunScanAsync(DeepScanRequest request, CancellationToken cancellationToken = default)
     {
         return RunScanAsync(request, progress: null, cancellationToken);
@@ -324,7 +329,7 @@ public sealed class DeepScanService
             return directorySize;
         }
 
-        if (subdirectories.Count == 1 || context.MaxDegreeOfParallelism <= 1)
+        if (subdirectories.Count == 1 || context.MaxDegreeOfParallelism <= 1 || subdirectories.Count < 4)
         {
             foreach (var entry in subdirectories)
             {
@@ -732,7 +737,7 @@ public sealed class DeepScanService
     private sealed class ScanContext
     {
         private const int ReportItemThreshold = 1500;
-        private const int LargeQueueSnapshotThreshold = 200_000;
+        private const int LargeQueueSnapshotThreshold = 10_000;
         private const int ProgressPreviewLimit = 500;
         private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(600);
         private static readonly TimeSpan CandidateReportInterval = TimeSpan.FromMilliseconds(220);
@@ -846,6 +851,26 @@ public sealed class DeepScanService
                 {
                     Interlocked.Increment(ref _systemPathsSkipped);
                     return true;
+                }
+
+                // Check if any cached parent directory already covers this path
+                var parent = Path.GetDirectoryName(path);
+                while (!string.IsNullOrEmpty(parent))
+                {
+                    if (_safePathCache.Contains(parent))
+                    {
+                        _safePathCache.Add(path);
+                        return false;
+                    }
+
+                    if (_systemPathCache.Contains(parent))
+                    {
+                        _systemPathCache.Add(path);
+                        Interlocked.Increment(ref _systemPathsSkipped);
+                        return true;
+                    }
+
+                    parent = Path.GetDirectoryName(parent);
                 }
             }
 
