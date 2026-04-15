@@ -24,6 +24,15 @@ try {
     Write-RegistryOutput ("Cortana background components will be {0}." -f $stateText)
 
     $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search'
+
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $path) {
+        Write-RegistryOutput 'WARNING: Windows Search policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $path
+
     $change = Set-RegistryValue -Path $path -Name 'AllowCortana' -Value $value -Type 'DWord'
     Register-RegistryChange -Change $change -Description 'Updated AllowCortana policy.'
 

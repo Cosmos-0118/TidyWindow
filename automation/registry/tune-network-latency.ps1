@@ -15,9 +15,28 @@ try {
     Assert-TidyAdmin
 
     $basePath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces'
+
+    # Backup the entire interfaces key before modifying
+    Backup-TidyRegistryKey -Path $basePath
+
     $interfaces = Get-ChildItem -LiteralPath $basePath -ErrorAction Stop
 
-    foreach ($interface in $interfaces) {
+    # Filter to actual network interfaces (must have an IP address configured)
+    $validInterfaces = @()
+    foreach ($iface in $interfaces) {
+        $ifacePath = Join-Path -Path $basePath -ChildPath $iface.PSChildName
+        $hasIp = $false
+        try {
+            $addr = Get-ItemPropertyValue -LiteralPath $ifacePath -Name 'IPAddress' -ErrorAction SilentlyContinue
+            $dhcp = Get-ItemPropertyValue -LiteralPath $ifacePath -Name 'EnableDHCP' -ErrorAction SilentlyContinue
+            $hasIp = ($null -ne $addr -and $addr -ne '') -or ($dhcp -eq 1)
+        } catch { }
+        if ($hasIp) {
+            $validInterfaces += $iface
+        }
+    }
+
+    foreach ($interface in $validInterfaces) {
         $interfaceName = $interface.PSChildName
         $interfacePath = Join-Path -Path $basePath -ChildPath $interfaceName
         if ($Revert.IsPresent) {
@@ -39,8 +58,8 @@ try {
         }
     }
 
-    if (-not $interfaces -or $interfaces.Count -eq 0) {
-        Write-RegistryOutput 'No TCP interfaces found; no registry changes applied.'
+    if (-not $validInterfaces -or $validInterfaces.Count -eq 0) {
+        Write-RegistryOutput 'No TCP interfaces with IP configuration found; no registry changes applied.'
     }
     else {
         if ($Revert.IsPresent) {

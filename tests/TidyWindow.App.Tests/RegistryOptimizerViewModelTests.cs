@@ -90,7 +90,7 @@ public sealed class RegistryOptimizerViewModelTests
             var navigation = new NavigationService(serviceProvider, ActivityLog, new SmartPageCache());
             Main = new MainViewModel(navigation, ActivityLog);
 
-            ViewModel = new RegistryOptimizerViewModel(ActivityLog, Main, Service, Preferences, RestoreGuard, getTotalRamGb);
+            ViewModel = new RegistryOptimizerViewModel(ActivityLog, Main, Service, Preferences, RestoreGuard, new AlwaysConfirmService(), getTotalRamGb);
         }
 
         public ActivityLogService ActivityLog { get; }
@@ -261,5 +261,10 @@ public sealed class RegistryOptimizerViewModelTests
             _pending = null;
             return hadPrompt;
         }
+    }
+
+    private sealed class AlwaysConfirmService : IUserConfirmationService
+    {
+        public bool Confirm(string message, string title) => true;
     }
 }

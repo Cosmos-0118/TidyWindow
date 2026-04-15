@@ -15,6 +15,14 @@ try {
     $apply = $Enable.IsPresent -and -not $Disable.IsPresent
     $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent'
 
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $path) {
+        Write-RegistryOutput 'WARNING: CloudContent policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $path
+
     if ($apply) {
         $c1 = Set-RegistryValue -Path $path -Name 'DisableWindowsConsumerFeatures' -Value 1 -Type 'DWord'
         Register-RegistryChange -Change $c1 -Description 'Disabled Windows consumer features.'

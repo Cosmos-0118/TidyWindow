@@ -19,6 +19,7 @@ public sealed class RestoreRequest
     public BackupConflictStrategy ConflictStrategy { get; init; } = BackupConflictStrategy.Rename;
     public bool VerifyHashes { get; init; } = true;
     public bool RestoreRegistry { get; init; }
+    public IReadOnlyDictionary<string, string>? PathRemappings { get; init; }
 }
 
 public sealed class RestoreResult
@@ -375,6 +376,24 @@ public sealed class RestoreService
     private static string? ResolveTargetPath(BackupEntry entry, RestoreRequest request)
     {
         var source = entry.SourcePath;
+
+        // Apply path remappings first (e.g., old user profile → new user profile)
+        if (request.PathRemappings is { Count: > 0 })
+        {
+            foreach (var (from, to) in request.PathRemappings)
+            {
+                if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+                {
+                    continue;
+                }
+
+                if (source.StartsWith(from, StringComparison.OrdinalIgnoreCase))
+                {
+                    source = to + source[from.Length..];
+                    break;
+                }
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(request.VolumeRootOverride))
         {

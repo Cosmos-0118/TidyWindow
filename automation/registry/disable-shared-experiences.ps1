@@ -16,6 +16,14 @@ try {
     $machinePath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System'
     $userPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CDP'
 
+    # Check if managed by Group Policy before modifying
+    if (Test-TidyGroupPolicyManaged -RegistryPath $machinePath) {
+        Write-RegistryOutput 'WARNING: System policy is managed by Group Policy. Changes may be overwritten on next policy refresh.'
+    }
+
+    # Backup before modifying
+    Backup-TidyRegistryKey -Path $machinePath
+
     if ($apply) {
         $c1 = Set-RegistryValue -Path $machinePath -Name 'EnableCdp' -Value 0 -Type 'DWord'
         Register-RegistryChange -Change $c1 -Description 'Disabled Connected Devices Platform policy.'

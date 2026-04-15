@@ -20,6 +20,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private readonly RestoreService _restoreService;
     private readonly InventoryService _inventoryService;
     private readonly MainViewModel _mainViewModel;
+    private readonly IUserConfirmationService _confirmation;
 
     private CancellationTokenSource? _cts;
 
@@ -62,12 +63,14 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         BackupService backupService,
         RestoreService restoreService,
         InventoryService inventoryService,
-        MainViewModel mainViewModel)
+        MainViewModel mainViewModel,
+        IUserConfirmationService confirmation)
     {
         _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
         _restoreService = restoreService ?? throw new ArgumentNullException(nameof(restoreService));
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
 
         Profiles = new ObservableCollection<SelectableBackupProfile>();
         Apps = new ObservableCollection<SelectableBackupApp>();
@@ -516,6 +519,27 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             return;
         }
 
+        // Validate that the archive is a valid .rrarchive (ZIP with manifest.json)
+        var preflightManifest = await LoadManifestAsync(RestoreArchivePath);
+        if (preflightManifest is null)
+        {
+            ValidationSummary = "Selected file is not a valid Reset Rescue archive (missing or corrupt manifest).";
+            return;
+        }
+
+        // Confirm before restoring registry keys
+        if (RestoreRegistryEnabled && preflightManifest.Registry.Count > 0)
+        {
+            var confirmed = _confirmation.Confirm(
+                "Restore Registry Keys",
+                $"This will overwrite {preflightManifest.Registry.Count} HKCU registry key(s) with values from the archive. Continue?");
+            if (!confirmed)
+            {
+                Status = "Restore canceled by user.";
+                return;
+            }
+        }
+
         _cts = new CancellationTokenSource();
         IsBusy = true;
         _isBackupInFlight = false;
@@ -549,7 +573,8 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                 VolumeRootOverride = volumeOverride,
                 ConflictStrategy = RestoreConflictStrategy,
                 VerifyHashes = true,
-                RestoreRegistry = RestoreRegistryEnabled
+                RestoreRegistry = RestoreRegistryEnabled,
+                PathRemappings = BuildPathRemapping()
             };
 
             var progress = new Progress<RestoreProgress>(update =>
@@ -928,7 +953,34 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
     private Dictionary<string, string>? BuildPathRemapping()
     {
-        return null;
+        if (PathMappings.Count == 0)
+        {
+            return null;
+        }
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mapping in PathMappings)
+        {
+            var from = mapping.From?.Trim();
+            var to = mapping.To?.Trim();
+            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            {
+                continue;
+            }
+
+            try
+            {
+                var normalizedFrom = Path.GetFullPath(Environment.ExpandEnvironmentVariables(from));
+                var normalizedTo = Path.GetFullPath(Environment.ExpandEnvironmentVariables(to));
+                result[normalizedFrom] = normalizedTo;
+            }
+            catch
+            {
+                // Skip invalid path mappings
+            }
+        }
+
+        return result.Count > 0 ? result : null;
     }
 
     private static string NormalizePath(string path)
@@ -1289,35 +1341,6 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         }
     }
 
-    private string? EnsureSafeRestoreRoot(string archivePath, string? destinationRoot)
-    {
-        // If the user did not choose a destination, keep paths as-is so files return to their original locations.
-        if (string.IsNullOrWhiteSpace(destinationRoot))
-        {
-            return null;
-        }
-
-        var defaultRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TidyWindow", "Restore");
-
-        try
-        {
-            var destRootResolved = Path.GetFullPath(Environment.ExpandEnvironmentVariables(destinationRoot));
-            Directory.CreateDirectory(destRootResolved);
-            return destRootResolved;
-        }
-        catch
-        {
-            try
-            {
-                Directory.CreateDirectory(defaultRoot);
-                return defaultRoot;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-    }
 }
 
 public sealed class PathMapping : ObservableObject
