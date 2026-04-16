@@ -345,7 +345,8 @@ public sealed class StartupControlService
 
         if (backup is null || string.IsNullOrWhiteSpace(backup.RegistryValueData))
         {
-            var fallback = _backupStore.FindLatestByValueName(valueName);
+            var fallback = _backupStore.FindLatestRunBackup(GetRootName(root), subKey, valueName)
+                ?? _backupStore.FindLatestByValueName(valueName);
             if (fallback is not null)
             {
                 backup = fallback;
@@ -384,7 +385,14 @@ public sealed class StartupControlService
 
             if (backup is not null)
             {
-                _backupStore.Remove(item.Id);
+                _backupStore.Remove(backup.Id);
+
+                // If a fallback backup was used from a different id, also clear the current id
+                // to avoid leaving stale records.
+                if (!string.Equals(backup.Id, item.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    _backupStore.Remove(item.Id);
+                }
             }
 
             return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);

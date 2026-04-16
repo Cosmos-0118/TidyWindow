@@ -506,7 +506,9 @@ public sealed class StartupInventoryService
             }
 
             var startValue = Convert.ToInt32(key.GetValue("Start", -1));
-            if (startValue != 2) // Automatic start only.
+            // Keep disabled service entries visible when requested so users can re-enable
+            // services that were disabled through this app (or externally).
+            if (!ShouldIncludeAutostartService(startValue, options.IncludeDisabled))
             {
                 continue;
             }
@@ -523,7 +525,8 @@ public sealed class StartupInventoryService
             var displayName = key.GetValue("DisplayName")?.ToString();
             var description = key.GetValue("Description")?.ToString();
             var objectName = key.GetValue("ObjectName")?.ToString();
-            var tag = delayed ? "Service (Automatic, Delayed)" : "Service (Automatic)";
+            var isEnabled = IsServiceEnabledFromStartValue(startValue);
+            var tag = GetServiceSourceTag(startValue, delayed);
             var id = $"svc:{serviceName}";
             var name = string.IsNullOrWhiteSpace(displayName) ? serviceName : displayName!.Trim();
             items.Add(new StartupItem(
@@ -534,7 +537,7 @@ public sealed class StartupInventoryService
                 tag,
                 args,
                 imagePath,
-                startValue == 2,
+                isEnabled,
                 $"HKLM\\SYSTEM\\CurrentControlSet\\Services\\{serviceName}",
                 metadata.Publisher,
                 metadata.SignatureStatus,
@@ -543,6 +546,27 @@ public sealed class StartupInventoryService
                 metadata.LastWriteTimeUtc,
                 objectName ?? "LocalSystem"));
         }
+    }
+
+    private static bool ShouldIncludeAutostartService(int startValue, bool includeDisabled)
+    {
+        return startValue == 2 || (includeDisabled && startValue == 4);
+    }
+
+    private static bool IsServiceEnabledFromStartValue(int startValue)
+    {
+        return startValue == 2;
+    }
+
+    private static string GetServiceSourceTag(int startValue, bool delayed)
+    {
+        return startValue switch
+        {
+            2 when delayed => "Service (Automatic, Delayed)",
+            2 => "Service (Automatic)",
+            4 => "Service (Disabled)",
+            _ => "Service"
+        };
     }
 
     private static void EnumeratePackagedStartupTasks(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
