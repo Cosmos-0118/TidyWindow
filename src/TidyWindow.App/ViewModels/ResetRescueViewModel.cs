@@ -441,14 +441,17 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             return;
         }
 
-        _expectedBackupBytes = EstimateSelectionSize(sources);
-
-        CapacitySummary = EvaluateCapacity(resolvedDestination, _expectedBackupBytes);
+        // Skip deep pre-scan to keep backup startup fast on large source trees.
+        _expectedBackupBytes = 0;
+        CapacitySummary = string.Empty;
 
         var request = new BackupRequest
         {
             DestinationArchivePath = resolvedDestination,
             SourcePaths = sources,
+            ChunkSizeBytes = 16 * 1024 * 1024,
+            PayloadCompressionLevel = CompressionLevel.Fastest,
+            IncludeChunkHashes = false,
             Generator = "TidyWindow ResetRescue",
             RegistryKeys = BuildRegistryKeys()
         };
@@ -473,7 +476,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         {
             var progress = new Progress<BackupProgress>(update =>
             {
-                UpdateProgressOverlay(update.CurrentPath, update.ProcessedEntries, update.TotalEntries, resolvedDestination, isBackup: true);
+                UpdateProgressOverlay(update.CurrentPath, update.ProcessedEntries, update.TotalEntries, resolvedDestination, isBackup: true, update.ProcessedBytes, update.TotalBytes);
             });
 
             _mainViewModel.LogActivityInformation("ResetRescue", "Backup started", new[] { $"Dest={DestinationPath}", $"Sources={sources.Count}" });
@@ -544,6 +547,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         IsBusy = true;
         _isBackupInFlight = false;
         _activeBackupPath = null;
+        ValidationSummary = string.Empty;
         _progressSamples.Clear();
         _progressStartUtc = DateTime.UtcNow;
         ProgressTitle = "Restore in progress";
@@ -585,23 +589,36 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             _mainViewModel.LogActivityInformation("ResetRescue", "Restore started", new[] { $"Archive={RestoreArchivePath}" });
 
             var result = await _restoreService.RestoreAsync(request, progress, _cts.Token);
-            Status = result.Issues.Count == 0 ? "Restore complete." : $"Restore finished with {result.Issues.Count} issue(s).";
-            if (result.Issues.Count > 0)
+
+            var skippedIssueCount = Math.Max(result.SkippedCount, result.Issues.Count(issue =>
+                issue.Message.StartsWith("Skipped", StringComparison.OrdinalIgnoreCase)));
+            var realIssueCount = Math.Max(0, result.Issues.Count - skippedIssueCount);
+
+            if (realIssueCount == 0)
             {
-                ValidationSummary = $"Issues: {result.Issues.Count}. Renamed {result.RenamedCount}, Backed up {result.BackupCount}, Overwritten {result.OverwrittenCount}, Skipped {result.SkippedCount}. See log for details.";
+                Status = skippedIssueCount > 0
+                    ? $"Restore complete. Skipped {skippedIssueCount} existing item(s)."
+                    : "Restore complete.";
+                ValidationSummary = string.Empty;
             }
-            _mainViewModel.SetStatusMessage("Restore completed.");
-            var level = result.Issues.Count == 0 ? ActivityLogLevel.Success : ActivityLogLevel.Warning;
+            else
+            {
+                Status = $"Restore finished with {realIssueCount} issue(s).";
+                ValidationSummary = $"Issues: {realIssueCount}. Renamed {result.RenamedCount}, Backed up {result.BackupCount}, Overwritten {result.OverwrittenCount}, Skipped {result.SkippedCount}. See log for details.";
+            }
+
+            _mainViewModel.SetStatusMessage(realIssueCount == 0 ? "Restore completed." : "Restore completed with issues.");
+            var level = realIssueCount == 0 ? ActivityLogLevel.Success : ActivityLogLevel.Warning;
             var details = new List<string>
             {
                 $"Strategy={RestoreConflictStrategy}",
-                $"Issues={result.Issues.Count}",
+                $"Issues={realIssueCount}",
                 $"Renamed={result.RenamedCount}",
                 $"BackedUp={result.BackupCount}",
                 $"Overwritten={result.OverwrittenCount}",
                 $"Skipped={result.SkippedCount}"
             };
-            if (result.Issues.Count > 0 && !string.IsNullOrWhiteSpace(ValidationSummary))
+            if (realIssueCount > 0 && !string.IsNullOrWhiteSpace(ValidationSummary))
             {
                 details.Add(ValidationSummary);
             }
@@ -1212,26 +1229,32 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         PathMappings.Add(new PathMapping(from, to));
     }
 
-    private void UpdateProgressOverlay(string? currentPath, long processedEntries, long totalEntries, string? archivePathForSize, bool isBackup)
+    private void UpdateProgressOverlay(string? currentPath, long processedEntries, long totalEntries, string? archivePathForSize, bool isBackup, long processedBytes = 0, long totalBytes = 0)
     {
         _isBackupInFlight = isBackup;
         ProgressText = currentPath ?? string.Empty;
         ProgressCurrentPath = currentPath ?? string.Empty;
 
-        var fraction = ComputeFraction(archivePathForSize, processedEntries, totalEntries, isBackup, out var currentBytes);
+        var fraction = ComputeFraction(archivePathForSize, processedEntries, totalEntries, isBackup, processedBytes, totalBytes, out var currentBytes);
 
         ProgressValue = fraction;
         ProgressPercentText = $"{Math.Round(fraction * 100)}%";
         ProgressEta = ComputeEta(fraction);
-        ProgressSize = ComputeSizeLabel(archivePathForSize, isBackup, currentBytes);
+        ProgressSize = ComputeSizeLabel(archivePathForSize, isBackup, currentBytes, totalBytes);
 
         // Keep status text fresh for on-page display
         Status = _isBackupInFlight ? "Running backup…" : "Running restore…";
     }
 
-    private double ComputeFraction(string? archivePath, long processedEntries, long totalEntries, bool isBackup, out long currentBytes)
+    private double ComputeFraction(string? archivePath, long processedEntries, long totalEntries, bool isBackup, long processedBytes, long totalBytes, out long currentBytes)
     {
         currentBytes = 0;
+
+        if (isBackup && totalBytes > 0)
+        {
+            currentBytes = Math.Clamp(processedBytes, 0, totalBytes);
+            return Math.Clamp(currentBytes / (double)totalBytes, 0, 1);
+        }
 
         if (isBackup && _expectedBackupBytes > 0 && !string.IsNullOrWhiteSpace(archivePath) && File.Exists(archivePath))
         {
@@ -1325,8 +1348,13 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             : $"{remaining:mm\\:ss}";
     }
 
-    private string ComputeSizeLabel(string? archivePath, bool isBackup, long currentBytes)
+    private string ComputeSizeLabel(string? archivePath, bool isBackup, long currentBytes, long totalBytes)
     {
+        if (isBackup && totalBytes > 0)
+        {
+            return $"Size {FormatBytes(currentBytes)} / {FormatBytes(totalBytes)}";
+        }
+
         if (string.IsNullOrWhiteSpace(archivePath))
         {
             return string.Empty;
