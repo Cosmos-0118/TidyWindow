@@ -17,20 +17,49 @@ public partial class InstallHubCatalogView : UserControl
     private const double VerticalAllowance = 320d;
     private const int MinPageSize = 6;
     private const int MaxPageSize = 24;
+    private const int PageSizeUpdateDebounceMs = 75;
+    private const double WidthBucketSize = 24d;
+    private const double HeightBucketSize = 24d;
 
+    private readonly DispatcherTimer _pageSizeUpdateTimer;
     private double _hostWidth;
     private double _hostHeight;
-    private double _itemsWidth;
     private InstallHubViewModel? _viewModel;
     private ScrollViewer? _parentScrollViewer;
+    private int _lastWidthBucket = -1;
+    private int _lastHeightBucket = -1;
 
     public InstallHubCatalogView()
     {
         InitializeComponent();
-        Loaded += (_, _) => UpdatePageSize();
-        Unloaded += (_, _) => DetachViewModel();
+        _pageSizeUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(PageSizeUpdateDebounceMs)
+        };
+        _pageSizeUpdateTimer.Tick += OnPageSizeUpdateTimerTick;
+
+        Loaded += (_, _) => SchedulePageSizeUpdate();
+        Unloaded += OnViewUnloaded;
         IsVisibleChanged += OnIsVisibleChanged;
         DataContextChanged += OnViewDataContextChanged;
+    }
+
+    private void OnViewUnloaded(object sender, RoutedEventArgs e)
+    {
+        _pageSizeUpdateTimer.Stop();
+        DetachViewModel();
+    }
+
+    private void OnPageSizeUpdateTimerTick(object? sender, EventArgs e)
+    {
+        _pageSizeUpdateTimer.Stop();
+        UpdatePageSize();
+    }
+
+    private void SchedulePageSizeUpdate()
+    {
+        _pageSizeUpdateTimer.Stop();
+        _pageSizeUpdateTimer.Start();
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -40,6 +69,9 @@ public partial class InstallHubCatalogView : UserControl
             // Clear cached scroll viewer reference when becoming visible
             // to force re-discovery in case the visual tree has changed
             _parentScrollViewer = null;
+            _lastWidthBucket = -1;
+            _lastHeightBucket = -1;
+            SchedulePageSizeUpdate();
         }
     }
 
@@ -52,7 +84,7 @@ public partial class InstallHubCatalogView : UserControl
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
 
-        UpdatePageSize();
+        SchedulePageSizeUpdate();
     }
 
     private void DetachViewModel()
@@ -64,25 +96,20 @@ public partial class InstallHubCatalogView : UserControl
         }
 
         _parentScrollViewer = null;
+        _lastWidthBucket = -1;
+        _lastHeightBucket = -1;
     }
 
     private void OnCatalogHostSizeChanged(object sender, SizeChangedEventArgs e)
     {
         _hostWidth = e.NewSize.Width;
         _hostHeight = e.NewSize.Height;
-        UpdatePageSize();
+        SchedulePageSizeUpdate();
     }
 
     private void OnCatalogItemsLoaded(object sender, RoutedEventArgs e)
     {
-        _itemsWidth = CatalogItemsRepeater.ActualWidth;
-        UpdatePageSize();
-    }
-
-    private void OnCatalogItemsSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        _itemsWidth = e.NewSize.Width;
-        UpdatePageSize();
+        SchedulePageSizeUpdate();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -142,13 +169,26 @@ public partial class InstallHubCatalogView : UserControl
 
     private void UpdatePageSize()
     {
-        var width = _itemsWidth > 0 ? _itemsWidth : (_hostWidth > 0 ? _hostWidth : ActualWidth);
-        var height = _hostHeight > 0 ? _hostHeight : ActualHeight;
+        var width = _hostWidth > 0 ? _hostWidth : ActualWidth;
+        var viewportHeight = EnsureParentScrollViewer()?.ViewportHeight ?? 0d;
+        var height = viewportHeight > 0
+            ? viewportHeight
+            : (_hostHeight > 0 ? _hostHeight : ActualHeight);
 
         if (width <= 0 || height <= 0)
         {
             return;
         }
+
+        var widthBucket = (int)Math.Floor(width / WidthBucketSize);
+        var heightBucket = (int)Math.Floor(height / HeightBucketSize);
+        if (widthBucket == _lastWidthBucket && heightBucket == _lastHeightBucket)
+        {
+            return;
+        }
+
+        _lastWidthBucket = widthBucket;
+        _lastHeightBucket = heightBucket;
 
         var availableWidth = Math.Max(CardWidth, width);
         var availableHeight = Math.Max(CardHeight * 2, height - VerticalAllowance);

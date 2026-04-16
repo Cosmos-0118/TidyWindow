@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -48,7 +49,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private bool _isCatalogPaging;
     private bool _catalogRenderScheduled;
     private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(2000);
-    private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
+    private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(70);
     private DateTimeOffset? _overlayActivatedAt;
     private IReadOnlyList<InstallPackageDefinition> _cachedPackages = Array.Empty<InstallPackageDefinition>();
     private IReadOnlyList<InstallBundleDefinition> _cachedBundles = Array.Empty<InstallBundleDefinition>();
@@ -877,15 +878,32 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
                 .Select(id => _packageLookup[id]);
         }
 
-        var filter = SearchText;
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            items = items.Where(item => item.Matches(filter));
-        }
+        var query = InstallSmartSearchQuery.Parse(SearchText);
+        List<InstallPackageItemViewModel> ordered;
 
-        var ordered = items
-            .OrderBy(item => item.Definition.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        if (!query.IsEmpty)
+        {
+            var scored = new List<(InstallPackageItemViewModel Item, int Score)>();
+            foreach (var item in items)
+            {
+                if (item.TryMatch(query, out var score))
+                {
+                    scored.Add((item, score));
+                }
+            }
+
+            ordered = scored
+                .OrderByDescending(entry => entry.Score)
+                .ThenBy(entry => entry.Item.Definition.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => entry.Item)
+                .ToList();
+        }
+        else
+        {
+            ordered = items
+                .OrderBy(item => item.Definition.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
         SynchronizeCollection(Packages, ordered);
         UpdateCatalogPagination(resetPage: true);
@@ -1331,12 +1349,39 @@ public sealed class InstallBundleItemViewModel
 
 public sealed partial class InstallPackageItemViewModel : ObservableObject
 {
+    private static readonly char[] SearchTokenSeparators =
+    [
+        ' ', '\t', '\r', '\n', '.', '-', '_', '/', '\\', ':', ',', ';', '|',
+        '(', ')', '[', ']', '{', '}'
+    ];
+
+    private readonly string _nameLower;
+    private readonly string _idLower;
+    private readonly string _managerLower;
+    private readonly string _summaryLower;
+    private readonly string _tagDisplayLower;
+    private readonly ImmutableArray<string> _tagTokensLower;
+    private readonly ImmutableArray<string> _fuzzyTokens;
+
     public InstallPackageItemViewModel(InstallPackageDefinition definition)
     {
         Definition = definition;
         RequiresAdmin = definition.RequiresAdmin;
         TagDisplay = definition.Tags.Length > 0 ? string.Join(" • ", definition.Tags) : string.Empty;
         ManagerLabel = definition.Manager.ToUpperInvariant();
+
+        _nameLower = (definition.Name ?? string.Empty).Trim().ToLowerInvariant();
+        _idLower = (definition.Id ?? string.Empty).Trim().ToLowerInvariant();
+        _managerLower = (definition.Manager ?? string.Empty).Trim().ToLowerInvariant();
+        _summaryLower = (definition.Summary ?? string.Empty).Trim().ToLowerInvariant();
+        _tagDisplayLower = TagDisplay.ToLowerInvariant();
+        _tagTokensLower = definition.Tags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(tag => tag.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToImmutableArray();
+
+        _fuzzyTokens = BuildSearchTokens(definition, _tagTokensLower);
     }
 
     public InstallPackageDefinition Definition { get; }
@@ -1360,15 +1405,295 @@ public sealed partial class InstallPackageItemViewModel : ObservableObject
 
     public bool Matches(string filter)
     {
-        if (string.IsNullOrWhiteSpace(filter))
+        return TryMatch(filter, out _);
+    }
+
+    public bool TryMatch(string? filter, out int score)
+    {
+        return TryMatch(InstallSmartSearchQuery.Parse(filter), out score);
+    }
+
+    internal bool TryMatch(InstallSmartSearchQuery query, out int score)
+    {
+        if (query.IsEmpty)
+        {
+            score = 0;
+            return true;
+        }
+
+        var total = 0;
+        foreach (var term in query.Terms)
+        {
+            var termScore = ScoreTerm(term);
+            if (termScore <= 0)
+            {
+                score = 0;
+                return false;
+            }
+
+            total += termScore;
+        }
+
+        if (query.Terms.Length > 1)
+        {
+            total += query.Terms.Length * 18;
+        }
+
+        score = total;
+        return true;
+    }
+
+    private int ScoreTerm(InstallSmartSearchTerm term)
+    {
+        if (string.IsNullOrWhiteSpace(term.Value))
+        {
+            return 0;
+        }
+
+        return term.Field switch
+        {
+            InstallSmartSearchField.Any => ScoreAcrossFields(term.Value),
+            InstallSmartSearchField.Name => ScoreTextMatch(_nameLower, term.Value, 480, 360, 300),
+            InstallSmartSearchField.Id => ScoreTextMatch(_idLower, term.Value, 440, 320, 270),
+            InstallSmartSearchField.Manager => ScoreTextMatch(_managerLower, term.Value, 300, 250, 210),
+            InstallSmartSearchField.Summary => ScoreTextMatch(_summaryLower, term.Value, 220, 170, 140),
+            InstallSmartSearchField.Tag => ScoreTags(term.Value),
+            _ => 0
+        };
+    }
+
+    private int ScoreAcrossFields(string value)
+    {
+        var best = 0;
+        best = Math.Max(best, ScoreTextMatch(_nameLower, value, 480, 360, 300));
+        best = Math.Max(best, ScoreTextMatch(_idLower, value, 440, 320, 270));
+        best = Math.Max(best, ScoreTextMatch(_managerLower, value, 300, 250, 210));
+        best = Math.Max(best, ScoreTags(value));
+        best = Math.Max(best, ScoreTextMatch(_summaryLower, value, 220, 170, 140));
+
+        if (best > 0)
+        {
+            return best;
+        }
+
+        return ScoreFuzzy(value);
+    }
+
+    private int ScoreTags(string value)
+    {
+        var best = ScoreTextMatch(_tagDisplayLower, value, 290, 240, 190);
+        if (_tagTokensLower.IsDefaultOrEmpty)
+        {
+            return best;
+        }
+
+        foreach (var tag in _tagTokensLower)
+        {
+            best = Math.Max(best, ScoreTextMatch(tag, value, 320, 250, 200));
+        }
+
+        return best;
+    }
+
+    private int ScoreFuzzy(string value)
+    {
+        if (value.Length < 3)
+        {
+            return 0;
+        }
+
+        foreach (var token in _fuzzyTokens)
+        {
+            if (token.Length < 3)
+            {
+                continue;
+            }
+
+            if (IsEditDistanceAtMostOne(token, value) || IsSingleTransposition(token, value))
+            {
+                return 132;
+            }
+        }
+
+        if (IsSubsequence(value, _nameLower) || IsSubsequence(value, _idLower))
+        {
+            return 92;
+        }
+
+        return 0;
+    }
+
+    private static int ScoreTextMatch(string source, string value, int exactScore, int prefixScore, int containsScore)
+    {
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(value))
+        {
+            return 0;
+        }
+
+        if (source.Equals(value, StringComparison.Ordinal))
+        {
+            return exactScore;
+        }
+
+        if (source.StartsWith(value, StringComparison.Ordinal))
+        {
+            return prefixScore;
+        }
+
+        return source.Contains(value, StringComparison.Ordinal) ? containsScore : 0;
+    }
+
+    private static ImmutableArray<string> BuildSearchTokens(InstallPackageDefinition definition, ImmutableArray<string> tagTokens)
+    {
+        var builder = ImmutableArray.CreateBuilder<string>();
+        AddTokens(builder, definition.Name);
+        AddTokens(builder, definition.Id);
+        AddTokens(builder, definition.Manager);
+        AddTokens(builder, definition.Summary);
+
+        foreach (var tag in tagTokens)
+        {
+            AddTokens(builder, tag);
+        }
+
+        return builder
+            .Where(token => token.Length > 1)
+            .Distinct(StringComparer.Ordinal)
+            .ToImmutableArray();
+    }
+
+    private static void AddTokens(ImmutableArray<string>.Builder builder, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var lower = value.Trim().ToLowerInvariant();
+        builder.Add(lower);
+
+        foreach (var token in lower.Split(SearchTokenSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (token.Length > 1)
+            {
+                builder.Add(token);
+            }
+        }
+    }
+
+    private static bool IsSubsequence(string term, string source)
+    {
+        if (term.Length == 0 || source.Length == 0 || term.Length > source.Length)
+        {
+            return false;
+        }
+
+        var sourceIndex = 0;
+        foreach (var ch in term)
+        {
+            sourceIndex = source.IndexOf(ch, sourceIndex);
+            if (sourceIndex < 0)
+            {
+                return false;
+            }
+
+            sourceIndex++;
+        }
+
+        return true;
+    }
+
+    private static bool IsSingleTransposition(string first, string second)
+    {
+        if (first.Length != second.Length || first.Length < 2)
+        {
+            return false;
+        }
+
+        var mismatchIndex = -1;
+        for (var i = 0; i < first.Length; i++)
+        {
+            if (first[i] != second[i])
+            {
+                if (mismatchIndex >= 0)
+                {
+                    var isSwap = i == mismatchIndex + 1
+                                 && first[mismatchIndex] == second[i]
+                                 && first[i] == second[mismatchIndex];
+
+                    if (!isSwap)
+                    {
+                        return false;
+                    }
+
+                    for (var j = i + 1; j < first.Length; j++)
+                    {
+                        if (first[j] != second[j])
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
+                mismatchIndex = i;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsEditDistanceAtMostOne(string first, string second)
+    {
+        var lengthDifference = Math.Abs(first.Length - second.Length);
+        if (lengthDifference > 1)
+        {
+            return false;
+        }
+
+        if (first.Equals(second, StringComparison.Ordinal))
         {
             return true;
         }
 
-        return Definition.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || Summary.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || Definition.Id.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || (!string.IsNullOrWhiteSpace(TagDisplay) && TagDisplay.Contains(filter, StringComparison.OrdinalIgnoreCase));
+        var shorter = first;
+        var longer = second;
+        if (first.Length > second.Length)
+        {
+            shorter = second;
+            longer = first;
+        }
+
+        var shortIndex = 0;
+        var longIndex = 0;
+        var foundDifference = false;
+
+        while (shortIndex < shorter.Length && longIndex < longer.Length)
+        {
+            if (shorter[shortIndex] == longer[longIndex])
+            {
+                shortIndex++;
+                longIndex++;
+                continue;
+            }
+
+            if (foundDifference)
+            {
+                return false;
+            }
+
+            foundDifference = true;
+
+            if (shorter.Length == longer.Length)
+            {
+                shortIndex++;
+            }
+
+            longIndex++;
+        }
+
+        return true;
     }
 
     public void UpdateQueueState(int activeCount, string? status)
@@ -1377,6 +1702,116 @@ public sealed partial class InstallPackageItemViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(status))
         {
             LastStatus = status;
+        }
+    }
+}
+
+internal enum InstallSmartSearchField
+{
+    Any,
+    Name,
+    Id,
+    Manager,
+    Summary,
+    Tag
+}
+
+internal readonly record struct InstallSmartSearchTerm(InstallSmartSearchField Field, string Value);
+
+internal sealed class InstallSmartSearchQuery
+{
+    private static readonly Dictionary<string, InstallSmartSearchField> FieldAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["name"] = InstallSmartSearchField.Name,
+        ["id"] = InstallSmartSearchField.Id,
+        ["manager"] = InstallSmartSearchField.Manager,
+        ["source"] = InstallSmartSearchField.Manager,
+        ["summary"] = InstallSmartSearchField.Summary,
+        ["desc"] = InstallSmartSearchField.Summary,
+        ["description"] = InstallSmartSearchField.Summary,
+        ["tag"] = InstallSmartSearchField.Tag,
+        ["tags"] = InstallSmartSearchField.Tag
+    };
+
+    private InstallSmartSearchQuery(ImmutableArray<InstallSmartSearchTerm> terms)
+    {
+        Terms = terms;
+    }
+
+    public ImmutableArray<InstallSmartSearchTerm> Terms { get; }
+
+    public bool IsEmpty => Terms.IsDefaultOrEmpty;
+
+    public static InstallSmartSearchQuery Parse(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return new InstallSmartSearchQuery(ImmutableArray<InstallSmartSearchTerm>.Empty);
+        }
+
+        var terms = ImmutableArray.CreateBuilder<InstallSmartSearchTerm>();
+
+        foreach (var token in Tokenize(filter))
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                continue;
+            }
+
+            var normalized = token.Trim().ToLowerInvariant();
+            if (normalized.Length == 0)
+            {
+                continue;
+            }
+
+            var delimiterIndex = normalized.IndexOf(':');
+            if (delimiterIndex > 0 && delimiterIndex < normalized.Length - 1)
+            {
+                var alias = normalized[..delimiterIndex];
+                var value = normalized[(delimiterIndex + 1)..].Trim();
+                if (value.Length > 0 && FieldAliases.TryGetValue(alias, out var field))
+                {
+                    terms.Add(new InstallSmartSearchTerm(field, value));
+                    continue;
+                }
+            }
+
+            terms.Add(new InstallSmartSearchTerm(InstallSmartSearchField.Any, normalized));
+        }
+
+        return new InstallSmartSearchQuery(terms.ToImmutable());
+    }
+
+    private static IEnumerable<string> Tokenize(string text)
+    {
+        var builder = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var ch in text)
+        {
+            if (ch == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (!inQuotes && char.IsWhiteSpace(ch))
+            {
+                if (builder.Length > 0)
+                {
+                    yield return builder.ToString();
+                    builder.Clear();
+                }
+
+                continue;
+            }
+
+            builder.Append(ch);
+        }
+
+        if (builder.Length > 0)
+        {
+            yield return builder.ToString();
         }
     }
 }
