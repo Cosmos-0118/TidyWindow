@@ -63,25 +63,30 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#4E7BFF"
-                                              BlurRadius="18"
-                                              ShadowDepth="0"
-                                              Opacity="0.35"/>
-                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonHoverBrush}"/>
+                            <Setter TargetName="Root" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#4E7BFF"
+                                                      BlurRadius="10"
+                                                      ShadowDepth="0"
+                                                      Opacity="0.2"
+                                                      RenderingBias="Performance"/>
+                                </Setter.Value>
+                            </Setter>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonPressedBrush}"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#2E4F66"/>
                             <Setter Property="Foreground" Value="#9FB9CC"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -107,25 +112,30 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#FF97AF"
-                                              BlurRadius="18"
-                                              ShadowDepth="0"
-                                              Opacity="0.35"/>
-                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallRetryButtonHoverBrush}"/>
+                            <Setter TargetName="Root" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#FF97AF"
+                                                      BlurRadius="10"
+                                                      ShadowDepth="0"
+                                                      Opacity="0.22"
+                                                      RenderingBias="Performance"/>
+                                </Setter.Value>
+                            </Setter>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallRetryButtonPressedBrush}"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#8E4A5C"/>
                             <Setter Property="Foreground" Value="#FBD3DC"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -151,25 +161,30 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#2BD7BB"
-                                              BlurRadius="18"
-                                              ShadowDepth="0"
-                                              Opacity="0.35"/>
-                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallClearButtonHoverBrush}"/>
+                            <Setter TargetName="Root" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#2BD7BB"
+                                                      BlurRadius="10"
+                                                      ShadowDepth="0"
+                                                      Opacity="0.2"
+                                                      RenderingBias="Performance"/>
+                                </Setter.Value>
+                            </Setter>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallClearButtonPressedBrush}"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#0B5649"/>
                             <Setter Property="Foreground" Value="#B2EFE3"/>
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -293,30 +308,23 @@
                                 ScaleY="1"/>
             </Setter.Value>
         </Setter>
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="16"
-                                  ShadowDepth="0"
-                                  Color="#050A18"
-                                  Opacity="0.2"
-                                  RenderingBias="Performance"/>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Effect" Value="{x:Null}"/>
     </Style>
 
     <Style x:Key="InstallInteractiveCardBorderStyle"
            TargetType="Border"
            BasedOn="{StaticResource InstallCardBorderStyle}">
+        <Setter Property="Effect" Value="{x:Null}"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource InstallCardHoverBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource InstallCardHoverBorderBrush}"/>
                 <Setter Property="Effect">
                     <Setter.Value>
-                        <DropShadowEffect BlurRadius="18"
+                        <DropShadowEffect BlurRadius="14"
                                           ShadowDepth="0"
                                           Color="#0A1224"
-                                          Opacity="0.32"
+                                          Opacity="0.24"
                                           RenderingBias="Performance"/>
                     </Setter.Value>
                 </Setter>

@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace TidyWindow.App.Controls;
@@ -11,6 +12,8 @@ namespace TidyWindow.App.Controls;
 /// </summary>
 public class BubbleScrollListView : System.Windows.Controls.ListView
 {
+    private const double WheelScrollPixelsPerLine = 24d;
+
     public static readonly DependencyProperty ParentScrollViewerNameProperty = DependencyProperty.Register(
         nameof(ParentScrollViewerName),
         typeof(string),
@@ -22,7 +25,8 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
 
     public BubbleScrollListView()
     {
-        Loaded += (_, _) => EnsureInnerScrollViewer();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public string? ParentScrollViewerName
@@ -41,6 +45,12 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
     protected override void OnPreviewMouseWheel(System.Windows.Input.MouseWheelEventArgs e)
     {
         var inner = EnsureInnerScrollViewer();
+        if (inner is not null && !IsDescendantOrSelf(this, inner))
+        {
+            _innerScrollViewer = null;
+            inner = EnsureInnerScrollViewer();
+        }
+
         var canScrollInner = false;
 
         if (inner is not null)
@@ -56,10 +66,18 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
         }
 
         var parentScrollViewer = ResolveParentScrollViewer();
+        if (parentScrollViewer is not null && !IsAncestorOf(this, parentScrollViewer))
+        {
+            _parentScrollViewer = null;
+            parentScrollViewer = ResolveParentScrollViewer();
+        }
+
         if (parentScrollViewer is not null && parentScrollViewer.ScrollableHeight > 0)
         {
             e.Handled = true;
-            var targetOffset = Clamp(parentScrollViewer.VerticalOffset - e.Delta, 0, parentScrollViewer.ScrollableHeight);
+            var wheelLines = SystemParameters.WheelScrollLines > 0 ? SystemParameters.WheelScrollLines : 3;
+            var scrollDelta = (e.Delta / Mouse.MouseWheelDeltaForOneLine) * wheelLines * WheelScrollPixelsPerLine;
+            var targetOffset = Clamp(parentScrollViewer.VerticalOffset - scrollDelta, 0, parentScrollViewer.ScrollableHeight);
             parentScrollViewer.ScrollToVerticalOffset(targetOffset);
             return;
         }
@@ -70,6 +88,20 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
     protected override void OnVisualParentChanged(DependencyObject oldParent)
     {
         base.OnVisualParentChanged(oldParent);
+        _innerScrollViewer = null;
+        _parentScrollViewer = null;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _innerScrollViewer = null;
+        _parentScrollViewer = null;
+        EnsureInnerScrollViewer();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _innerScrollViewer = null;
         _parentScrollViewer = null;
     }
 
@@ -154,6 +186,38 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
         }
 
         return value;
+    }
+
+    private static bool IsAncestorOf(DependencyObject source, DependencyObject ancestor)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static bool IsDescendantOrSelf(DependencyObject source, DependencyObject target)
+    {
+        var current = target;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, source))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private static void OnParentScrollViewerNameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
