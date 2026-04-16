@@ -206,7 +206,8 @@ function Request-TidyElevation {
     }
 
     try {
-        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait | Out-Null
+        # Keep the elevated host visible so package manager uninstallers can surface UI when required.
+        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Normal -Wait | Out-Null
     }
     catch {
         throw 'Administrator approval was denied or the request was cancelled.'

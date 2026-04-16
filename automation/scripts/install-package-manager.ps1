@@ -281,7 +281,8 @@ function Request-ChocolateyElevation {
     Write-TidyOutput -Message 'Requesting administrator approval. Windows may prompt for permission.'
 
     try {
-        Start-Process -FilePath $shellPath -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) -Verb RunAs -WindowStyle Hidden -Wait | Out-Null
+        # Keep the elevated host visible so downstream installer windows are not suppressed.
+        Start-Process -FilePath $shellPath -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) -Verb RunAs -WindowStyle Normal -Wait | Out-Null
     }
     catch {
         throw 'Administrator approval was denied or cancelled.'

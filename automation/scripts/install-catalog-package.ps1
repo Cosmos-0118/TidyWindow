@@ -462,7 +462,8 @@ function Request-TidyElevation {
     Write-TidyOutput -Message 'Requesting administrator approval. Windows may prompt for permission.'
 
     try {
-        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait | Out-Null
+        # Keep the elevated host visible so package manager installers can surface their UI when required.
+        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Normal -Wait | Out-Null
     }
     catch {
         throw 'Administrator approval was denied or cancelled.'
