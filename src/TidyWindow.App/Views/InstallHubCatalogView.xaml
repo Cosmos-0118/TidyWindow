@@ -91,7 +91,7 @@
                                     </Border>
                                     <Border Style="{StaticResource InstallBadgeStyle}"
                                             Background="{StaticResource InstallBadgeAltBackgroundBrush}">
-                                        <TextBlock Text="Paged catalog"
+                                        <TextBlock Text="Virtualized list"
                                                    Foreground="{StaticResource InstallTextAccentBrush}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"/>
@@ -280,7 +280,7 @@
                                             <TextBox Style="{StaticResource App.TextBoxStyle}"
                                                      Tag="Try: manager:winget tag:editor &quot;visual studio&quot;"
                                                      ToolTip="Examples: manager:winget tag:cli name:terminal id:microsoft.terminal"
-                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=80}"/>
+                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                     </Border>
 
@@ -422,7 +422,12 @@
                                 <ItemsControl x:Name="CatalogItemsRepeater"
                                               ItemsSource="{Binding CatalogPagePackages}"
                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
-                                              Loaded="OnCatalogItemsLoaded">
+                                              Loaded="OnCatalogItemsLoaded"
+                                              SizeChanged="OnCatalogItemsSizeChanged"
+                                              VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              VirtualizingPanel.CacheLength="1"
+                                              ScrollViewer.CanContentScroll="True">
                                     <ItemsControl.Style>
                                         <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -435,12 +440,12 @@
                                     </ItemsControl.Style>
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:AdaptiveTilePanel MinColumnWidth="320"
-                                                                 MaxColumnWidth="520"
-                                                                 MinColumns="1"
-                                                                 MaxColumns="3"
-                                                                 ColumnSpacing="18"
-                                                                 RowSpacing="18" />
+                                            <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
+                                                                             MaxColumnWidth="520"
+                                                                             MinColumns="1"
+                                                                             MaxColumns="3"
+                                                                             ColumnSpacing="18"
+                                                                             RowSpacing="18" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
