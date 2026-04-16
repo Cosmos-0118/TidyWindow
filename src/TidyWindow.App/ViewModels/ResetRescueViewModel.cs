@@ -45,6 +45,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private long _expectedBackupBytes;
     private string? _lastArchive;
     private bool _isAppPickerOpen;
+    private bool _isExplorerPickerOpen;
     private int _selectedAppCount;
     private string _selectedAppsPreview = "No apps selected";
     private string _appSearch = string.Empty;
@@ -255,6 +256,12 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     {
         get => _isAppPickerOpen;
         set => SetProperty(ref _isAppPickerOpen, value);
+    }
+
+    public bool IsExplorerPickerOpen
+    {
+        get => _isExplorerPickerOpen;
+        set => SetProperty(ref _isExplorerPickerOpen, value);
     }
 
     public bool IsInfoPopupOpen
@@ -648,6 +655,18 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private void CloseAppPicker()
     {
         IsAppPickerOpen = false;
+    }
+
+    [RelayCommand]
+    private void OpenExplorerPicker()
+    {
+        IsExplorerPickerOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseExplorerPicker()
+    {
+        IsExplorerPickerOpen = false;
     }
 
     [RelayCommand]
@@ -1302,8 +1321,8 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         var remaining = TimeSpan.FromSeconds(remainingSeconds);
         return remaining > TimeSpan.FromHours(2)
-            ? $"ETA {remaining:hh\\:mm}"
-            : $"ETA {remaining:mm\\:ss}";
+            ? $"{remaining:hh\\:mm}"
+            : $"{remaining:mm\\:ss}";
     }
 
     private string ComputeSizeLabel(string? archivePath, bool isBackup, long currentBytes)

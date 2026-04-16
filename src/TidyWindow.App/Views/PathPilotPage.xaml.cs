@@ -90,6 +90,14 @@ public partial class PathPilotPage : Page, INavigationAware
         _runtimesScrollViewer ??= FindScrollViewer(RuntimesList);
     }
 
+    private void OnRuntimesRequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject)
+        {
+            e.Handled = true;
+        }
+    }
+
     private static ScrollViewer? FindScrollViewer(DependencyObject? root)
     {
         if (root is null)
