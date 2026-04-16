@@ -436,7 +436,7 @@
     <Style x:Key="InstallQueueListItemStyle"
            TargetType="ListViewItem">
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="Template">
@@ -444,16 +444,16 @@
                 <ControlTemplate TargetType="ListViewItem">
                     <Border x:Name="Container"
                             CornerRadius="12"
-                            Background="#0F1A30"
-                            BorderBrush="#213552"
+                            Background="#1E293B"
+                            BorderBrush="#334155"
                             BorderThickness="1"
-                            Padding="14"
+                            Padding="16"
                             SnapsToDevicePixels="True">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Container" Property="Background" Value="#162643"/>
+                            <Setter TargetName="Container" Property="Background" Value="#263548"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Container" Property="BorderBrush" Value="#38BDF8"/>

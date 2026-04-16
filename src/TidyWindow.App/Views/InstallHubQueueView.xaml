@@ -153,15 +153,14 @@
                 <Grid x:Name="QueueContentGrid"
                       Grid.Row="1">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel x:Name="QueuePrimaryColumnHost"
-                                Grid.Row="0"
-                                Grid.RowSpan="2">
+                    <Grid x:Name="QueuePrimaryColumnHost"
+                          Grid.Row="0">
                         <Border Style="{StaticResource InstallCardBorderStyle}"
-                                Padding="20">
+                                Padding="24"
+                                MinHeight="620">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -169,8 +168,8 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Grid Grid.Row="0"
-                                      Margin="0,0,0,14">
+                                  <Grid Grid.Row="0"
+                                      Margin="0,0,0,20">
                                     <StackPanel>
                                         <TextBlock Text="Queue timeline"
                                                    FontSize="16"
@@ -181,20 +180,23 @@
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal"
-                                                    Margin="0,16,0,0"
+                                                    Margin="0,18,0,0"
                                                     HorizontalAlignment="Left">
                                             <Button Content="Retry failed"
                                                     Command="{Binding RetryFailedCommand}"
-                                                    Style="{StaticResource InstallRetryButtonStyle}"/>
+                                                    Style="{StaticResource InstallRetryButtonStyle}"
+                                                    Padding="16,8"/>
                                             <Button Content="Clear completed"
                                                     Margin="12,0,0,0"
                                                     Command="{Binding ClearCompletedCommand}"
-                                                    Style="{StaticResource InstallClearButtonStyle}"/>
+                                                    Style="{StaticResource InstallClearButtonStyle}"
+                                                    Padding="16,8"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
 
-                                <Grid Grid.Row="1">
+                                <Grid Grid.Row="1"
+                                      MinHeight="420">
                                     <ItemsControl ItemsSource="{StaticResource InstallHubQueueSkeletonItems}"
                                                   ItemTemplate="{StaticResource InstallHubQueueSkeletonTemplate}">
                                         <ItemsControl.Style>
@@ -213,7 +215,7 @@
                                               SelectedItem="{Binding SelectedOperation, Mode=TwoWay}"
                                               Background="Transparent"
                                               BorderThickness="0"
-                                              Padding="0"
+                                              Padding="0,2,0,2"
                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -363,7 +365,7 @@
                                            HorizontalAlignment="Center"
                                            Foreground="{StaticResource InstallTextCaptionBrush}"
                                            FontSize="12"
-                                           Margin="0,16,0,0">
+                                           Margin="0,20,0,4">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -377,7 +379,7 @@
                                 </TextBlock>
                             </Grid>
                         </Border>
-                    </StackPanel>
+                    </Grid>
 
                 </Grid>
             </Grid>
