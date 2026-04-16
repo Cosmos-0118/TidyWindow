@@ -741,18 +741,21 @@ public sealed class DeepScanService
         private const int ReportItemThreshold = 1500;
         private const int LargeQueueSnapshotThreshold = 10_000;
         private const int ProgressPreviewLimit = 500;
+        private const int SafePathCacheLimit = 20_000;
+        private const int SystemPathCacheLimit = 8_000;
         private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(600);
         private static readonly TimeSpan CandidateReportInterval = TimeSpan.FromMilliseconds(220);
         private static readonly IReadOnlyDictionary<string, long> EmptyCategoryTotals = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
 
         private readonly object _syncRoot = new();
-        private readonly object _pathCacheLock = new();
-        private readonly HashSet<string> _systemPathCache = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _safePathCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, byte> _systemPathCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, byte> _safePathCache = new(StringComparer.OrdinalIgnoreCase);
         private int _itemsSinceLastReport;
         private DateTime _lastReportTimestamp = DateTime.UtcNow - ReportInterval;
         private bool _hasPendingCandidate;
         private int _systemPathsSkipped;
+        private long _processedEntries;
+        private long _processedSizeBytes;
 
         public ScanContext(
             int limit,
@@ -827,9 +830,9 @@ public sealed class DeepScanService
 
         public bool HasNameFilters { get; }
 
-        public long ProcessedEntries { get; private set; }
+        public long ProcessedEntries => Volatile.Read(ref _processedEntries);
 
-        public long ProcessedSizeBytes { get; private set; }
+        public long ProcessedSizeBytes => Volatile.Read(ref _processedSizeBytes);
 
         public int SystemPathsSkipped => Volatile.Read(ref _systemPathsSkipped);
 
@@ -842,77 +845,85 @@ public sealed class DeepScanService
                 return false;
             }
 
-            lock (_pathCacheLock)
+            if (_safePathCache.ContainsKey(path))
             {
-                if (_safePathCache.Contains(path))
+                return false;
+            }
+
+            if (_systemPathCache.ContainsKey(path))
+            {
+                Interlocked.Increment(ref _systemPathsSkipped);
+                return true;
+            }
+
+            // Check if any cached parent directory already covers this path.
+            var parent = Path.GetDirectoryName(path);
+            while (!string.IsNullOrEmpty(parent))
+            {
+                if (_safePathCache.ContainsKey(parent))
                 {
+                    TryRememberSafePath(path);
                     return false;
                 }
 
-                if (_systemPathCache.Contains(path))
+                if (_systemPathCache.ContainsKey(parent))
                 {
+                    TryRememberSystemPath(path);
                     Interlocked.Increment(ref _systemPathsSkipped);
                     return true;
                 }
 
-                // Check if any cached parent directory already covers this path
-                var parent = Path.GetDirectoryName(path);
-                while (!string.IsNullOrEmpty(parent))
-                {
-                    if (_safePathCache.Contains(parent))
-                    {
-                        _safePathCache.Add(path);
-                        return false;
-                    }
-
-                    if (_systemPathCache.Contains(parent))
-                    {
-                        _systemPathCache.Add(path);
-                        Interlocked.Increment(ref _systemPathsSkipped);
-                        return true;
-                    }
-
-                    parent = Path.GetDirectoryName(parent);
-                }
+                parent = Path.GetDirectoryName(parent);
             }
 
             var isSystemPath = CleanupSystemPathSafety.IsSystemManagedPath(path);
 
-            lock (_pathCacheLock)
-            {
-                if (isSystemPath)
-                {
-                    _systemPathCache.Add(path);
-                }
-                else
-                {
-                    _safePathCache.Add(path);
-                }
-            }
-
             if (isSystemPath)
             {
+                TryRememberSystemPath(path);
                 Interlocked.Increment(ref _systemPathsSkipped);
+                return true;
             }
 
-            return isSystemPath;
+            TryRememberSafePath(path);
+            return false;
+        }
+
+        private void TryRememberSafePath(string path)
+        {
+            if (_safePathCache.Count >= SafePathCacheLimit)
+            {
+                return;
+            }
+
+            _safePathCache.TryAdd(path, 0);
+        }
+
+        private void TryRememberSystemPath(string path)
+        {
+            if (_systemPathCache.Count >= SystemPathCacheLimit)
+            {
+                return;
+            }
+
+            _systemPathCache.TryAdd(path, 0);
         }
 
         public void RecordProcessed(long sizeBytes, string currentPath, PriorityQueue<DeepScanFinding, long> queue)
         {
+            Interlocked.Increment(ref _processedEntries);
+            if (sizeBytes > 0)
+            {
+                Interlocked.Add(ref _processedSizeBytes, sizeBytes);
+            }
+
+            if (Progress is null)
+            {
+                return;
+            }
+
             lock (_syncRoot)
             {
-                ProcessedEntries++;
-                if (sizeBytes > 0)
-                {
-                    ProcessedSizeBytes += sizeBytes;
-                }
-
-                if (Progress is null)
-                {
-                    return;
-                }
-
                 _itemsSinceLastReport++;
                 TryEmitLocked(queue, currentPath, isFinal: false, latestFinding: null, force: false);
             }

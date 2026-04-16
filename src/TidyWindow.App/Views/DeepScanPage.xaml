@@ -1421,63 +1421,6 @@
                                                      EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
                                 </Storyboard>
                             </BeginStoryboard>
-                            <BeginStoryboard x:Name="DeepScanOverlayMotionStoryboard">
-                                <Storyboard RepeatBehavior="Forever">
-                                    <DoubleAnimation Storyboard.TargetName="ScannerRingRotate"
-                                                     Storyboard.TargetProperty="Angle"
-                                                     From="0"
-                                                     To="360"
-                                                     Duration="0:0:5.5"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerOrbitsRotate"
-                                                     Storyboard.TargetProperty="Angle"
-                                                     From="0"
-                                                     To="360"
-                                                     Duration="0:0:3.2"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerPulseScale"
-                                                     Storyboard.TargetProperty="ScaleX"
-                                                     From="1"
-                                                     To="1.2"
-                                                     Duration="0:0:1.5"
-                                                     AutoReverse="True"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerPulseScale"
-                                                     Storyboard.TargetProperty="ScaleY"
-                                                     From="1"
-                                                     To="1.2"
-                                                     Duration="0:0:1.5"
-                                                     AutoReverse="True"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraScale"
-                                                     Storyboard.TargetProperty="ScaleX"
-                                                     From="1"
-                                                     To="1.08"
-                                                     Duration="0:0:2.4"
-                                                     AutoReverse="True"
-                                                     EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraScale"
-                                                     Storyboard.TargetProperty="ScaleY"
-                                                     From="1"
-                                                     To="1.08"
-                                                     Duration="0:0:2.4"
-                                                     AutoReverse="True"
-                                                     EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraEllipse"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     From="0.2"
-                                                     To="0.45"
-                                                     Duration="0:0:3"
-                                                     AutoReverse="True"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerInnerOrbitRotate"
-                                                     Storyboard.TargetProperty="Angle"
-                                                     From="0"
-                                                     To="-360"
-                                                     Duration="0:0:4.2"/>
-                                    <DoubleAnimation Storyboard.TargetName="ScannerSweepTranslate"
-                                                     Storyboard.TargetProperty="X"
-                                                     From="-220"
-                                                     To="220"
-                                                     Duration="0:0:2"
-                                                     AutoReverse="True"/>
-                                </Storyboard>
-                            </BeginStoryboard>
                         </Trigger.EnterActions>
                     </Trigger>
                     <Trigger Property="IsEnabled" Value="False">
@@ -1485,7 +1428,6 @@
                         <Setter TargetName="DeepScanOverlayRoot" Property="IsHitTestVisible" Value="False"/>
                         <Setter TargetName="DeepScanOverlayRoot" Property="Opacity" Value="0"/>
                         <Trigger.EnterActions>
-                            <StopStoryboard BeginStoryboardName="DeepScanOverlayMotionStoryboard"/>
                             <BeginStoryboard>
                                 <Storyboard FillBehavior="Stop">
                                     <DoubleAnimation Storyboard.TargetName="DeepScanOverlayRoot"
