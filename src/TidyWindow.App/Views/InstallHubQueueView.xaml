@@ -28,10 +28,10 @@
     </UserControl.Resources>
     <Grid>
           <ScrollViewer x:Name="QueueScrollViewer"
-                    Margin="32,0,32,24"
+                    Margin="0,0,28,24"
                     VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled"
-                    HorizontalContentAlignment="Center"
+                    HorizontalContentAlignment="Stretch"
                     PanningMode="VerticalOnly"
                     ScrollViewer.CanContentScroll="True"
                     IsDeferredScrollingEnabled="False">
@@ -39,7 +39,7 @@
                 <BitmapCache EnableClearType="True"/>
             </ScrollViewer.CacheMode>
             <Grid MaxWidth="1360"
-                HorizontalAlignment="Center">
+                HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -56,6 +56,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                             <ItemsControl Margin="0,8,0,0"
+                                          HorizontalAlignment="Center"
                                           ItemsSource="{StaticResource QueueHeroChipTexts}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -73,7 +74,8 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <WrapPanel Margin="0,18,0,0">
+                            <WrapPanel Margin="0,18,0,0"
+                                       HorizontalAlignment="Center">
                                 <Border Style="{StaticResource InstallBadgeStyle}">
                                     <TextBlock Text="{Binding Operations.Count, StringFormat={}{0} entries}"
                                                Foreground="{StaticResource InstallTextSoftAccentBrush}"
@@ -157,10 +159,12 @@
                     </Grid.RowDefinitions>
 
                                         <Grid x:Name="QueuePrimaryColumnHost"
-                                                    Grid.Row="0">
+                                              Grid.Row="0"
+                                              HorizontalAlignment="Stretch">
                                                 <Border x:Name="QueueTimelineCard"
                                                                 Style="{StaticResource InstallCardBorderStyle}"
                                                                 Padding="24"
+                                                                HorizontalAlignment="Stretch"
                                                                 MinHeight="360">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -180,18 +184,27 @@
                                                    Foreground="{StaticResource InstallTextMutedBrush}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
-                                                                                <WrapPanel Margin="0,18,0,0"
-                                                                                                     HorizontalAlignment="Left">
-                                            <Button Content="Retry failed"
-                                                    Command="{Binding RetryFailedCommand}"
-                                                    Style="{StaticResource InstallRetryButtonStyle}"
-                                                    Padding="16,8"/>
-                                            <Button Content="Clear completed"
-                                                    Margin="12,0,12,8"
-                                                    Command="{Binding ClearCompletedCommand}"
-                                                    Style="{StaticResource InstallClearButtonStyle}"
-                                                    Padding="16,8"/>
-                                        </WrapPanel>
+                                                                                <Grid Margin="0,18,0,0"
+                                                                                      HorizontalAlignment="Left">
+                                                                <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Button Grid.Column="0"
+                                                                    Content="Retry failed"
+                                                                    Width="152"
+                                                                    Margin="0,0,12,8"
+                                                                    Command="{Binding RetryFailedCommand}"
+                                                                    Style="{StaticResource InstallRetryButtonStyle}"
+                                                                    Padding="16,8"/>
+                                                                <Button Grid.Column="1"
+                                                                    Content="Clear completed"
+                                                                    Width="152"
+                                                                    Margin="0,0,0,8"
+                                                                    Command="{Binding ClearCompletedCommand}"
+                                                                    Style="{StaticResource InstallClearButtonStyle}"
+                                                                    Padding="16,8"/>
+                                                            </Grid>
                                     </StackPanel>
                                 </Grid>
 

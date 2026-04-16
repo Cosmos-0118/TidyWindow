@@ -210,13 +210,15 @@
                 <GradientStop Color="#071427" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
-        <ScrollViewer Margin="32"
+        <ScrollViewer x:Name="InstallHubViewportScrollViewer"
+                  Margin="32"
                   Panel.ZIndex="1"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch"
                       PanningMode="VerticalOnly">
-            <Grid MaxWidth="1360"
+            <Grid Width="{Binding ElementName=InstallHubViewportScrollViewer, Path=ViewportWidth}"
+                  MaxWidth="1360"
                   HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -227,7 +229,8 @@
                                        Title="Smart install hub"
                                        Subtitle="Curate developer bundles"
                                        IconGlyph="📦"
-                                       Margin="0,0,0,28">
+                                       HorizontalAlignment="Stretch"
+                                       Margin="0,0,28,28">
                     <controls:PageTitleBar.BodyContent>
                         <StackPanel>
                             <TextBlock Text="{Binding Headline}"
@@ -244,7 +247,8 @@
                     </controls:PageTitleBar.BodyContent>
                 </controls:PageTitleBar>
 
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="1"
+                      HorizontalAlignment="Stretch">
                     <views:InstallHubBundlesView Style="{StaticResource InstallHubBundlesViewStyle}"/>
                     <views:InstallHubCatalogView Style="{StaticResource InstallHubCatalogViewStyle}"/>
                     <views:InstallHubQueueView Style="{StaticResource InstallHubQueueViewStyle}"/>
