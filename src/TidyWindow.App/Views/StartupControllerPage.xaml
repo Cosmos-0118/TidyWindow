@@ -53,11 +53,29 @@
             <Setter Property="Margin" Value="0,0,0,14" />
             <Setter Property="Padding" Value="20" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Opacity" Value="1" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentCyan}" />
                     <Setter Property="Background" Value="#0E1D32" />
                 </Trigger>
+                <DataTrigger Binding="{Binding IsPendingFilterExit}" Value="True">
+                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0.45" Duration="0:0:0.7" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -306,6 +324,7 @@
 
             <Grid Margin="24">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -588,8 +607,27 @@
                     </Grid>
                 </Border>
 
+                <!-- Action Status -->
+                <Border Grid.Row="2" Margin="0,0,0,12" CornerRadius="10" Padding="14,10"
+                        Background="#0B2C1A" BorderBrush="#22C55E" BorderThickness="1"
+                        Visibility="{Binding ShowActionStatus, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="16" Foreground="{StaticResource AccentGreen}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding ActionStatusMessage}" Foreground="#DCFCE7" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <ProgressBar Width="72" Height="4" IsIndeterminate="True" Foreground="#4ADE80" Background="#14532D" Margin="0,0,10,0" />
+                            <Button Content="Dismiss" Style="{StaticResource BtnSecondary}" Padding="10,5" Command="{Binding DismissActionStatusCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Entries List -->
-                <ListView Grid.Row="2" x:Name="EntriesItemsControl"
+                <ListView Grid.Row="3" x:Name="EntriesItemsControl"
                           ItemsSource="{Binding PagedEntries}"
                           Loaded="OnEntriesLoaded"
                           Background="Transparent" BorderThickness="0" Padding="0,0,16,0"
@@ -820,6 +858,14 @@
                                         </StackPanel>
 
                                         <!-- Busy Indicator -->
+                                        <Border Margin="0,10,0,0" Padding="10,8" CornerRadius="8" Background="#0B2238" BorderBrush="#1E3A5F" BorderThickness="1"
+                                                Visibility="{Binding IsPendingFilterExit, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ProgressBar Width="70" Height="4" IsIndeterminate="True" Foreground="#38BDF8" Background="#1E293B" />
+                                                <TextBlock Text="Updating filter..." Margin="10,0,0,0" Foreground="#BAE6FD" FontSize="11" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+
                                         <ProgressBar Height="4" Width="140" IsIndeterminate="True" Margin="0,12,0,0"
                                                      Foreground="{StaticResource AccentCyan}" Background="#1E293B"
                                                      Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />

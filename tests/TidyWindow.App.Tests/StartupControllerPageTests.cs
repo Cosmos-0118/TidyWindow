@@ -177,6 +177,41 @@ public sealed class StartupControllerPageTests
     }
 
     [Fact]
+    public async Task OnEntriesFilter_PendingFilterExit_KeepsTemporarilyVisible()
+    {
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_showEnabled", true);
+            SetField(page, "_showDisabled", false);
+
+            var disabledEntry = CreateEntry("disabled-pending", StartupItemSourceKind.RunKey, isEnabled: false);
+            disabledEntry.IsPendingFilterExit = true;
+
+            Assert.True(ApplyFilter(page, disabledEntry));
+        });
+    }
+
+    [Fact]
+    public async Task OnEntriesFilter_PendingFilterExit_DoesNotBypassSearch()
+    {
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_showEnabled", true);
+            SetField(page, "_showDisabled", false);
+            SetField(page, "_search", "nomatch");
+
+            var disabledEntry = CreateEntry("disabled-pending", StartupItemSourceKind.RunKey, isEnabled: false, publisher: "Contoso");
+            disabledEntry.IsPendingFilterExit = true;
+
+            Assert.False(ApplyFilter(page, disabledEntry));
+        });
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task SetGuardAsync_PersistsFlagWithoutDisablingWhenAlreadyDisabled()
     {
         var temp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

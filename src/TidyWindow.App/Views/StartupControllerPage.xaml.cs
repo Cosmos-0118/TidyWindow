@@ -23,6 +23,7 @@ public partial class StartupControllerPage : Page, INavigationAware
     private INotifyCollectionChanged? _entriesNotifier;
     private ScrollViewer? _entriesScrollViewer;
     private CancellationTokenSource? _searchDebounceCts;
+    private readonly Dictionary<string, CancellationTokenSource> _pendingStatusFilterExitTokens = new(StringComparer.OrdinalIgnoreCase);
     private bool _isSubscriptionsAttached;
     private bool _isRollingBackGuardToggle;
 
@@ -39,6 +40,7 @@ public partial class StartupControllerPage : Page, INavigationAware
     private bool _showBackupOnly;
     private string _search = string.Empty;
     private static readonly TimeSpan SearchDebounceDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan StatusFilterExitDelay = TimeSpan.FromMilliseconds(900);
 
     public StartupControllerPage(StartupControllerViewModel viewModel)
     {
@@ -128,6 +130,7 @@ public partial class StartupControllerPage : Page, INavigationAware
         }
 
         SyncFilterToggles();
+        ReconcilePendingStatusFilterExits();
         RefreshView(resetPage: true);
     }
 
@@ -149,6 +152,7 @@ public partial class StartupControllerPage : Page, INavigationAware
     private void RefreshView(bool resetPage)
     {
         SyncFilterToggles();
+        ReconcilePendingStatusFilterExits();
 
         if (_entriesView.View is null)
         {
@@ -215,6 +219,7 @@ public partial class StartupControllerPage : Page, INavigationAware
         foreach (var item in items)
         {
             item.PropertyChanged -= OnEntryPropertyChanged;
+            CancelPendingStatusFilterExit(item);
         }
     }
 
@@ -225,6 +230,11 @@ public partial class StartupControllerPage : Page, INavigationAware
 
         if (isEnabledChange)
         {
+            if (sender is StartupEntryItemViewModel entry)
+            {
+                HandleStatusFilterTransition(entry);
+            }
+
             RefreshView(resetPage: false); // Re-apply filters when enable/disable toggled.
         }
 
@@ -248,6 +258,11 @@ public partial class StartupControllerPage : Page, INavigationAware
     }
 
     private bool PassesFilters(StartupEntryItemViewModel entry)
+    {
+        return PassesFilters(entry, ignoreStatusFilters: false, honorPendingFilterExit: true);
+    }
+
+    private bool PassesFilters(StartupEntryItemViewModel entry, bool ignoreStatusFilters, bool honorPendingFilterExit)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
@@ -300,26 +315,138 @@ public partial class StartupControllerPage : Page, INavigationAware
             }
         }
 
-        if (!_showEnabled && entry.IsEnabled)
-        {
-            return false;
-        }
-
-        if (!_showDisabled && !entry.IsEnabled)
-        {
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(_search))
+        {
+            if (ignoreStatusFilters)
+            {
+                return true;
+            }
+
+            if (honorPendingFilterExit && entry.IsPendingFilterExit && IsStatusFilteredOut(entry))
+            {
+                return true;
+            }
+
+            return !IsStatusFilteredOut(entry);
+        }
+
+        var term = _search;
+        var matchesSearch = ContainsOrdinalIgnoreCase(entry.Name, term)
+            || ContainsOrdinalIgnoreCase(entry.Publisher, term)
+            || ContainsOrdinalIgnoreCase(entry.Item.ExecutablePath, term)
+            || ContainsOrdinalIgnoreCase(entry.Item.EntryLocation, term);
+
+        if (!matchesSearch)
+        {
+            return false;
+        }
+
+        if (ignoreStatusFilters)
         {
             return true;
         }
 
-        var term = _search;
-        return ContainsOrdinalIgnoreCase(entry.Name, term)
-            || ContainsOrdinalIgnoreCase(entry.Publisher, term)
-            || ContainsOrdinalIgnoreCase(entry.Item.ExecutablePath, term)
-            || ContainsOrdinalIgnoreCase(entry.Item.EntryLocation, term);
+        if (honorPendingFilterExit && entry.IsPendingFilterExit && IsStatusFilteredOut(entry))
+        {
+            return true;
+        }
+
+        return !IsStatusFilteredOut(entry);
+    }
+
+    private bool IsStatusFilteredOut(StartupEntryItemViewModel entry)
+    {
+        return (!_showEnabled && entry.IsEnabled)
+            || (!_showDisabled && !entry.IsEnabled);
+    }
+
+    private void HandleStatusFilterTransition(StartupEntryItemViewModel entry)
+    {
+        CancelPendingStatusFilterExit(entry);
+
+        var shouldDelayRemoval = IsStatusFilteredOut(entry)
+            && PassesFilters(entry, ignoreStatusFilters: true, honorPendingFilterExit: false);
+
+        if (!shouldDelayRemoval)
+        {
+            entry.IsPendingFilterExit = false;
+            return;
+        }
+
+        entry.IsPendingFilterExit = true;
+
+        var cts = new CancellationTokenSource();
+        _pendingStatusFilterExitTokens[entry.Item.Id] = cts;
+        _ = RemoveAfterStatusFilterDelayAsync(entry, cts);
+    }
+
+    private async Task RemoveAfterStatusFilterDelayAsync(StartupEntryItemViewModel entry, CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(StatusFilterExitDelay, cts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!_pendingStatusFilterExitTokens.TryGetValue(entry.Item.Id, out var activeToken)
+            || !ReferenceEquals(activeToken, cts))
+        {
+            return;
+        }
+
+        _pendingStatusFilterExitTokens.Remove(entry.Item.Id);
+        entry.IsPendingFilterExit = false;
+        cts.Dispose();
+        RefreshView(resetPage: false);
+    }
+
+    private void ReconcilePendingStatusFilterExits()
+    {
+        var pendingEntries = _viewModel.Entries
+            .Where(entry => entry.IsPendingFilterExit)
+            .ToList();
+
+        foreach (var entry in pendingEntries)
+        {
+            var shouldRemainPending = IsStatusFilteredOut(entry)
+                && PassesFilters(entry, ignoreStatusFilters: true, honorPendingFilterExit: false);
+
+            if (!shouldRemainPending)
+            {
+                CancelPendingStatusFilterExit(entry);
+            }
+        }
+    }
+
+    private void CancelPendingStatusFilterExit(StartupEntryItemViewModel entry)
+    {
+        if (_pendingStatusFilterExitTokens.TryGetValue(entry.Item.Id, out var cts))
+        {
+            _pendingStatusFilterExitTokens.Remove(entry.Item.Id);
+            cts.Cancel();
+            cts.Dispose();
+        }
+
+        entry.IsPendingFilterExit = false;
+    }
+
+    private void CancelAllPendingStatusFilterExits()
+    {
+        foreach (var cts in _pendingStatusFilterExitTokens.Values)
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+
+        _pendingStatusFilterExitTokens.Clear();
+
+        foreach (var entry in _viewModel.Entries)
+        {
+            entry.IsPendingFilterExit = false;
+        }
     }
 
     private static bool ContainsOrdinalIgnoreCase(string? source, string term)
@@ -469,6 +596,7 @@ public partial class StartupControllerPage : Page, INavigationAware
         }
 
         UnsubscribeFromEntryChanges(_viewModel.Entries);
+        CancelAllPendingStatusFilterExits();
         _isSubscriptionsAttached = false;
     }
 
