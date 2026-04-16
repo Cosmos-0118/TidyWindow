@@ -310,7 +310,46 @@ public sealed class CleanupDeletionTests : IDisposable
 
         var entry = result.Entries.FirstOrDefault();
         Assert.NotNull(entry);
-        Assert.Contains("Protected", entry.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("system-managed", entry.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_SystemManagedPath_RequiresAllowProtectedSystemPaths()
+    {
+        // Arrange
+        var service = new CleanupService();
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var targetPath = Path.Combine(windows, "Temp", $"tidywindow-test-{Guid.NewGuid():N}.tmp");
+        var previewItem = new CleanupPreviewItem(
+            "temp-item.tmp",
+            targetPath,
+            256,
+            DateTime.UtcNow,
+            isDirectory: false,
+            ".tmp");
+
+        // Act: no override
+        var blockedResult = await service.DeleteAsync(new[] { previewItem }, options: new CleanupDeletionOptions
+        {
+            AllowProtectedSystemPaths = false
+        });
+
+        // Act: override enabled
+        var overrideResult = await service.DeleteAsync(new[] { previewItem }, options: new CleanupDeletionOptions
+        {
+            AllowProtectedSystemPaths = true
+        });
+
+        // Assert
+        var blockedEntry = blockedResult.Entries.FirstOrDefault();
+        Assert.NotNull(blockedEntry);
+        Assert.Equal(CleanupDeletionDisposition.Skipped, blockedEntry.Disposition);
+        Assert.Contains("system-managed", blockedEntry.Reason, StringComparison.OrdinalIgnoreCase);
+
+        var overrideEntry = overrideResult.Entries.FirstOrDefault();
+        Assert.NotNull(overrideEntry);
+        Assert.Equal(CleanupDeletionDisposition.Skipped, overrideEntry.Disposition);
+        Assert.Contains("not found", overrideEntry.EffectiveReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

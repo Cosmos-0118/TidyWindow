@@ -167,6 +167,33 @@ public class CleanupSystemPathSafetyTests
         Assert.False(CleanupSystemPathSafety.IsSystemCriticalPath(debug));
     }
 
+    [Fact]
+    public void SystemManaged_WindowsSafeCleanupPath_IsManaged()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var download = System.IO.Path.Combine(windows, "SoftwareDistribution", "Download");
+
+        Assert.True(CleanupSystemPathSafety.IsSystemManagedPath(download));
+    }
+
+    [Fact]
+    public void SystemManaged_ProgramFilesThirdPartyPath_IsManaged()
+    {
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var someApp = System.IO.Path.Combine(programFiles, "SomeThirdPartyApp", "logs");
+
+        Assert.True(CleanupSystemPathSafety.IsSystemManagedPath(someApp));
+    }
+
+    [Fact]
+    public void SystemManaged_UserDownloads_IsNotManaged()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var downloads = System.IO.Path.Combine(userProfile, "Downloads");
+
+        Assert.False(CleanupSystemPathSafety.IsSystemManagedPath(downloads));
+    }
+
     // ================ CRITICAL PATHS MUST STILL BE PROTECTED ================
 
     [Fact]

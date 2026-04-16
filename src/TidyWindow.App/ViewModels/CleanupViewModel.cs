@@ -1849,14 +1849,14 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
             }
 
             var path = tuple.item.Model.FullName;
-            return CleanupSystemPathSafety.IsSystemCriticalPath(path);
+            return CleanupSystemPathSafety.IsSystemManagedPath(path);
         });
 
         if (systemItems > 0)
         {
             PendingDeletionRisks.Add(new CleanupDeletionRiskViewModel(
                 "Protected locations",
-                $"{systemItems:N0} item(s) live in system or protected directories. Administrator rights may be required.",
+                $"{systemItems:N0} item(s) live in system-managed directories. Enable force delete + Allow protected system locations to proceed.",
                 CleanupDeletionRiskSeverity.Danger));
         }
 
@@ -1884,7 +1884,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     {
         var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
 
-        var requiresElevation = itemsToDelete.Any(static tuple => CleanupSystemPathSafety.IsSystemCriticalPath(tuple.item.Model.FullName));
+        var requiresElevation = itemsToDelete.Any(static tuple => CleanupSystemPathSafety.IsSystemManagedPath(tuple.item.Model.FullName));
         if (requiresElevation && _privilegeService.CurrentMode != PrivilegeMode.Administrator)
         {
             if (ConfirmElevation is not null && !ConfirmElevation.Invoke("Deleting some of these items may need administrator permission. Restart with admin rights?"))

@@ -14,7 +14,7 @@ The Cleanup page walks users through discovering reclaimable disk space, vetting
 
 ## Safety guardrails
 
--   **Protected paths**: `CleanupService` refuses to delete under critical Windows folders (System32, SysWOW64, WinSxS, SystemApps, SystemResources, servicing, assembly, Installer, Fonts, WindowsApps).
+-   **Protected paths**: `CleanupService` treats OS-managed roots (Windows, Program Files, boot/recovery) as protected-by-default. These items remain visible in preview, but deletion is skipped unless users explicitly enable Force delete + Allow protected system locations in confirmation.
 -   **Lock handling**: Up to 32 items per category (600 total) are sampled for lock inspection. `ResourceLockService` surfaces locking apps; users can close or force close them, and deletions default to skipping locked entries unless overridden.
 -   **Permission repair (opt-in)**: When enabled, the engine clears attributes, takes ownership on access denied, retries, then falls back to force-delete or delete-on-reboot.
 -   **Recycle-bin preference**: Users can request recycle-bin moves; permanent delete fallback is allowed in manual runs and disabled in automation’s dustbin mode.
@@ -50,7 +50,7 @@ The Cleanup page walks users through discovering reclaimable disk space, vetting
 
 ## Known gaps to watch
 
--   Protected root list currently covers critical Windows subfolders but not the broader Program Files or user-profile roots; keep selections sane for those paths.
+-   System-managed items are previewable by design; they only execute when dangerous overrides are explicitly armed.
 -   Hidden/system file skipping is off by default; pair with filters or consider enabling when adding higher-risk targets.
 -   Users must pass through Setup → Preview → Confirmation phases; destructive actions are hidden during preview.
 

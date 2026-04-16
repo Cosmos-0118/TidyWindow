@@ -14,6 +14,7 @@ namespace TidyWindow.Core.Cleanup;
 public static class CleanupSystemPathSafety
 {
     private static readonly Lazy<HashSet<string>> CriticalRoots = new(() => BuildCriticalRoots(), isThreadSafe: true);
+    private static readonly Lazy<HashSet<string>> SystemManagedRoots = new(() => BuildSystemManagedRoots(), isThreadSafe: true);
     private static readonly Lazy<HashSet<string>> SafeCleanupPaths = new(() => BuildSafeCleanupPaths(), isThreadSafe: true);
     private static readonly ConcurrentDictionary<string, byte> AdditionalRoots = new(StringComparer.OrdinalIgnoreCase);
 
@@ -65,37 +66,7 @@ public static class CleanupSystemPathSafety
     /// </summary>
     public static bool IsSystemCriticalPath(string? path)
     {
-        if (path is null)
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
-        }
-
-        if (path.IndexOfAny(new[] { '<', '>', '|', '"' }) >= 0)
-        {
-            throw new ArgumentException("The provided path contains invalid characters.", nameof(path));
-        }
-
-        var trimmed = EnsureDriveColonIfMissing(path.Trim());
-
-        // Reject relative or drive-relative paths as non-critical.
-        if (!Path.IsPathRooted(trimmed))
-        {
-            return false;
-        }
-
-        var driveRoot = Path.GetPathRoot(trimmed) ?? string.Empty;
-        var isDriveRelative = driveRoot.Length == 2 && (trimmed.Length == 2 || (trimmed.Length > 2 && trimmed[2] != Path.DirectorySeparatorChar && trimmed[2] != Path.AltDirectorySeparatorChar));
-        if (isDriveRelative)
-        {
-            return false;
-        }
-
-        var normalized = Normalize(trimmed);
+        var normalized = NormalizeCandidatePath(path);
         if (normalized.Length == 0)
         {
             return false;
@@ -118,6 +89,43 @@ public static class CleanupSystemPathSafety
 
         // THEN: Check if it's under a critical root
         foreach (var root in CriticalRoots.Value)
+        {
+            if (IsSameOrSubPath(normalized, root))
+            {
+                return true;
+            }
+        }
+
+        foreach (var extra in AdditionalRoots.Keys)
+        {
+            if (IsSameOrSubPath(normalized, extra))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true when the path is under a system-managed root (Windows, Program Files, boot/recovery).
+    /// This is intentionally broader than <see cref="IsSystemCriticalPath"/> and is used to require an
+    /// explicit override before deleting any OS-managed content.
+    /// </summary>
+    public static bool IsSystemManagedPath(string? path)
+    {
+        var normalized = NormalizeCandidatePath(path);
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        if (IsCriticalFile(normalized))
+        {
+            return true;
+        }
+
+        foreach (var root in SystemManagedRoots.Value)
         {
             if (IsSameOrSubPath(normalized, root))
             {
@@ -402,6 +410,87 @@ public static class CleanupSystemPathSafety
         }
 
         return roots;
+    }
+
+    private static HashSet<string> BuildSystemManagedRoots()
+    {
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string? candidate)
+        {
+            var normalized = Normalize(candidate, ensureTrailingSeparator: true);
+            if (normalized.Length == 0)
+            {
+                return;
+            }
+
+            roots.Add(normalized);
+        }
+
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows))
+        {
+            Add(windows);
+        }
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(programFiles))
+        {
+            Add(programFiles);
+        }
+
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        if (!string.IsNullOrWhiteSpace(programFilesX86) && !programFilesX86.Equals(programFiles, StringComparison.OrdinalIgnoreCase))
+        {
+            Add(programFilesX86);
+        }
+
+        var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        var systemDrive = Path.GetPathRoot(system);
+        if (!string.IsNullOrWhiteSpace(systemDrive))
+        {
+            Add(Path.Combine(systemDrive, "Boot"));
+            Add(Path.Combine(systemDrive, "EFI"));
+            Add(Path.Combine(systemDrive, "Recovery"));
+            Add(Path.Combine(systemDrive, "System Volume Information"));
+        }
+
+        return roots;
+    }
+
+    private static string NormalizeCandidatePath(string? path)
+    {
+        if (path is null)
+        {
+            throw new ArgumentNullException(nameof(path));
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
+        }
+
+        if (path.IndexOfAny(new[] { '<', '>', '|', '"' }) >= 0)
+        {
+            throw new ArgumentException("The provided path contains invalid characters.", nameof(path));
+        }
+
+        var trimmed = EnsureDriveColonIfMissing(path.Trim());
+
+        // Reject relative or drive-relative paths.
+        if (!Path.IsPathRooted(trimmed))
+        {
+            return string.Empty;
+        }
+
+        var driveRoot = Path.GetPathRoot(trimmed) ?? string.Empty;
+        var isDriveRelative = driveRoot.Length == 2 && (trimmed.Length == 2 || (trimmed.Length > 2 && trimmed[2] != Path.DirectorySeparatorChar && trimmed[2] != Path.AltDirectorySeparatorChar));
+        if (isDriveRelative)
+        {
+            return string.Empty;
+        }
+
+        return Normalize(trimmed);
     }
 
     private static string Normalize(string? path, bool ensureTrailingSeparator = false)

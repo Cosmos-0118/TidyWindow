@@ -199,14 +199,14 @@ public sealed class CleanupService
             var idx = Interlocked.Increment(ref completed);
             ReportProgress(idx, normalizedPath);
 
-            if (!options.AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(normalizedPath))
+            if (!options.AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemManagedPath(normalizedPath))
             {
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
                     Math.Max(item.SizeBytes, 0),
                     item.IsDirectory,
                     CleanupDeletionDisposition.Skipped,
-                    "Protected system location skipped"));
+                    "System-managed location skipped (enable Allow protected system locations to continue)."));
                 return;
             }
 
