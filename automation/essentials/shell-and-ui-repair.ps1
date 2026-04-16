@@ -72,7 +72,7 @@ function Invoke-Step {
             $script:OperationSucceeded = $false
             throw
         }
-        Write-TidyError -Message "  FAIL: $Name: $msg"
+        Write-TidyError -Message "  FAIL: ${Name}: $msg"
         $script:OperationSucceeded = $false
     }
 }
