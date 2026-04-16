@@ -178,6 +178,7 @@ internal static class DeepScanAggregation
 public sealed class DeepScanService
 {
     private static readonly ConcurrentDictionary<CacheKey, CacheEntry> Cache = new(new CacheKeyComparer());
+    private static readonly TimeSpan CacheMaxAge = TimeSpan.FromMinutes(2);
 
     public static void InvalidateCache()
     {
@@ -201,7 +202,8 @@ public sealed class DeepScanService
         var key = BuildCacheKey(resolvedRoot, request);
         if (TryGetRootTimestamp(resolvedRoot, out var rootTimestamp)
             && Cache.TryGetValue(key, out var cached)
-            && cached.RootTimestamp == rootTimestamp)
+            && cached.RootTimestamp == rootTimestamp
+            && DateTimeOffset.UtcNow - cached.CachedAtUtc <= CacheMaxAge)
         {
             return cached.Result;
         }
@@ -1132,7 +1134,7 @@ public sealed class DeepScanService
     private static void CacheResult(string resolvedRoot, DeepScanRequest request, DeepScanResult result, DateTimeOffset rootTimestamp)
     {
         var key = BuildCacheKey(resolvedRoot, request);
-        var entry = new CacheEntry(result, rootTimestamp);
+        var entry = new CacheEntry(result, rootTimestamp, DateTimeOffset.UtcNow);
         Cache[key] = entry;
     }
 
@@ -1148,7 +1150,7 @@ public sealed class DeepScanService
         bool IsCaseSensitive,
         bool IncludeDirectories);
 
-    private readonly record struct CacheEntry(DeepScanResult Result, DateTimeOffset RootTimestamp);
+    private readonly record struct CacheEntry(DeepScanResult Result, DateTimeOffset RootTimestamp, DateTimeOffset CachedAtUtc);
 
     private sealed class CacheKeyComparer : IEqualityComparer<CacheKey>
     {

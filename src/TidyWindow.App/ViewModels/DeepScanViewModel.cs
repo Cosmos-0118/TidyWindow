@@ -286,7 +286,33 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
-        if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemManagedPath(TargetPath))
+        if (string.IsNullOrWhiteSpace(TargetPath))
+        {
+            Summary = "Choose a target path before scanning.";
+            _mainViewModel.SetStatusMessage("Scan blocked: target path is empty.");
+            return;
+        }
+
+        if (!Directory.Exists(TargetPath) && !File.Exists(TargetPath))
+        {
+            Summary = "The selected target path does not exist.";
+            _mainViewModel.SetStatusMessage("Scan blocked: target path not found.");
+            return;
+        }
+
+        var isSystemManagedPath = false;
+        try
+        {
+            isSystemManagedPath = CleanupSystemPathSafety.IsSystemManagedPath(TargetPath);
+        }
+        catch (ArgumentException)
+        {
+            Summary = "The selected target path is invalid.";
+            _mainViewModel.SetStatusMessage("Scan blocked: target path is invalid.");
+            return;
+        }
+
+        if (!AllowProtectedSystemPaths && isSystemManagedPath)
         {
             Summary = "Protected system location is blocked. Enable 'Allow protected system paths' to scan anyway.";
             _mainViewModel.SetStatusMessage("Scan blocked: protected system path.");
@@ -325,10 +351,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
             var progress = new Progress<DeepScanProgressUpdate>(update => ApplyProgress(update));
 
-            var result = await Task.Run(async () =>
-            {
-                return await _deepScanService.RunScanAsync(request, progress, cancellation.Token).ConfigureAwait(false);
-            }, cancellation.Token).ConfigureAwait(true);
+            var result = await _deepScanService.RunScanAsync(request, progress, cancellation.Token).ConfigureAwait(true);
 
             ReplaceFindings(result.Findings);
 
@@ -359,6 +382,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            Summary = "Deep scan failed. Check the selected location and filters.";
             _mainViewModel.SetStatusMessage($"Deep scan failed: {ex.Message}");
         }
         finally
@@ -431,10 +455,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 AllowProtectedSystemPaths = AllowSystemDeletion
             };
 
-            var result = await Task.Run(async () =>
-            {
-                return await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options).ConfigureAwait(false);
-            }).ConfigureAwait(true);
+            var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options).ConfigureAwait(true);
             var entry = result.Entries.FirstOrDefault();
 
             if (entry is null)
@@ -766,7 +787,13 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     private void ApplyProgress(DeepScanProgressUpdate update)
     {
-        ReplaceFindings(update.Findings);
+        // Large scans can emit lightweight progress updates with an empty snapshot; keep existing results to avoid list thrash.
+        var shouldReplaceFindings = update.IsFinal || update.Findings.Count > 0 || _allFindings.Count == 0;
+        if (shouldReplaceFindings)
+        {
+            ReplaceFindings(update.Findings);
+        }
+
         _processedEntries = update.ProcessedEntries;
         _processedSizeBytes = update.ProcessedSizeBytes;
         _currentPath = update.CurrentPath;

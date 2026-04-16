@@ -14,6 +14,7 @@ namespace TidyWindow.App.Views;
 public partial class DeepScanPage : Page, INavigationAware
 {
     private readonly DeepScanViewModel _viewModel;
+    private ScrollViewer? _findingsScrollViewer;
 
     public DeepScanPage(DeepScanViewModel viewModel)
     {
@@ -139,13 +140,13 @@ public partial class DeepScanPage : Page, INavigationAware
 
     private void ScrollToTop()
     {
-        var listViewer = FindScrollViewer(FindingsListView);
+        var listViewer = _findingsScrollViewer ??= FindScrollViewer(FindingsListView);
         listViewer?.ScrollToVerticalOffset(0);
         RootScrollViewer?.ScrollToVerticalOffset(0);
 
         Dispatcher.BeginInvoke(() =>
         {
-            var refreshedViewer = FindScrollViewer(FindingsListView);
+            var refreshedViewer = _findingsScrollViewer ??= FindScrollViewer(FindingsListView);
             refreshedViewer?.ScrollToVerticalOffset(0);
             RootScrollViewer?.ScrollToVerticalOffset(0);
         }, DispatcherPriority.Render);
@@ -154,6 +155,7 @@ public partial class DeepScanPage : Page, INavigationAware
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _viewModel.PageChanged -= OnPageChanged;
+        _findingsScrollViewer = null;
         Unloaded -= OnUnloaded;
     }
 
