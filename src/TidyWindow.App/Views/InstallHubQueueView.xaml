@@ -156,11 +156,12 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Grid x:Name="QueuePrimaryColumnHost"
-                          Grid.Row="0">
-                        <Border Style="{StaticResource InstallCardBorderStyle}"
-                                Padding="24"
-                                MinHeight="620">
+                                        <Grid x:Name="QueuePrimaryColumnHost"
+                                                    Grid.Row="0">
+                                                <Border x:Name="QueueTimelineCard"
+                                                                Style="{StaticResource InstallCardBorderStyle}"
+                                                                Padding="24"
+                                                                MinHeight="560">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -195,8 +196,9 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <Grid Grid.Row="1"
-                                      MinHeight="420">
+                                  <Grid x:Name="QueueTimelineListHost"
+                                      Grid.Row="1"
+                                      MinHeight="340">
                                     <ItemsControl ItemsSource="{StaticResource InstallHubQueueSkeletonItems}"
                                                   ItemTemplate="{StaticResource InstallHubQueueSkeletonTemplate}">
                                         <ItemsControl.Style>

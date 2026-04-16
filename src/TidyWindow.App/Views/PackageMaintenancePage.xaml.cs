@@ -16,12 +16,20 @@ namespace TidyWindow.App.Views;
 
 public partial class PackageMaintenancePage : Page, INavigationAware
 {
+    private const double CompactMarginBreakpoint = 980d;
+    private const double CompactQueueHeightBreakpoint = 760d;
+    private const double MediumQueueHeightBreakpoint = 920d;
+
     private readonly PackageMaintenanceViewModel _viewModel;
     private WpfListView? _packagesListView;
     private bool _disposed;
     private readonly Controls.PackageMaintenancePivotTitleBar _titleBar;
     private MainViewModel? _shellViewModel;
     private WpfNavigationService? _navigationService;
+    private readonly Thickness _compactContentMargin = new(20);
+    private Thickness _defaultContentMargin = new(32);
+    private bool _contentMarginCaptured;
+    private bool _responsiveLayoutAttached;
 
     public PackageMaintenancePage(PackageMaintenanceViewModel viewModel)
     {
@@ -43,6 +51,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         Loaded -= OnPageLoaded;
         AttachTitleBar();
         EnsureScrollHandlers();
+        EnsureResponsiveLayout();
         if (_viewModel.HasLoadedInitialData)
             return;
         if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
@@ -93,6 +102,8 @@ public partial class PackageMaintenancePage : Page, INavigationAware
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
+        DetachResponsiveLayout();
+
         if (_disposed)
         {
             return;
@@ -116,6 +127,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         if (IsVisible)
         {
             AttachTitleBar();
+            EnsureResponsiveLayout();
         }
     }
 
@@ -132,6 +144,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         Unloaded += OnPageUnloaded;
         _disposed = false;
         EnsureScrollHandlers();
+        EnsureResponsiveLayout();
         AttachTitleBar();
     }
 
@@ -203,6 +216,114 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         }
 
         control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+    }
+
+    private void EnsureResponsiveLayout()
+    {
+        if (ContentScrollViewer is null)
+        {
+            return;
+        }
+
+        if (!_contentMarginCaptured)
+        {
+            _defaultContentMargin = ContentScrollViewer.Margin;
+            _contentMarginCaptured = true;
+        }
+
+        ApplyResponsiveLayout(ContentScrollViewer.ActualWidth, ContentScrollViewer.ActualHeight);
+
+        if (_responsiveLayoutAttached)
+        {
+            return;
+        }
+
+        ContentScrollViewer.SizeChanged += OnContentScrollViewerSizeChanged;
+        _responsiveLayoutAttached = true;
+    }
+
+    private void DetachResponsiveLayout()
+    {
+        if (!_responsiveLayoutAttached || ContentScrollViewer is null)
+        {
+            return;
+        }
+
+        ContentScrollViewer.SizeChanged -= OnContentScrollViewerSizeChanged;
+        _responsiveLayoutAttached = false;
+    }
+
+    private void OnContentScrollViewerSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged || e.HeightChanged)
+        {
+            ApplyResponsiveLayout(e.NewSize.Width, e.NewSize.Height);
+        }
+    }
+
+    private void ApplyResponsiveLayout(double viewportWidth, double viewportHeight)
+    {
+        if (ContentScrollViewer is null)
+        {
+            return;
+        }
+
+        if (double.IsNaN(viewportWidth) || viewportWidth <= 0)
+        {
+            viewportWidth = ContentScrollViewer.ActualWidth;
+        }
+
+        if (!double.IsNaN(viewportWidth) && viewportWidth > 0)
+        {
+            var targetMargin = viewportWidth <= CompactMarginBreakpoint
+                ? _compactContentMargin
+                : _defaultContentMargin;
+
+            if (!ThicknessEquals(ContentScrollViewer.Margin, targetMargin))
+            {
+                ContentScrollViewer.Margin = targetMargin;
+            }
+        }
+
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            viewportHeight = ContentScrollViewer.ActualHeight;
+        }
+
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            return;
+        }
+
+        var queueCardMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
+            ? 430d
+            : viewportHeight <= MediumQueueHeightBreakpoint
+                ? 520d
+                : 620d;
+
+        var queueListMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
+            ? 220d
+            : viewportHeight <= MediumQueueHeightBreakpoint
+                ? 300d
+                : 380d;
+
+        if (Math.Abs(MaintenanceQueueCard.MinHeight - queueCardMinHeight) > 0.1)
+        {
+            MaintenanceQueueCard.MinHeight = queueCardMinHeight;
+        }
+
+        if (Math.Abs(MaintenanceQueueListRegion.MinHeight - queueListMinHeight) > 0.1)
+        {
+            MaintenanceQueueListRegion.MinHeight = queueListMinHeight;
+        }
+    }
+
+    private static bool ThicknessEquals(Thickness left, Thickness right)
+    {
+        return Math.Abs(left.Left - right.Left) < 0.1
+            && Math.Abs(left.Top - right.Top) < 0.1
+            && Math.Abs(left.Right - right.Right) < 0.1
+            && Math.Abs(left.Bottom - right.Bottom) < 0.1;
     }
 
     private void BubbleScroll(MouseWheelEventArgs e, DependencyObject source)
@@ -308,6 +429,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
 
         AttachTitleBar();
         EnsureScrollHandlers();
+        EnsureResponsiveLayout();
     }
 
     /// <inheritdoc />
@@ -316,5 +438,6 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         // Clear title bar content
         _shellViewModel?.SetTitleBarContent(null);
         DetachScrollHandlers();
+        DetachResponsiveLayout();
     }
 }

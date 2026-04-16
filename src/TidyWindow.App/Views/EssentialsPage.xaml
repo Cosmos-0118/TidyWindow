@@ -881,15 +881,32 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource EssentialsCardStyle}" Margin="{StaticResource CardSpacing}">
-                                <Grid>
+                            <Border x:Name="EssentialsQueueTimelineCard"
+                                    Style="{StaticResource EssentialsCardStyle}"
+                                    Margin="{StaticResource CardSpacing}"
+                                    MinHeight="520">
+                                <Grid x:Name="EssentialsQueueOperationsRegion"
+                                      MinHeight="320">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
 
+                                    <StackPanel Grid.Row="0">
+                                        <TextBlock Text="Queue timeline"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Latest operations appear first. Review status, open transcripts, or cancel active tasks."
+                                                   Margin="0,4,0,0"
+                                                   Foreground="#9DB4D3"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
                                     <ListView x:Name="OperationsListView"
                                               Grid.Row="1"
+                                              Margin="0,14,0,0"
                                               ItemsSource="{Binding Operations}"
                                               SelectedItem="{Binding SelectedOperation, Mode=TwoWay}"
                                               Background="Transparent"
@@ -902,18 +919,18 @@
                                               VirtualizingStackPanel.ScrollUnit="Pixel">
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
-                                                <Setter Property="Margin" Value="0,0,0,18"/>
+                                                <Setter Property="Margin" Value="0,0,0,10"/>
                                                 <Setter Property="Padding" Value="0"/>
                                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             </Style>
                                         </ListView.ItemContainerStyle>
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#0F2137"
-                                                        BorderBrush="#1E3454"
+                                                <Border Background="#1E293B"
+                                                        BorderBrush="#334155"
                                                         BorderThickness="1"
                                                         CornerRadius="14"
-                                                        Padding="18">
+                                                        Padding="16">
                                                     <StackPanel>
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
@@ -1066,7 +1083,7 @@
                                     <TextBlock Grid.Row="1"
                                                Text="Nothing in the queue yet. Queue a task to see live output."
                                                HorizontalAlignment="Center"
-                                               Margin="0,24,0,0"
+                                               Margin="0,20,0,0"
                                                Foreground="#7A869C"
                                                FontSize="12">
                                         <TextBlock.Style>
