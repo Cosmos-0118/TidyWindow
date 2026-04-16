@@ -273,13 +273,13 @@
                                                        Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"/>
-                                            <TextBlock Text="Filter by package name, identifier, or summary"
+                                            <TextBlock Text="Smart search supports manager:, tag:, id:, name:, summary:, and quoted phrases"
                                                        Foreground="{StaticResource InstallTextCaptionBrush}"
                                                        FontSize="11"
                                                        Margin="0,2,0,10"/>
                                             <TextBox Style="{StaticResource App.TextBoxStyle}"
-                                                     Tag="Search package name, identifier, or summary"
-                                                     ToolTip="Filter by package name, identifier, or summary"
+                                                     Tag="Try: manager:winget tag:editor &quot;visual studio&quot;"
+                                                     ToolTip="Examples: manager:winget tag:cli name:terminal id:microsoft.terminal"
                                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                     </Border>
