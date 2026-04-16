@@ -3,155 +3,197 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:controls="clr-namespace:TidyWindow.App.Views"
-      xmlns:ux="clr-namespace:TidyWindow.App.Controls"
       mc:Ignorable="d"
       Title="Reset Rescue"
       Background="Transparent"
       FontFamily="Segoe UI Variable Text"
-    TextOptions.TextFormattingMode="Ideal"
+      TextOptions.TextFormattingMode="Display"
       TextOptions.TextRenderingMode="ClearType"
       TextOptions.TextHintingMode="Fixed"
       UseLayoutRounding="True"
       SnapsToDevicePixels="True">
+
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-        <SolidColorBrush x:Key="ResetSurfaceBrush" Color="#060F1F"/>
-        <LinearGradientBrush x:Key="ResetCardBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#111F3A" Offset="0"/>
-            <GradientStop Color="#0B1628" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="ResetCardBorderBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#1D3B67" Offset="0"/>
-            <GradientStop Color="#123050" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="ResetPrimaryActionBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#5DF2BC" Offset="0"/>
-            <GradientStop Color="#2ED4FF" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="ResetPrimaryActionHoverBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#58E396" Offset="0"/>
-            <GradientStop Color="#1BB4FF" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="ResetSecondaryActionBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#1D335A" Offset="0"/>
-            <GradientStop Color="#162540" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="ResetSecondaryActionHoverBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#234070" Offset="0"/>
-            <GradientStop Color="#1F3A63" Offset="1"/>
-        </LinearGradientBrush>
-        <SolidColorBrush x:Key="ResetMutedBrush" Color="#8CA3C8"/>
-        <SolidColorBrush x:Key="ResetStrongBrush" Color="#E9F2FF"/>
 
-        <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource ResetCardBackgroundBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource ResetCardBorderBrush}"/>
+        <LinearGradientBrush x:Key="RescuePageBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#05101D" Offset="0"/>
+            <GradientStop Color="#081829" Offset="0.55"/>
+            <GradientStop Color="#0A1D33" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="RescueCardBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0C1A2E" Offset="0"/>
+            <GradientStop Color="#091426" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="RescueCardBorderBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#24405F" Offset="0"/>
+            <GradientStop Color="#17314D" Offset="1"/>
+        </LinearGradientBrush>
+
+        <SolidColorBrush x:Key="RescueTitleBrush" Color="#F1F5FF"/>
+        <SolidColorBrush x:Key="RescueTextBrush" Color="#D5E2F5"/>
+        <SolidColorBrush x:Key="RescueMutedBrush" Color="#93A8C6"/>
+        <SolidColorBrush x:Key="RescueAccentBrush" Color="#22D3EE"/>
+        <SolidColorBrush x:Key="RescueSafeBrush" Color="#34D399"/>
+        <SolidColorBrush x:Key="RescueWarnBrush" Color="#FBBF24"/>
+        <SolidColorBrush x:Key="RescueDangerBrush" Color="#F87171"/>
+
+        <DropShadowEffect x:Key="RescueCardShadow" Color="#01060F" BlurRadius="22" ShadowDepth="0" Opacity="0.45"/>
+
+        <Style x:Key="RescueCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource RescueCardBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource RescueCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="18"/>
-            <Setter Property="Margin" Value="0,0,0,18"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#01060C" BlurRadius="18" ShadowDepth="0" Opacity="0.55"/>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="Effect" Value="{StaticResource RescueCardShadow}"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
         </Style>
 
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#041217"/>
-            <Setter Property="Background" Value="{StaticResource ResetPrimaryActionBrush}"/>
+        <Style x:Key="RescueSectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource RescueTitleBrush}"/>
+        </Style>
+
+        <Style x:Key="RescueHintStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource RescueMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="RescueOptionalMessageStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource RescueWarnBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+                <Trigger Property="Text" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RescuePrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#06111B"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MinWidth" Value="132"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#34D399" Offset="0"/>
+                        <GradientStop Color="#22D3EE" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root" CornerRadius="10" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ResetPrimaryActionHoverBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Background" Value="#103041"/>
-                                <Setter Property="Foreground" Value="#5C708E"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-            <Setter Property="Foreground" Value="#E5EEFF"/>
-            <Setter Property="Background" Value="{StaticResource ResetSecondaryActionBrush}"/>
-            <Setter Property="BorderBrush" Value="#2B4A79"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ResetSecondaryActionHoverBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Background" Value="#0E1728"/>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
-                                <Setter Property="Foreground" Value="#61708B"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="GhostButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-            <Setter Property="Foreground" Value="#B5C8E6"/>
-            <Setter Property="Background" Value="#0E1728"/>
-            <Setter Property="BorderBrush" Value="#20314D"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-
-        <Style x:Key="SecondaryToggleButtonStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#E5EEFF"/>
-            <Setter Property="Background" Value="{StaticResource ResetSecondaryActionBrush}"/>
-            <Setter Property="BorderBrush" Value="#2B4A79"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Root"
-                                CornerRadius="10"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ResetSecondaryActionHoverBrush}"/>
+                                <Setter TargetName="Root" Property="Opacity" Value="0.92"/>
                             </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ResetPrimaryActionBrush}"/>
-                                <Setter Property="Foreground" Value="#041217"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.84"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#11273D"/>
+                                <Setter Property="Foreground" Value="#5B6E89"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RescueSecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#E1ECFF"/>
+            <Setter Property="Background" Value="#132843"/>
+            <Setter Property="BorderBrush" Value="#26486C"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#18345A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#102744"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Root" Property="Background" Value="#0E1728"/>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1D2D44"/>
                                 <Setter Property="Foreground" Value="#61708B"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RescueDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource RescueSecondaryButtonStyle}">
+            <Setter Property="Foreground" Value="#FEE2E2"/>
+            <Setter Property="Background" Value="#3F1218"/>
+            <Setter Property="BorderBrush" Value="#8C1D2A"/>
+        </Style>
+
+        <Style x:Key="RescueModeToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#DDE9FB"/>
+            <Setter Property="Background" Value="#12253F"/>
+            <Setter Property="BorderBrush" Value="#25486D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="MinWidth" Value="150"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#18345A"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#203A61"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#39BDF8"/>
+                                <Setter Property="Foreground" Value="#F8FCFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -160,198 +202,462 @@
         </Style>
     </Page.Resources>
 
-    <Grid Background="{StaticResource ResetSurfaceBrush}" UseLayoutRounding="True" SnapsToDevicePixels="True">
-        <Grid x:Name="ContentHost" UseLayoutRounding="True" SnapsToDevicePixels="True">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Opacity" Value="1"/>
-                    <Setter Property="IsHitTestVisible" Value="True"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                            <Setter Property="IsHitTestVisible" Value="False"/>
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0.35" Duration="0:0:0.25"/>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.EnterActions>
-                            <DataTrigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25"/>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.ExitActions>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
+    <Grid Background="{StaticResource RescuePageBackgroundBrush}">
 
-            <ScrollViewer Margin="32" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True" PanningMode="VerticalOnly">
-                <Grid MinWidth="760">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+        <ScrollViewer Margin="32"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="True"
+                      PanningMode="VerticalOnly">
+            <Grid MinWidth="860">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                    <controls:PageTitleBar Grid.Row="0"
-                                            Title="Reset rescue"
-                                            Subtitle="Back up user files and app data before a reset so you can restore with confidence."
-                                            IconGlyph="🛟"
-                                            Margin="0,0,0,22"/>
+                <Border Grid.Row="0" Style="{StaticResource RescueCardStyle}" Margin="0,0,0,18" Padding="28,24">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="320"/>
+                        </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="20,18">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="3*"/>
-                                <ColumnDefinition Width="2*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Status" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                                <TextBlock Text="{Binding Status}" Foreground="{StaticResource ResetStrongBrush}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,6"/>
-                                <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding ValidationSummary}" Foreground="#FCA5A5" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                <TextBlock Text="{Binding CapacitySummary}" Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Last archive" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                                <TextBlock Text="{Binding LastArchive}" Foreground="{StaticResource ResetStrongBrush}" TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="14,12">
-                        <DockPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <ToggleButton Style="{StaticResource SecondaryToggleButtonStyle}" Content="Backup" IsChecked="{Binding IsBackupMode}" Command="{Binding SwitchToBackupCommand}" Margin="0,0,10,0" MinWidth="120"/>
-                                <ToggleButton Style="{StaticResource SecondaryToggleButtonStyle}" Content="Restore" IsChecked="{Binding IsRestoreMode}" Command="{Binding SwitchToRestoreCommand}" Margin="0,0,10,0" MinWidth="120"/>
-                                <Button Style="{StaticResource SecondaryButtonStyle}"
-                                        Content="Info"
-                                        Command="{Binding OpenInfoCommand}"
-                                        Padding="14,8"
-                                        MinWidth="96"/>
-                            </StackPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="Choose a flow" Foreground="#8CA3C8" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                        </DockPanel>
-                    </Border>
-
-                    <StackPanel Grid.Row="3" Margin="0,0,0,12">
-                        <!-- Backup inputs -->
-                        <Border Style="{StaticResource CardStyle}" Padding="20,18" Visibility="{Binding IsBackupMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="Backup destination" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
-                                <DockPanel LastChildFill="True" VerticalAlignment="Center" Margin="0,6,0,6">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Browse" Click="OnBrowseDestination" IsEnabled="{Binding CanStart}" Margin="10,0,0,0"/>
-                                    <TextBox MinWidth="320" Tag="Choose backup destination path" Text="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Archive output path"/>
-                                </DockPanel>
-                                <TextBlock Text="Pick where to save your .rrarchive. Refresh inventory to discover users and apps." Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
-                                <Button Style="{StaticResource GhostButtonStyle}" Content="Refresh inventory" Command="{Binding RefreshInventoryCommand}" IsEnabled="{Binding CanStart}" Width="160" Margin="0,8,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Restore inputs -->
-                        <Border Style="{StaticResource CardStyle}" Padding="20,18" Visibility="{Binding IsRestoreMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="Restore archive" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
-                                <DockPanel LastChildFill="True" VerticalAlignment="Center" Margin="0,6,0,6">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Choose file" Click="OnBrowseArchive" IsEnabled="{Binding CanStart}" Margin="10,0,0,0"/>
-                                    <TextBox MinWidth="320" Tag="Choose .rrarchive file path" Text="{Binding RestoreArchivePath, UpdateSourceTrigger=PropertyChanged}" ToolTip=".rrarchive path for restore"/>
-                                </DockPanel>
-                                <TextBlock Text="Restores go to original paths by default. Set a drive letter (e.g. D:\\) to redirect everything to another volume." Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
-
-                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="Conflict handling" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,8,0"/>
-                                    <ComboBox Width="170" ItemsSource="{Binding ConflictStrategies}" SelectedItem="{Binding RestoreConflictStrategy, Mode=TwoWay}" IsEnabled="{Binding CanStart}">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}"/>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="52" Height="52" CornerRadius="14" Background="#163358" Margin="0,0,14,0">
+                                    <TextBlock Text="🛟" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="Reset Rescue" Style="{StaticResource RescueSectionTitleStyle}" FontSize="28"/>
+                                    <TextBlock Text="Secure your apps and user data before reset, then restore in a controlled flow."
+                                               Foreground="{StaticResource RescueTextBrush}"
+                                               FontSize="14"
+                                               Margin="0,6,0,0"/>
                                 </StackPanel>
-
-                                <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="Volume override (optional)" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold"/>
-                                    <TextBox Margin="0,6,0,4" Tag="Optional: e.g. D:\\" Text="{Binding RestoreVolumeOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Set a drive or root folder to restore into (e.g. D:\\). Leave blank to use original locations."/>
-                                </StackPanel>
-
-                                <CheckBox Content="Restore HKCU registry (advanced)" IsChecked="{Binding RestoreRegistryEnabled}" Margin="0,12,0,0" Foreground="{StaticResource ResetMutedBrush}"/>
                             </StackPanel>
-                        </Border>
-                    </StackPanel>
 
-                    <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="22,20" Visibility="{Binding IsBackupMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.2*"/>
-                                <ColumnDefinition Width="1.1*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Margin="0,0,18,0">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
-                                    <TextBlock Text="Apps" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
-                                    <Ellipse Width="6" Height="6" Fill="#5DF2BC" Margin="8,4,0,0"/>
-                                </StackPanel>
-                                <Border Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="12" Padding="12" SnapsToDevicePixels="True">
-                                    <StackPanel>
-                                        <TextBlock Text="Selected apps" Foreground="#8CA3C8" FontSize="12"/>
-                                        <TextBlock Text="{Binding SelectedAppsPreview}" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                        <TextBlock Text="{Binding SelectedAppCount, StringFormat={}{0} selected}" Foreground="#8CA3C8" FontSize="12" Margin="0,4,0,0"/>
-                                        <Button Content="Select apps" Command="{Binding OpenAppPickerCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,10,0,0" Padding="12,6" HorizontalAlignment="Left"/>
+                            <StackPanel Orientation="Horizontal" Margin="66,18,0,0">
+                                <Border Background="#0F2A45" BorderBrush="#214A6E" BorderThickness="1" CornerRadius="12" Padding="12,8" Margin="0,0,10,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Mode" Foreground="{StaticResource RescueMutedBrush}" FontSize="12" Margin="0,0,8,0"/>
+                                        <TextBlock Foreground="{StaticResource RescueAccentBrush}" FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Restore"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsBackupMode}" Value="True">
+                                                            <Setter Property="Text" Value="Backup"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#0F2A45" BorderBrush="#214A6E" BorderThickness="1" CornerRadius="12" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Inventory" Foreground="{StaticResource RescueMutedBrush}" FontSize="12" Margin="0,0,8,0"/>
+                                        <TextBlock Text="{Binding Apps.Count, StringFormat={}{0} apps}" Foreground="{StaticResource RescueTextBrush}"/>
+                                        <TextBlock Text="  ·  " Foreground="{StaticResource RescueMutedBrush}"/>
+                                        <TextBlock Text="{Binding Folders.Count, StringFormat={}{0} folders}" Foreground="{StaticResource RescueTextBrush}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
+                        </StackPanel>
 
-                            <StackPanel Grid.Column="1">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
-                                    <TextBlock Text="User folders" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
-                                    <Ellipse Width="6" Height="6" Fill="#5DF2BC" Margin="8,4,0,0"/>
-                                </StackPanel>
-                                <Border Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="12" Padding="12" SnapsToDevicePixels="True">
-                                    <StackPanel>
-                                        <TextBlock Text="Selected folders" Foreground="#8CA3C8" FontSize="12"/>
-                                        <TextBlock Text="{Binding SelectedFoldersPreview}" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                        <TextBlock Text="{Binding SelectedFolderCount, StringFormat={}{0} selected}" Foreground="#8CA3C8" FontSize="12" Margin="0,4,0,0"/>
-                                        <Button Content="Select folders" Command="{Binding OpenFolderPickerCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,10,0,0" Padding="12,6" HorizontalAlignment="Left"/>
-                                    </StackPanel>
+                        <Border Grid.Column="1" Background="#0E2038" BorderBrush="#203F62" BorderThickness="1" CornerRadius="14" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Last archive" Foreground="{StaticResource RescueMutedBrush}" FontSize="12"/>
+                                <TextBlock Text="{Binding LastArchive, TargetNullValue=No archive created yet}"
+                                           Foreground="{StaticResource RescueTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"/>
+                                <TextBlock Text="Use Backup mode first, then run Restore mode after reinstalling apps."
+                                           Foreground="{StaticResource RescueMutedBrush}"
+                                           Margin="0,12,0,0"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource RescueCardStyle}" Margin="0,0,0,18">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Current status" Foreground="{StaticResource RescueMutedBrush}" FontSize="12"/>
+                                <TextBlock Text="{Binding Status}"
+                                           Foreground="{StaticResource RescueTitleBrush}"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Margin="0,6,0,2"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource RescueMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Border Background="#0D2A2D" BorderBrush="#1F5B62" BorderThickness="1" CornerRadius="10" Padding="10,6" Margin="0,0,8,0">
+                                    <TextBlock Text="{Binding ProgressPercentText}" Foreground="{StaticResource RescueAccentBrush}" FontWeight="SemiBold"/>
+                                </Border>
+                                <Border Background="#1F2B12" BorderBrush="#5F5A22" BorderThickness="1" CornerRadius="10" Padding="10,6">
+                                    <TextBlock Text="{Binding ProgressEta}" Foreground="{StaticResource RescueWarnBrush}"/>
                                 </Border>
                             </StackPanel>
                         </Grid>
+
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding ValidationSummary}"
+                                   Style="{StaticResource RescueOptionalMessageStyle}"
+                                   Foreground="{StaticResource RescueDangerBrush}"
+                                   Margin="0,10,0,0"/>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="{Binding CapacitySummary}"
+                                   Style="{StaticResource RescueOptionalMessageStyle}"
+                                   Foreground="{StaticResource RescueWarnBrush}"
+                                   Margin="0,6,0,0"/>
+
+                        <Border Grid.RowSpan="3"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Bottom"
+                                Margin="0,0,0,-2"
+                                Height="6"
+                                CornerRadius="3"
+                                Background="#10243A"
+                                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ProgressBar IsIndeterminate="True"
+                                         Height="6"
+                                         Background="Transparent"
+                                         Foreground="{StaticResource RescueAccentBrush}"
+                                         BorderThickness="0"/>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource RescueCardStyle}" Margin="0,0,0,18" Padding="18,14">
+                    <DockPanel LastChildFill="False">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                            <ToggleButton Content="Backup flow"
+                                          Style="{StaticResource RescueModeToggleStyle}"
+                                          IsChecked="{Binding IsBackupMode}"
+                                          Command="{Binding SwitchToBackupCommand}"
+                                          Margin="0,0,10,0"/>
+                            <ToggleButton Content="Restore flow"
+                                          Style="{StaticResource RescueModeToggleStyle}"
+                                          IsChecked="{Binding IsRestoreMode}"
+                                          Command="{Binding SwitchToRestoreCommand}"/>
+                        </StackPanel>
+
+                        <Button DockPanel.Dock="Right"
+                                Style="{StaticResource RescueSecondaryButtonStyle}"
+                                Content="Guidance"
+                                Command="{Binding OpenInfoCommand}"
+                                MinWidth="124"/>
+                    </DockPanel>
+                </Border>
+
+                <Grid Grid.Row="3" Margin="0,0,0,18" Visibility="{Binding IsBackupMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.25*"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource RescueCardStyle}" Margin="0,0,10,0">
+                        <StackPanel>
+                            <TextBlock Text="Backup destination" Style="{StaticResource RescueSectionTitleStyle}" FontSize="20"/>
+                            <TextBlock Text="Choose where the archive is written. If you provide a folder, Reset Rescue will generate a timestamped .rrarchive file."
+                                       Style="{StaticResource RescueHintStyle}"
+                                       Margin="0,6,0,14"/>
+
+                            <TextBlock Text="Destination path" Foreground="{StaticResource RescueTextBrush}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Folder or full archive path"/>
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource RescueSecondaryButtonStyle}"
+                                        Content="Browse"
+                                        Click="OnBrowseDestination"
+                                        IsEnabled="{Binding CanStart}"
+                                        Margin="10,0,0,0"/>
+                            </Grid>
+
+                            <Border Background="#0F2238" BorderBrush="#1E4164" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Inventory refresh" Foreground="{StaticResource RescueTextBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Refresh to discover local users, known folders, and app data sources before selecting what to protect."
+                                               Style="{StaticResource RescueHintStyle}"
+                                               Margin="0,6,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource RescueSecondaryButtonStyle}"
+                                                Content="Refresh inventory"
+                                                Command="{Binding RefreshInventoryCommand}"
+                                                IsEnabled="{Binding CanStart}"
+                                                MinWidth="160"/>
+                                        <TextBlock Text="Use this after app installs/uninstalls."
+                                                   Style="{StaticResource RescueHintStyle}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Border>
 
-                    <Border Grid.Row="5" Style="{StaticResource CardStyle}" Padding="16,14" Margin="0,0,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsBackupMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <Button Style="{StaticResource PrimaryButtonStyle}" Content="Start backup" Command="{Binding StartBackupCommand}" IsEnabled="{Binding CanStart}" Margin="0,0,12,0"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsRestoreMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <Button Style="{StaticResource PrimaryButtonStyle}" Content="Start restore" Command="{Binding StartRestoreCommand}" IsEnabled="{Binding CanStart}" Margin="0,0,12,0"/>
-                            </StackPanel>
-                            <Button Style="{StaticResource GhostButtonStyle}" Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"/>
+                    <Border Grid.Column="1" Style="{StaticResource RescueCardStyle}" Margin="10,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Selection and sources" Style="{StaticResource RescueSectionTitleStyle}" FontSize="20"/>
+                            <TextBlock Text="Use app picker for app data, then add folders/files directly from Explorer." Style="{StaticResource RescueHintStyle}" Margin="0,6,0,14"/>
+
+                            <Border Background="#0D1F34" BorderBrush="#1B3B5B" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Apps" Foreground="{StaticResource RescueMutedBrush}" FontSize="12"/>
+                                        <TextBlock Text="{Binding SelectedAppsPreview}" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                        <TextBlock Text="{Binding SelectedAppCount, StringFormat={}{0} selected}" Foreground="{StaticResource RescueMutedBrush}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="Choose apps"
+                                            Style="{StaticResource RescuePrimaryButtonStyle}"
+                                            Command="{Binding OpenAppPickerCommand}"
+                                            VerticalAlignment="Top"
+                                            Margin="12,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Background="#0D1F34" BorderBrush="#1B3B5B" BorderThickness="1" CornerRadius="12" Padding="14">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="Explorer sources" Foreground="{StaticResource RescueMutedBrush}" FontSize="12"/>
+                                            <TextBlock Text="{Binding SelectedFoldersPreview}" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            <TextBlock Text="{Binding SelectedFolderCount, StringFormat={}{0} selected}" Foreground="{StaticResource RescueMutedBrush}" Margin="0,4,0,0"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                            <Button Content="Choose folders/files"
+                                                    Style="{StaticResource RescuePrimaryButtonStyle}"
+                                                    Click="OnChooseSources"
+                                                    Margin="0,0,8,0"/>
+                                            <Button Content="Clear"
+                                                    Style="{StaticResource RescueSecondaryButtonStyle}"
+                                                    Command="{Binding ClearFolderSelectionCommand}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Border Grid.Row="1" Background="#0A1A2E" BorderBrush="#1A3655" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,12,0,0" MinHeight="110">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="210">
+                                            <ItemsControl ItemsSource="{Binding Folders}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#112843"
+                                                                BorderBrush="#244A70"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="8"
+                                                                Margin="0,0,0,8"
+                                                                Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <StackPanel>
+                                                                <CheckBox Content="{Binding Display}"
+                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                          Foreground="{StaticResource RescueTitleBrush}"
+                                                                          FontWeight="SemiBold"/>
+                                                                <TextBlock Text="{Binding Path}" Foreground="{StaticResource RescueMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </Grid>
-            </ScrollViewer>
-        </Grid>
+
+                <Grid Grid.Row="4" Margin="0,0,0,18" Visibility="{Binding IsRestoreMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.2*"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource RescueCardStyle}" Margin="0,0,10,0">
+                        <StackPanel>
+                            <TextBlock Text="Restore source and behavior" Style="{StaticResource RescueSectionTitleStyle}" FontSize="20"/>
+                            <TextBlock Text="Choose a valid archive, then define conflict behavior and optional volume override."
+                                       Style="{StaticResource RescueHintStyle}"
+                                       Margin="0,6,0,14"/>
+
+                            <TextBlock Text="Archive path" Foreground="{StaticResource RescueTextBrush}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding RestoreArchivePath, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Path to a .rrarchive file"/>
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource RescueSecondaryButtonStyle}"
+                                        Content="Choose file"
+                                        Click="OnBrowseArchive"
+                                        IsEnabled="{Binding CanStart}"
+                                        Margin="10,0,0,0"/>
+                            </Grid>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Conflict strategy" Foreground="{StaticResource RescueTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding ConflictStrategies}"
+                                          SelectedItem="{Binding RestoreConflictStrategy, Mode=TwoWay}"
+                                          IsEnabled="{Binding CanStart}"/>
+                            </Grid>
+
+                            <TextBlock Text="Volume override (optional)" Foreground="{StaticResource RescueTextBrush}" FontWeight="SemiBold" Margin="0,14,0,6"/>
+                            <TextBox Text="{Binding RestoreVolumeOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Example: D:\\"/>
+                            <TextBlock Text="Leave blank to restore into original locations from manifest."
+                                       Style="{StaticResource RescueHintStyle}"
+                                       Margin="0,6,0,0"/>
+
+                            <CheckBox Content="Restore HKCU registry keys (advanced)"
+                                      IsChecked="{Binding RestoreRegistryEnabled}"
+                                      Foreground="{StaticResource RescueTextBrush}"
+                                      Margin="0,14,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource RescueCardStyle}" Margin="10,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Path remapping" Style="{StaticResource RescueSectionTitleStyle}" FontSize="20"/>
+                            <TextBlock Text="Use remaps when usernames, profile roots, or drive letters changed after reset."
+                                       Style="{StaticResource RescueHintStyle}"
+                                       Margin="0,6,0,14"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Button Content="Auto-map" Command="{Binding AutoMapPathsCommand}" Style="{StaticResource RescueSecondaryButtonStyle}" Margin="0,0,10,0"/>
+                                <Button Content="Add mapping" Command="{Binding AddPathMappingCommand}" Style="{StaticResource RescueSecondaryButtonStyle}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding PathMappingHint}" Style="{StaticResource RescueOptionalMessageStyle}" Foreground="{StaticResource RescueMutedBrush}" Margin="0,0,0,10"/>
+
+                            <Border Background="#0D1F34" BorderBrush="#1B3B5B" BorderThickness="1" CornerRadius="12" Padding="10" MinHeight="180">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="300">
+                                    <ItemsControl ItemsSource="{Binding PathMappings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#10263F" BorderBrush="#22466C" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                            <TextBlock Text="From" Foreground="{StaticResource RescueMutedBrush}" FontSize="11" Margin="0,0,0,4"/>
+                                                            <TextBox Text="{Binding From, UpdateSourceTrigger=PropertyChanged}" ToolTip="Original path"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                            <TextBlock Text="To" Foreground="{StaticResource RescueMutedBrush}" FontSize="11" Margin="0,0,0,4"/>
+                                                            <TextBox Text="{Binding To, UpdateSourceTrigger=PropertyChanged}" ToolTip="Destination path"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="2"
+                                                                Content="Remove"
+                                                                Style="{StaticResource RescueDangerButtonStyle}"
+                                                                Command="{Binding DataContext.RemovePathMappingCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                CommandParameter="{Binding}"
+                                                                VerticalAlignment="Bottom"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="5" Style="{StaticResource RescueCardStyle}" Padding="16,14" Margin="0,0,0,22">
+                    <DockPanel LastChildFill="False">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Visibility="{Binding IsBackupMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button Content="Start backup"
+                                    Style="{StaticResource RescuePrimaryButtonStyle}"
+                                    Command="{Binding StartBackupCommand}"
+                                    IsEnabled="{Binding CanStart}"
+                                    Margin="0,0,10,0"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Visibility="{Binding IsRestoreMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button Content="Start restore"
+                                    Style="{StaticResource RescuePrimaryButtonStyle}"
+                                    Command="{Binding StartRestoreCommand}"
+                                    IsEnabled="{Binding CanStart}"
+                                    Margin="0,0,10,0"/>
+                        </StackPanel>
+
+                        <Button DockPanel.Dock="Right"
+                                Content="Cancel"
+                                Style="{StaticResource RescueSecondaryButtonStyle}"
+                                Command="{Binding CancelCommand}"
+                                IsEnabled="{Binding CanCancel}"/>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
 
         <Grid x:Name="AppsOverlay"
               Panel.ZIndex="8"
-              Background="#B0020617"
+              Background="#B2020A16"
               Visibility="{Binding IsAppPickerOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
               IsHitTestVisible="{Binding IsAppPickerOpen}">
-            <Border MaxWidth="980"
-                    MaxHeight="720"
-                    Margin="32"
-                    Padding="26"
-                    Background="#0B1729"
-                    BorderBrush="#24344F"
+            <Border MaxWidth="1060"
+                    MaxHeight="760"
+                    Margin="28"
+                    Padding="24"
+                    Background="#0A1628"
+                    BorderBrush="#253F5F"
                     BorderThickness="1"
-                    CornerRadius="22"
+                    CornerRadius="20"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
                 <Grid>
@@ -361,52 +667,54 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <DockPanel Margin="0,0,0,14">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Text="Select apps" FontSize="20" FontWeight="SemiBold" Foreground="#F8FAFC"/>
-                            <TextBlock Text="Choose which app data to include in the backup." Foreground="#9FB0C7" FontSize="12" Margin="0,6,0,0"/>
-                        </StackPanel>
-                        <DockPanel DockPanel.Dock="Right" LastChildFill="False" VerticalAlignment="Center">
-                            <Button DockPanel.Dock="Right" Content="Close" Command="{Binding CloseAppPickerCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="96" Margin="8,0,0,0"/>
-                            <Border DockPanel.Dock="Right" Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="8">
-                                <TextBox Width="240"
-                                         Height="32"
-                                         Padding="10,4"
-                                         BorderThickness="0"
-                                         Background="Transparent"
-                                         Foreground="#E9F2FF"
-                                         CaretBrush="#5DF2BC"
-                                         Tag="Search apps..."
-                                         Text="{Binding AppSearch, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Search apps"
-                                         VerticalContentAlignment="Center"/>
-                            </Border>
-                        </DockPanel>
-                    </DockPanel>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="300"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="1" Background="#0A162C" BorderBrush="#1E2F4B" BorderThickness="1" CornerRadius="12" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="Select apps" Style="{StaticResource RescueSectionTitleStyle}"/>
+                            <TextBlock Text="Choose app data to include in backup."
+                                       Style="{StaticResource RescueHintStyle}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="Search apps" Foreground="{StaticResource RescueMutedBrush}" FontSize="11" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding AppSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter by app name or type"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2"
+                                Content="Close"
+                                Command="{Binding CloseAppPickerCommand}"
+                                Style="{StaticResource RescueSecondaryButtonStyle}"
+                                Margin="10,16,0,0"/>
+                    </Grid>
+
+                    <Border Grid.Row="1" Background="#0D1D31" BorderBrush="#1C3A5A" BorderThickness="1" CornerRadius="12" Padding="12">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Apps}" SnapsToDevicePixels="True" UseLayoutRounding="True">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
+                            <ItemsControl ItemsSource="{Binding Apps}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,10" SnapsToDevicePixels="True" Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Border Background="#10253E"
+                                                BorderBrush="#22486E"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12"
+                                                Margin="0,0,0,10"
+                                                Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
-                                                <CheckBox Content="{Binding Display}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Foreground="{StaticResource ResetStrongBrush}" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Type}" Foreground="#8CA3C8" FontSize="12" Margin="0,2,0,0"/>
-                                                <ItemsControl ItemsSource="{Binding DataPaths}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <StackPanel />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
+                                                <CheckBox Content="{Binding Display}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Foreground="{StaticResource RescueTitleBrush}"
+                                                          FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Type}" Foreground="{StaticResource RescueMutedBrush}" FontSize="12" Margin="0,2,0,0"/>
+                                                <ItemsControl ItemsSource="{Binding DataPaths}" Margin="0,4,0,0">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock Text="{Binding}" Foreground="#8CA3C8" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding}" Foreground="{StaticResource RescueMutedBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
@@ -418,140 +726,87 @@
                         </ScrollViewer>
                     </Border>
 
-                    <Grid Grid.Row="2" Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding SelectedAppCount, StringFormat={}{0} selected}" Foreground="#8CA3C8" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Content="Clear" Command="{Binding ClearAppSelectionCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="100" Margin="0,0,10,0"/>
-                        <Button Grid.Column="2" Content="Close" Command="{Binding CloseAppPickerCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,8" MinWidth="120"/>
-                    </Grid>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <Grid x:Name="FoldersOverlay"
-              Panel.ZIndex="8"
-              Background="#B0020617"
-              Visibility="{Binding IsFolderPickerOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
-              IsHitTestVisible="{Binding IsFolderPickerOpen}">
-            <Border MaxWidth="980"
-                    MaxHeight="720"
-                    Margin="32"
-                    Padding="26"
-                    Background="#0B1729"
-                    BorderBrush="#24344F"
-                    BorderThickness="1"
-                    CornerRadius="22"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <DockPanel Margin="0,0,0,14">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Text="Select user folders" FontSize="20" FontWeight="SemiBold" Foreground="#F8FAFC"/>
-                            <TextBlock Text="Pick which user directories to include in the backup." Foreground="#9FB0C7" FontSize="12" Margin="0,6,0,0"/>
-                        </StackPanel>
-                        <DockPanel DockPanel.Dock="Right" LastChildFill="False" VerticalAlignment="Center">
-                            <Button DockPanel.Dock="Right" Content="Close" Command="{Binding CloseFolderPickerCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="96" Margin="8,0,0,0"/>
-                        </DockPanel>
+                    <DockPanel Grid.Row="2" Margin="0,14,0,0" LastChildFill="False">
+                        <TextBlock Text="{Binding SelectedAppCount, StringFormat={}{0} selected}"
+                                   Foreground="{StaticResource RescueMutedBrush}"
+                                   VerticalAlignment="Center"
+                                   DockPanel.Dock="Left"/>
+                        <Button Content="Clear"
+                                Command="{Binding ClearAppSelectionCommand}"
+                                Style="{StaticResource RescueSecondaryButtonStyle}"
+                                DockPanel.Dock="Right"
+                                Margin="10,0,0,0"/>
+                        <Button Content="Done"
+                                Command="{Binding CloseAppPickerCommand}"
+                                Style="{StaticResource RescuePrimaryButtonStyle}"
+                                DockPanel.Dock="Right"/>
                     </DockPanel>
-
-                    <Border Grid.Row="1" Background="#0A162C" BorderBrush="#1E2F4B" BorderThickness="1" CornerRadius="12" Padding="12">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Folders}" SnapsToDevicePixels="True" UseLayoutRounding="True">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,10" SnapsToDevicePixels="True">
-                                            <StackPanel>
-                                                <CheckBox Content="{Binding Display}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Foreground="{StaticResource ResetStrongBrush}" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Owner}" Foreground="#8CA3C8" FontSize="12" Margin="0,2,0,0"/>
-                                                <TextBlock Text="{Binding Path}" Foreground="#8CA3C8" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Border>
-
-                    <Grid Grid.Row="2" Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding SelectedFolderCount, StringFormat={}{0} selected}" Foreground="#8CA3C8" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Content="Clear" Command="{Binding ClearFolderSelectionCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="100" Margin="0,0,10,0"/>
-                        <Button Grid.Column="2" Content="Close" Command="{Binding CloseFolderPickerCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,8" MinWidth="120"/>
-                    </Grid>
                 </Grid>
             </Border>
         </Grid>
-
-        <Grid x:Name="ProgressOverlay"
+<Grid x:Name="ProgressOverlay"
               Panel.ZIndex="10"
-              Background="#B0020617"
+              Background="#B2020A16"
               Visibility="{Binding IsProgressPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
               IsHitTestVisible="{Binding IsProgressPopupOpen}">
-                <Border MinWidth="480"
-                    MaxWidth="720"
-                    MaxHeight="420"
-                    Margin="32"
+            <Border MinWidth="520"
+                    MaxWidth="760"
                     Padding="24"
-                    Background="#0B1729"
-                    BorderBrush="#24344F"
+                    Margin="32"
+                    Background="#0A1628"
+                    BorderBrush="#254361"
                     BorderThickness="1"
-                    CornerRadius="18"
+                    CornerRadius="20"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="{Binding ProgressTitle}" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC"/>
-                    <TextBlock Text="Live progress and ETA" Foreground="#9FB0C7" FontSize="12" Margin="0,4,0,10"/>
+                    <TextBlock Text="{Binding ProgressTitle}" Style="{StaticResource RescueSectionTitleStyle}"/>
+                    <TextBlock Text="Tracking progress, ETA, and size in real time."
+                               Style="{StaticResource RescueHintStyle}"
+                               Margin="0,4,0,14"/>
 
-                    <ProgressBar Height="12" Minimum="0" Maximum="1" Value="{Binding ProgressValue}" Background="#0A1222" Foreground="{StaticResource ResetPrimaryActionBrush}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBlock Text="{Binding ProgressPercentText}" Foreground="{StaticResource ResetStrongBrush}" FontWeight="SemiBold"/>
-                        <TextBlock Text="  ·  " Foreground="#8CA3C8"/>
-                        <TextBlock Text="{Binding ProgressEta}" Foreground="#8CA3C8"/>
-                        <TextBlock Text="  ·  " Foreground="#8CA3C8"/>
-                        <TextBlock Text="{Binding ProgressSize}" Foreground="#8CA3C8"/>
-                    </StackPanel>
+                    <ProgressBar Height="6" IsIndeterminate="True" Opacity="0.35" BorderThickness="0"/>
+                    <ProgressBar Height="14" Minimum="0" Maximum="1" Value="{Binding ProgressValue}" Margin="0,8,0,0" BorderThickness="0"/>
 
-                    <TextBlock Text="{Binding ProgressCurrentPath}" Foreground="#E9F2FF" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <WrapPanel Margin="0,10,0,0">
+                        <TextBlock Text="{Binding ProgressPercentText}" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold"/>
+                        <TextBlock Text="  ·  " Foreground="{StaticResource RescueMutedBrush}"/>
+                        <TextBlock Text="{Binding ProgressEta}" Foreground="{StaticResource RescueMutedBrush}"/>
+                        <TextBlock Text="  ·  " Foreground="{StaticResource RescueMutedBrush}"/>
+                        <TextBlock Text="{Binding ProgressSize}" Foreground="{StaticResource RescueMutedBrush}"/>
+                    </WrapPanel>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                        <Button Content="Cancel" Command="{Binding CancelCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="120"/>
-                    </StackPanel>
+                    <Border Background="#0E2239" BorderBrush="#224565" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,0">
+                        <TextBlock Text="{Binding ProgressCurrentPath}"
+                                   Foreground="{StaticResource RescueTextBrush}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+
+                    <DockPanel Margin="0,16,0,0" LastChildFill="False">
+                        <TextBlock Text="{Binding Status}" Foreground="{StaticResource RescueMutedBrush}" VerticalAlignment="Center" DockPanel.Dock="Left"/>
+                        <Button Content="Cancel"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource RescueDangerButtonStyle}"
+                                DockPanel.Dock="Right"/>
+                    </DockPanel>
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid x:Name="InfoOverlay"
               Panel.ZIndex="9"
-              Background="#B0020617"
+              Background="#B2020A16"
               Visibility="{Binding IsInfoPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
               IsHitTestVisible="{Binding IsInfoPopupOpen}">
-            <Border MaxWidth="920"
-                    MaxHeight="680"
-                    Margin="32"
+            <Border MaxWidth="960"
+                    MaxHeight="700"
+                    Margin="30"
                     Padding="24"
-                    Background="#0B1729"
-                    BorderBrush="#24344F"
+                    Background="#0A1628"
+                    BorderBrush="#254361"
                     BorderThickness="1"
-                    CornerRadius="18"
+                    CornerRadius="20"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
                 <Grid>
@@ -561,58 +816,58 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <DockPanel Margin="0,0,0,12">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Text="Reset rescue guidance" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC"/>
-                            <TextBlock Text="Know the right order and caveats before you restore." Foreground="#9FB0C7" FontSize="12" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </DockPanel>
+                    <StackPanel>
+                        <TextBlock Text="Reset Rescue guidance" Style="{StaticResource RescueSectionTitleStyle}"/>
+                        <TextBlock Text="Use this order to avoid data overwrite and restore conflicts."
+                                   Style="{StaticResource RescueHintStyle}"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Row="1" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="Restore order (very important)" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ResetStrongBrush}"/>
-                                <TextBlock Text="1) OS reset   2) Reinstall app   3) Restore app data   4) First launch. Never restore after first launch." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,4,0,0"/>
-                            </StackPanel>
-
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="How app data works" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ResetStrongBrush}"/>
-                                <TextBlock Text="App code and data are separate. Reinstalling brings code back; your backup brings data back." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,4,0,0"/>
-                            </StackPanel>
-
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="Key data locations" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ResetStrongBrush}"/>
-                                <StackPanel Margin="0,4,0,0">
-                                    <TextBlock Text="AppData\Roaming  – User settings (most important)" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="AppData\Local    – Caches, databases" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="AppData\LocalLow – Sandboxed apps" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="ProgramData      – Shared app data" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="App folder itself – Portable apps" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="Registry (HKCU)   – Preferences, state" Foreground="#C7D2E2"/>
-                                    <TextBlock Text="Reinstalling restores code, not these." Foreground="#8CA3C8" Margin="0,4,0,0"/>
+                            <Border Background="#0E2239" BorderBrush="#234668" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Correct restore order" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="1) Reset Windows  2) Reinstall app  3) Restore app data  4) Launch app for the first time"
+                                               Foreground="{StaticResource RescueTextBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
-                            </StackPanel>
+                            </Border>
 
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="When backup = no data loss" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ResetStrongBrush}"/>
-                                <TextBlock Text="Portable apps: back up the folder, restore it, done." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,4,0,0"/>
-                                <TextBlock Text="Traditional Win32/MSI: back up AppData (Roaming/Local) and relevant HKCU\Software keys, reinstall, restore paths." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,2,0,0"/>
-                            </StackPanel>
+                            <Border Background="#0E2239" BorderBrush="#234668" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="What backup includes" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="AppData\\Roaming, AppData\\Local, AppData\\LocalLow, ProgramData, selected app paths, and optional HKCU registry keys."
+                                               Foreground="{StaticResource RescueTextBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
 
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="When data loss risk remains" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ResetStrongBrush}"/>
-                                <TextBlock Text="Store/UWP apps: data under AppData\Local\Packages tied to package SID; treat as best-effort." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,4,0,0"/>
-                                <TextBlock Text="Cloud-synced apps: if you sign in before restore, cloud may overwrite restored local data." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,2,0,0"/>
-                                <TextBlock Text="Apps using machine-bound encryption/DRM: files may restore but stay unreadable without the original machine key." TextWrapping="Wrap" Foreground="#C7D2E2" Margin="0,2,0,0"/>
-                            </StackPanel>
+                            <Border Background="#0E2239" BorderBrush="#234668" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Known risk scenarios" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Store/UWP package data can be identity-bound. Cloud apps can overwrite local restores if you sign in before restoring."
+                                               Foreground="{StaticResource RescueTextBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#0E2239" BorderBrush="#234668" BorderThickness="1" CornerRadius="12" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Path remapping tip" Foreground="{StaticResource RescueTitleBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="If user profile name or drive letter changed after reset, add path mappings before running restore."
+                                               Foreground="{StaticResource RescueTextBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Content="Got it" Command="{Binding CloseInfoCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,8" MinWidth="120"/>
-                    </StackPanel>
+                    <DockPanel Grid.Row="2" Margin="0,14,0,0" LastChildFill="False">
+                        <Button Content="Close"
+                                Command="{Binding CloseInfoCommand}"
+                                Style="{StaticResource RescuePrimaryButtonStyle}"
+                                DockPanel.Dock="Right"/>
+                    </DockPanel>
                 </Grid>
             </Border>
         </Grid>
     </Grid>
 </Page>
+

@@ -198,7 +198,7 @@ public sealed class RestoreService
 
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                     using var payloadStream = payload.Open();
-                    using var destination = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.SequentialScan);
+                    using var destination = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
                     var verified = CopyAndVerify(payloadStream, destination, manifest.Hash.ChunkSizeBytes, entry.Hash, request.VerifyHashes, cancellationToken);
                     if (!verified)
                     {
@@ -464,6 +464,7 @@ public sealed class RestoreService
         var chunkFill = 0;
         var chunkIndex = 0;
         using var fullHasher = verify ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
+        using var chunkHasher = verify && chunkHashes.Count > 0 ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
 
         int read;
         while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
@@ -492,8 +493,8 @@ public sealed class RestoreService
                 {
                     if (chunkIndex < chunkHashes.Count)
                     {
-                        using var chunkHasher = SHA256.Create();
-                        var computed = Convert.ToHexString(chunkHasher.ComputeHash(chunkBuffer, 0, chunkFill));
+                        chunkHasher!.AppendData(chunkBuffer, 0, chunkFill);
+                        var computed = Convert.ToHexString(chunkHasher.GetHashAndReset());
                         if (!computed.Equals(chunkHashes[chunkIndex], StringComparison.OrdinalIgnoreCase))
                         {
                             return false;
@@ -514,8 +515,8 @@ public sealed class RestoreService
         {
             if (chunkIndex < chunkHashes.Count)
             {
-                using var chunkHasher = SHA256.Create();
-                var computed = Convert.ToHexString(chunkHasher.ComputeHash(chunkBuffer, 0, chunkFill));
+                chunkHasher!.AppendData(chunkBuffer, 0, chunkFill);
+                var computed = Convert.ToHexString(chunkHasher.GetHashAndReset());
                 if (!computed.Equals(chunkHashes[chunkIndex], StringComparison.OrdinalIgnoreCase))
                 {
                     return false;

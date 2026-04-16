@@ -332,7 +332,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                     UpdateRestorePointState(restorePoint);
                     var rpMessage = string.Format(CultureInfo.CurrentCulture, RegistryOptimizerStrings.RestorePointCreated, restorePoint.FilePath);
                     _activityLog.LogInformation("Registry", rpMessage);
-                    OnRestorePointCreated(restorePoint);
                 }
             }
             catch (Exception ex)
@@ -384,6 +383,12 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
             // Broadcast WM_SETTINGCHANGE to notify Explorer of registry changes
             await RefreshShellComponentsAsync(applicableTweaks).ConfigureAwait(true);
+
+            // Prompt rollback only after tweaks were successfully applied.
+            if (restorePoint is not null)
+            {
+                OnRestorePointCreated(restorePoint);
+            }
         }
         finally
         {

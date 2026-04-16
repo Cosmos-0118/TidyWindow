@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -46,6 +49,71 @@ public partial class ResetRescuePage : Page, INavigationAware
         {
             _viewModel.RestoreArchivePath = dialog.FileName;
         }
+    }
+
+    private void OnChooseSources(object sender, RoutedEventArgs e)
+    {
+        var selected = new List<string>();
+
+        var folderDialog = new OpenFolderDialog
+        {
+            Title = "Select folders to include",
+            Multiselect = true,
+            InitialDirectory = ResolveInitialExplorerDirectory()
+        };
+
+        if (folderDialog.ShowDialog() == true)
+        {
+            selected.AddRange(folderDialog.FolderNames.Where(path => !string.IsNullOrWhiteSpace(path)));
+        }
+
+        var fileDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Select files to include",
+            Filter = "All files (*.*)|*.*",
+            Multiselect = true,
+            CheckFileExists = true,
+            CheckPathExists = true,
+            InitialDirectory = ResolveInitialExplorerDirectory()
+        };
+
+        if (fileDialog.ShowDialog() == true)
+        {
+            selected.AddRange(fileDialog.FileNames.Where(path => !string.IsNullOrWhiteSpace(path)));
+        }
+
+        if (selected.Count > 0)
+        {
+            _viewModel.AddExplorerSources(selected);
+        }
+    }
+
+    private string ResolveInitialExplorerDirectory()
+    {
+        var destination = _viewModel.DestinationPath;
+        if (!string.IsNullOrWhiteSpace(destination))
+        {
+            try
+            {
+                var expanded = Environment.ExpandEnvironmentVariables(destination);
+                if (Directory.Exists(expanded))
+                {
+                    return expanded;
+                }
+
+                var directory = Path.GetDirectoryName(expanded);
+                if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+                {
+                    return directory;
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
     /// <inheritdoc />

@@ -72,6 +72,37 @@ public sealed class RegistryOptimizerViewModelTests
         });
     }
 
+    [Fact]
+    public async Task ApplyAsync_RaisesRestorePointCreated_AfterApplyStarts()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new RegistryOptimizerTestScope();
+            scope.RestoreGuard.EnqueueResult(new SystemRestoreGuardCheckResult(true, DateTimeOffset.UtcNow, null));
+            scope.Service.RestorePointToReturn = new RegistryRestorePoint(
+                Guid.NewGuid(),
+                Path.Combine(Path.GetTempPath(), "tidywindow-restore-point.json"),
+                DateTimeOffset.UtcNow,
+                ImmutableArray<RegistryRestoreSelection>.Empty,
+                ImmutableArray<RegistryRestoreOperation>.Empty);
+
+            var eventRaised = false;
+            var applyHadStartedWhenRaised = false;
+
+            scope.ViewModel.RestorePointCreated += (_, _) =>
+            {
+                eventRaised = true;
+                applyHadStartedWhenRaised = scope.Service.ApplyCallCount > 0;
+            };
+
+            scope.ViewModel.Tweaks[0].IsSelected = true;
+            await scope.ViewModel.ApplyCommand.ExecuteAsync(null);
+
+            Assert.True(eventRaised);
+            Assert.True(applyHadStartedWhenRaised);
+        });
+    }
+
     private sealed class RegistryOptimizerTestScope : IDisposable
     {
         private readonly string _tempDirectory;
@@ -173,6 +204,8 @@ public sealed class RegistryOptimizerViewModelTests
 
         public int ApplyCallCount { get; private set; }
 
+        public RegistryRestorePoint? RestorePointToReturn { get; set; }
+
         public IReadOnlyList<RegistryTweakDefinition> Tweaks => _tweaks;
 
         public IReadOnlyList<RegistryPresetDefinition> Presets => new[] { _preset };
@@ -209,7 +242,7 @@ public sealed class RegistryOptimizerViewModelTests
 
         public Task<RegistryRestorePoint?> SaveRestorePointAsync(IEnumerable<RegistrySelection> selections, RegistryOperationPlan plan, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<RegistryRestorePoint?>(null);
+            return Task.FromResult(RestorePointToReturn);
         }
 
         public RegistryRestorePoint? TryGetLatestRestorePoint() => null;

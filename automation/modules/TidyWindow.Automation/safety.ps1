@@ -150,10 +150,15 @@ function Backup-TidyRegistryKey {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [string] $KeyPath,
-        [Parameter(Mandatory)] [string] $BackupDirectory,
+        [Parameter(Mandatory)] [Alias('Path')] [string] $KeyPath,
+        [string] $BackupDirectory,
+        [string] $FeatureName = 'Registry',
         [string] $Label = 'backup'
     )
+
+    if ([string]::IsNullOrWhiteSpace($BackupDirectory)) {
+        $BackupDirectory = Get-TidyBackupDirectory -FeatureName $FeatureName
+    }
 
     if (-not (Test-Path -LiteralPath $BackupDirectory)) {
         New-Item -Path $BackupDirectory -ItemType Directory -Force | Out-Null
