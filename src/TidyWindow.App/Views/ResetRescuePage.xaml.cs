@@ -51,10 +51,8 @@ public partial class ResetRescuePage : Page, INavigationAware
         }
     }
 
-    private void OnChooseSources(object sender, RoutedEventArgs e)
+    private void OnChooseFolders(object sender, RoutedEventArgs e)
     {
-        var selected = new List<string>();
-
         var folderDialog = new OpenFolderDialog
         {
             Title = "Select folders to include",
@@ -64,9 +62,16 @@ public partial class ResetRescuePage : Page, INavigationAware
 
         if (folderDialog.ShowDialog() == true)
         {
-            selected.AddRange(folderDialog.FolderNames.Where(path => !string.IsNullOrWhiteSpace(path)));
+            var selected = folderDialog.FolderNames.Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
+            if (selected.Count > 0)
+            {
+                _viewModel.AddExplorerSources(selected);
+            }
         }
+    }
 
+    private void OnChooseFiles(object sender, RoutedEventArgs e)
+    {
         var fileDialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Select files to include",
@@ -79,12 +84,11 @@ public partial class ResetRescuePage : Page, INavigationAware
 
         if (fileDialog.ShowDialog() == true)
         {
-            selected.AddRange(fileDialog.FileNames.Where(path => !string.IsNullOrWhiteSpace(path)));
-        }
-
-        if (selected.Count > 0)
-        {
-            _viewModel.AddExplorerSources(selected);
+            var selected = fileDialog.FileNames.Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
+            if (selected.Count > 0)
+            {
+                _viewModel.AddExplorerSources(selected);
+            }
         }
     }
 

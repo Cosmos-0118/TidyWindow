@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -186,6 +187,7 @@ internal sealed class DefaultFileSnapshotProvider : IFileSnapshotProvider
 /// </summary>
 public sealed class BackupService
 {
+    private static readonly TimeSpan ProgressReportInterval = TimeSpan.FromMilliseconds(250);
     private static readonly HashSet<string> PrecompressedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".zip", ".7z", ".rar", ".gz", ".bz2", ".xz",
@@ -238,7 +240,9 @@ public sealed class BackupService
         var normalizedDest = Path.GetFullPath(request.DestinationArchivePath);
         Directory.CreateDirectory(Path.GetDirectoryName(normalizedDest)!);
 
-        var uniqueSources = NormalizeSources(request.SourcePaths);
+        var uniqueSources = NormalizeSources(request.SourcePaths)
+            .Where(source => !StringComparer.OrdinalIgnoreCase.Equals(source, normalizedDest))
+            .ToList();
         var totalCount = uniqueSources.Count;
         var processed = 0L;
 
@@ -250,7 +254,12 @@ public sealed class BackupService
 
             if (File.Exists(source))
             {
-                var entry = AddFile(source, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken);
+                if (StringComparer.OrdinalIgnoreCase.Equals(source, normalizedDest))
+                {
+                    continue;
+                }
+
+                var entry = AddFile(source, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken, progress, processed, totalCount);
                 entries.Add(entry);
                 totalBytes += entry.SizeBytes;
                 processed++;
@@ -263,7 +272,11 @@ public sealed class BackupService
                 foreach (var file in Directory.EnumerateFiles(source, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var entry = AddFile(file, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken, baseDirectory: source);
+                    if (StringComparer.OrdinalIgnoreCase.Equals(file, normalizedDest))
+                    {
+                        continue;
+                    }
+                    var entry = AddFile(file, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken, progress, processed, totalCount, baseDirectory: source);
                     entries.Add(entry);
                     totalBytes += entry.SizeBytes;
                     processed++;
@@ -300,6 +313,9 @@ public sealed class BackupService
         CompressionLevel payloadCompressionLevel,
         bool autoDetectPrecompressedFiles,
         CancellationToken cancellationToken,
+        IProgress<BackupProgress>? progress,
+        long processedEntries,
+        long totalEntries,
         string? baseDirectory = null)
     {
         var normalizedPath = Path.GetFullPath(path);
@@ -313,10 +329,12 @@ public sealed class BackupService
         var chunkHashes = new List<string>();
         string? fullHash = null;
 
+        progress?.Report(new BackupProgress(processedEntries, totalEntries, normalizedPath));
+
         using (var source = _snapshotProvider.OpenRead(normalizedPath))
         using (var target = entry.Open())
         {
-            fullHash = CopyWithHash(source, target, chunkSize, chunkHashes, cancellationToken);
+            fullHash = CopyWithHash(source, target, chunkSize, chunkHashes, cancellationToken, progress, processedEntries, totalEntries, normalizedPath);
         }
 
         var hashValue = new BackupHashValue
@@ -443,11 +461,21 @@ public sealed class BackupService
         }
     }
 
-    private static string CopyWithHash(Stream source, Stream destination, int chunkSize, IList<string> chunkHashes, CancellationToken cancellationToken)
+    private static string CopyWithHash(
+        Stream source,
+        Stream destination,
+        int chunkSize,
+        IList<string> chunkHashes,
+        CancellationToken cancellationToken,
+        IProgress<BackupProgress>? progress,
+        long processedEntries,
+        long totalEntries,
+        string currentPath)
     {
         using var fullHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[chunkSize];
+        var lastReportUtc = DateTime.MinValue;
         int read;
         while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
         {
@@ -457,10 +485,22 @@ public sealed class BackupService
             fullHasher.AppendData(buffer, 0, read);
             chunkHasher.AppendData(buffer, 0, read);
             chunkHashes.Add(Convert.ToHexString(chunkHasher.GetHashAndReset()));
+
+            if (progress is not null)
+            {
+                var now = DateTime.UtcNow;
+                if (now - lastReportUtc >= ProgressReportInterval)
+                {
+                    progress.Report(new BackupProgress(processedEntries, totalEntries, currentPath));
+                    lastReportUtc = now;
+                }
+            }
         }
 
         // Rewind destination for potential callers (not needed for Zip entry but kept consistent)
         destination.Flush();
+
+        progress?.Report(new BackupProgress(processedEntries, totalEntries, currentPath));
 
         fullHasher.AppendData(Array.Empty<byte>());
         return Convert.ToHexString(fullHasher.GetHashAndReset());
