@@ -271,7 +271,7 @@ public partial class App : WpfApplication
         MarkUiReadyForActivation();
     }
 
-    private static bool EnsureElevated()
+    private bool EnsureElevated()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -283,6 +283,11 @@ public partial class App : WpfApplication
         {
             return true;
         }
+
+        // Release single-instance ownership before relaunching elevated.
+        // Without this handoff, the elevated child can see the mutex as occupied
+        // and exit as a duplicate instance before the current process shuts down.
+        CleanupSingleInstanceResources();
 
         var restartResult = privilegeService.Restart(PrivilegeMode.Administrator);
         if (restartResult.Success)
