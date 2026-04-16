@@ -516,7 +516,7 @@
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.CanContentScroll="False"
                                                  VirtualizingPanel.IsVirtualizing="False"
-                                                 SelectionMode="Single"
+                                                 SelectionMode="None"
                                                  Margin="0,0,0,20">
                             <ListView.ItemsPanel>
                                 <ItemsPanelTemplate>
