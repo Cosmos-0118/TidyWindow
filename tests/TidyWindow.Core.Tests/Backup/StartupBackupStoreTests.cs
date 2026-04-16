@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using TidyWindow.Core.Startup;
 using Xunit;
 
@@ -105,6 +107,28 @@ public sealed class StartupBackupStoreTests : IDisposable
         var all = _store.GetAll();
 
         Assert.Single(all);
+    }
+
+    [Fact]
+    public void Save_InvalidBackup_ThrowsArgumentException()
+    {
+        var invalidBackup = new StartupEntryBackup(
+            Id: "invalid-id",
+            SourceKind: StartupItemSourceKind.RunKey,
+            RegistryRoot: "HKCU",
+            RegistrySubKey: "Software\\Test",
+            RegistryValueName: null,
+            RegistryValueData: null,
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: null,
+            ServiceStartValue: null,
+            ServiceDelayedAutoStart: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow);
+
+        Assert.Throws<ArgumentException>(() => _store.Save(invalidBackup));
     }
 
     #endregion
@@ -465,6 +489,82 @@ public sealed class StartupBackupStoreTests : IDisposable
         Assert.NotNull(found);
     }
 
+    [Fact]
+    public void FindLatestByValueName_IgnoresNonRunBackups()
+    {
+        var serviceBackup = new StartupEntryBackup(
+            Id: "svc:example",
+            SourceKind: StartupItemSourceKind.Service,
+            RegistryRoot: "HKLM",
+            RegistrySubKey: "SYSTEM\\CurrentControlSet\\Services\\Example",
+            RegistryValueName: "SharedName",
+            RegistryValueData: "4",
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: "Example",
+            ServiceStartValue: 2,
+            ServiceDelayedAutoStart: 0,
+            CreatedAtUtc: DateTimeOffset.UtcNow.AddMinutes(1));
+
+        var runBackup = CreateRunKeyBackup("run:example", "SharedName");
+
+        _store.Save(serviceBackup);
+        _store.Save(runBackup);
+
+        var found = _store.FindLatestByValueName("SharedName");
+
+        Assert.NotNull(found);
+        Assert.Equal("run:example", found!.Id);
+    }
+
+    [Fact]
+    public void FindLatestRunBackup_MatchesExactRegistryLocation()
+    {
+        var valueName = "SharedValue";
+
+        var backupA = new StartupEntryBackup(
+            Id: "run:a",
+            SourceKind: StartupItemSourceKind.RunKey,
+            RegistryRoot: "HKCU",
+            RegistrySubKey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            RegistryValueName: valueName,
+            RegistryValueData: "A.exe",
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: null,
+            ServiceStartValue: null,
+            ServiceDelayedAutoStart: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow.AddMinutes(-2));
+
+        var backupB = new StartupEntryBackup(
+            Id: "run:b",
+            SourceKind: StartupItemSourceKind.RunKey,
+            RegistryRoot: "HKLM",
+            RegistrySubKey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            RegistryValueName: valueName,
+            RegistryValueData: "B.exe",
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: null,
+            ServiceStartValue: null,
+            ServiceDelayedAutoStart: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow);
+
+        _store.Save(backupA);
+        _store.Save(backupB);
+
+        var found = _store.FindLatestRunBackup("HKEY_CURRENT_USER", "Software\\Microsoft\\Windows\\CurrentVersion\\Run", valueName);
+
+        Assert.NotNull(found);
+        Assert.Equal("run:a", found!.Id);
+    }
+
     #endregion
 
     #region Persistence Tests
@@ -487,6 +587,91 @@ public sealed class StartupBackupStoreTests : IDisposable
     public void BackupDirectory_ReturnsConfiguredPath()
     {
         Assert.Equal(_tempRoot, _store.BackupDirectory);
+    }
+
+    [Fact]
+    public void CorruptPrimary_FallsBackToBak_AndRecoversPrimary()
+    {
+        var primaryPath = Path.Combine(_tempRoot, "startup-backups.json");
+        var backupPath = primaryPath + ".bak";
+        var backupEntry = CreateRunKeyBackup("recover-id", "RecoverEntry");
+
+        File.WriteAllText(primaryPath, "{not-valid-json");
+        File.WriteAllText(backupPath, JsonSerializer.Serialize(new List<StartupEntryBackup> { backupEntry }));
+
+        var recovered = _store.Get("recover-id");
+
+        Assert.NotNull(recovered);
+        Assert.Equal("RecoverEntry", recovered!.RegistryValueName);
+
+        var primaryContent = File.ReadAllText(primaryPath);
+        Assert.Contains("recover-id", primaryContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DuplicateIdsInPersistedFile_KeepsMostRecentRecord()
+    {
+        var primaryPath = Path.Combine(_tempRoot, "startup-backups.json");
+
+        var older = new StartupEntryBackup(
+            Id: "dup-id",
+            SourceKind: StartupItemSourceKind.RunKey,
+            RegistryRoot: "HKCU",
+            RegistrySubKey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            RegistryValueName: "EntryOld",
+            RegistryValueData: "old.exe",
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: null,
+            ServiceStartValue: null,
+            ServiceDelayedAutoStart: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow.AddMinutes(-5));
+
+        var newer = older with
+        {
+            RegistryValueName = "EntryNew",
+            RegistryValueData = "new.exe",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        File.WriteAllText(primaryPath, JsonSerializer.Serialize(new List<StartupEntryBackup> { older, newer }));
+
+        var found = _store.Get("dup-id");
+
+        Assert.NotNull(found);
+        Assert.Equal("EntryNew", found!.RegistryValueName);
+    }
+
+    [Fact]
+    public void InvalidEntriesInPersistedFile_AreIgnored()
+    {
+        var primaryPath = Path.Combine(_tempRoot, "startup-backups.json");
+
+        var valid = CreateRunKeyBackup("valid-id", "ValidEntry");
+        var invalid = new StartupEntryBackup(
+            Id: "invalid-id",
+            SourceKind: StartupItemSourceKind.RunKey,
+            RegistryRoot: "HKCU",
+            RegistrySubKey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            RegistryValueName: null,
+            RegistryValueData: null,
+            FileOriginalPath: null,
+            FileBackupPath: null,
+            TaskPath: null,
+            TaskEnabled: null,
+            ServiceName: null,
+            ServiceStartValue: null,
+            ServiceDelayedAutoStart: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow);
+
+        File.WriteAllText(primaryPath, JsonSerializer.Serialize(new List<StartupEntryBackup> { valid, invalid }));
+
+        var all = _store.GetAll();
+
+        Assert.Single(all);
+        Assert.Equal("valid-id", Assert.Single(all).Id);
     }
 
     #endregion
