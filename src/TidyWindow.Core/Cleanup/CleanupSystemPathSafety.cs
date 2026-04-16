@@ -259,9 +259,6 @@ public static class CleanupSystemPathSafety
             // Package cache - safe (installer caches)
             AddSafe(Path.Combine(programData, "Package Cache"));
 
-            // Microsoft Crypto (only the Keys folder is critical, logs are safe)
-            AddSafe(Path.Combine(programData, "Microsoft", "Crypto", "RSA", "MachineKeys")); // Temp cert files
-
             // Windows Defender - scans and temp files are safe, but not the program
             AddSafe(Path.Combine(programData, "Microsoft", "Windows Defender", "Scans", "History"));
             AddSafe(Path.Combine(programData, "Microsoft", "Windows Defender", "Support"));

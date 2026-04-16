@@ -1842,7 +1842,7 @@
                                                   IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                                   FontSize="14"/>
-                                        <TextBlock Text="Move supported files into the Recycle Bin so they can be restored later. We'll fall back to a permanent delete if Windows cannot stage the file."
+                                        <TextBlock Text="Move supported files into the Recycle Bin so they can be restored later. If Windows cannot stage a file, we keep it and report it."
                                                    FontSize="12"
                                                    Foreground="{StaticResource CleanupMutedTextBrush}"
                                                    Margin="0,10,0,0"

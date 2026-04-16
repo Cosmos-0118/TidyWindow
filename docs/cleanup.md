@@ -9,7 +9,7 @@ The Cleanup page walks users through discovering reclaimable disk space, vetting
 -   **Setup**: Toggle Downloads and Edge history scope, choose item kind (files, folders, both), set the preview size (10–100,000; default 50), pick extension filters/profiles (Documents, Spreadsheets, Images, Media, Archives, Logs), select age presets (all/7/30/90/180 days), and choose sort (Impact, Newest, Risk).
 -   **Preview**: Grouped targets show counts, size, and warnings. A paged item list (default 50 per page) supports select-all per page and category-level selection. Live summaries show selected count/size and risk signals.
 -   **Confirmation**: When Delete is invoked, the sheet shows totals, category breakdown, and risk highlights. Toggles: Recycle Bin, generate report, skip locked items (default on), repair permissions (take ownership), lock panel with refresh/close/force-close controls, and a run popup before proceeding.
--   **Delete**: `CleanupService.DeleteAsync` runs sequentially with progress updates (~120 ms cadence), recycle-bin preference, retries, delete-on-reboot fallback, and optional permission repair. Edge history items are cleared via WebView2 APIs instead of file deletion. Activity Log entries and optional JSON+Markdown reports capture outcomes.
+-   **Delete**: `CleanupService.DeleteAsync` runs in a bounded worker pool with progress updates (~120 ms cadence), recycle-bin preference, retries, delete-on-reboot fallback, and optional permission repair. Edge history items are cleared via WebView2 APIs instead of file deletion. Activity Log entries and optional JSON+Markdown reports capture outcomes.
 -   **Celebrate**: Shows reclaimed size, deleted/skipped/failed counts, categories touched, duration, time-saved estimate, share text, and report link when generated. Failures remain selected for follow-up.
 
 ## Safety guardrails
@@ -17,7 +17,7 @@ The Cleanup page walks users through discovering reclaimable disk space, vetting
 -   **Protected paths**: `CleanupService` treats OS-managed roots (Windows, Program Files, boot/recovery) as protected-by-default. These items remain visible in preview, but deletion is skipped unless users explicitly enable Force delete + Allow protected system locations in confirmation.
 -   **Lock handling**: Up to 32 items per category (600 total) are sampled for lock inspection. `ResourceLockService` surfaces locking apps; users can close or force close them, and deletions default to skipping locked entries unless overridden.
 -   **Permission repair (opt-in)**: When enabled, the engine clears attributes, takes ownership on access denied, retries, then falls back to force-delete or delete-on-reboot.
--   **Recycle-bin preference**: Users can request recycle-bin moves; permanent delete fallback is allowed in manual runs and disabled in automation’s dustbin mode.
+-   **Recycle-bin preference**: Users can request recycle-bin moves; in manual confirmation, recycle-bin mode does not silently fall back to permanent deletion.
 -   **Recent/risk awareness**: The confirmation sheet calls out items modified in the last 3 days, protected locations, and lock signals before deletion.
 -   **Progress and logging**: Every deletion result is captured; missing items are marked skipped; progress reporting throttles UI churn while remaining responsive.
 

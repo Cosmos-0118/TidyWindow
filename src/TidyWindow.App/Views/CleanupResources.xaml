@@ -680,11 +680,6 @@
                 Value="0"/>
         <Setter Property="IsHitTestVisible"
                 Value="False"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Setter Property="Background"
                 Value="{StaticResource CleanupPhaseOverlayBackdropBrush}"/>
         <Style.Triggers>
@@ -702,11 +697,6 @@
 
     <Style x:Key="PhaseTransitionPanelStyle"
            TargetType="Border">
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Setter Property="RenderTransformOrigin"
                 Value="0.5,0.5"/>
         <Setter Property="RenderTransform">
@@ -787,11 +777,6 @@
                 Value="0"/>
         <Setter Property="IsHitTestVisible"
                 Value="False"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsConfirmationSheetVisible}"
                          Value="True">
@@ -824,11 +809,6 @@
                 </TransformGroup>
             </Setter.Value>
         </Setter>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsConfirmationSheetVisible}"
                          Value="True">
@@ -851,11 +831,6 @@
                 Value="0"/>
         <Setter Property="IsHitTestVisible"
                 Value="False"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
@@ -934,11 +909,6 @@
         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
         <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
-            </Setter.Value>
-        </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsCelebrationPhase}"
                          Value="True">
@@ -969,11 +939,6 @@
         <Setter Property="RenderTransform">
             <Setter.Value>
                 <TranslateTransform Y="12"/>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
             </Setter.Value>
         </Setter>
         <Style.Triggers>

@@ -652,13 +652,13 @@
                                                   Content="Allow system paths (dangerous)"
                                                   IsChecked="{Binding AllowProtectedSystemPaths}"
                                                   Foreground="#FCA5A5"
-                                              ToolTip="Allows scanning and deleting under Windows, boot, and driver folders."
+                                                                                            ToolTip="Allows scanning and deleting under Windows, Program Files, boot, and recovery folders."
                                               Margin="0,0,0,6"/>
                                             <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                       Content="Allow system deletions (dangerous)"
                                                       IsChecked="{Binding AllowSystemDeletion}"
                                                       Foreground="#FCA5A5"
-                                                      ToolTip="Allows deleting items under Windows, boot, and driver folders."
+                                                                                                            ToolTip="Allows deleting items under Windows, Program Files, boot, and recovery folders."
                                                       Margin="0,0,0,6"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Enable force delete (dangerous)"

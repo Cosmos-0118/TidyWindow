@@ -280,6 +280,14 @@ public class CleanupSystemPathSafetyTests
     }
 
     [Fact]
+    public void Critical_MachineKeys_IsCritical()
+    {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        var machineKeys = System.IO.Path.Combine(programData, "Microsoft", "Crypto", "RSA", "MachineKeys");
+        Assert.True(CleanupSystemPathSafety.IsSystemCriticalPath(machineKeys));
+    }
+
+    [Fact]
     public void Critical_KernelFiles_AreCritical()
     {
         Assert.True(CleanupSystemPathSafety.IsSystemCriticalPath("C:\\ntoskrnl.exe"));

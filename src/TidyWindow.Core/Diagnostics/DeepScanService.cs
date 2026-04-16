@@ -874,7 +874,7 @@ public sealed class DeepScanService
                 }
             }
 
-            var isSystemPath = CleanupSystemPathSafety.IsSystemCriticalPath(path);
+            var isSystemPath = CleanupSystemPathSafety.IsSystemManagedPath(path);
 
             lock (_pathCacheLock)
             {

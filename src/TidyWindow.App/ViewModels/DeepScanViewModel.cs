@@ -286,7 +286,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
-        if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(TargetPath))
+        if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemManagedPath(TargetPath))
         {
             Summary = "Protected system location is blocked. Enable 'Allow protected system paths' to scan anyway.";
             _mainViewModel.SetStatusMessage("Scan blocked: protected system path.");
@@ -492,7 +492,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 return;
             }
 
-            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemCriticalPath(path))
+            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemManagedPath(path))
             {
                 _mainViewModel.SetStatusMessage("Delete blocked: system path protection is on.");
                 return;
@@ -850,14 +850,14 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     private static bool ConfirmAllowProtectedSystemPaths()
     {
-        var message = "This lets you scan and delete inside Windows, boot, and driver folders. Changes here can break the OS. Do you want to enable system path access?";
+        var message = "This lets you scan and delete inside Windows, Program Files, boot, and recovery folders. Changes here can break the OS. Do you want to enable system path access?";
         var result = MessageBox.Show(message, "Enable system paths (dangerous)", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         return result == MessageBoxResult.Yes;
     }
 
     private static bool ConfirmAllowSystemDeletion()
     {
-        const string message = "Allowing system deletions lets you remove files from Windows, boot, and driver areas. This can render the OS unbootable. Are you sure you want to allow system deletions?";
+        const string message = "Allowing system deletions lets you remove files from Windows, Program Files, boot, and recovery areas. This can render the OS unbootable. Are you sure you want to allow system deletions?";
         var result = MessageBox.Show(message, "Allow system deletions (dangerous)", MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
         return result == MessageBoxResult.Yes;
     }
@@ -992,7 +992,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         {
             var targetPath = item.Path;
 
-            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemCriticalPath(targetPath))
+            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemManagedPath(targetPath))
             {
                 return (false, "System path protection is enabled. Toggle 'Allow system deletion' to proceed.");
             }
