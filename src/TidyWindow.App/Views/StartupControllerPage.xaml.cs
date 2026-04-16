@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -20,6 +22,9 @@ public partial class StartupControllerPage : Page, INavigationAware
     private readonly CollectionViewSource _entriesView;
     private INotifyCollectionChanged? _entriesNotifier;
     private ScrollViewer? _entriesScrollViewer;
+    private CancellationTokenSource? _searchDebounceCts;
+    private bool _isSubscriptionsAttached;
+    private bool _isRollingBackGuardToggle;
 
     private bool _includeRun = true;
     private bool _includeStartup = true;
@@ -33,6 +38,7 @@ public partial class StartupControllerPage : Page, INavigationAware
     private bool _showDisabled = true;
     private bool _showBackupOnly;
     private string _search = string.Empty;
+    private static readonly TimeSpan SearchDebounceDelay = TimeSpan.FromMilliseconds(250);
 
     public StartupControllerPage(StartupControllerViewModel viewModel)
     {
@@ -41,8 +47,7 @@ public partial class StartupControllerPage : Page, INavigationAware
         DataContext = _viewModel;
         _entriesView = (CollectionViewSource)FindResource("StartupEntriesView");
         Loaded += OnLoaded;
-        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        _viewModel.PageChanged += OnPageChanged;
+        AttachViewModelSubscriptions();
         Unloaded += OnUnloaded;
     }
 
@@ -71,7 +76,6 @@ public partial class StartupControllerPage : Page, INavigationAware
     {
         Loaded -= OnLoaded;
         await _viewModel.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
-        SubscribeToEntries();
         RefreshView(resetPage: true);
     }
 
@@ -84,25 +88,36 @@ public partial class StartupControllerPage : Page, INavigationAware
         }
     }
 
-    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    private async void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts?.Dispose();
+
+        _searchDebounceCts = new CancellationTokenSource();
+        var token = _searchDebounceCts.Token;
+
+        try
+        {
+            await Task.Delay(SearchDebounceDelay, token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
         _search = SearchBox.Text?.Trim() ?? string.Empty;
         RefreshView(resetPage: true);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        _viewModel.PageChanged -= OnPageChanged;
-
-        if (_entriesNotifier is not null)
-        {
-            _entriesNotifier.CollectionChanged -= OnEntriesCollectionChanged;
-            UnsubscribeFromEntryChanges(_entriesNotifier as IEnumerable<StartupEntryItemViewModel>);
-            _entriesNotifier = null;
-        }
-
-        UnsubscribeFromEntryChanges(_viewModel.Entries);
+        CancelPendingSearch();
+        DetachViewModelSubscriptions();
     }
 
     private void OnFilterChanged(object sender, RoutedEventArgs e)
@@ -150,6 +165,7 @@ public partial class StartupControllerPage : Page, INavigationAware
             var existingIds = new HashSet<string>(filteredItems.Select(e => e.Item.Id), StringComparer.OrdinalIgnoreCase);
             var backupEntries = _viewModel.BackupOnlyEntries
                 .Where(b => !existingIds.Contains(b.Item.Id))
+                .Where(PassesFilters)
                 .ToList();
             filteredItems.AddRange(backupEntries);
         }
@@ -228,6 +244,13 @@ public partial class StartupControllerPage : Page, INavigationAware
             return;
         }
 
+        e.Accepted = PassesFilters(entry);
+    }
+
+    private bool PassesFilters(StartupEntryItemViewModel entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
         // Group Run keys and similar registry-based startup types together
         var isRunType = entry.Item.SourceKind is StartupItemSourceKind.RunKey
             or StartupItemSourceKind.RunOnce
@@ -241,33 +264,28 @@ public partial class StartupControllerPage : Page, INavigationAware
 
         if (!_includeRun && isRunType)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (!_includeStartup && entry.Item.SourceKind == StartupItemSourceKind.StartupFolder)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (!_includeTasks && entry.Item.SourceKind == StartupItemSourceKind.ScheduledTask)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (!_includeServices && entry.Item.SourceKind == StartupItemSourceKind.Service)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         var isSystem = IsSystem(entry);
         if (!_includeSystemCritical && isSystem)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (_filterSafe || _filterUnsigned || _filterHighImpact)
@@ -278,36 +296,36 @@ public partial class StartupControllerPage : Page, INavigationAware
 
             if (!matchesSafe && !matchesUnsigned && !matchesHigh)
             {
-                e.Accepted = false;
-                return;
+                return false;
             }
         }
 
         if (!_showEnabled && entry.IsEnabled)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (!_showDisabled && !entry.IsEnabled)
         {
-            e.Accepted = false;
-            return;
+            return false;
         }
 
         if (string.IsNullOrWhiteSpace(_search))
         {
-            e.Accepted = true;
-            return;
+            return true;
         }
 
-        var term = _search.ToLowerInvariant();
-        var matches = (entry.Name ?? string.Empty).ToLowerInvariant().Contains(term)
-                      || (entry.Publisher ?? string.Empty).ToLowerInvariant().Contains(term)
-                      || (entry.Item.ExecutablePath ?? string.Empty).ToLowerInvariant().Contains(term)
-                      || (entry.Item.EntryLocation ?? string.Empty).ToLowerInvariant().Contains(term);
+        var term = _search;
+        return ContainsOrdinalIgnoreCase(entry.Name, term)
+            || ContainsOrdinalIgnoreCase(entry.Publisher, term)
+            || ContainsOrdinalIgnoreCase(entry.Item.ExecutablePath, term)
+            || ContainsOrdinalIgnoreCase(entry.Item.EntryLocation, term);
+    }
 
-        e.Accepted = matches;
+    private static bool ContainsOrdinalIgnoreCase(string? source, string term)
+    {
+        return !string.IsNullOrEmpty(source)
+            && source.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
@@ -345,13 +363,35 @@ public partial class StartupControllerPage : Page, INavigationAware
 
     private async void OnGuardToggled(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: StartupEntryItemViewModel entry })
+        if (_isRollingBackGuardToggle)
         {
             return;
         }
 
-        var isChecked = (sender as System.Windows.Controls.Primitives.ToggleButton)?.IsChecked == true;
-        await _viewModel.SetGuardAsync(entry, isChecked).ConfigureAwait(true);
+        if (sender is not System.Windows.Controls.Primitives.ToggleButton { DataContext: StartupEntryItemViewModel entry } toggle)
+        {
+            return;
+        }
+
+        var isChecked = toggle.IsChecked == true;
+        try
+        {
+            await _viewModel.SetGuardAsync(entry, isChecked).ConfigureAwait(true);
+        }
+        catch
+        {
+            _isRollingBackGuardToggle = true;
+            try
+            {
+                var previousValue = !isChecked;
+                toggle.IsChecked = previousValue;
+                entry.IsAutoGuardEnabled = previousValue;
+            }
+            finally
+            {
+                _isRollingBackGuardToggle = false;
+            }
+        }
     }
 
     private static ScrollViewer? FindScrollViewer(DependencyObject? root)
@@ -385,15 +425,57 @@ public partial class StartupControllerPage : Page, INavigationAware
         // This fixes scroll-to-top not working after page is cached
         _entriesScrollViewer = null;
 
-        // Re-subscribe to page changed events in case they were disconnected
-        _viewModel.PageChanged -= OnPageChanged;
-        _viewModel.PageChanged += OnPageChanged;
+        AttachViewModelSubscriptions();
     }
 
     /// <inheritdoc />
     public void OnNavigatingFrom()
     {
+        CancelPendingSearch();
+        DetachViewModelSubscriptions();
+
         // Clear scroll viewer reference when navigating away
         _entriesScrollViewer = null;
+    }
+
+    private void AttachViewModelSubscriptions()
+    {
+        if (_isSubscriptionsAttached)
+        {
+            return;
+        }
+
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.PageChanged += OnPageChanged;
+        SubscribeToEntries();
+        _isSubscriptionsAttached = true;
+    }
+
+    private void DetachViewModelSubscriptions()
+    {
+        if (!_isSubscriptionsAttached)
+        {
+            return;
+        }
+
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.PageChanged -= OnPageChanged;
+
+        if (_entriesNotifier is not null)
+        {
+            _entriesNotifier.CollectionChanged -= OnEntriesCollectionChanged;
+            UnsubscribeFromEntryChanges(_entriesNotifier as IEnumerable<StartupEntryItemViewModel>);
+            _entriesNotifier = null;
+        }
+
+        UnsubscribeFromEntryChanges(_viewModel.Entries);
+        _isSubscriptionsAttached = false;
+    }
+
+    private void CancelPendingSearch()
+    {
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts?.Dispose();
+        _searchDebounceCts = null;
     }
 }

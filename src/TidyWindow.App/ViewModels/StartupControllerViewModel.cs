@@ -541,15 +541,14 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
             if (isGuarded)
             {
-                // Auto-Guard will handle re-disabling via AutoReDisableAsync
-                // Just log a prominent warning
+                // Keep backups for guarded entries unless re-disable is confirmed.
                 _activityLog.LogWarning(
                     "StartupController",
-                    $"⚠️ '{entryName}' re-enabled itself! Auto-Guard will re-disable it.",
+                    $"⚠️ '{entryName}' re-enabled itself while Auto-Guard is enabled.",
                     new object[]
                     {
                         $"The application re-created its startup entry after you disabled it.",
-                        $"Because Auto-Guard is enabled, TidyWindow will disable it again.",
+                        $"TidyWindow attempted to disable it again and will keep retrying on refresh.",
                         $"ID: {backup.Id}",
                         $"Source: {backup.SourceKind}"
                     });
@@ -572,26 +571,26 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     });
             }
 
-            // Clean up the OLD backup file (if any) since app created a NEW file
-            // But keep the backup RECORD so we have history
-            if (backup.SourceKind == StartupItemSourceKind.StartupFolder &&
-                !string.IsNullOrWhiteSpace(backup.FileBackupPath) &&
-                System.IO.File.Exists(backup.FileBackupPath))
+            // Remove obsolete backup data only for non-guarded entries.
+            // Guarded entries keep backups until a re-disable success can be confirmed.
+            if (!isGuarded)
             {
-                try
+                if (backup.SourceKind == StartupItemSourceKind.StartupFolder &&
+                    !string.IsNullOrWhiteSpace(backup.FileBackupPath) &&
+                    System.IO.File.Exists(backup.FileBackupPath))
                 {
-                    System.IO.File.Delete(backup.FileBackupPath);
+                    try
+                    {
+                        System.IO.File.Delete(backup.FileBackupPath);
+                    }
+                    catch
+                    {
+                        // Non-fatal
+                    }
                 }
-                catch
-                {
-                    // Non-fatal
-                }
-            }
 
-            // Remove the backup record ONLY after handling
-            // For guarded items, AutoReDisableAsync will create a new backup
-            // For non-guarded items, we remove the obsolete record
-            _control.BackupStore.Remove(backup.Id);
+                _control.BackupStore.Remove(backup.Id);
+            }
         }
 
         return (nonGuardedReenabledNames.Count, nonGuardedReenabledNames);
@@ -1176,12 +1175,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             return;
         }
 
-        _guardService.SetGuard(entry.Item.Id, enabled);
-        entry.IsAutoGuardEnabled = enabled;
-
-        if (enabled && entry.IsEnabled)
+        var previousValue = entry.IsAutoGuardEnabled;
+        try
         {
-            await DisableAsync(entry);
+            _guardService.SetGuard(entry.Item.Id, enabled);
+            entry.IsAutoGuardEnabled = enabled;
+
+            if (enabled && entry.IsEnabled)
+            {
+                await DisableAsync(entry).ConfigureAwait(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            entry.IsAutoGuardEnabled = previousValue;
+            _activityLog.LogError(
+                "StartupController",
+                $"Failed to {(enabled ? "enable" : "disable")} Auto-Guard for {entry.Name}: {ex.Message}",
+                BuildErrorDetails(entry.Item, ex));
+            throw;
         }
     }
 
@@ -1259,7 +1271,10 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         ToggleCommand.NotifyCanExecuteChanged();
         EnableCommand.NotifyCanExecuteChanged();
         DisableCommand.NotifyCanExecuteChanged();
+        DisableAndStopCommand.NotifyCanExecuteChanged();
         DelayCommand.NotifyCanExecuteChanged();
+        RestoreFromBackupCommand.NotifyCanExecuteChanged();
+        DeleteBackupCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshPagedEntries(bool raisePageChanged)
