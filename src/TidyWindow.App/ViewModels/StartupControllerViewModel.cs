@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -215,12 +214,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     [ObservableProperty]
     private bool showReenabledAlert;
 
-    [ObservableProperty]
-    private string actionStatusMessage = string.Empty;
-
-    [ObservableProperty]
-    private bool showActionStatus;
-
     /// <summary>
     /// Entries that exist only in the backup store (not found in live inventory).
     /// These are merged into <see cref="Entries"/> after refresh.
@@ -232,8 +225,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     private const int DefaultDelaySeconds = 45;
     private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
-    private static readonly TimeSpan ActionStatusDuration = TimeSpan.FromSeconds(4);
-    private CancellationTokenSource? _actionStatusCts;
 
     public StartupControllerViewModel(
         StartupInventoryService inventory,
@@ -311,16 +302,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         ShowReenabledAlert = false;
         ReenabledAlertCount = 0;
         ReenabledAlertMessage = string.Empty;
-    }
-
-    [RelayCommand]
-    private void DismissActionStatus()
-    {
-        _actionStatusCts?.Cancel();
-        _actionStatusCts?.Dispose();
-        _actionStatusCts = null;
-        ShowActionStatus = false;
-        ActionStatusMessage = string.Empty;
     }
 
     [RelayCommand]
@@ -709,7 +690,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     "StartupController",
                     BuildActionMessage(result.Item, result.Item.IsEnabled ? "Enabled" : "Disabled"),
                     BuildUserFacingDetails(result));
-                ShowTransientActionStatus(BuildSuccessStatusMessage(result.Item, result.Item.IsEnabled ? "enabled" : "disabled"));
                 RefreshAfterStateChange();
             }
             else
@@ -751,7 +731,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     "StartupController",
                     BuildActionMessage(result.Item, "Enabled"),
                     BuildUserFacingDetails(result));
-                ShowTransientActionStatus(BuildSuccessStatusMessage(result.Item, "enabled"));
                 RefreshAfterStateChange();
             }
             else
@@ -809,7 +788,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     "StartupController",
                     BuildActionMessage(result.Item, action),
                     BuildUserFacingDetails(result));
-                ShowTransientActionStatus(BuildSuccessStatusMessage(result.Item, terminateRunningProcesses ? "disabled and stopped" : "disabled"));
                 RefreshAfterStateChange();
             }
             else
@@ -854,8 +832,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     "StartupController",
                     $"Restored startup entry from backup: {item.Name}",
                     BuildRestoreDetails(backup));
-
-                ShowTransientActionStatus($"{item.Name} restored from backup.");
 
                 // Remove from backup-only list and trigger full refresh
                 BackupOnlyEntries.Remove(item);
@@ -969,8 +945,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 $"Permanently deleted backup: {item.Name}",
                 BuildDeleteDetails(backup, hasBackupFile));
 
-            ShowTransientActionStatus($"Backup deleted for {item.Name}.");
-
             // Remove from backup-only list
             BackupOnlyEntries.Remove(item);
             BackupOnlyCount = BackupOnlyEntries.Count;
@@ -1072,47 +1046,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         RefreshVisibleCounters();
         RefreshCommandStates();
         RefreshPagedEntries(raisePageChanged: false);
-    }
-
-    private static string BuildSuccessStatusMessage(StartupItem item, string action)
-    {
-        var name = string.IsNullOrWhiteSpace(item.Name) ? "Startup entry" : item.Name;
-        return $"{name} {action}.";
-    }
-
-    private void ShowTransientActionStatus(string message)
-    {
-        ActionStatusMessage = message;
-        ShowActionStatus = true;
-
-        _actionStatusCts?.Cancel();
-        _actionStatusCts?.Dispose();
-
-        var cts = new CancellationTokenSource();
-        _actionStatusCts = cts;
-        _ = HideActionStatusAfterDelayAsync(cts);
-    }
-
-    private async Task HideActionStatusAfterDelayAsync(CancellationTokenSource cts)
-    {
-        try
-        {
-            await Task.Delay(ActionStatusDuration, cts.Token).ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        if (!ReferenceEquals(_actionStatusCts, cts))
-        {
-            return;
-        }
-
-        ShowActionStatus = false;
-        ActionStatusMessage = string.Empty;
-        _actionStatusCts = null;
-        cts.Dispose();
     }
 
     private static string BuildActionMessage(StartupItem item, string action)

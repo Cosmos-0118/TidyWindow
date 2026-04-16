@@ -40,7 +40,7 @@ public partial class StartupControllerPage : Page, INavigationAware
     private bool _showBackupOnly;
     private string _search = string.Empty;
     private static readonly TimeSpan SearchDebounceDelay = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan StatusFilterExitDelay = TimeSpan.FromMilliseconds(900);
+    private static readonly TimeSpan StatusFilterExitDelay = TimeSpan.FromMilliseconds(1400);
 
     public StartupControllerPage(StartupControllerViewModel viewModel)
     {
