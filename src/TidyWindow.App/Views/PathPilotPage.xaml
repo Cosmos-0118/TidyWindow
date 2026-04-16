@@ -440,7 +440,7 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <ScrollViewer Grid.RowSpan="2" VerticalScrollBarVisibility="Auto" Padding="4,0,4,24">
+            <ScrollViewer x:Name="MainContentScrollViewer" Grid.RowSpan="2" VerticalScrollBarVisibility="Auto" Padding="4,0,4,24">
                 <StackPanel Orientation="Vertical">
                     <controls:PageTitleBar
                         Title="PathPilot"
@@ -503,27 +503,28 @@
                         </Border>
 
                         <!-- Runtimes List -->
-                        <ListBox x:Name="RuntimesList"
-                                 ItemsSource="{Binding PagedRuntimes}"
-                                 Loaded="OnRuntimesLoaded"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Foreground="#F8FAFC"
-                                 ItemTemplate="{StaticResource RuntimeCardTemplate}"
-                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.CanContentScroll="True"
-                                 VirtualizingPanel.IsVirtualizing="True"
-                                 VirtualizingPanel.VirtualizationMode="Recycling"
-                                 SelectionMode="Single"
-                                 Margin="0,0,0,20">
-                            <ListBox.ItemsPanel>
+                        <ux:BubbleScrollListView x:Name="RuntimesList"
+                                                 ItemsSource="{Binding PagedRuntimes}"
+                                                 Loaded="OnRuntimesLoaded"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Foreground="#F8FAFC"
+                                                 ItemTemplate="{StaticResource RuntimeCardTemplate}"
+                                                 ParentScrollViewerName="MainContentScrollViewer"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.CanContentScroll="True"
+                                                 VirtualizingPanel.IsVirtualizing="True"
+                                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                                 SelectionMode="Single"
+                                                 Margin="0,0,0,20">
+                            <ListView.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="440" MaxColumnWidth="780" MinColumns="1" MaxColumns="3" ColumnSpacing="24" RowSpacing="20"/>
                                 </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
+                            </ListView.ItemsPanel>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
                                     <Setter Property="Padding" Value="0"/>
                                     <Setter Property="Margin" Value="0"/>
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -532,8 +533,8 @@
                                     <Setter Property="BorderThickness" Value="0"/>
                                     <Setter Property="Focusable" Value="False"/>
                                 </Style>
-                            </ListBox.ItemContainerStyle>
-                        </ListBox>
+                            </ListView.ItemContainerStyle>
+                        </ux:BubbleScrollListView>
 
                         <!-- Empty State -->
                         <Border CornerRadius="16" Padding="28">
