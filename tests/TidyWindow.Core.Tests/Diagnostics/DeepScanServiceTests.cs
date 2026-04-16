@@ -166,6 +166,68 @@ public sealed class DeepScanServiceTests
         Assert.True(categories.Distinct(StringComparer.OrdinalIgnoreCase).Count() >= 2);
     }
 
+    [Fact]
+    public async Task RunScanAsync_MaintainsTopRankingAfterQueueSaturates()
+    {
+        using var temp = new TempDirectoryScope();
+        var root = temp.DirectoryPath;
+
+        var service = new DeepScanService();
+        const int totalFiles = 220;
+        const int maxItems = 12;
+
+        var allPathsBySize = new (long Size, string Path)[totalFiles];
+        for (var index = 0; index < totalFiles; index++)
+        {
+            var size = 1_000L + (index * 37L);
+            var path = CreateFile(root, $"payload-{index:D3}.bin", size);
+            allPathsBySize[index] = (size, path);
+        }
+
+        var expected = allPathsBySize
+            .OrderByDescending(item => item.Size)
+            .Take(maxItems)
+            .Select(item => item.Path)
+            .ToArray();
+
+        var result = await service.RunScanAsync(new DeepScanRequest(root, maxItems, 0, includeHiddenFiles: true));
+
+        Assert.Equal(maxItems, result.Findings.Count);
+        Assert.Equal(expected, result.Findings.Select(item => item.Path).ToArray());
+    }
+
+    [Fact]
+    public async Task RunScanAsync_NameFilterStillAppliesAfterQueueSaturates()
+    {
+        using var temp = new TempDirectoryScope();
+        var root = temp.DirectoryPath;
+
+        var service = new DeepScanService();
+
+        // Fill the queue with many large non-matching files first.
+        for (var index = 0; index < 160; index++)
+        {
+            CreateFile(root, $"ignore-{index:D3}.bin", 20_000 + index);
+        }
+
+        var keepA = CreateFile(root, "keep-report-a.log", 14_500);
+        var keepB = CreateFile(root, "keep-report-b.log", 13_700);
+
+        var request = new DeepScanRequest(
+            root,
+            maxItems: 5,
+            minimumSizeInMegabytes: 0,
+            includeHiddenFiles: true,
+            nameFilters: new[] { "keep-report" },
+            nameMatchMode: DeepScanNameMatchMode.StartsWith,
+            isCaseSensitiveNameMatch: false);
+
+        var result = await service.RunScanAsync(request);
+
+        Assert.Equal(new[] { keepA, keepB }, result.Findings.Select(item => item.Path).ToArray());
+        Assert.All(result.Findings, finding => Assert.StartsWith("keep-report", finding.Name, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string CreateFile(string directory, string fileName, long sizeBytes)
     {
         Directory.CreateDirectory(directory);

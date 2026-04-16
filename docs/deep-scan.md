@@ -8,6 +8,7 @@ Deep Scan is a top-N analyzer for large files and folders under a chosen root. I
 
 -   **Configure**: Choose a root (defaults to `C:\` when present, otherwise the user profile). Presets include User profile, Downloads, Desktop, Documents, Pictures, Videos, Local AppData, and Edge profiles. Set minimum size (MB, default 0), max items (default 1,000), name filters (split on `; , |`), match mode (Contains/StartsWith/EndsWith/Exact), case sensitivity, include hidden toggle, and include directories toggle. Page size is fixed at 100 results.
 -   **Run scan**: `DeepScanService.RunScanAsync` resolves the root, enumerates files/directories with `FileSystemEnumerable`, skips reparse points and system items, and skips hidden items unless the include-hidden toggle is on. Size filtering happens in bytes (minimum MB converted to bytes). A priority queue keeps only the top-N largest candidates.
+-   **Top-N candidate system**: Candidate objects are created lazily only when they can enter the current top-N heap. Once the heap is full, a cached floor size enables fast rejection of smaller files before queue locking.
 -   **Progress**: Streaming updates throttle around 600 ms (candidates ~220 ms) and include current top findings, processed count/bytes, current path, and category totals. Errors like access denied, path-too-long, or missing files are treated as non-fatal and skipped.
 -   **Results**: Findings are sorted by size, paged 100 per page, and summarized (count, total size, top category totals). Selecting an item allows opening its folder or deleting it.
 -   **Delete / Force delete**: Standard delete clears read-only flags then permanently deletes (no Recycle Bin, no lock handling). Force delete uses the cleanup pipeline with ownership repair, retries, skip-locked disabled, and delete-on-reboot fallback. Missing items are removed from the list with a status message.
@@ -20,6 +21,12 @@ Deep Scan is a top-N analyzer for large files and folders under a chosen root. I
 -   Include directories: off by default.
 -   Paging: 100 items/page.
 -   Parallelism: up to 8 threads (capped by CPU count) for child directory processing.
+
+## Performance architecture
+
+-   **Low-contention progress accounting**: Processed entry/byte counters use atomic increments, and progress emission only attempts locking when thresholds/intervals are met.
+-   **Queue pressure controls**: The scanner avoids full snapshots when heaps are very large and emits lightweight progress updates until the final result.
+-   **Allocation trimming**: Deep-scan findings are not allocated for every scanned file; they are materialized only for candidates that pass filters and top-N admission checks.
 
 ## Safety and behavior notes
 

@@ -238,12 +238,12 @@ public sealed class DeepScanService
         {
             var queue = new PriorityQueue<DeepScanFinding, long>(1);
             var rootFile = CreateFileEntry(resolvedRoot);
-            if (rootFile is not null && TryProcessFileEntry(rootFile.Value, context, out var rootFinding, out var rootSize))
+            if (rootFile is not null && TryProcessFileEntry(rootFile.Value, context, out var rootSize, out var shouldConsiderRootCandidate))
             {
                 context.RecordProcessed(rootSize, rootFile.Value.FullPath, queue);
-                if (rootFinding is not null)
+                if (shouldConsiderRootCandidate)
                 {
-                    AddCandidate(queue, rootFinding, context);
+                    AddFileCandidate(queue, rootFile.Value, context);
                 }
             }
 
@@ -266,15 +266,7 @@ public sealed class DeepScanService
                 && !ShouldSkipDirectory(rootDirectory, context)
                 && MatchesName(rootDirectory.Name, context))
             {
-                var rootFinding = new DeepScanFinding(
-                    path: rootDirectory.FullPath,
-                    name: rootDirectory.Name,
-                    directory: rootDirectory.Directory,
-                    sizeBytes: totalSize,
-                    modifiedUtc: rootDirectory.LastWriteUtc,
-                    extension: string.Empty,
-                    isDirectory: true);
-                AddCandidate(results, rootFinding, context);
+                AddDirectoryCandidate(results, rootDirectory, totalSize, context);
             }
         }
 
@@ -301,7 +293,7 @@ public sealed class DeepScanService
 
             if (!entry.IsDirectory)
             {
-                if (!TryProcessFileEntry(entry, context, out var fileFinding, out var fileSize))
+                if (!TryProcessFileEntry(entry, context, out var fileSize, out var shouldConsiderCandidate))
                 {
                     continue;
                 }
@@ -309,9 +301,9 @@ public sealed class DeepScanService
                 directorySize += fileSize;
                 context.RecordProcessed(fileSize, entry.FullPath, queue);
 
-                if (fileFinding is not null)
+                if (shouldConsiderCandidate)
                 {
-                    AddCandidate(queue, fileFinding, context);
+                    AddFileCandidate(queue, entry, context);
                 }
 
                 continue;
@@ -348,16 +340,7 @@ public sealed class DeepScanService
                     continue;
                 }
 
-                var directoryFinding = new DeepScanFinding(
-                    path: entry.FullPath,
-                    name: entry.Name,
-                    directory: entry.Directory,
-                    sizeBytes: childSize,
-                    modifiedUtc: entry.LastWriteUtc,
-                    extension: string.Empty,
-                    isDirectory: true);
-
-                AddCandidate(queue, directoryFinding, context);
+                AddDirectoryCandidate(queue, entry, childSize, context);
             }
 
             return directorySize;
@@ -392,24 +375,44 @@ public sealed class DeepScanService
                 continue;
             }
 
-            var directoryFinding = new DeepScanFinding(
-                path: entry.FullPath,
-                name: entry.Name,
-                directory: entry.Directory,
-                sizeBytes: childSize,
-                modifiedUtc: entry.LastWriteUtc,
-                extension: string.Empty,
-                isDirectory: true);
-
-            AddCandidate(queue, directoryFinding, context);
+            AddDirectoryCandidate(queue, entry, childSize, context);
         }
 
         return directorySize;
     }
 
-    private static void AddCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate, ScanContext context)
+    private static void AddFileCandidate(PriorityQueue<DeepScanFinding, long> queue, FileEntry entry, ScanContext context)
     {
-        context.TryEnqueueCandidate(queue, candidate);
+        context.TryEnqueueCandidate(
+            queue,
+            entry.SizeBytes,
+            entry.FullPath,
+            entry,
+            static file => new DeepScanFinding(
+                path: file.FullPath,
+                name: file.Name,
+                directory: file.Directory,
+                sizeBytes: file.SizeBytes,
+                modifiedUtc: file.LastWriteUtc,
+                extension: file.Extension,
+                isDirectory: false));
+    }
+
+    private static void AddDirectoryCandidate(PriorityQueue<DeepScanFinding, long> queue, FileEntry entry, long sizeBytes, ScanContext context)
+    {
+        context.TryEnqueueCandidate(
+            queue,
+            sizeBytes,
+            entry.FullPath,
+            (entry, sizeBytes),
+            static state => new DeepScanFinding(
+                path: state.entry.FullPath,
+                name: state.entry.Name,
+                directory: state.entry.Directory,
+                sizeBytes: state.sizeBytes,
+                modifiedUtc: state.entry.LastWriteUtc,
+                extension: string.Empty,
+                isDirectory: true));
     }
 
     private static List<DeepScanFinding> DrainQueue(PriorityQueue<DeepScanFinding, long> queue)
@@ -535,10 +538,10 @@ public sealed class DeepScanService
         }
     }
 
-    private static bool TryProcessFileEntry(FileEntry entry, ScanContext context, out DeepScanFinding? finding, out long fileSize)
+    private static bool TryProcessFileEntry(FileEntry entry, ScanContext context, out long fileSize, out bool shouldConsiderCandidate)
     {
-        finding = null;
         fileSize = 0;
+        shouldConsiderCandidate = false;
 
         if (ShouldSkipFile(entry, context))
         {
@@ -557,15 +560,7 @@ public sealed class DeepScanService
             return true;
         }
 
-        finding = new DeepScanFinding(
-            path: entry.FullPath,
-            name: entry.Name,
-            directory: entry.Directory,
-            sizeBytes: entry.SizeBytes,
-            modifiedUtc: entry.LastWriteUtc,
-            extension: entry.Extension,
-            isDirectory: false);
-
+        shouldConsiderCandidate = true;
         return true;
     }
 
@@ -750,12 +745,15 @@ public sealed class DeepScanService
         private readonly object _syncRoot = new();
         private readonly ConcurrentDictionary<string, byte> _systemPathCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, byte> _safePathCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly long _reportIntervalTicks = ReportInterval.Ticks;
+        private readonly long _candidateReportIntervalTicks = CandidateReportInterval.Ticks;
         private int _itemsSinceLastReport;
-        private DateTime _lastReportTimestamp = DateTime.UtcNow - ReportInterval;
-        private bool _hasPendingCandidate;
+        private long _lastReportTimestampTicks = DateTime.UtcNow.Ticks - ReportInterval.Ticks;
+        private int _hasPendingCandidate;
         private int _systemPathsSkipped;
         private long _processedEntries;
         private long _processedSizeBytes;
+        private long _candidateFloorWhenQueueFull = long.MinValue;
 
         public ScanContext(
             int limit,
@@ -922,9 +920,23 @@ public sealed class DeepScanService
                 return;
             }
 
+            var itemsSinceLastReport = Interlocked.Increment(ref _itemsSinceLastReport);
+            var hasPendingCandidate = Volatile.Read(ref _hasPendingCandidate) == 1;
+            if (!hasPendingCandidate && itemsSinceLastReport < ReportItemThreshold)
+            {
+                return;
+            }
+
+            var nowTicks = DateTime.UtcNow.Ticks;
+            var lastReportTicks = Volatile.Read(ref _lastReportTimestampTicks);
+            var requiredIntervalTicks = hasPendingCandidate ? _candidateReportIntervalTicks : _reportIntervalTicks;
+            if (nowTicks - lastReportTicks < requiredIntervalTicks)
+            {
+                return;
+            }
+
             lock (_syncRoot)
             {
-                _itemsSinceLastReport++;
                 TryEmitLocked(queue, currentPath, isFinal: false, latestFinding: null, force: false);
             }
         }
@@ -937,31 +949,54 @@ public sealed class DeepScanService
             }
         }
 
-        public bool TryEnqueueCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate)
+        public bool TryEnqueueCandidate<TState>(
+            PriorityQueue<DeepScanFinding, long> queue,
+            long candidateSize,
+            string currentPath,
+            TState state,
+            Func<TState, DeepScanFinding> candidateFactory)
         {
             if (Limit <= 0)
             {
                 return false;
             }
 
+            var floor = Volatile.Read(ref _candidateFloorWhenQueueFull);
+            if (floor != long.MinValue && candidateSize <= floor)
+            {
+                return false;
+            }
+
             lock (_syncRoot)
             {
-                if (queue.Count >= Limit && queue.TryPeek(out _, out var smallestPriority) && candidate.SizeBytes <= smallestPriority)
+                if (queue.Count >= Limit && queue.TryPeek(out _, out var smallestPriority) && candidateSize <= smallestPriority)
                 {
+                    Volatile.Write(ref _candidateFloorWhenQueueFull, smallestPriority);
                     return false;
                 }
 
-                queue.Enqueue(candidate, candidate.SizeBytes);
+                var candidate = candidateFactory(state);
+
+                queue.Enqueue(candidate, candidateSize);
 
                 if (queue.Count > Limit)
                 {
                     queue.Dequeue();
                 }
 
+                if (queue.Count >= Limit && queue.TryPeek(out _, out var updatedFloor))
+                {
+                    Volatile.Write(ref _candidateFloorWhenQueueFull, updatedFloor);
+                }
+                else
+                {
+                    Volatile.Write(ref _candidateFloorWhenQueueFull, long.MinValue);
+                }
+
                 if (Progress is not null)
                 {
-                    _hasPendingCandidate = true;
-                    TryEmitLocked(queue, candidate.Path, isFinal: false, latestFinding: candidate, force: false);
+                    Volatile.Write(ref _hasPendingCandidate, 1);
+                    TryEmitLocked(queue, currentPath, isFinal: false, latestFinding: candidate, force: false);
                 }
 
                 return true;
@@ -975,18 +1010,19 @@ public sealed class DeepScanService
                 return;
             }
 
-            var now = DateTime.UtcNow;
+            var nowTicks = DateTime.UtcNow.Ticks;
             if (!force)
             {
-                var elapsed = now - _lastReportTimestamp;
-                if (_hasPendingCandidate)
+                var lastReportTicks = Volatile.Read(ref _lastReportTimestampTicks);
+                var elapsedTicks = nowTicks - lastReportTicks;
+                if (Volatile.Read(ref _hasPendingCandidate) == 1)
                 {
-                    if (elapsed < CandidateReportInterval)
+                    if (elapsedTicks < _candidateReportIntervalTicks)
                     {
                         return;
                     }
                 }
-                else if (_itemsSinceLastReport < ReportItemThreshold && elapsed < ReportInterval)
+                else if (_itemsSinceLastReport < ReportItemThreshold && elapsedTicks < _reportIntervalTicks)
                 {
                     return;
                 }
@@ -995,8 +1031,8 @@ public sealed class DeepScanService
             if (!force && !isFinal && queue.Count > LargeQueueSnapshotThreshold)
             {
                 _itemsSinceLastReport = 0;
-                _hasPendingCandidate = false;
-                _lastReportTimestamp = now;
+                Volatile.Write(ref _hasPendingCandidate, 0);
+                Volatile.Write(ref _lastReportTimestampTicks, nowTicks);
                 Progress.Report(new DeepScanProgressUpdate(
                     Array.Empty<DeepScanFinding>(),
                     ProcessedEntries,
@@ -1008,10 +1044,10 @@ public sealed class DeepScanService
                 return;
             }
 
-            EmitSnapshotLocked(queue, currentPath, isFinal, latestFinding, now);
+            EmitSnapshotLocked(queue, currentPath, isFinal, latestFinding, nowTicks);
         }
 
-        private void EmitSnapshotLocked(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, DateTime timestampUtc)
+        private void EmitSnapshotLocked(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, long timestampUtcTicks)
         {
             var snapshot = BuildSnapshot(queue, isFinal);
             IReadOnlyDictionary<string, long> categories;
@@ -1050,8 +1086,8 @@ public sealed class DeepScanService
             Progress!.Report(update);
 
             _itemsSinceLastReport = 0;
-            _hasPendingCandidate = false;
-            _lastReportTimestamp = timestampUtc;
+            Volatile.Write(ref _hasPendingCandidate, 0);
+            Volatile.Write(ref _lastReportTimestampTicks, timestampUtcTicks);
         }
 
         private static List<DeepScanFinding> BuildSnapshot(PriorityQueue<DeepScanFinding, long> queue, bool isFinal)
