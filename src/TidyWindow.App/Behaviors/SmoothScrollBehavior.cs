@@ -33,7 +33,8 @@ public static class SmoothScrollBehavior
     }
 
     private static readonly ConditionalWeakTable<ScrollViewer, ScrollState> States = new();
-    private const int MaxIdleFrames = 3;
+    private const int MaxIdleFrames = 18;
+    private const double MinimumWheelStepPixels = 72d;
 
     public static readonly DependencyProperty IsEnabledProperty = DependencyProperty.RegisterAttached(
         "IsEnabled",
@@ -167,6 +168,16 @@ public static class SmoothScrollBehavior
         var boost = 1.0 + Math.Min(1.5, Math.Abs(e.Delta) / 480d);
         var delta = e.Delta * multiplier * boost;
 
+        // Keep classic wheel notches responsive even when low multipliers are configured.
+        if (Math.Abs(e.Delta) >= Mouse.MouseWheelDeltaForOneLine)
+        {
+            var minimumStep = MinimumWheelStepPixels * Math.Max(1.0, multiplier);
+            if (Math.Abs(delta) < minimumStep)
+            {
+                delta = Math.Sign(delta) * minimumStep;
+            }
+        }
+
         if ((Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && hasHorizontal) || (!hasVertical && hasHorizontal))
         {
             var target = Clamp(state.TargetHorizontal - delta, 0, viewer.ScrollableWidth);
@@ -229,6 +240,10 @@ public static class SmoothScrollBehavior
 
         state.FramesSinceLastWheel++;
 
+        // Clamp targets against dynamic extent changes (virtualization/data updates).
+        state.TargetVertical = Clamp(state.TargetVertical, 0, viewer.ScrollableHeight);
+        state.TargetHorizontal = Clamp(state.TargetHorizontal, 0, viewer.ScrollableWidth);
+
         var vDiff = state.TargetVertical - viewer.VerticalOffset;
         var hDiff = state.TargetHorizontal - viewer.HorizontalOffset;
 
@@ -258,9 +273,26 @@ public static class SmoothScrollBehavior
             viewer.ScrollToHorizontalOffset(state.TargetHorizontal);
         }
 
-        // Stop rendering when animation is complete or after idle frames without input
+        // If rendering was kept alive too long, finish at target and stop.
+        if (state.FramesSinceLastWheel > MaxIdleFrames)
+        {
+            if (viewer.ScrollableHeight > 0.5)
+            {
+                viewer.ScrollToVerticalOffset(state.TargetVertical);
+            }
+
+            if (viewer.ScrollableWidth > 0.5)
+            {
+                viewer.ScrollToHorizontalOffset(state.TargetHorizontal);
+            }
+
+            StopRendering(state);
+            return;
+        }
+
+        // Stop rendering when animation is complete.
         var animationComplete = (vDone || viewer.ScrollableHeight <= 0.5) && (hDone || viewer.ScrollableWidth <= 0.5);
-        if (animationComplete || state.FramesSinceLastWheel > MaxIdleFrames)
+        if (animationComplete)
         {
             StopRendering(state);
         }
