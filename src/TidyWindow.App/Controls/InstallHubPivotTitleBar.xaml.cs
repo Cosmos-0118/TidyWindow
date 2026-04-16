@@ -11,11 +11,14 @@ namespace TidyWindow.App.Controls;
 
 public partial class InstallHubPivotTitleBar : WpfUserControl
 {
+    private TranslateTransform? _sweepTransform;
+    private bool _isSweepInitialized;
+
     public InstallHubPivotTitleBar()
     {
         InitializeComponent();
         Loaded += OnLoaded;
-        SizeChanged += OnSizeChanged;
+        Unloaded += OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -23,9 +26,9 @@ public partial class InstallHubPivotTitleBar : WpfUserControl
         StartSweep();
     }
 
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        StartSweep();
+        _sweepTransform?.BeginAnimation(TranslateTransform.XProperty, null);
     }
 
     private void StartSweep()
@@ -35,22 +38,31 @@ public partial class InstallHubPivotTitleBar : WpfUserControl
             return;
         }
 
-        var brush = new LinearGradientBrush
+        if (!_isSweepInitialized)
         {
-            StartPoint = new MediaPoint(0, 0),
-            EndPoint = new MediaPoint(1, 0),
-            MappingMode = BrushMappingMode.RelativeToBoundingBox
-        };
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new MediaPoint(0, 0),
+                EndPoint = new MediaPoint(1, 0),
+                MappingMode = BrushMappingMode.RelativeToBoundingBox
+            };
 
-        brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.0));
-        brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x55, 0x38, 0xBD, 0xF8), 0.42));
-        brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0xAA, 0x43, 0xB9, 0xF5), 0.5));
-        brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x55, 0x38, 0xBD, 0xF8), 0.58));
-        brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.0));
+            brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.0));
+            brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x55, 0x38, 0xBD, 0xF8), 0.42));
+            brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0xAA, 0x43, 0xB9, 0xF5), 0.5));
+            brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x55, 0x38, 0xBD, 0xF8), 0.58));
+            brush.GradientStops.Add(new GradientStop(MediaColor.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.0));
 
-        var transform = new TranslateTransform { X = -1, Y = 0 };
-        brush.RelativeTransform = transform;
-        SweepRect.Fill = brush;
+            _sweepTransform = new TranslateTransform { X = -1, Y = 0 };
+            brush.RelativeTransform = _sweepTransform;
+            SweepRect.Fill = brush;
+            _isSweepInitialized = true;
+        }
+
+        if (_sweepTransform is null)
+        {
+            return;
+        }
 
         var animation = new DoubleAnimation
         {
@@ -61,6 +73,6 @@ public partial class InstallHubPivotTitleBar : WpfUserControl
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
 
-        transform.BeginAnimation(TranslateTransform.XProperty, animation, HandoffBehavior.SnapshotAndReplace);
+        _sweepTransform.BeginAnimation(TranslateTransform.XProperty, animation, HandoffBehavior.SnapshotAndReplace);
     }
 }

@@ -16,8 +16,7 @@
     SnapsToDevicePixels="True"
     TextOptions.TextFormattingMode="Display"
     TextOptions.TextRenderingMode="ClearType"
-    TextOptions.TextHintingMode="Fixed"
-    RenderOptions.BitmapScalingMode="HighQuality">
+    TextOptions.TextHintingMode="Fixed">
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

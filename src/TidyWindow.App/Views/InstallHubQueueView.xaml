@@ -11,8 +11,7 @@
              SnapsToDevicePixels="True"
              TextOptions.TextFormattingMode="Display"
              TextOptions.TextRenderingMode="ClearType"
-             TextOptions.TextHintingMode="Fixed"
-             RenderOptions.BitmapScalingMode="HighQuality">
+             TextOptions.TextHintingMode="Fixed">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -35,9 +34,6 @@
                     PanningMode="VerticalOnly"
                     ScrollViewer.CanContentScroll="True"
                     IsDeferredScrollingEnabled="False">
-            <ScrollViewer.CacheMode>
-                <BitmapCache EnableClearType="True"/>
-            </ScrollViewer.CacheMode>
             <Grid MaxWidth="1360"
                 HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
@@ -241,9 +237,6 @@
                                               VirtualizingPanel.CacheLengthUnit="Item"
                                               VirtualizingStackPanel.ScrollUnit="Pixel"
                                               infra:ScrollHost.BubbleParentScroll="True">
-                                        <ListView.CacheMode>
-                                            <BitmapCache EnableClearType="True"/>
-                                        </ListView.CacheMode>
                                         <ListView.Style>
                                             <Style TargetType="ListView">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -416,9 +409,6 @@
               Background="#AA020617"
               Visibility="{Binding IsQueueOperationDetailsVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
               IsHitTestVisible="{Binding IsQueueOperationDetailsVisible}">
-            <Grid.CacheMode>
-                <BitmapCache EnableClearType="True"/>
-            </Grid.CacheMode>
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
                           ScrollViewer.CanContentScroll="True"
@@ -427,9 +417,6 @@
                           VerticalAlignment="Center"
                           MaxHeight="760"
                           Margin="32">
-                <ScrollViewer.CacheMode>
-                    <BitmapCache EnableClearType="True"/>
-                </ScrollViewer.CacheMode>
                 <Border MaxWidth="720"
                         Padding="24"
                         Background="#0F172A"
@@ -470,9 +457,6 @@
                                           ScrollViewer.CanContentScroll="True"
                                           PanningMode="VerticalOnly"
                                           MaxHeight="520">
-                                <ScrollViewer.CacheMode>
-                                    <BitmapCache EnableClearType="True"/>
-                                </ScrollViewer.CacheMode>
                                 <ContentControl Content="{Binding SelectedOperation}"
                                                 ContentTemplate="{StaticResource InstallOperationDetailsTemplate}">
                                     <ContentControl.Style>

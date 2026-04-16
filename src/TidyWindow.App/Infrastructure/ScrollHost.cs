@@ -7,6 +7,18 @@ namespace TidyWindow.App.Infrastructure;
 
 public static class ScrollHost
 {
+    private static readonly DependencyProperty CachedDescendantScrollViewerProperty = DependencyProperty.RegisterAttached(
+        "CachedDescendantScrollViewer",
+        typeof(ScrollViewer),
+        typeof(ScrollHost),
+        new PropertyMetadata(null));
+
+    private static readonly DependencyProperty CachedAncestorScrollViewerProperty = DependencyProperty.RegisterAttached(
+        "CachedAncestorScrollViewer",
+        typeof(ScrollViewer),
+        typeof(ScrollHost),
+        new PropertyMetadata(null));
+
     public static readonly DependencyProperty BubbleParentScrollProperty = DependencyProperty.RegisterAttached(
         "BubbleParentScroll",
         typeof(bool),
@@ -33,10 +45,38 @@ public static class ScrollHost
         if (e.NewValue is true)
         {
             element.PreviewMouseWheel += OnElementPreviewMouseWheel;
+            if (element is FrameworkElement frameworkElement)
+            {
+                frameworkElement.Loaded += OnElementLoaded;
+                frameworkElement.Unloaded += OnElementUnloaded;
+            }
+            ClearCachedScrollViewers(element);
         }
         else
         {
             element.PreviewMouseWheel -= OnElementPreviewMouseWheel;
+            if (element is FrameworkElement frameworkElement)
+            {
+                frameworkElement.Loaded -= OnElementLoaded;
+                frameworkElement.Unloaded -= OnElementUnloaded;
+            }
+            ClearCachedScrollViewers(element);
+        }
+    }
+
+    private static void OnElementLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is DependencyObject dependencyObject)
+        {
+            ClearCachedScrollViewers(dependencyObject);
+        }
+    }
+
+    private static void OnElementUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is DependencyObject dependencyObject)
+        {
+            ClearCachedScrollViewers(dependencyObject);
         }
     }
 
@@ -47,7 +87,13 @@ public static class ScrollHost
             return;
         }
 
-        var innerScrollViewer = FindDescendantScrollViewer(source);
+        var innerScrollViewer = GetCachedDescendantScrollViewer(source);
+        if (innerScrollViewer is null || !IsDescendantOrSelf(source, innerScrollViewer))
+        {
+            innerScrollViewer = FindDescendantScrollViewer(source);
+            SetCachedDescendantScrollViewer(source, innerScrollViewer);
+        }
+
         if (innerScrollViewer != null && innerScrollViewer.ScrollableHeight > 0)
         {
             if (e.Delta > 0 && innerScrollViewer.VerticalOffset > 0)
@@ -61,14 +107,80 @@ public static class ScrollHost
             }
         }
 
-        var parentScrollViewer = FindAncestorScrollViewer(source);
+        var parentScrollViewer = GetCachedAncestorScrollViewer(source);
+        if (parentScrollViewer is null || !IsAncestorOf(source, parentScrollViewer))
+        {
+            parentScrollViewer = FindAncestorScrollViewer(source);
+            SetCachedAncestorScrollViewer(source, parentScrollViewer);
+        }
+
         if (parentScrollViewer == null)
         {
             return;
         }
 
-        parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.VerticalOffset - e.Delta);
+        var wheelLines = SystemParameters.WheelScrollLines > 0 ? SystemParameters.WheelScrollLines : 3;
+        var scrollDelta = (e.Delta / Mouse.MouseWheelDeltaForOneLine) * wheelLines * 24d;
+        parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.VerticalOffset - scrollDelta);
         e.Handled = true;
+    }
+
+    private static bool IsDescendantOrSelf(DependencyObject source, DependencyObject target)
+    {
+        var current = target;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, source))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static bool IsAncestorOf(DependencyObject source, DependencyObject ancestor)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static ScrollViewer? GetCachedDescendantScrollViewer(DependencyObject source)
+    {
+        return source.GetValue(CachedDescendantScrollViewerProperty) as ScrollViewer;
+    }
+
+    private static void SetCachedDescendantScrollViewer(DependencyObject source, ScrollViewer? scrollViewer)
+    {
+        source.SetValue(CachedDescendantScrollViewerProperty, scrollViewer);
+    }
+
+    private static ScrollViewer? GetCachedAncestorScrollViewer(DependencyObject source)
+    {
+        return source.GetValue(CachedAncestorScrollViewerProperty) as ScrollViewer;
+    }
+
+    private static void SetCachedAncestorScrollViewer(DependencyObject source, ScrollViewer? scrollViewer)
+    {
+        source.SetValue(CachedAncestorScrollViewerProperty, scrollViewer);
+    }
+
+    private static void ClearCachedScrollViewers(DependencyObject source)
+    {
+        source.ClearValue(CachedDescendantScrollViewerProperty);
+        source.ClearValue(CachedAncestorScrollViewerProperty);
     }
 
     private static ScrollViewer? FindDescendantScrollViewer(DependencyObject root)

@@ -14,8 +14,7 @@
       SnapsToDevicePixels="True"
       TextOptions.TextFormattingMode="Display"
       TextOptions.TextRenderingMode="ClearType"
-      TextOptions.TextHintingMode="Fixed"
-      RenderOptions.BitmapScalingMode="HighQuality">
+    TextOptions.TextHintingMode="Fixed">
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -79,9 +78,6 @@
                                     <GradientStop Color="#22C55E" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <Border.Effect>
-                                <DropShadowEffect Color="#22C55E" BlurRadius="12" Opacity="0.25" ShadowDepth="0"/>
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -96,7 +92,7 @@
                                 </Setter>
                                 <Setter TargetName="Root" Property="Effect">
                                     <Setter.Value>
-                                        <DropShadowEffect Color="#4ADE80" BlurRadius="16" Opacity="0.35" ShadowDepth="0"/>
+                                        <DropShadowEffect Color="#4ADE80" BlurRadius="10" Opacity="0.2" ShadowDepth="0" RenderingBias="Performance"/>
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
@@ -106,9 +102,11 @@
                                         <SolidColorBrush Color="#16A34A"/>
                                     </Setter.Value>
                                 </Setter>
+                                <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                                <Setter TargetName="Root" Property="Effect" Value="{x:Null}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
