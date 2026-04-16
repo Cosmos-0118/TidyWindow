@@ -228,6 +228,48 @@ public sealed class DeepScanServiceTests
         Assert.All(result.Findings, finding => Assert.StartsWith("keep-report", finding.Name, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task RunScanAsync_ReusesCachedResultForSameRequest()
+    {
+        DeepScanService.InvalidateCache();
+        using var temp = new TempDirectoryScope();
+        var root = temp.DirectoryPath;
+
+        var service = new DeepScanService();
+        CreateFile(root, "a.bin", 8_192);
+
+        var request = new DeepScanRequest(root, maxItems: 5, minimumSizeInMegabytes: 0, includeHiddenFiles: true);
+
+        var first = await service.RunScanAsync(request);
+        var second = await service.RunScanAsync(request);
+
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public async Task RunScanAsync_InvalidatesCachedResultWhenRootTimestampChanges()
+    {
+        DeepScanService.InvalidateCache();
+        using var temp = new TempDirectoryScope();
+        var root = temp.DirectoryPath;
+
+        var service = new DeepScanService();
+        var baseline = CreateFile(root, "baseline.bin", 4_096);
+        var request = new DeepScanRequest(root, maxItems: 5, minimumSizeInMegabytes: 0, includeHiddenFiles: true);
+
+        var first = await service.RunScanAsync(request);
+        Assert.Contains(first.Findings, item => string.Equals(item.Path, baseline, StringComparison.OrdinalIgnoreCase));
+
+        var newcomer = CreateFile(root, "newcomer.bin", 12_288);
+        var forcedWrite = Directory.GetLastWriteTimeUtc(root).AddSeconds(5);
+        Directory.SetLastWriteTimeUtc(root, forcedWrite);
+
+        var second = await service.RunScanAsync(request);
+
+        Assert.NotSame(first, second);
+        Assert.Contains(second.Findings, item => string.Equals(item.Path, newcomer, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string CreateFile(string directory, string fileName, long sizeBytes)
     {
         Directory.CreateDirectory(directory);

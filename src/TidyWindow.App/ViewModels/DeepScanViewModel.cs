@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -23,6 +24,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private readonly DeepScanService _deepScanService;
     private readonly MainViewModel _mainViewModel;
     private readonly List<DeepScanFinding> _allFindings = new();
+    private readonly Dictionary<DeepScanFinding, DeepScanItemViewModel> _findingViewModels = new(DeepScanFindingReferenceComparer.Instance);
     private readonly int _pageSize = 100;
 
     private CancellationTokenSource? _scanCancellation;
@@ -319,6 +321,28 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
+        var filters = string.IsNullOrWhiteSpace(NameFilter)
+            ? Array.Empty<string>()
+            : NameFilter.Split(new[] { ';', ',', '|' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        var request = new DeepScanRequest(
+            TargetPath,
+            MaxItems,
+            MinimumSizeMb,
+            IncludeHidden,
+            includeSystemFiles: false,
+            AllowProtectedSystemPaths,
+            filters,
+            SelectedMatchMode,
+            IsCaseSensitiveMatch,
+            IncludeDirectories);
+
+        if (_deepScanService.TryGetCachedResult(request, out var cachedResult))
+        {
+            ApplyScanResult(cachedResult, loadedFromCache: true);
+            return;
+        }
+
         var cancellation = new CancellationTokenSource();
         _scanCancellation = cancellation;
         OnPropertyChanged(nameof(CanCancel));
@@ -333,47 +357,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             ClearFindings();
             Summary = "Scanning…";
 
-            var filters = string.IsNullOrWhiteSpace(NameFilter)
-                ? Array.Empty<string>()
-                : NameFilter.Split(new[] { ';', ',', '|' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-
-            var request = new DeepScanRequest(
-                TargetPath,
-                MaxItems,
-                MinimumSizeMb,
-                IncludeHidden,
-                includeSystemFiles: false,
-                AllowProtectedSystemPaths,
-                filters,
-                SelectedMatchMode,
-                IsCaseSensitiveMatch,
-                IncludeDirectories);
-
             var progress = new Progress<DeepScanProgressUpdate>(update => ApplyProgress(update));
 
             var result = await _deepScanService.RunScanAsync(request, progress, cancellation.Token).ConfigureAwait(true);
-
-            ReplaceFindings(result.Findings);
-
-            LastScanned = result.GeneratedAt;
-            Summary = result.TotalCandidates > 0
-                ? FormatFinalSummary(result.TotalCandidates, result.TotalSizeDisplay, result.CategoryTotals)
-                : "No items above the configured threshold.";
-
-            if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
-            {
-                Summary += " • Protected system paths were skipped.";
-            }
-            var statusMessage = result.TotalCandidates > 0
-                ? $"Deep scan complete: {result.TotalCandidates} candidates totaling {result.TotalSizeDisplay}."
-                : "Deep scan completed with no candidates.";
-
-            if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
-            {
-                statusMessage += $" Skipped {result.SystemPathsSkipped:N0} protected system path(s).";
-            }
-
-            _mainViewModel.SetStatusMessage(statusMessage);
+            ApplyScanResult(result, loadedFromCache: false);
         }
         catch (OperationCanceledException)
         {
@@ -392,6 +379,34 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanCancel));
             IsBusy = false;
         }
+    }
+
+    private void ApplyScanResult(DeepScanResult result, bool loadedFromCache)
+    {
+        ReplaceFindings(result.Findings);
+
+        LastScanned = result.GeneratedAt;
+        Summary = result.TotalCandidates > 0
+            ? FormatFinalSummary(result.TotalCandidates, result.TotalSizeDisplay, result.CategoryTotals)
+            : "No items above the configured threshold.";
+
+        if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
+        {
+            Summary += " • Protected system paths were skipped.";
+        }
+
+        var statusMessage = result.TotalCandidates > 0
+            ? $"Deep scan {(loadedFromCache ? "loaded from cache" : "complete")}: {result.TotalCandidates} candidates totaling {result.TotalSizeDisplay}."
+            : (loadedFromCache
+                ? "Loaded cached deep scan with no candidates."
+                : "Deep scan completed with no candidates.");
+
+        if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
+        {
+            statusMessage += $" Skipped {result.SystemPathsSkipped:N0} protected system path(s).";
+        }
+
+        _mainViewModel.SetStatusMessage(statusMessage);
     }
 
     [RelayCommand]
@@ -597,7 +612,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             for (var offset = 0; offset < targetCount; offset++)
             {
                 var finding = _allFindings[startIndex + offset];
-                if (!ReferenceEquals(VisibleFindings[offset].Finding, finding))
+                var mapped = GetOrCreateFindingViewModel(finding);
+                if (!ReferenceEquals(VisibleFindings[offset], mapped))
                 {
                     needsUpdate = true;
                     break;
@@ -623,16 +639,48 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         for (var offset = 0; offset < targetCount; offset++)
         {
             var finding = _allFindings[startIndex + offset];
+            var mapped = GetOrCreateFindingViewModel(finding);
             if (offset < VisibleFindings.Count)
             {
-                if (!ReferenceEquals(VisibleFindings[offset].Finding, finding))
+                if (!ReferenceEquals(VisibleFindings[offset], mapped))
                 {
-                    VisibleFindings[offset] = new DeepScanItemViewModel(finding);
+                    VisibleFindings[offset] = mapped;
                 }
             }
             else
             {
-                VisibleFindings.Add(new DeepScanItemViewModel(finding));
+                VisibleFindings.Add(mapped);
+            }
+        }
+    }
+
+    private DeepScanItemViewModel GetOrCreateFindingViewModel(DeepScanFinding finding)
+    {
+        if (_findingViewModels.TryGetValue(finding, out var mapped))
+        {
+            return mapped;
+        }
+
+        mapped = new DeepScanItemViewModel(finding);
+        _findingViewModels[finding] = mapped;
+        return mapped;
+    }
+
+    private void PruneFindingViewModelCache()
+    {
+        if (_findingViewModels.Count == 0)
+        {
+            return;
+        }
+
+        var active = new HashSet<DeepScanFinding>(_allFindings, DeepScanFindingReferenceComparer.Instance);
+        var cachedFindings = _findingViewModels.Keys.ToArray();
+        for (var index = 0; index < cachedFindings.Length; index++)
+        {
+            var cachedFinding = cachedFindings[index];
+            if (!active.Contains(cachedFinding))
+            {
+                _findingViewModels.Remove(cachedFinding);
             }
         }
     }
@@ -640,6 +688,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private void ClearFindings()
     {
         _allFindings.Clear();
+        _findingViewModels.Clear();
         SetTotalFindings(0, resetPage: true, forceRefresh: true);
     }
 
@@ -660,6 +709,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 || string.Equals(current.Path, finding.Path, comparison)
                 || (directoryPrefix is not null && current.Path.StartsWith(directoryPrefix, comparison)))
             {
+                _findingViewModels.Remove(current);
                 _allFindings.RemoveAt(index);
                 removed++;
             }
@@ -819,6 +869,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         {
             _allFindings.Add(findings[index]);
         }
+
+        PruneFindingViewModelCache();
 
         SetTotalFindings(_allFindings.Count, resetPage, forceRefresh: true);
     }
@@ -1072,6 +1124,21 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         catch (Exception ex)
         {
             return (false, ex.Message);
+        }
+    }
+
+    private sealed class DeepScanFindingReferenceComparer : IEqualityComparer<DeepScanFinding>
+    {
+        public static DeepScanFindingReferenceComparer Instance { get; } = new();
+
+        public bool Equals(DeepScanFinding? x, DeepScanFinding? y)
+        {
+            return ReferenceEquals(x, y);
+        }
+
+        public int GetHashCode(DeepScanFinding obj)
+        {
+            return RuntimeHelpers.GetHashCode(obj);
         }
     }
 

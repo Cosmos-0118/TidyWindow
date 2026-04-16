@@ -178,11 +178,25 @@ internal static class DeepScanAggregation
 public sealed class DeepScanService
 {
     private static readonly ConcurrentDictionary<CacheKey, CacheEntry> Cache = new(new CacheKeyComparer());
-    private static readonly TimeSpan CacheMaxAge = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan CacheMaxAge = TimeSpan.FromMinutes(8);
+    private static readonly TimeSpan CacheMaxAgeWithoutTimestamp = TimeSpan.FromMinutes(2);
+    private const int MaxCacheEntries = 32;
+    private const int CacheTrimTarget = 24;
 
     public static void InvalidateCache()
     {
         Cache.Clear();
+    }
+
+    public bool TryGetCachedResult(DeepScanRequest request, out DeepScanResult result)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        var resolvedRoot = ResolveRootPath(request.RootPath);
+        return TryGetCachedResult(resolvedRoot, request, out result);
     }
 
     public Task<DeepScanResult> RunScanAsync(DeepScanRequest request, CancellationToken cancellationToken = default)
@@ -199,13 +213,9 @@ public sealed class DeepScanService
 
         var resolvedRoot = ResolveRootPath(request.RootPath);
 
-        var key = BuildCacheKey(resolvedRoot, request);
-        if (TryGetRootTimestamp(resolvedRoot, out var rootTimestamp)
-            && Cache.TryGetValue(key, out var cached)
-            && cached.RootTimestamp == rootTimestamp
-            && DateTimeOffset.UtcNow - cached.CachedAtUtc <= CacheMaxAge)
+        if (TryGetCachedResult(resolvedRoot, request, out var cachedResult))
         {
-            return cached.Result;
+            return cachedResult;
         }
 
         return await Task.Run(
@@ -232,7 +242,7 @@ public sealed class DeepScanService
             return DeepScanResult.FromFindings(resolvedRoot, Array.Empty<DeepScanFinding>());
         }
 
-        var hasRootTimestamp = TryGetRootTimestamp(resolvedRoot, out var rootTimestamp);
+        TryGetRootTimestamp(resolvedRoot, out var rootTimestamp);
 
         if (File.Exists(resolvedRoot))
         {
@@ -250,10 +260,7 @@ public sealed class DeepScanService
             context.Emit(queue, rootFile?.FullPath, isFinal: true, latestFinding: null, force: true);
             var single = DrainQueue(queue);
             var result = BuildResult(resolvedRoot, single, context.SystemPathsSkipped);
-            if (hasRootTimestamp)
-            {
-                CacheResult(resolvedRoot, request, result, rootTimestamp!.Value);
-            }
+            CacheResult(resolvedRoot, request, result, rootTimestamp);
             return result;
         }
 
@@ -273,10 +280,7 @@ public sealed class DeepScanService
         context.Emit(results, resolvedRoot, isFinal: true, latestFinding: null, force: true);
         var findings = DrainQueue(results);
         var directoryResult = BuildResult(resolvedRoot, findings, context.SystemPathsSkipped);
-        if (hasRootTimestamp)
-        {
-            CacheResult(resolvedRoot, request, directoryResult, rootTimestamp!.Value);
-        }
+        CacheResult(resolvedRoot, request, directoryResult, rootTimestamp);
         return directoryResult;
     }
 
@@ -1178,11 +1182,94 @@ public sealed class DeepScanService
             request.IncludeDirectories);
     }
 
-    private static void CacheResult(string resolvedRoot, DeepScanRequest request, DeepScanResult result, DateTimeOffset rootTimestamp)
+    private static bool TryGetCachedResult(string resolvedRoot, DeepScanRequest request, out DeepScanResult result)
     {
         var key = BuildCacheKey(resolvedRoot, request);
-        var entry = new CacheEntry(result, rootTimestamp, DateTimeOffset.UtcNow);
+        if (!Cache.TryGetValue(key, out var cached))
+        {
+            result = null!;
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var hasCurrentTimestamp = TryGetRootTimestamp(resolvedRoot, out var currentRootTimestamp);
+        var allowedAge = hasCurrentTimestamp && cached.RootTimestamp.HasValue
+            ? CacheMaxAge
+            : CacheMaxAgeWithoutTimestamp;
+
+        if (now - cached.CachedAtUtc > allowedAge)
+        {
+            Cache.TryRemove(key, out _);
+            result = null!;
+            return false;
+        }
+
+        // If we can reliably compare timestamps, trust cache only when the root is unchanged.
+        if (hasCurrentTimestamp && cached.RootTimestamp.HasValue)
+        {
+            var cachedTicks = cached.RootTimestamp.Value.UtcDateTime.Ticks;
+            var currentTicks = currentRootTimestamp!.Value.UtcDateTime.Ticks;
+            if (cachedTicks != currentTicks)
+            {
+                Cache.TryRemove(key, out _);
+                result = null!;
+                return false;
+            }
+        }
+        else if (hasCurrentTimestamp)
+        {
+            // Cache entry was created without a timestamp; force a fresh scan now that timestamp checks are possible.
+            Cache.TryRemove(key, out _);
+            result = null!;
+            return false;
+        }
+
+        Cache[key] = cached with { LastAccessedUtc = now };
+        result = cached.Result;
+        return true;
+    }
+
+    private static void CacheResult(string resolvedRoot, DeepScanRequest request, DeepScanResult result, DateTimeOffset? rootTimestamp)
+    {
+        var key = BuildCacheKey(resolvedRoot, request);
+        var now = DateTimeOffset.UtcNow;
+        var entry = new CacheEntry(result, rootTimestamp, now, now);
         Cache[key] = entry;
+        TrimCache(now);
+    }
+
+    private static void TrimCache(DateTimeOffset now)
+    {
+        if (Cache.Count <= MaxCacheEntries)
+        {
+            return;
+        }
+
+        foreach (var pair in Cache)
+        {
+            var maxAge = pair.Value.RootTimestamp.HasValue ? CacheMaxAge : CacheMaxAgeWithoutTimestamp;
+            if (now - pair.Value.CachedAtUtc > maxAge)
+            {
+                Cache.TryRemove(pair.Key, out _);
+            }
+        }
+
+        var overflow = Cache.Count - CacheTrimTarget;
+        if (overflow <= 0)
+        {
+            return;
+        }
+
+        var victims = Cache
+            .OrderBy(static pair => pair.Value.LastAccessedUtc)
+            .Take(overflow)
+            .Select(static pair => pair.Key)
+            .ToArray();
+
+        for (var i = 0; i < victims.Length; i++)
+        {
+            Cache.TryRemove(victims[i], out _);
+        }
     }
 
     private readonly record struct CacheKey(
@@ -1197,7 +1284,7 @@ public sealed class DeepScanService
         bool IsCaseSensitive,
         bool IncludeDirectories);
 
-    private readonly record struct CacheEntry(DeepScanResult Result, DateTimeOffset RootTimestamp, DateTimeOffset CachedAtUtc);
+    private readonly record struct CacheEntry(DeepScanResult Result, DateTimeOffset? RootTimestamp, DateTimeOffset CachedAtUtc, DateTimeOffset LastAccessedUtc);
 
     private sealed class CacheKeyComparer : IEqualityComparer<CacheKey>
     {
