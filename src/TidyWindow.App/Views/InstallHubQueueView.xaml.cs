@@ -8,16 +8,12 @@ namespace TidyWindow.App.Views;
 public partial class InstallHubQueueView : UserControl
 {
     private const double CompactMarginBreakpoint = 860d;
-    private const double CompactHeightBreakpoint = 760d;
-    private const double MediumHeightBreakpoint = 920d;
-
-    private const double QueueCardCompactMinHeight = 430d;
-    private const double QueueCardMediumMinHeight = 520d;
-    private const double QueueCardExpandedMinHeight = 620d;
-
-    private const double QueueListCompactMinHeight = 230d;
-    private const double QueueListMediumMinHeight = 300d;
-    private const double QueueListExpandedMinHeight = 420d;
+    private const double QueueCardHeightOffset = 250d;
+    private const double QueueCardMinHeight = 360d;
+    private const double QueueCardMaxHeight = 860d;
+    private const double QueueListHeightOffset = 220d;
+    private const double QueueListMinHeight = 170d;
+    private const double QueueListMaxHeight = 640d;
 
     private Thickness _defaultMargin = new(32, 0, 32, 24);
     private readonly Thickness _compactMargin = new(20, 0, 20, 24);
@@ -97,33 +93,17 @@ public partial class InstallHubQueueView : UserControl
             return;
         }
 
-        double queueCardMinHeight;
-        double queueListMinHeight;
+        var queueCardHeight = Math.Clamp(viewportHeight - QueueCardHeightOffset, QueueCardMinHeight, QueueCardMaxHeight);
+        var queueListHeight = Math.Clamp(queueCardHeight - QueueListHeightOffset, QueueListMinHeight, QueueListMaxHeight);
 
-        if (viewportHeight <= CompactHeightBreakpoint)
+        if (Math.Abs(QueueTimelineCard.Height - queueCardHeight) > 0.1)
         {
-            queueCardMinHeight = QueueCardCompactMinHeight;
-            queueListMinHeight = QueueListCompactMinHeight;
-        }
-        else if (viewportHeight <= MediumHeightBreakpoint)
-        {
-            queueCardMinHeight = QueueCardMediumMinHeight;
-            queueListMinHeight = QueueListMediumMinHeight;
-        }
-        else
-        {
-            queueCardMinHeight = QueueCardExpandedMinHeight;
-            queueListMinHeight = QueueListExpandedMinHeight;
+            QueueTimelineCard.Height = queueCardHeight;
         }
 
-        if (Math.Abs(QueueTimelineCard.MinHeight - queueCardMinHeight) > 0.1)
+        if (Math.Abs(QueueTimelineListHost.Height - queueListHeight) > 0.1)
         {
-            QueueTimelineCard.MinHeight = queueCardMinHeight;
-        }
-
-        if (Math.Abs(QueueTimelineListHost.MinHeight - queueListMinHeight) > 0.1)
-        {
-            QueueTimelineListHost.MinHeight = queueListMinHeight;
+            QueueTimelineListHost.Height = queueListHeight;
         }
 
     }

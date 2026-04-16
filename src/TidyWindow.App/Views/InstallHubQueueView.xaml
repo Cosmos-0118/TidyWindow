@@ -38,7 +38,7 @@
             <ScrollViewer.CacheMode>
                 <BitmapCache EnableClearType="True"/>
             </ScrollViewer.CacheMode>
-            <Grid MaxWidth="1180"
+            <Grid MaxWidth="1360"
                 HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -161,7 +161,7 @@
                                                 <Border x:Name="QueueTimelineCard"
                                                                 Style="{StaticResource InstallCardBorderStyle}"
                                                                 Padding="24"
-                                                                MinHeight="560">
+                                                                MinHeight="360">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -169,7 +169,7 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                  <Grid Grid.Row="0"
+                                                                <Grid Grid.Row="0"
                                       Margin="0,0,0,20">
                                     <StackPanel>
                                         <TextBlock Text="Queue timeline"
@@ -180,25 +180,24 @@
                                                    Foreground="{StaticResource InstallTextMutedBrush}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
-                                        <StackPanel Orientation="Horizontal"
-                                                    Margin="0,18,0,0"
-                                                    HorizontalAlignment="Left">
+                                                                                <WrapPanel Margin="0,18,0,0"
+                                                                                                     HorizontalAlignment="Left">
                                             <Button Content="Retry failed"
                                                     Command="{Binding RetryFailedCommand}"
                                                     Style="{StaticResource InstallRetryButtonStyle}"
                                                     Padding="16,8"/>
                                             <Button Content="Clear completed"
-                                                    Margin="12,0,0,0"
+                                                    Margin="12,0,12,8"
                                                     Command="{Binding ClearCompletedCommand}"
                                                     Style="{StaticResource InstallClearButtonStyle}"
                                                     Padding="16,8"/>
-                                        </StackPanel>
+                                        </WrapPanel>
                                     </StackPanel>
                                 </Grid>
 
-                                  <Grid x:Name="QueueTimelineListHost"
+                                <Grid x:Name="QueueTimelineListHost"
                                       Grid.Row="1"
-                                      MinHeight="340">
+                                      MinHeight="170">
                                     <ItemsControl ItemsSource="{StaticResource InstallHubQueueSkeletonItems}"
                                                   ItemTemplate="{StaticResource InstallHubQueueSkeletonTemplate}">
                                         <ItemsControl.Style>
@@ -247,9 +246,16 @@
                                         </ListView.ItemContainerStyle>
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <WrapPanel Grid.Row="0"
+                                                               VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding PackageName}"
                                                                    FontWeight="SemiBold"
                                                                    TextWrapping="Wrap"/>
@@ -274,9 +280,10 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                    </StackPanel>
+                                                    </WrapPanel>
 
-                                                    <TextBlock Text="{Binding Message}"
+                                                    <TextBlock Grid.Row="1"
+                                                               Text="{Binding Message}"
                                                                Foreground="{StaticResource InstallTextMutedBrush}"
                                                                FontSize="12"
                                                                TextWrapping="Wrap"
@@ -296,11 +303,12 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
 
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Margin="0,6,0,0">
+                                                    <WrapPanel Grid.Row="2"
+                                                               Margin="0,6,0,0">
                                                         <TextBlock Text="{Binding Attempts}"
-                                                               Foreground="{StaticResource InstallTextSecondaryBrush}"
-                                                                   FontSize="11">
+                                                                   Foreground="{StaticResource InstallTextSecondaryBrush}"
+                                                                   FontSize="11"
+                                                                   Margin="0,0,10,0">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -317,8 +325,7 @@
                                                         </TextBlock>
                                                         <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
                                                                    Foreground="{StaticResource InstallTextTimestampBrush}"
-                                                                   FontSize="11"
-                                                                   Margin="10,0,0,0">
+                                                                   FontSize="11">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -333,30 +340,34 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                    </StackPanel>
+                                                    </WrapPanel>
 
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Margin="0,10,0,0">
+                                                    <WrapPanel Grid.Row="3"
+                                                               Margin="0,10,0,0">
                                                         <Button Content="View details"
-                                                            Command="{Binding DataContext.ShowQueueOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                            Padding="12,4"
-                                                            Margin="0,0,8,0"/>
+                                                                Command="{Binding DataContext.ShowQueueOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                                Padding="12,4"
+                                                                Margin="0,0,8,8"
+                                                                MinWidth="110"/>
                                                         <Button Content="Show output"
-                                                            Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                            Padding="12,4"
-                                                            Margin="0,0,8,0"/>
+                                                                Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                                Padding="12,4"
+                                                                Margin="0,0,8,8"
+                                                                MinWidth="110"/>
                                                         <Button Content="Cancel"
                                                                 Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource InstallSecondaryButtonStyle}"
                                                                 Padding="12,4"
+                                                                Margin="0,0,8,8"
+                                                                MinWidth="96"
                                                                 Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                    </StackPanel>
-                                                </StackPanel>
+                                                    </WrapPanel>
+                                                </Grid>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
                                     </ListView>

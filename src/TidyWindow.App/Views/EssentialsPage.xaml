@@ -859,18 +859,18 @@
                                                        FontWeight="SemiBold"/>
                                         </Border>
                                     </WrapPanel>
-                                    <StackPanel Orientation="Horizontal"
-                                                Margin="0,12,0,0">
+                                        <WrapPanel Margin="0,12,0,0">
                                         <Button Content="Retry failed"
                                                 Command="{Binding RetryFailedCommand}"
                                                 Style="{StaticResource EssentialsAccentButtonStyle}"
-                                                MinWidth="112"/>
+                                            MinWidth="112"
+                                            Margin="0,0,12,8"/>
                                         <Button Content="Clear completed"
                                                 Command="{Binding ClearCompletedCommand}"
                                                 Style="{StaticResource EssentialsSecondaryButtonStyle}"
-                                                Margin="12,0,0,0"
+                                            Margin="0,0,12,8"
                                                 MinWidth="112"/>
-                                    </StackPanel>
+                                        </WrapPanel>
                                         <Button Content="Stop old process"
                                             Command="{Binding StopActiveRunCommand}"
                                             Style="{StaticResource EssentialsAccentButtonStyle}"
@@ -884,9 +884,9 @@
                             <Border x:Name="EssentialsQueueTimelineCard"
                                     Style="{StaticResource EssentialsCardStyle}"
                                     Margin="{StaticResource CardSpacing}"
-                                    MinHeight="520">
+                                                                        MinHeight="300">
                                 <Grid x:Name="EssentialsQueueOperationsRegion"
-                                      MinHeight="320">
+                                                                            MinHeight="140">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
@@ -931,150 +931,147 @@
                                                         BorderThickness="1"
                                                         CornerRadius="14"
                                                         Padding="16">
-                                                    <StackPanel>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="{Binding TaskName}"
-                                                                               FontWeight="SemiBold"
-                                                                               FontSize="15"/>
-                                                                    <Border x:Name="StatusChip"
-                                                                            Margin="10,0,0,0"
-                                                                            Padding="8,3"
-                                                                            CornerRadius="8"
-                                                                            Background="#13233E"
-                                                                            BorderBrush="#1E3454"
-                                                                            BorderThickness="1"
-                                                                            ToolTip="{Binding Message}">
-                                                                        <TextBlock x:Name="StatusChipLabel"
-                                                                                   Text="{Binding StatusLabel}"
-                                                                                   FontSize="11"
-                                                                                   FontWeight="SemiBold"
-                                                                                   Foreground="#E2E8F0"/>
-                                                                        <Border.Style>
-                                                                            <Style TargetType="Border">
-                                                                                <Setter Property="Background" Value="#13233E"/>
-                                                                                <Setter Property="BorderBrush" Value="#1E3454"/>
-                                                                                <Setter Property="BorderThickness" Value="1"/>
-                                                                                <Setter Property="TextElement.Foreground" Value="#E2E8F0"/>
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding HasErrors}" Value="True">
-                                                                                        <Setter Property="Background" Value="#3B1F2B"/>
-                                                                                        <Setter Property="BorderBrush" Value="#E11D48"/>
-                                                                                        <Setter Property="TextElement.Foreground" Value="#FEE2E2"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
-                                                                                        <Setter Property="Background" Value="#3A2C1A"/>
-                                                                                        <Setter Property="BorderBrush" Value="#F59E0B"/>
-                                                                                        <Setter Property="TextElement.Foreground" Value="#FEF3C7"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                                        <Setter Property="Background" Value="#0E243D"/>
-                                                                                        <Setter Property="BorderBrush" Value="#38BDF8"/>
-                                                                                        <Setter Property="TextElement.Foreground" Value="#E0F2FE"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Completed">
-                                                                                        <Setter Property="Background" Value="#0F2E23"/>
-                                                                                        <Setter Property="BorderBrush" Value="#22C55E"/>
-                                                                                        <Setter Property="TextElement.Foreground" Value="#DCFCE7"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Queued">
-                                                                                        <Setter Property="Background" Value="#132A3F"/>
-                                                                                        <Setter Property="BorderBrush" Value="#60A5FA"/>
-                                                                                        <Setter Property="TextElement.Foreground" Value="#DBEAFE"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </Border.Style>
-                                                                    </Border>
-                                                                </StackPanel>
-                                                                <TextBlock Text="{Binding StatusLabel}"
-                                                                           Margin="0,4,0,0"
-                                                                           Foreground="#38BDF8"
-                                                                           FontSize="12"/>
-                                                                <StackPanel Orientation="Horizontal"
-                                                                            Margin="0,8,0,0">
-                                                                    <TextBlock Text="{Binding AttemptLabel}"
-                                                                               Foreground="#94A3B8"
-                                                                               FontSize="11">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding AttemptLabel}" Value="{x:Null}">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding AttemptLabel}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                    <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
-                                                                               Foreground="#5F6B84"
-                                                                               FontSize="11"
-                                                                               Margin="12,0,0,0">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                </StackPanel>
-                                                            </StackPanel>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto"/>
+                                                            <RowDefinition Height="Auto"/>
+                                                        </Grid.RowDefinitions>
 
-                                                            <StackPanel Grid.Column="1"
-                                                                        Orientation="Horizontal"
-                                                                        HorizontalAlignment="Right"
-                                                                        VerticalAlignment="Top">
-                                                                <Button Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                        CommandParameter="{Binding}"
-                                                                        Padding="14,6"
-                                                                        MinWidth="124">
-                                                                    <Button.Content>
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <TextBlock Text="Show output" FontWeight="SemiBold"/>
-                                                                            <TextBlock Text=">" Margin="10,0,0,0" Opacity="0.8"/>
-                                                                        </StackPanel>
-                                                                    </Button.Content>
-                                                                    <Button.Style>
-                                                                        <Style TargetType="Button" BasedOn="{StaticResource EssentialsAccentButtonStyle}"/>
-                                                                    </Button.Style>
-                                                                </Button>
-                                                                <Button Margin="12,0,0,0"
-                                                                        Padding="10,4"
-                                                                        MinWidth="96"
-                                                                        Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                        CommandParameter="{Binding}"
-                                                                        Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                        IsEnabled="{Binding CanCancel}">
-                                                                    <Button.Style>
-                                                                        <Style TargetType="Button" BasedOn="{StaticResource EssentialsSecondaryButtonStyle}">
-                                                                            <Setter Property="Content" Value="Cancel"/>
+                                                        <StackPanel Grid.Row="0">
+                                                            <WrapPanel>
+                                                                <TextBlock Text="{Binding TaskName}"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="15"/>
+                                                                <Border x:Name="StatusChip"
+                                                                        Margin="10,0,0,0"
+                                                                        Padding="8,3"
+                                                                        CornerRadius="8"
+                                                                        Background="#13233E"
+                                                                        BorderBrush="#1E3454"
+                                                                        BorderThickness="1"
+                                                                        ToolTip="{Binding Message}">
+                                                                    <TextBlock x:Name="StatusChipLabel"
+                                                                               Text="{Binding StatusLabel}"
+                                                                               FontSize="11"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="#E2E8F0"/>
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="#13233E"/>
+                                                                            <Setter Property="BorderBrush" Value="#1E3454"/>
+                                                                            <Setter Property="BorderThickness" Value="1"/>
+                                                                            <Setter Property="TextElement.Foreground" Value="#E2E8F0"/>
                                                                             <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasErrors}" Value="True">
+                                                                                    <Setter Property="Background" Value="#3B1F2B"/>
+                                                                                    <Setter Property="BorderBrush" Value="#E11D48"/>
+                                                                                    <Setter Property="TextElement.Foreground" Value="#FEE2E2"/>
+                                                                                </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
-                                                                                    <Setter Property="Content" Value="Stopping..."/>
+                                                                                    <Setter Property="Background" Value="#3A2C1A"/>
+                                                                                    <Setter Property="BorderBrush" Value="#F59E0B"/>
+                                                                                    <Setter Property="TextElement.Foreground" Value="#FEF3C7"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                    <Setter Property="Background" Value="#0E243D"/>
+                                                                                    <Setter Property="BorderBrush" Value="#38BDF8"/>
+                                                                                    <Setter Property="TextElement.Foreground" Value="#E0F2FE"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding StatusLabel}" Value="Completed">
+                                                                                    <Setter Property="Background" Value="#0F2E23"/>
+                                                                                    <Setter Property="BorderBrush" Value="#22C55E"/>
+                                                                                    <Setter Property="TextElement.Foreground" Value="#DCFCE7"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding StatusLabel}" Value="Queued">
+                                                                                    <Setter Property="Background" Value="#132A3F"/>
+                                                                                    <Setter Property="BorderBrush" Value="#60A5FA"/>
+                                                                                    <Setter Property="TextElement.Foreground" Value="#DBEAFE"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
-                                                                    </Button.Style>
-                                                                </Button>
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </StackPanel>
+                                                                    </Border.Style>
+                                                                </Border>
+                                                            </WrapPanel>
+                                                            <TextBlock Text="{Binding StatusLabel}"
+                                                                       Margin="0,4,0,0"
+                                                                       Foreground="#38BDF8"
+                                                                       FontSize="12"/>
+                                                            <WrapPanel Margin="0,8,0,0">
+                                                                <TextBlock Text="{Binding AttemptLabel}"
+                                                                           Foreground="#94A3B8"
+                                                                           FontSize="11"
+                                                                           Margin="0,0,12,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding AttemptLabel}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding AttemptLabel}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
+                                                                           Foreground="#5F6B84"
+                                                                           FontSize="11">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+
+                                                        <WrapPanel Grid.Row="1"
+                                                                   Margin="0,12,0,0">
+                                                            <Button Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Padding="14,6"
+                                                                    MinWidth="124"
+                                                                    Margin="0,0,10,8">
+                                                                <Button.Content>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="Show output" FontWeight="SemiBold"/>
+                                                                        <TextBlock Text=">" Margin="10,0,0,0" Opacity="0.8"/>
+                                                                    </StackPanel>
+                                                                </Button.Content>
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button" BasedOn="{StaticResource EssentialsAccentButtonStyle}"/>
+                                                                </Button.Style>
+                                                            </Button>
+                                                            <Button Padding="10,4"
+                                                                    MinWidth="96"
+                                                                    Margin="0,0,10,8"
+                                                                    Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                    IsEnabled="{Binding CanCancel}">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button" BasedOn="{StaticResource EssentialsSecondaryButtonStyle}">
+                                                                        <Setter Property="Content" Value="Cancel"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
+                                                                                <Setter Property="Content" Value="Stopping..."/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+                                                        </WrapPanel>
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>

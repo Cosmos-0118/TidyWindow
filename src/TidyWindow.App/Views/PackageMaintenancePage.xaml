@@ -1965,7 +1965,7 @@
                                     Style="{StaticResource CardBorderStyle}"
                                     Padding="24"
                                     Margin="0,0,0,20"
-                                    MinHeight="560">
+                                    MinHeight="360">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -2004,7 +2004,7 @@
                                     <Grid x:Name="MaintenanceQueueListRegion"
                                           Grid.Row="2"
                                           Margin="0,18,0,0"
-                                          MinHeight="320">
+                                        MinHeight="170">
                                         <ListView x:Name="OperationsListView"
                                                   ItemsSource="{Binding Operations}"
                                                   SelectedItem="{Binding SelectedOperation, Mode=TwoWay}"
@@ -2022,12 +2022,10 @@
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    VerticalAlignment="Center">
+                                                        <WrapPanel VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding PackageDisplay}"
                                                                        FontWeight="SemiBold"
-                                                                       TextWrapping="Wrap"
-                                                                       MaxWidth="220"/>
+                                                                       TextWrapping="Wrap"/>
                                                             <TextBlock Text="{Binding StatusDisplay}"
                                                                        Margin="10,0,0,0"
                                                                        FontSize="12"
@@ -2056,7 +2054,7 @@
                                                                     </Style>
                                                                 </TextBlock.Style>
                                                             </TextBlock>
-                                                        </StackPanel>
+                                                        </WrapPanel>
                                                         <TextBlock Text="{Binding Message}"
                                                                    Foreground="#94A3B8"
                                                                    FontSize="12"
@@ -2085,11 +2083,12 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    Margin="0,10,0,0">
+                                                        <WrapPanel Margin="0,10,0,0">
                                                             <Button Content="Cancel"
                                                                     Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                    CommandParameter="{Binding}">
+                                                                    CommandParameter="{Binding}"
+                                                                    Margin="0,0,8,8"
+                                                                    MinWidth="96">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource DangerButtonStyle}">
@@ -2108,7 +2107,8 @@
                                                             <Button Content="Operation details"
                                                                     Command="{Binding DataContext.ShowOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}"
-                                                                    Margin="8,0,0,0">
+                                                                    Margin="0,0,8,8"
+                                                                    MinWidth="130">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -2124,7 +2124,7 @@
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                        </StackPanel>
+                                                        </WrapPanel>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>

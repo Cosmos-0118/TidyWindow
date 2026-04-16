@@ -17,8 +17,12 @@ namespace TidyWindow.App.Views;
 public partial class PackageMaintenancePage : Page, INavigationAware
 {
     private const double CompactMarginBreakpoint = 980d;
-    private const double CompactQueueHeightBreakpoint = 760d;
-    private const double MediumQueueHeightBreakpoint = 920d;
+    private const double QueueCardHeightOffset = 250d;
+    private const double QueueCardMinHeight = 360d;
+    private const double QueueCardMaxHeight = 860d;
+    private const double QueueListHeightOffset = 220d;
+    private const double QueueListMinHeight = 170d;
+    private const double QueueListMaxHeight = 640d;
 
     private readonly PackageMaintenanceViewModel _viewModel;
     private WpfListView? _packagesListView;
@@ -295,26 +299,17 @@ public partial class PackageMaintenancePage : Page, INavigationAware
             return;
         }
 
-        var queueCardMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
-            ? 430d
-            : viewportHeight <= MediumQueueHeightBreakpoint
-                ? 520d
-                : 620d;
+        var queueCardHeight = Math.Clamp(viewportHeight - QueueCardHeightOffset, QueueCardMinHeight, QueueCardMaxHeight);
+        var queueListHeight = Math.Clamp(queueCardHeight - QueueListHeightOffset, QueueListMinHeight, QueueListMaxHeight);
 
-        var queueListMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
-            ? 220d
-            : viewportHeight <= MediumQueueHeightBreakpoint
-                ? 300d
-                : 380d;
-
-        if (Math.Abs(MaintenanceQueueCard.MinHeight - queueCardMinHeight) > 0.1)
+        if (Math.Abs(MaintenanceQueueCard.Height - queueCardHeight) > 0.1)
         {
-            MaintenanceQueueCard.MinHeight = queueCardMinHeight;
+            MaintenanceQueueCard.Height = queueCardHeight;
         }
 
-        if (Math.Abs(MaintenanceQueueListRegion.MinHeight - queueListMinHeight) > 0.1)
+        if (Math.Abs(MaintenanceQueueListRegion.Height - queueListHeight) > 0.1)
         {
-            MaintenanceQueueListRegion.MinHeight = queueListMinHeight;
+            MaintenanceQueueListRegion.Height = queueListHeight;
         }
     }
 

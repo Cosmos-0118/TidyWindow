@@ -10,8 +10,12 @@ namespace TidyWindow.App.Views;
 public partial class EssentialsPage : Page, INavigationAware
 {
     private const double CompactMarginBreakpoint = 980d;
-    private const double CompactQueueHeightBreakpoint = 760d;
-    private const double MediumQueueHeightBreakpoint = 920d;
+    private const double QueueCardHeightOffset = 470d;
+    private const double QueueCardMinHeight = 300d;
+    private const double QueueCardMaxHeight = 640d;
+    private const double QueueListHeightOffset = 160d;
+    private const double QueueListMinHeight = 140d;
+    private const double QueueListMaxHeight = 460d;
 
     private readonly EssentialsViewModel _viewModel;
     private readonly Controls.EssentialsPivotTitleBar _titleBar;
@@ -178,26 +182,17 @@ public partial class EssentialsPage : Page, INavigationAware
             return;
         }
 
-        var queueCardMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
-            ? 420d
-            : viewportHeight <= MediumQueueHeightBreakpoint
-                ? 500d
-                : 600d;
+        var queueCardHeight = Math.Clamp(viewportHeight - QueueCardHeightOffset, QueueCardMinHeight, QueueCardMaxHeight);
+        var queueRegionHeight = Math.Clamp(queueCardHeight - QueueListHeightOffset, QueueListMinHeight, QueueListMaxHeight);
 
-        var queueRegionMinHeight = viewportHeight <= CompactQueueHeightBreakpoint
-            ? 220d
-            : viewportHeight <= MediumQueueHeightBreakpoint
-                ? 290d
-                : 360d;
-
-        if (Math.Abs(EssentialsQueueTimelineCard.MinHeight - queueCardMinHeight) > 0.1)
+        if (Math.Abs(EssentialsQueueTimelineCard.Height - queueCardHeight) > 0.1)
         {
-            EssentialsQueueTimelineCard.MinHeight = queueCardMinHeight;
+            EssentialsQueueTimelineCard.Height = queueCardHeight;
         }
 
-        if (Math.Abs(EssentialsQueueOperationsRegion.MinHeight - queueRegionMinHeight) > 0.1)
+        if (Math.Abs(EssentialsQueueOperationsRegion.Height - queueRegionHeight) > 0.1)
         {
-            EssentialsQueueOperationsRegion.MinHeight = queueRegionMinHeight;
+            EssentialsQueueOperationsRegion.Height = queueRegionHeight;
         }
     }
 
