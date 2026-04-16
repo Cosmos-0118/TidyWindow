@@ -26,6 +26,8 @@ public sealed class BackupRequest
     public IReadOnlyList<string> SourcePaths { get; init; } = Array.Empty<string>();
     public string DestinationArchivePath { get; init; } = string.Empty;
     public int ChunkSizeBytes { get; init; } = 4 * 1024 * 1024;
+    public CompressionLevel PayloadCompressionLevel { get; init; } = CompressionLevel.Fastest;
+    public bool AutoDetectPrecompressedFiles { get; init; } = true;
     public string? Generator { get; init; }
     public BackupPolicies Policies { get; init; } = BackupPolicies.Default;
     public IReadOnlyList<string> RegistryKeys { get; init; } = Array.Empty<string>();
@@ -175,7 +177,7 @@ internal sealed class DefaultFileSnapshotProvider : IFileSnapshotProvider
     public Stream OpenRead(string path)
     {
         // Placeholder for future VSS support; currently returns a shared read stream.
-        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
+        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1024 * 1024, FileOptions.SequentialScan);
     }
 }
 
@@ -184,6 +186,17 @@ internal sealed class DefaultFileSnapshotProvider : IFileSnapshotProvider
 /// </summary>
 public sealed class BackupService
 {
+    private static readonly HashSet<string> PrecompressedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".7z", ".rar", ".gz", ".bz2", ".xz",
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".avif",
+        ".mp3", ".aac", ".ogg", ".flac", ".m4a", ".wav",
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm",
+        ".pdf",
+        ".docx", ".xlsx", ".pptx",
+        ".cab", ".msi", ".nupkg", ".jar", ".war", ".apk"
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -237,7 +250,7 @@ public sealed class BackupService
 
             if (File.Exists(source))
             {
-                var entry = AddFile(source, archive, normalizedChunkSize, cancellationToken);
+                var entry = AddFile(source, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken);
                 entries.Add(entry);
                 totalBytes += entry.SizeBytes;
                 processed++;
@@ -250,7 +263,7 @@ public sealed class BackupService
                 foreach (var file in Directory.EnumerateFiles(source, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var entry = AddFile(file, archive, normalizedChunkSize, cancellationToken, baseDirectory: source);
+                    var entry = AddFile(file, archive, normalizedChunkSize, request.PayloadCompressionLevel, request.AutoDetectPrecompressedFiles, cancellationToken, baseDirectory: source);
                     entries.Add(entry);
                     totalBytes += entry.SizeBytes;
                     processed++;
@@ -280,14 +293,22 @@ public sealed class BackupService
         return new BackupResult(normalizedDest, manifest, entries.Count, totalBytes);
     }
 
-    private BackupEntry AddFile(string path, ZipArchive archive, int chunkSize, CancellationToken cancellationToken, string? baseDirectory = null)
+    private BackupEntry AddFile(
+        string path,
+        ZipArchive archive,
+        int chunkSize,
+        CompressionLevel payloadCompressionLevel,
+        bool autoDetectPrecompressedFiles,
+        CancellationToken cancellationToken,
+        string? baseDirectory = null)
     {
         var normalizedPath = Path.GetFullPath(path);
         var relativeTarget = BuildTargetPath(normalizedPath, baseDirectory);
         var targetEntryName = $"payload/{relativeTarget.Replace('\\', '/')}";
 
         var fileInfo = new FileInfo(normalizedPath);
-        var entry = archive.CreateEntry(targetEntryName, CompressionLevel.Optimal);
+        var compressionLevel = ResolvePayloadCompressionLevel(normalizedPath, payloadCompressionLevel, autoDetectPrecompressedFiles);
+        var entry = archive.CreateEntry(targetEntryName, compressionLevel);
 
         var chunkHashes = new List<string>();
         string? fullHash = null;
@@ -425,8 +446,8 @@ public sealed class BackupService
     private static string CopyWithHash(Stream source, Stream destination, int chunkSize, IList<string> chunkHashes, CancellationToken cancellationToken)
     {
         using var fullHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[chunkSize];
-        var fullBuffer = new byte[8192];
         int read;
         while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
         {
@@ -434,11 +455,8 @@ public sealed class BackupService
             destination.Write(buffer, 0, read);
 
             fullHasher.AppendData(buffer, 0, read);
-
-            using var chunkHasher = SHA256.Create();
-            var chunk = read == buffer.Length ? buffer : buffer.AsSpan(0, read).ToArray();
-            var chunkHash = chunkHasher.ComputeHash(chunk);
-            chunkHashes.Add(Convert.ToHexString(chunkHash));
+            chunkHasher.AppendData(buffer, 0, read);
+            chunkHashes.Add(Convert.ToHexString(chunkHasher.GetHashAndReset()));
         }
 
         // Rewind destination for potential callers (not needed for Zip entry but kept consistent)
@@ -446,6 +464,19 @@ public sealed class BackupService
 
         fullHasher.AppendData(Array.Empty<byte>());
         return Convert.ToHexString(fullHasher.GetHashAndReset());
+    }
+
+    private static CompressionLevel ResolvePayloadCompressionLevel(string filePath, CompressionLevel configured, bool autoDetectPrecompressedFiles)
+    {
+        if (!autoDetectPrecompressedFiles)
+        {
+            return configured;
+        }
+
+        var extension = Path.GetExtension(filePath);
+        return PrecompressedExtensions.Contains(extension)
+            ? CompressionLevel.NoCompression
+            : configured;
     }
 
     private static List<string> NormalizeSources(IReadOnlyList<string> sources)

@@ -55,7 +55,6 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private bool _isRestoreMode;
     private bool _isInfoPopupOpen;
     private bool _restoreRegistryEnabled;
-    private bool _isFolderPickerOpen;
     private int _selectedFolderCount;
     private string _selectedFoldersPreview = "No folders selected";
 
@@ -264,12 +263,6 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         set => SetProperty(ref _isInfoPopupOpen, value);
     }
 
-    public bool IsFolderPickerOpen
-    {
-        get => _isFolderPickerOpen;
-        set => SetProperty(ref _isFolderPickerOpen, value);
-    }
-
     public int SelectedFolderCount
     {
         get => _selectedFolderCount;
@@ -443,7 +436,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         _expectedBackupBytes = EstimateSelectionSize(sources);
 
-        CapacitySummary = EvaluateCapacity(resolvedDestination, sources);
+        CapacitySummary = EvaluateCapacity(resolvedDestination, _expectedBackupBytes);
 
         var request = new BackupRequest
         {
@@ -669,18 +662,6 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenFolderPicker()
-    {
-        IsFolderPickerOpen = true;
-    }
-
-    [RelayCommand]
-    private void CloseFolderPicker()
-    {
-        IsFolderPickerOpen = false;
-    }
-
-    [RelayCommand]
     private void ClearFolderSelection()
     {
         foreach (var folder in Folders)
@@ -689,6 +670,76 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         }
 
         UpdateFolderSelectionSummary();
+    }
+
+    public void AddExplorerSources(IEnumerable<string> selectedPaths)
+    {
+        ArgumentNullException.ThrowIfNull(selectedPaths);
+
+        var hasChanges = false;
+        foreach (var rawPath in selectedPaths)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath))
+            {
+                continue;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(rawPath.Trim());
+            string fullPath;
+            try
+            {
+                fullPath = Path.GetFullPath(expanded);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var isDirectory = Directory.Exists(fullPath);
+            var isFile = File.Exists(fullPath);
+            if (!isDirectory && !isFile)
+            {
+                continue;
+            }
+
+            var normalized = NormalizeSourceForComparison(fullPath, isDirectory);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                continue;
+            }
+
+            var existing = Folders.FirstOrDefault(folder =>
+                string.Equals(
+                    NormalizeSourceForComparison(folder.Path, Directory.Exists(folder.Path)),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null)
+            {
+                if (!existing.IsSelected)
+                {
+                    existing.IsSelected = true;
+                    hasChanges = true;
+                }
+
+                continue;
+            }
+
+            var added = new SelectableBackupFolder(isDirectory ? "Explorer folder" : "Explorer file", fullPath)
+            {
+                IsSelected = true
+            };
+            added.PropertyChanged += OnFolderPropertyChanged;
+            Folders.Add(added);
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
+            UpdateFolderSelectionSummary();
+            ValidationSummary = string.Empty;
+            Status = "Explorer selection updated.";
+        }
     }
 
     [RelayCommand]
@@ -807,13 +858,10 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         foreach (var folder in Folders.Where(f => f.IsSelected))
         {
-            if (!string.IsNullOrWhiteSpace(folder.Path) && Directory.Exists(folder.Path))
+            var resolved = ResolveExistingSourcePath(folder.Path);
+            if (!string.IsNullOrWhiteSpace(resolved) && seen.Add(resolved))
             {
-                var normalized = NormalizePath(folder.Path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                if (seen.Add(normalized))
-                {
-                    sources.Add(normalized);
-                }
+                sources.Add(resolved);
             }
         }
 
@@ -822,13 +870,10 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             var filtered = Services.AppDataFilter.FilterUsefulPaths(app.DataPaths);
             foreach (var path in filtered)
             {
-                if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+                var resolved = ResolveExistingSourcePath(path);
+                if (!string.IsNullOrWhiteSpace(resolved) && seen.Add(resolved))
                 {
-                    var normalized = NormalizePath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                    if (seen.Add(normalized))
-                    {
-                        sources.Add(normalized);
-                    }
+                    sources.Add(resolved);
                 }
             }
         }
@@ -993,6 +1038,55 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                 full += System.IO.Path.DirectorySeparatorChar;
             }
             return full;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string ResolveExistingSourcePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            var full = System.IO.Path.GetFullPath(expanded);
+            if (File.Exists(full))
+            {
+                return full;
+            }
+
+            if (Directory.Exists(full))
+            {
+                return full.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return string.Empty;
+    }
+
+    private static string NormalizeSourceForComparison(string path, bool isDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var full = System.IO.Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
+            return isDirectory
+                ? full.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)
+                : full;
         }
         catch
         {
@@ -1240,7 +1334,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         return string.Empty;
     }
 
-    private string EvaluateCapacity(string destinationArchivePath, IReadOnlyCollection<string> sources)
+    private string EvaluateCapacity(string destinationArchivePath, long estimatedBytes)
     {
         try
         {
@@ -1257,7 +1351,6 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             }
 
             var freeBytes = drive.AvailableFreeSpace;
-            var estimatedBytes = EstimateSelectionSize(sources);
             if (estimatedBytes <= 0)
             {
                 return string.Empty;
@@ -1445,5 +1538,18 @@ public sealed class SelectableBackupFolder : ObservableObject
         set => SetProperty(ref _isSelected, value);
     }
 
-    public string Display => string.IsNullOrWhiteSpace(Path) ? "" : System.IO.Path.GetFileName(Path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+    public string Display
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Path))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = Path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            var name = System.IO.Path.GetFileName(trimmed);
+            return string.IsNullOrWhiteSpace(name) ? trimmed : name;
+        }
+    }
 }

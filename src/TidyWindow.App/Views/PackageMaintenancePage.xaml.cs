@@ -115,7 +115,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
 
         // For cached pages, only clear the title bar but keep event subscriptions
         // This allows the page to restore properly when navigating back
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
 
         // Keep event subscriptions and scroll handlers for cached pages
         // They will be restored via OnNavigatedTo/RestoreViewModelBindings
@@ -166,6 +166,19 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         }
     }
 
+    private void ClearTitleBarIfOwned()
+    {
+        if (_shellViewModel is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_shellViewModel.TitleBarContent, _titleBar))
+        {
+            _shellViewModel.SetTitleBarContent(null);
+        }
+    }
+
     private void OnNavigated(object? sender, NavigationEventArgs e)
     {
         if (ReferenceEquals(e.Content, this))
@@ -174,7 +187,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
         }
         else
         {
-            _shellViewModel?.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
         }
     }
 
@@ -431,7 +444,7 @@ public partial class PackageMaintenancePage : Page, INavigationAware
     public void OnNavigatingFrom()
     {
         // Clear title bar content
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
         DetachScrollHandlers();
         DetachResponsiveLayout();
     }

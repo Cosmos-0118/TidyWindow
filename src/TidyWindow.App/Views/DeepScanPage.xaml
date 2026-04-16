@@ -210,7 +210,7 @@
                     <Setter Property="Padding"
                                 Value="26"/>
                     <Setter Property="Margin"
-                                Value="0,0,32,32"/>
+                                Value="0"/>
                     <Setter Property="Effect"
                         Value="{StaticResource DeepScanSoftShadowEffect}"/>
                 </Style>
@@ -560,17 +560,20 @@
                     <StackPanel Grid.Row="1"
                                 Orientation="Vertical"
                                 Margin="0,0,0,16">
-                        <ux:AdaptiveTilePanel Margin="0"
-                                              MinColumnWidth="360"
-                                              MaxColumnWidth="640"
-                                              MinColumns="1"
-                                              MaxColumns="3"
-                                              ColumnSpacing="36"
-                                              RowSpacing="28"
-                                              Padding="0,0,12,12">
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="320"
-                                    MaxWidth="460">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Row="0"
+                                    Grid.Column="0"
+                                    Style="{StaticResource FilterCardBorderStyle}"
+                                    Margin="0,0,10,0">
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -607,9 +610,10 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="340"
-                                    MaxWidth="520">
+                            <Border Grid.Row="0"
+                                    Grid.Column="1"
+                                    Style="{StaticResource FilterCardBorderStyle}"
+                                    Margin="10,0,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Result limits"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -628,7 +632,7 @@
                                                      Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1"
-                                                    Margin="12,0,0,0">
+                                                    Margin="14,0,0,0">
                                             <TextBlock Text="Top results"
                                                        Foreground="#94A3B8"/>
                                             <TextBox Margin="0,6,0,0"
@@ -639,27 +643,28 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="320"
-                                    MaxWidth="440">
+                            <Border Grid.Row="1"
+                                    Grid.ColumnSpan="2"
+                                    Style="{StaticResource FilterCardBorderStyle}"
+                                    Margin="0,16,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Dangerous options"
                                                Style="{StaticResource FilterLabelStyle}"/>
                                     <TextBlock Text="These overrides let you include system paths and force delete. Enable only if you understand the risk."
                                                Style="{StaticResource FilterHintStyle}"/>
-                                        <StackPanel Margin="0,16,0,0">
+                                    <StackPanel Margin="0,14,0,0">
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Allow system paths (dangerous)"
                                                   IsChecked="{Binding AllowProtectedSystemPaths}"
                                                   Foreground="#FCA5A5"
-                                                                                            ToolTip="Allows scanning and deleting under Windows, Program Files, boot, and recovery folders."
-                                              Margin="0,0,0,6"/>
-                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                      Content="Allow system deletions (dangerous)"
-                                                      IsChecked="{Binding AllowSystemDeletion}"
-                                                      Foreground="#FCA5A5"
-                                                                                                            ToolTip="Allows deleting items under Windows, Program Files, boot, and recovery folders."
-                                                      Margin="0,0,0,6"/>
+                                                  ToolTip="Allows scanning and deleting under Windows, Program Files, boot, and recovery folders."
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Allow system deletions (dangerous)"
+                                                  IsChecked="{Binding AllowSystemDeletion}"
+                                                  Foreground="#FCA5A5"
+                                                  ToolTip="Allows deleting items under Windows, Program Files, boot, and recovery folders."
+                                                  Margin="0,0,0,8"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Enable force delete (dangerous)"
                                                   IsChecked="{Binding IsForceDeleteArmed}"
@@ -668,7 +673,7 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </ux:AdaptiveTilePanel>
+                        </Grid>
                     </StackPanel>
 
                     <Grid Grid.Row="2">

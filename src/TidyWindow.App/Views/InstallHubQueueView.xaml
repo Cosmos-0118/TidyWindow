@@ -56,7 +56,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                             <ItemsControl Margin="0,8,0,0"
-                                          HorizontalAlignment="Center"
+                                          HorizontalAlignment="Left"
                                           ItemsSource="{StaticResource QueueHeroChipTexts}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -75,7 +75,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <WrapPanel Margin="0,18,0,0"
-                                       HorizontalAlignment="Center">
+                                       HorizontalAlignment="Left">
                                 <Border Style="{StaticResource InstallBadgeStyle}">
                                     <TextBlock Text="{Binding Operations.Count, StringFormat={}{0} entries}"
                                                Foreground="{StaticResource InstallTextSoftAccentBrush}"

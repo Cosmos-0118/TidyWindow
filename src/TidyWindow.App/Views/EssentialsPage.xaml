@@ -539,7 +539,8 @@
                       HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch"
                       PanningMode="VerticalOnly">
-            <Grid MaxWidth="1320"
+            <Grid Width="{Binding ElementName=EssentialsScrollViewer, Path=ViewportWidth}"
+                MaxWidth="1320"
                   HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -551,7 +552,7 @@
                                        Subtitle="{Binding Headline}"
                                        IconGlyph="👑"
                                        BadgeText="Core automations"
-                                       Margin="0,0,0,28">
+                                       Margin="0,0,28,28">
                     <controls:PageTitleBar.BodyContent>
                         <StackPanel>
                             <TextBlock Text="Curate high-impact repairs, then pivot into the live queue when you need status or transcripts."
@@ -823,7 +824,7 @@
                         </StackPanel>
 
                         <StackPanel Style="{StaticResource EssentialsQueuePivotStyle}">
-                            <Border Style="{StaticResource EssentialsCardStyle}" Padding="28">
+                            <Border Style="{StaticResource EssentialsCardStyle}" Padding="28" Margin="0,0,28,0">
                                 <StackPanel>
                                     <TextBlock Text="Queue monitor"
                                                FontSize="20"
@@ -863,27 +864,27 @@
                                         <Button Content="Retry failed"
                                                 Command="{Binding RetryFailedCommand}"
                                                 Style="{StaticResource EssentialsAccentButtonStyle}"
-                                            MinWidth="112"
+                                            Width="152"
                                             Margin="0,0,12,8"/>
                                         <Button Content="Clear completed"
                                                 Command="{Binding ClearCompletedCommand}"
                                                 Style="{StaticResource EssentialsSecondaryButtonStyle}"
                                             Margin="0,0,12,8"
-                                                MinWidth="112"/>
+                                                Width="152"/>
                                         </WrapPanel>
                                         <Button Content="Stop old process"
                                             Command="{Binding StopActiveRunCommand}"
                                             Style="{StaticResource EssentialsAccentButtonStyle}"
                                             Background="#B91C1C"
                                             Margin="0,12,0,0"
-                                            MinWidth="112"
+                                            Width="152"
                                             Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </StackPanel>
                             </Border>
 
                             <Border x:Name="EssentialsQueueTimelineCard"
                                     Style="{StaticResource EssentialsCardStyle}"
-                                    Margin="{StaticResource CardSpacing}"
+                                    Margin="0,24,28,0"
                                                                         MinHeight="300">
                                 <Grid x:Name="EssentialsQueueOperationsRegion"
                                                                             MinHeight="140">

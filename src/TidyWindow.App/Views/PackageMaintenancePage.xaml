@@ -1221,10 +1221,11 @@
                           PanningMode="VerticalOnly"
                           UseLayoutRounding="True"
                           SnapsToDevicePixels="True">
-                <Grid x:Name="PageContentGrid"
-                      MinWidth="0"
-                      MaxWidth="1360"
-                      HorizontalAlignment="Center"
+                    <Grid x:Name="PageContentGrid"
+                        Width="{Binding ElementName=ContentScrollViewer, Path=ViewportWidth}"
+                        MinWidth="0"
+                        MaxWidth="1360"
+                        HorizontalAlignment="Center"
                       UseLayoutRounding="True"
                       SnapsToDevicePixels="True">
             <Grid.RowDefinitions>
@@ -1961,10 +1962,10 @@
                         </Grid.Style>
 
                         <Grid x:Name="SecondaryColumnHost">
-                            <Border x:Name="MaintenanceQueueCard"
+                                <Border x:Name="MaintenanceQueueCard"
                                     Style="{StaticResource CardBorderStyle}"
                                     Padding="24"
-                                    Margin="0,0,0,20"
+                                    Margin="0,0,28,20"
                                     MinHeight="360">
                                 <Grid>
                                     <Grid.RowDefinitions>
@@ -1992,10 +1993,12 @@
                                                          ColumnSpacing="12"
                                                          RowSpacing="12">
                                         <Button Content="Retry failed"
+                                            Width="152"
                                                 Command="{Binding RetryFailedCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Padding="14,7"/>
                                         <Button Content="Clear completed"
+                                            Width="152"
                                                 Command="{Binding ClearCompletedCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Padding="14,7"/>
