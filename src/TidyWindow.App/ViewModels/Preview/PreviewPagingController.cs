@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using TidyWindow.App.ViewModels;
 
@@ -24,7 +25,7 @@ public sealed class PreviewPagingController
         _filter = filter ?? throw new ArgumentNullException(nameof(filter));
     }
 
-    public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
+    public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new SuppressibleObservableCollection<CleanupPreviewItemViewModel>();
 
     public event EventHandler? StateChanged;
 
@@ -141,11 +142,16 @@ public sealed class PreviewPagingController
 
     public void Refresh()
     {
-        FilteredItems.Clear();
+        var suppressible = (SuppressibleObservableCollection<CleanupPreviewItemViewModel>)FilteredItems;
 
         var target = _selectedTargetProvider();
         if (target is null)
         {
+            if (FilteredItems.Count > 0)
+            {
+                FilteredItems.Clear();
+            }
+
             _totalFilteredItems = 0;
             _currentPage = 1;
             RaiseStateChanged();
@@ -164,11 +170,10 @@ public sealed class PreviewPagingController
 
         var pageSize = Math.Max(1, _pageSize);
         var skip = (_currentPage - 1) * pageSize;
+        var pageItems = filtered.Skip(skip).Take(pageSize).ToList();
 
-        foreach (var item in filtered.Skip(skip).Take(pageSize))
-        {
-            FilteredItems.Add(item);
-        }
+        // Batch update: suppress per-item notifications, then fire a single Reset.
+        suppressible.ReplaceAll(pageItems);
 
         RaiseStateChanged();
     }
@@ -214,5 +219,31 @@ public sealed class PreviewPagingController
 
         var sanitizedPageSize = Math.Max(1, pageSize);
         return (itemCount + sanitizedPageSize - 1) / sanitizedPageSize;
+    }
+}
+
+/// <summary>
+/// An <see cref="ObservableCollection{T}"/> that supports bulk replacement
+/// with a single <see cref="NotifyCollectionChangedAction.Reset"/> notification
+/// instead of per-item Add/Remove events.
+/// </summary>
+internal sealed class SuppressibleObservableCollection<T> : ObservableCollection<T>
+{
+    /// <summary>
+    /// Clears the collection and repopulates it from <paramref name="items"/>,
+    /// firing exactly one <see cref="NotifyCollectionChangedAction.Reset"/> event.
+    /// </summary>
+    public void ReplaceAll(IReadOnlyList<T> items)
+    {
+        Items.Clear();
+        if (items is not null)
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                Items.Add(items[i]);
+            }
+        }
+
+        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
     }
 }

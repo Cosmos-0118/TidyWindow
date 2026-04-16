@@ -80,8 +80,8 @@ public sealed partial class CleanupViewModel
         await TransitionToPhaseAsync(
             CleanupPhase.Celebration,
             transitionMessage: "Finalizing cleanup summary…",
-            preTransitionDelay: TimeSpan.FromMilliseconds(140),
-            settleDelay: TimeSpan.FromMilliseconds(260));
+            preTransitionDelay: TimeSpan.FromMilliseconds(40),
+            settleDelay: TimeSpan.FromMilliseconds(60));
     }
 
     private static string BuildCelebrationHeadline(double reclaimedMegabytes, double recycledMegabytes, double pendingRebootMegabytes, int deletedCount, int pendingRebootCount)

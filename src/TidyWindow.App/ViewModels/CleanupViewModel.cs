@@ -227,8 +227,8 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _refreshToastCancellation;
     private CancellationTokenSource? _phaseTransitionCancellation;
     private CancellationTokenSource? _lockInspectionCancellation;
-    private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(160);
-    private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
+    private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(40);
+    private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(60);
     private const int DeletionUiYieldInterval = 200;
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
@@ -1105,22 +1105,30 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
             ClearTargets();
             CurrentPage = 1;
 
-            // Create progress reporter for scan operation
+            // Create throttled progress reporter — the callback fires per scan target,
+            // so we gate UI updates to avoid a PropertyChanged storm.
+            var scanProgressStopwatch = Stopwatch.StartNew();
+            var lastScanProgressReported = -1;
             var scanProgress = new Progress<TidyWindow.Core.Cleanup.CleanupScanProgress>(progress =>
             {
+                var shouldRefresh =
+                    progress.CompletedTargets == progress.TotalTargets ||
+                    progress.CompletedTargets == 0 ||
+                    progress.CompletedTargets - lastScanProgressReported >= 1 && scanProgressStopwatch.ElapsedMilliseconds >= 150;
+
+                if (!shouldRefresh)
+                {
+                    return;
+                }
+
+                lastScanProgressReported = progress.CompletedTargets;
+                scanProgressStopwatch.Restart();
+
                 ScanProgressCurrent = progress.CompletedTargets;
                 ScanProgressTotal = progress.TotalTargets;
                 ScanProgressCategory = progress.CurrentCategory;
                 ScanProgressBytesScanned = progress.TotalBytesScanned;
                 ScanProgressFilesScanned = progress.TotalFilesScanned;
-
-                // Update computed properties
-                OnPropertyChanged(nameof(ActiveOperationDetail));
-                OnPropertyChanged(nameof(ActiveOperationProgressValue));
-                OnPropertyChanged(nameof(ActiveOperationProgressMaximum));
-                OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
-                OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
-                OnPropertyChanged(nameof(HasActiveOperationPercent));
 
                 if (!string.IsNullOrWhiteSpace(progress.CurrentCategory))
                 {
@@ -1233,11 +1241,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         try
         {
             // Let the dispatcher paint the overlay before any heavier UI-thread work runs.
-            await Dispatcher.Yield(DispatcherPriority.Render);
-
-            // Force a UI pass so the overlay renders before prep.
-            var dispatcher = Dispatcher.FromThread(Thread.CurrentThread) ?? Dispatcher.CurrentDispatcher;
-            await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+            await Dispatcher.Yield(DispatcherPriority.Background);
             PrepareDeletionConfirmation(itemsToDelete);
         }
         finally
@@ -1261,7 +1265,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         await TransitionToPhaseAsync(
             CleanupPhase.Setup,
             transitionMessage: "Returning to setup options…",
-            preTransitionDelay: TimeSpan.FromMilliseconds(120));
+            preTransitionDelay: TimeSpan.FromMilliseconds(30));
         HideRefreshToast();
     }
 
@@ -1465,7 +1469,12 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         _lastLockInspectionStats = sample.Stats;
         LockInspectionStatusMessage = BuildLockInspectionScanMessage(sample.Stats);
 
-        _ = InspectLockingProcessesAsync(sample, cts);
+        // Fire-and-forget is safe here — InspectLockingProcessesAsync has its own
+        // try/catch/finally that cleans up CTS and IsLockInspectionInProgress.
+        var task = InspectLockingProcessesAsync(sample, cts);
+        task.ContinueWith(
+            static t => { /* Observe fault to prevent unobserved task exception */ },
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
     }
 
     private LockInspectionSample BuildLockInspectionSample(List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToInspect)
@@ -1960,8 +1969,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
                 var shouldRefresh =
                     report.Completed == report.Total ||
                     report.Completed == 0 ||
-                    report.Completed - lastProgressReported >= 25 ||
-                    progressStopwatch.Elapsed >= TimeSpan.FromMilliseconds(120);
+                    (report.Completed - lastProgressReported >= 25 && progressStopwatch.ElapsedMilliseconds >= 150);
 
                 if (!shouldRefresh)
                 {
@@ -2852,6 +2860,20 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HasActiveOperationPercent));
     }
 
+    partial void OnScanProgressCurrentChanged(int value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+        OnPropertyChanged(nameof(ActiveOperationProgressValue));
+        OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
+        OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
+        OnPropertyChanged(nameof(HasActiveOperationPercent));
+    }
+
+    partial void OnScanProgressTotalChanged(int value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationProgressMaximum));
+    }
+
 
     partial void OnSelectedTargetChanged(CleanupTargetGroupViewModel? oldValue, CleanupTargetGroupViewModel? newValue)
     {
@@ -3001,17 +3023,10 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
 
     private void OnGroupItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        // RefreshFilteredItems → Refresh → OnPreviewPagingStateChanged already
+        // fires a blanket property notification plus command updates, so we only
+        // need to call it; no additional per-property calls needed.
         RefreshFilteredItems();
-        OnPropertyChanged(nameof(SummaryText));
-        OnPropertyChanged(nameof(HasResults));
-        OnPropertyChanged(nameof(HasSelection));
-        OnPropertyChanged(nameof(SelectionSummaryText));
-        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
-        SelectAllCurrentCommand.NotifyCanExecuteChanged();
-        ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
-        DeleteSelectedCommand.NotifyCanExecuteChanged();
-        SelectAllPagesCommand.NotifyCanExecuteChanged();
-        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void OnCelebrationFailuresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -3206,35 +3221,41 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
                 .ToList(),
             CancellationToken.None).ConfigureAwait(true);
 
-        var added = 0;
+        // Batch-add all groups, wiring events but deferring per-group property change
+        // notifications to avoid an O(n) storm of UI invalidations.
         foreach (var group in materialized)
         {
-            AddTargetGroup(group);
-            added++;
-
-            if (added % PreviewUiYieldInterval == 0)
-            {
-                await Task.Yield();
-            }
+            group.SelectionChanged += OnGroupSelectionChanged;
+            group.ItemsChanged += OnGroupItemsChanged;
+            Targets.Add(group);
         }
+
+        // Single notification pulse after the batch.
+        OnPropertyChanged(nameof(HasResults));
+        OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
+        SelectAllCurrentCommand.NotifyCanExecuteChanged();
+        ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void ClearTargets()
     {
-        foreach (var group in Targets.ToList())
+        // Detach events and dispose without per-group Remove + notification storm.
+        foreach (var group in Targets)
         {
-            RemoveTargetGroup(group);
+            group.SelectionChanged -= OnGroupSelectionChanged;
+            group.ItemsChanged -= OnGroupItemsChanged;
+            group.Dispose();
         }
 
+        Targets.Clear();
         SelectedTarget = null;
         _previewPagingController.Reset();
         HideRefreshToast();
-        OnPropertyChanged(nameof(SelectedItemCount));
-        OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
-        OnPropertyChanged(nameof(HasSelection));
-        OnPropertyChanged(nameof(SelectionSummaryText));
-        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
-        OnPropertyChanged(nameof(HasFilteredResults));
+        OnPropertyChanged(string.Empty);
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -3292,20 +3313,11 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
 
     private void OnPreviewPagingStateChanged(object? sender, EventArgs e)
     {
-        OnPropertyChanged(nameof(CurrentPage));
-        OnPropertyChanged(nameof(PageSize));
-        OnPropertyChanged(nameof(PageDisplay));
-        OnPropertyChanged(nameof(TotalPages));
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        OnPropertyChanged(nameof(SelectRangeStartPage));
-        OnPropertyChanged(nameof(SelectRangeEndPage));
-        OnPropertyChanged(nameof(PreviewSortMode));
-        OnPropertyChanged(nameof(HasFilteredResults));
-        OnPropertyChanged(nameof(FilteredItems));
-        OnPropertyChanged(nameof(ExtensionStatusText));
-        OnPropertyChanged(nameof(SelectionSummaryText));
-        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
+        // Raise a single blanket notification instead of 14+ individual property
+        // notifications — with this many properties the overhead of per-property
+        // invalidation is higher than a single "refresh all bindings" signal.
+        OnPropertyChanged(string.Empty);
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         SelectAllPagesCommand.NotifyCanExecuteChanged();
