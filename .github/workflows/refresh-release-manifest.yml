@@ -12,6 +12,9 @@ jobs:
     update-manifest:
         name: Update latest-release.json
         runs-on: windows-latest
+        env:
+            # Use a dedicated token when available; some repositories block PR creation from GITHUB_TOKEN.
+            PR_AUTOMATION_TOKEN: "${{ secrets.RELEASE_MANIFEST_PR_TOKEN != '' && secrets.RELEASE_MANIFEST_PR_TOKEN || secrets.GITHUB_TOKEN }}"
 
         steps:
             - name: Check out repository
@@ -24,7 +27,7 @@ jobs:
               env:
                   RELEASE_JSON: ${{ toJson(github.event.release) }}
                   INSTALLER_PATTERN: TidyWindow-Setup-*.exe
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ env.PR_AUTOMATION_TOKEN }}
               run: |
                   if (-not $env:RELEASE_JSON) {
                     throw "Release payload not available."
@@ -160,7 +163,7 @@ jobs:
             - name: Create pull request with manifest update
               uses: peter-evans/create-pull-request@v7
               with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
+                  token: ${{ env.PR_AUTOMATION_TOKEN }}
                   commit-message: "chore: refresh release manifest"
                   branch: chore/refresh-release-manifest
                   base: ${{ github.event.release.target_commitish }}
