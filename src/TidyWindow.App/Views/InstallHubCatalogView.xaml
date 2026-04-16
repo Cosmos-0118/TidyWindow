@@ -278,6 +278,7 @@
                                                        FontSize="11"
                                                        Margin="0,2,0,10"/>
                                             <TextBox Style="{StaticResource App.TextBoxStyle}"
+                                                     Tag="Search package name, identifier, or summary"
                                                      ToolTip="Filter by package name, identifier, or summary"
                                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>

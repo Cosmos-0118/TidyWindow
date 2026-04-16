@@ -23,6 +23,9 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="CleanupResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanToYesNoConverter x:Key="BooleanToOnOffConverter"
+                                                TrueText="On"
+                                                FalseText="Off"/>
         </ResourceDictionary>
     </Page.Resources>
                 <Grid UseLayoutRounding="True"
@@ -134,322 +137,472 @@
                         </Border>
                     </Grid>
 
-                    <ux:AdaptiveTilePanel MinColumnWidth="300"
-                                          MaxColumnWidth="520"
-                                          MinColumns="1"
-                                          MaxColumns="3"
-                                          ColumnSpacing="16"
-                                          RowSpacing="16"
-                                          Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                        <!-- ── Scope card ── -->
-                        <Border Style="{StaticResource SetupCardStyle}"
-                                Margin="0,0,0,0">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            CornerRadius="8" Width="32" Height="32"
-                                            Margin="0,0,10,0">
-                                        <TextBlock Text="📂" FontSize="15"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Scope"
-                                                   FontSize="13.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                        <TextBlock Text="What to scan"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                                <Border Background="{StaticResource CleanupSurfaceBrush}"
-                                        CornerRadius="8" Padding="12,10">
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.35*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Grid Grid.Column="0"
+                                  Margin="0,0,16,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- ── Scope card ── -->
+                                <Border Grid.Row="0"
+                                        Grid.Column="0"
+                                        Style="{StaticResource SetupCardStyle}"
+                                        Margin="0,0,8,16">
                                     <StackPanel>
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Include Downloads"
-                                                  FontSize="13"
-                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                  IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Include browser history"
-                                                  FontSize="13"
-                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                  Margin="0,8,0,0"
-                                                  ToolTip="Use the secure WebView2 API to clear Edge profiles when enabled."
-                                                  IsChecked="{Binding IncludeBrowserHistory, Mode=TwoWay}"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                    CornerRadius="8" Width="32" Height="32"
+                                                    Margin="0,0,10,0">
+                                                <TextBlock Text="📂" FontSize="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Scope"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <TextBlock Text="What to scan"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                                CornerRadius="8" Padding="12,10">
+                                            <StackPanel>
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Content="Include Downloads"
+                                                          FontSize="13"
+                                                          Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                          IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Content="Include browser history"
+                                                          FontSize="13"
+                                                          Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                          Margin="0,8,0,0"
+                                                          ToolTip="Use the secure WebView2 API to clear Edge profiles when enabled."
+                                                          IsChecked="{Binding IncludeBrowserHistory, Mode=TwoWay}"/>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
-                            </StackPanel>
-                        </Border>
 
-                        <!-- ── Filter by type card ── -->
-                        <Border Style="{StaticResource SetupCardStyle}"
-                                Margin="0,0,0,0">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            CornerRadius="8" Width="32" Height="32"
-                                            Margin="0,0,10,0">
-                                        <TextBlock Text="🗂️" FontSize="15"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Filter by type"
-                                                   FontSize="13.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                        <TextBlock Text="Files, folders, or both"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                                <ComboBox ItemsSource="{Binding ItemKindOptions}"
-                                          SelectedValuePath="Kind"
-                                          SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
-                                          DisplayMemberPath="Label"
-                                          Style="{StaticResource App.ComboBoxStyle}"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ── Extensions card ── -->
-                        <Border Style="{StaticResource SetupCardStyle}"
-                                Margin="0,0,0,0">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            CornerRadius="8" Width="32" Height="32"
-                                            Margin="0,0,10,0">
-                                        <TextBlock Text="🧩" FontSize="15"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Extensions"
-                                                   FontSize="13.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                        <TextBlock Text="Include or exclude file types"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                                <ComboBox ItemsSource="{Binding ExtensionFilterOptions}"
-                                          SelectedValuePath="Mode"
-                                          SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
-                                          Style="{StaticResource App.ComboBoxStyle}"
-                                          ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Label}"/>
-                                                <TextBlock Text="{Binding Description}"
-                                                           Foreground="#94A3B8"
-                                                           FontSize="11"/>
+                                <!-- ── Filter by type card ── -->
+                                <Border Grid.Row="0"
+                                        Grid.Column="1"
+                                        Style="{StaticResource SetupCardStyle}"
+                                        Margin="8,0,0,16">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                    CornerRadius="8" Width="32" Height="32"
+                                                    Margin="0,0,10,0">
+                                                <TextBlock Text="🗂️" FontSize="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Filter by type"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <TextBlock Text="Files, folders, or both"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                             </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <TextBlock Text="{Binding ExtensionStatusText}"
+                                        </StackPanel>
+                                        <ComboBox ItemsSource="{Binding ItemKindOptions}"
+                                                  SelectedValuePath="Kind"
+                                                  SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
+                                                  DisplayMemberPath="Label"
+                                                  Style="{StaticResource App.ComboBoxStyle}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ── Extensions card ── -->
+                                <Border Grid.Row="1"
+                                        Grid.Column="0"
+                                        Style="{StaticResource SetupCardStyle}"
+                                        Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                    CornerRadius="8" Width="32" Height="32"
+                                                    Margin="0,0,10,0">
+                                                <TextBlock Text="🧩" FontSize="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Extensions"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <TextBlock Text="Include or exclude file types"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <ComboBox ItemsSource="{Binding ExtensionFilterOptions}"
+                                                  SelectedValuePath="Mode"
+                                                  SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
+                                                  Style="{StaticResource App.ComboBoxStyle}"
+                                                  ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Foreground="#94A3B8"
+                                                                   FontSize="11"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Text="{Binding ExtensionStatusText}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ── Cache age filter card ── -->
+                                <Border Grid.Row="1"
+                                        Grid.Column="1"
+                                        Style="{StaticResource SetupCardStyle}"
+                                        Margin="8,0,0,0">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                    CornerRadius="8" Width="32" Height="32"
+                                                    Margin="0,0,10,0">
+                                                <TextBlock Text="🕐" FontSize="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="Cache age filter"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <TextBlock Text="Protect recent data"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            </StackPanel>
+
+                                            <!-- Active / Inactive badge -->
+                                            <Border Grid.Column="2" CornerRadius="6"
+                                                    Padding="8,3" VerticalAlignment="Top">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#3034D399"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedAgeFilter.Days}" Value="0">
+                                                                <Setter Property="Background" Value="#30F59E0B"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="10" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="Active"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource CleanupAccentBrushSecondary}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SelectedAgeFilter.Days}" Value="0">
+                                                                    <Setter Property="Text" Value="Off"/>
+                                                                    <Setter Property="Foreground" Value="#F59E0B"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+
+                                        <ComboBox ItemsSource="{Binding AgeFilterOptions}"
+                                                  SelectedItem="{Binding SelectedAgeFilter, Mode=TwoWay}"
+                                                  Style="{StaticResource App.ComboBoxStyle}"
+                                                  DisplayMemberPath="Label"/>
+                                        <TextBlock Text="{Binding SelectedAgeFilter.Description}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- ── Top items card ── -->
+                            <Border Grid.Column="1"
+                                    Style="{StaticResource SetupCardStyle}"
+                                    Margin="0"
+                                    MinWidth="0">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                CornerRadius="8" Width="32" Height="32"
+                                                Margin="0,0,10,0">
+                                            <TextBlock Text="📊" FontSize="15"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Top items"
+                                                       FontSize="13.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                            <TextBlock Text="Cap preview results"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="10"
+                                            Padding="14,10"
+                                            HorizontalAlignment="Stretch"
+                                            Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Preview cap"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,0,0,2"/>
+                                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                                     Style="{StaticResource App.TextBoxStyle}"
+                                                     FontSize="22"
+                                                     FontWeight="SemiBold"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     HorizontalContentAlignment="Center"
+                                                     Padding="4"
+                                                     MinHeight="40"/>
+                                            <TextBlock Text="items"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <StackPanel Margin="0,0,0,8">
+                                        <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
+                                                Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
+                                                Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                IsSnapToTickEnabled="True"
+                                                Style="{StaticResource CleanupSliderStyle}"/>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding PreviewCountMinimum}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding PreviewCountMaximum}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <UniformGrid Columns="3"
+                                                 Rows="2"
+                                                 Margin="0,4,0,0"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 FlowDirection="LeftToRight">
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="25"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>25</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="50"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>50</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="100"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>100</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="1,000"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>1000</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="10,000"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>10000</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                        <Button Style="{StaticResource ChipButtonStyle}"
+                                                Content="100,000"
+                                                Command="{Binding ApplyPreviewPresetCommand}">
+                                            <Button.CommandParameter>
+                                                <sys:Int32>100000</sys:Int32>
+                                            </Button.CommandParameter>
+                                        </Button>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- ── Review setup card ── -->
+                        <Border Grid.Row="1"
+                                Style="{StaticResource SetupCardStyle}"
+                                Margin="0,16,0,0">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                            CornerRadius="8" Width="32" Height="32"
+                                            Margin="0,0,10,0">
+                                        <TextBlock Text="✅" FontSize="14"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Review setup"
+                                                   FontSize="13.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                        <TextBlock Text="Quick snapshot before preview"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <ux:AdaptiveTilePanel MinColumnWidth="150"
+                                                      MaxColumnWidth="220"
+                                                      MinColumns="2"
+                                                      MaxColumns="5"
+                                                      ColumnSpacing="10"
+                                                      RowSpacing="10"
+                                                      Padding="0,0,0,6">
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="8"
+                                            Padding="12,9"
+                                            Margin="0"
+                                            MinWidth="0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Downloads"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding IncludeDownloads, Converter={StaticResource BooleanToOnOffConverter}}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="8"
+                                            Padding="12,9"
+                                            Margin="0"
+                                            MinWidth="0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Browser history"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding IncludeBrowserHistory, Converter={StaticResource BooleanToOnOffConverter}}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="8"
+                                            Padding="12,9"
+                                            Margin="0"
+                                            MinWidth="0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Item type"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding SelectedItemKind}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="8"
+                                            Padding="12,9"
+                                            Margin="0"
+                                            MinWidth="0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Age filter"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding SelectedAgeFilter.Label}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            CornerRadius="8"
+                                            Padding="12,9"
+                                            Margin="0"
+                                            MinWidth="0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Preview cap"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding PreviewCount, StringFormat={}{0:N0}}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </ux:AdaptiveTilePanel>
+
+                                <TextBlock Text="Use Advanced options below for profile-based extension filtering."
                                            FontSize="11"
                                            Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
-                                           Margin="0,6,0,0"/>
+                                           Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
-
-                        <!-- ── Top items card ── -->
-                        <Border Style="{StaticResource SetupCardStyle}"
-                                Margin="0,0,0,0"
-                                MinWidth="300">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            CornerRadius="8" Width="32" Height="32"
-                                            Margin="0,0,10,0">
-                                        <TextBlock Text="📊" FontSize="15"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Top items"
-                                                   FontSize="13.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                        <TextBlock Text="Cap preview results"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <Border Background="{StaticResource CleanupSurfaceBrush}"
-                                    CornerRadius="10"
-                                    Padding="14,10"
-                                    HorizontalAlignment="Center"
-                                    MinWidth="200"
-                                    Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="Preview cap"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   Margin="0,0,0,2"/>
-                                        <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
-                                                 Style="{StaticResource App.TextBoxStyle}"
-                                                 FontSize="22"
-                                                 FontWeight="SemiBold"
-                                                 Background="Transparent"
-                                                 BorderThickness="0"
-                                                 HorizontalContentAlignment="Center"
-                                                 Padding="4"
-                                                 MinHeight="40"/>
-                                        <TextBlock Text="items"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <StackPanel Margin="0,0,0,8">
-                                    <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
-                                            Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
-                                            Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            IsSnapToTickEnabled="True"
-                                            Style="{StaticResource CleanupSliderStyle}"/>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding PreviewCountMinimum}"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding PreviewCountMaximum}"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </Grid>
-                                </StackPanel>
-
-                                <UniformGrid Columns="3"
-                                         Rows="2"
-                                         Margin="0,4,0,0"
-                                         HorizontalAlignment="Center"
-                                         VerticalAlignment="Center"
-                                         FlowDirection="LeftToRight">
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="25"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>25</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="50"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>50</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="100"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>100</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="1,000"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>1000</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="10,000"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>10000</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                    <Button Style="{StaticResource ChipButtonStyle}"
-                                            Content="100,000"
-                                            Command="{Binding ApplyPreviewPresetCommand}">
-                                        <Button.CommandParameter>
-                                            <sys:Int32>100000</sys:Int32>
-                                        </Button.CommandParameter>
-                                    </Button>
-                                </UniformGrid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ── Cache age filter card ── -->
-                        <Border Style="{StaticResource SetupCardStyle}"
-                                Margin="0,0,0,0">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            CornerRadius="8" Width="32" Height="32"
-                                            Margin="0,0,10,0">
-                                        <TextBlock Text="🕐" FontSize="15"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Cache age filter"
-                                                   FontSize="13.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                        <TextBlock Text="Protect recent data"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    </StackPanel>
-
-                                    <!-- Active / Inactive badge -->
-                                    <Border Grid.Column="2" CornerRadius="6"
-                                            Padding="8,3" VerticalAlignment="Top">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#3034D399"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedAgeFilter.Days}" Value="0">
-                                                        <Setter Property="Background" Value="#30F59E0B"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <TextBlock FontSize="10" FontWeight="SemiBold">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="Active"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource CleanupAccentBrushSecondary}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedAgeFilter.Days}" Value="0">
-                                                            <Setter Property="Text" Value="Off"/>
-                                                            <Setter Property="Foreground" Value="#F59E0B"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Border>
-                                </Grid>
-
-                                <ComboBox ItemsSource="{Binding AgeFilterOptions}"
-                                          SelectedItem="{Binding SelectedAgeFilter, Mode=TwoWay}"
-                                          Style="{StaticResource App.ComboBoxStyle}"
-                                          DisplayMemberPath="Label"/>
-                                <TextBlock Text="{Binding SelectedAgeFilter.Description}"
-                                           FontSize="11"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,6,0,0"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                    </ux:AdaptiveTilePanel>
+                    </Grid>
 
                     <Expander Header="Advanced options"
                               Background="Transparent"

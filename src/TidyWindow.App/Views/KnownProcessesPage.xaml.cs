@@ -57,7 +57,7 @@ public partial class KnownProcessesPage : Page, INavigationAware
     {
         // Don't detach navigation service - we need it when navigating back to cached page
         // Just clear the title bar
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
     }
 
     private void AttachTitleBar()
@@ -74,6 +74,19 @@ public partial class KnownProcessesPage : Page, INavigationAware
         }
     }
 
+    private void ClearTitleBarIfOwned()
+    {
+        if (_shellViewModel is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_shellViewModel.TitleBarContent, _titleBar))
+        {
+            _shellViewModel.SetTitleBarContent(null);
+        }
+    }
+
     private void OnNavigated(object? sender, NavigationEventArgs e)
     {
         if (ReferenceEquals(e.Content, this))
@@ -82,7 +95,7 @@ public partial class KnownProcessesPage : Page, INavigationAware
         }
         else
         {
-            _shellViewModel?.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
         }
     }
 
@@ -96,6 +109,6 @@ public partial class KnownProcessesPage : Page, INavigationAware
     /// <inheritdoc />
     public void OnNavigatingFrom()
     {
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
     }
 }

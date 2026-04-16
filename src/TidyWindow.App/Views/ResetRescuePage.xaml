@@ -247,7 +247,7 @@
                                 <TextBlock Text="Backup destination" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
                                 <DockPanel LastChildFill="True" VerticalAlignment="Center" Margin="0,6,0,6">
                                     <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Browse" Click="OnBrowseDestination" IsEnabled="{Binding CanStart}" Margin="10,0,0,0"/>
-                                    <TextBox MinWidth="320" Text="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Archive output path"/>
+                                    <TextBox MinWidth="320" Tag="Choose backup destination path" Text="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Archive output path"/>
                                 </DockPanel>
                                 <TextBlock Text="Pick where to save your .rrarchive. Refresh inventory to discover users and apps." Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
                                 <Button Style="{StaticResource GhostButtonStyle}" Content="Refresh inventory" Command="{Binding RefreshInventoryCommand}" IsEnabled="{Binding CanStart}" Width="160" Margin="0,8,0,0"/>
@@ -260,7 +260,7 @@
                                 <TextBlock Text="Restore archive" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold"/>
                                 <DockPanel LastChildFill="True" VerticalAlignment="Center" Margin="0,6,0,6">
                                     <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Choose file" Click="OnBrowseArchive" IsEnabled="{Binding CanStart}" Margin="10,0,0,0"/>
-                                    <TextBox MinWidth="320" Text="{Binding RestoreArchivePath, UpdateSourceTrigger=PropertyChanged}" ToolTip=".rrarchive path for restore"/>
+                                    <TextBox MinWidth="320" Tag="Choose .rrarchive file path" Text="{Binding RestoreArchivePath, UpdateSourceTrigger=PropertyChanged}" ToolTip=".rrarchive path for restore"/>
                                 </DockPanel>
                                 <TextBlock Text="Restores go to original paths by default. Set a drive letter (e.g. D:\\) to redirect everything to another volume." Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
 
@@ -277,7 +277,7 @@
 
                                 <StackPanel Margin="0,12,0,0">
                                     <TextBlock Text="Volume override (optional)" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold"/>
-                                    <TextBox Margin="0,6,0,4" Text="{Binding RestoreVolumeOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Set a drive or root folder to restore into (e.g. D:\\). Leave blank to use original locations."/>
+                                    <TextBox Margin="0,6,0,4" Tag="Optional: e.g. D:\\" Text="{Binding RestoreVolumeOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Set a drive or root folder to restore into (e.g. D:\\). Leave blank to use original locations."/>
                                 </StackPanel>
 
                                 <CheckBox Content="Restore HKCU registry (advanced)" IsChecked="{Binding RestoreRegistryEnabled}" Margin="0,12,0,0" Foreground="{StaticResource ResetMutedBrush}"/>
@@ -376,6 +376,7 @@
                                          Background="Transparent"
                                          Foreground="#E9F2FF"
                                          CaretBrush="#5DF2BC"
+                                         Tag="Search apps..."
                                          Text="{Binding AppSearch, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="Search apps"
                                          VerticalContentAlignment="Center"/>

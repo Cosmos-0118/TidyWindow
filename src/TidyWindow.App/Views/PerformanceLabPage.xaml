@@ -1312,7 +1312,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
                             <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                <TextBox Width="240" Margin="0,0,10,0" Background="#0C1829" Foreground="#E2E8F0" BorderBrush="#1E3A5F" Padding="14,10" FontSize="13" Text="{Binding NewSchedulerProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Width="240" Margin="0,0,10,0" Style="{StaticResource App.TextBoxStyle}" Text="{Binding NewSchedulerProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Content="Add" Style="{StaticResource PrimaryButton}" Command="{Binding AddSchedulerProcessCommand}" Padding="16,10" Margin="0,0,8,0" />
                                 <Button Content="Remove" Style="{StaticResource SecondaryButton}" Command="{Binding RemoveSchedulerProcessCommand}" Padding="16,10" />
                             </StackPanel>
@@ -1387,7 +1387,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
                             <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                <TextBox Width="240" Margin="0,0,10,0" Background="#0C1829" Foreground="#E2E8F0" BorderBrush="#1E3A5F" Padding="14,10" FontSize="13" Text="{Binding NewAutoTuneProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Width="240" Margin="0,0,10,0" Style="{StaticResource App.TextBoxStyle}" Text="{Binding NewAutoTuneProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Content="Add" Style="{StaticResource PrimaryButton}" Command="{Binding AddAutoTuneProcessCommand}" Padding="16,10" Margin="0,0,8,0" />
                                 <Button Content="Remove" Style="{StaticResource SecondaryButton}" Command="{Binding RemoveAutoTuneProcessCommand}" Padding="16,10" />
                             </StackPanel>

@@ -69,15 +69,28 @@ public partial class EssentialsPage : Page, INavigationAware
         }
     }
 
+    private void ClearTitleBarIfOwned()
+    {
+        if (_shellViewModel is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_shellViewModel.TitleBarContent, _titleBar))
+        {
+            _shellViewModel.SetTitleBarContent(null);
+        }
+    }
+
     private void OnNavigated(object? sender, NavigationEventArgs e)
     {
         if (ReferenceEquals(e.Content, this))
         {
             _shellViewModel?.SetTitleBarContent(_titleBar);
         }
-        else if (_shellViewModel is not null)
+        else
         {
-            _shellViewModel.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
         }
     }
 
@@ -88,7 +101,7 @@ public partial class EssentialsPage : Page, INavigationAware
         // Don't detach navigation service for cached pages
         if (_disposed || !_shouldDisposeOnUnload)
         {
-            _shellViewModel?.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
             return;
         }
 
@@ -100,7 +113,7 @@ public partial class EssentialsPage : Page, INavigationAware
 
         IsVisibleChanged -= OnIsVisibleChanged;
         Unloaded -= OnPageUnloaded;
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
         _viewModel.Dispose();
         _disposed = true;
     }
@@ -214,7 +227,7 @@ public partial class EssentialsPage : Page, INavigationAware
     /// <inheritdoc />
     public void OnNavigatingFrom()
     {
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
         DetachResponsiveLayout();
     }
 }

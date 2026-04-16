@@ -62,6 +62,19 @@ public partial class InstallHubPage : Page, INavigationAware
         }
     }
 
+    private void ClearTitleBarIfOwned()
+    {
+        if (_shellViewModel is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_shellViewModel.TitleBarContent, _titleBar))
+        {
+            _shellViewModel.SetTitleBarContent(null);
+        }
+    }
+
     private void OnNavigated(object? sender, NavigationEventArgs e)
     {
         if (ReferenceEquals(e.Content, this))
@@ -70,7 +83,7 @@ public partial class InstallHubPage : Page, INavigationAware
         }
         else
         {
-            _shellViewModel?.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
         }
     }
 
@@ -89,7 +102,7 @@ public partial class InstallHubPage : Page, INavigationAware
         if (_disposed || !_shouldDisposeOnUnload)
         {
             // For cached pages, just clear the title bar but keep event subscriptions
-            _shellViewModel?.SetTitleBarContent(null);
+            ClearTitleBarIfOwned();
             return;
         }
 
@@ -101,7 +114,7 @@ public partial class InstallHubPage : Page, INavigationAware
 
         IsVisibleChanged -= OnIsVisibleChanged;
         Unloaded -= OnPageUnloaded;
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
         _viewModel.Dispose();
         _disposed = true;
     }
@@ -117,6 +130,6 @@ public partial class InstallHubPage : Page, INavigationAware
     public void OnNavigatingFrom()
     {
         // Clear title bar content when navigating away
-        _shellViewModel?.SetTitleBarContent(null);
+        ClearTitleBarIfOwned();
     }
 }
