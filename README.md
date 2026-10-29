@@ -49,6 +49,12 @@ Commands use explicit argument lists; Scoop arguments are encoded as literal Pow
 
 The CLI adapters fail visibly when their output cannot be read. Initial search time still depends on source readiness, network response and CLI startup. Installation progress currently shows status and completion output; it does not stream a percentage or support rollback.
 
+## Logs
+
+The Logs page records only what is worth acting on: install and setup outcomes, package managers changing state (a problem appearing, or recovering), a search source failing, and unexpected errors. Routine activity such as searches, refreshes and a manager that stays healthy is not recorded, so a normal session leaves the log empty.
+
+An identical event repeated within six hours updates one entry's count instead of adding another. Entries are stored as JSON lines in `%LOCALAPPDATA%\TidyWindow.Next\Logs` (about 2 MB at most across two files; the newest 500 are loaded), written when the event happens so they survive a crash. The Windows account name is replaced with `%USERPROFILE%`. Logging never throws: if the disk is unwritable the page says so and keeps entries in memory. Entries can be filtered by severity, area and text, and copied individually or as a transcript.
+
 ## Branches
 
 - `main`: archived previous version; left unchanged.

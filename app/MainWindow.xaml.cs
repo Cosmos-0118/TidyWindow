@@ -11,17 +11,24 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly WorkspaceViewModel model = new(new PackageService(new ProcessRunner(), new ExecutableLocator()));
+    private enum Page { Overview, Install, Logs }
+    private readonly ActivityLog log;
+    private readonly WorkspaceViewModel model;
+    private readonly LogsViewModel logs;
     private bool initialized;
     private bool closingDialog;
-    private bool installPageShown;
+    private Page page;
     private readonly Windows.UI.ViewManagement.UISettings systemColors = new();
     private readonly AppearanceSettings appearanceSettings = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "appearance.json"));
     private Appearance appearance;
-    public MainWindow()
+    public MainWindow(ActivityLog log)
     {
+        this.log = log;
+        model = new(new PackageService(new ProcessRunner(), new ExecutableLocator()), log);
         InitializeComponent();
         Root.DataContext = model;
+        logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
+        LogsPage.DataContext = logs;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
         AppWindow.Resize(new(1100, 740));
@@ -35,7 +42,7 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = 420;
         }
         initialized = true;
-        ShowPage(false);
+        ShowPage(Page.Overview);
         Root.SizeChanged += (_, _) => ApplyResponsiveLayout();
         Root.Loaded += async (_, _) =>
         {
@@ -44,7 +51,7 @@ public sealed partial class MainWindow : Window
             await Refresh();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; model.Dispose(); };
+        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; logs.Dispose(); model.Dispose(); };
     }
 
     private void FitInitialWindow()
@@ -64,7 +71,7 @@ public sealed partial class MainWindow : Window
     {
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
-        OverviewLabel.Visibility = InstallLabel.Visibility = AppearanceLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
+        OverviewLabel.Visibility = InstallLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
         var wrapSearch = Root.ActualWidth < 640;
@@ -74,15 +81,22 @@ public sealed partial class MainWindow : Window
         Grid.SetColumnSpan(SourceFilter, wrapSearch ? 2 : 1);
         Grid.SetRow(SearchButton, wrapSearch ? 1 : 0);
         FilterColumn.Width = new GridLength(wrapSearch ? 0 : 150);
+        Grid.SetColumnSpan(LogSearch, wrapSearch ? 2 : 1);
+        Grid.SetRow(LogSelects, wrapSearch ? 1 : 0);
+        Grid.SetColumn(LogSelects, wrapSearch ? 0 : 1);
+        Grid.SetColumnSpan(LogSelects, wrapSearch ? 2 : 1);
+        LogSelectColumn.Width = new GridLength(wrapSearch ? 0 : 320);
+        CopyLogsLabel.Visibility = OpenLogsLabel.Visibility = ClearLogsLabel.Visibility = Root.ActualWidth < 760 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void ShowPage(bool install)
+    private void ShowPage(Page next)
     {
-        installPageShown = install;
-        OverviewPage.Visibility = install ? Visibility.Collapsed : Visibility.Visible;
-        InstallPage.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
+        page = next;
+        OverviewPage.Visibility = page == Page.Overview ? Visibility.Visible : Visibility.Collapsed;
+        InstallPage.Visibility = page == Page.Install ? Visibility.Visible : Visibility.Collapsed;
+        LogsPage.Visibility = page == Page.Logs ? Visibility.Visible : Visibility.Collapsed;
         UpdateThemeChrome();
-        if (install) SearchBox.Focus(FocusState.Programmatic);
+        if (page == Page.Install) SearchBox.Focus(FocusState.Programmatic);
     }
 
     private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(() => { if (appearance == Appearance.System) ApplyAppearance(); });
@@ -102,14 +116,16 @@ public sealed partial class MainWindow : Window
         var selected = light ? ColorHelper.FromArgb(255, 235, 235, 235) : ColorHelper.FromArgb(255, 31, 31, 31);
         var primary = light ? ColorHelper.FromArgb(255, 23, 23, 23) : Colors.White;
         var muted = light ? ColorHelper.FromArgb(255, 98, 98, 98) : Colors.DarkGray;
-        OverviewNav.Background = new SolidColorBrush(installPageShown ? Colors.Transparent : selected);
-        InstallNav.Background = new SolidColorBrush(installPageShown ? selected : Colors.Transparent);
-        OverviewNav.Foreground = new SolidColorBrush(installPageShown ? muted : primary);
-        InstallNav.Foreground = new SolidColorBrush(installPageShown ? primary : muted);
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (LogsNav, Page.Logs) })
+        {
+            button.Background = new SolidColorBrush(page == target ? selected : Colors.Transparent);
+            button.Foreground = new SolidColorBrush(page == target ? primary : muted);
+        }
         AppWindow.TitleBar.ButtonBackgroundColor = AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonForegroundColor = primary;
         AppWindow.TitleBar.ButtonInactiveForegroundColor = muted;
         foreach (var manager in model.Managers) manager.SetLightTheme(light);
+        logs.SetLightTheme(light);
     }
     private void ThemeClick(object sender, RoutedEventArgs e)
     {
@@ -117,11 +133,66 @@ public sealed partial class MainWindow : Window
         appearance = choice;
         ApplyAppearance();
         try { appearanceSettings.Save(choice); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { ToolTipService.SetToolTip(item, "Appearance changed, but the preference could not be saved: " + ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ToolTipService.SetToolTip(item, "Appearance changed, but the preference could not be saved: " + ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Appearance preference could not be saved", ex.Message);
+        }
     }
-    private void OverviewClick(object sender, RoutedEventArgs e) => ShowPage(false);
-    private void InstallClick(object sender, RoutedEventArgs e) => ShowPage(true);
-    private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(true); args.Handled = true; }
+    private void OverviewClick(object sender, RoutedEventArgs e) => ShowPage(Page.Overview);
+    private void InstallClick(object sender, RoutedEventArgs e) => ShowPage(Page.Install);
+    private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
+    private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(Page.Install); args.Handled = true; }
+
+    private void ApplyLogFilter()
+    {
+        if (!initialized) return;
+        ActivityArea? area = LogAreaFilter.SelectedIndex switch { 1 => ActivityArea.Managers, 2 => ActivityArea.Search, 3 => ActivityArea.Install, 4 => ActivityArea.App, _ => null };
+        var level = LogLevelFilter.SelectedIndex switch { 1 => ActivityLevel.Warning, 2 => ActivityLevel.Error, _ => ActivityLevel.Info };
+        logs.SetFilter(new ActivityFilter(level, area, LogSearch.Text));
+    }
+    private void LogFilterChanged(object sender, SelectionChangedEventArgs e) => ApplyLogFilter();
+    private void LogFilterTextChanged(object sender, TextChangedEventArgs e) => ApplyLogFilter();
+    private void LogRowClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: LogRow row }) row.Toggle(); }
+    private static bool TryCopy(string text)
+    {
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            return true;
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { return false; }
+    }
+    private async void CopyLogsClick(object sender, RoutedEventArgs e)
+    {
+        if (logs.Rows.Count == 0) return;
+        var ok = TryCopy(ActivityLog.Format(logs.Visible));
+        CopyLogsLabel.Text = ok ? "Copied" : "Clipboard busy";
+        await Task.Delay(1500);
+        CopyLogsLabel.Text = "Copy";
+    }
+    private async void CopyEntryClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: LogRow row } || !TryCopy(ActivityLog.Format([row.Entry]))) return;
+        row.SetCopied(true);
+        await Task.Delay(1500);
+        row.SetCopied(false);
+    }
+    private async void OpenLogsFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (log.Folder is null) return;
+        try { Directory.CreateDirectory(log.Folder); await Launcher.LaunchFolderPathAsync(log.Folder); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        { log.Write(ActivityLevel.Warning, ActivityArea.App, "The log folder could not be opened", ex.Message); }
+    }
+    private async void ClearLogsClick(object sender, RoutedEventArgs e)
+    {
+        if (log.Count == 0) return;
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Clear all logs?", Content = "This deletes every saved entry from this computer. It does not undo anything TidyWindow has done.", PrimaryButtonText = "Clear logs", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) log.Clear();
+    }
     private ManagerKind? Filter => SourceFilter.SelectedIndex switch { 1 => ManagerKind.Winget, 2 => ManagerKind.Chocolatey, 3 => ManagerKind.Scoop, _ => null };
     private async void SearchTextChanged(object sender, TextChangedEventArgs e) { if (initialized) await model.SearchAsync(SearchBox.Text, Filter); }
     private async void SourceChanged(object sender, SelectionChangedEventArgs e) { if (initialized) await model.SearchAsync(SearchBox.Text, Filter, false); }

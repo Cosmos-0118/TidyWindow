@@ -96,6 +96,7 @@ public sealed class PackageRow(Package package) : ObservableState
 public sealed class WorkspaceViewModel : ObservableState, IDisposable
 {
     private readonly PackageService service;
+    private readonly ActivityLog log;
     private readonly ManagerHealthService health;
     private readonly ManagerRecoveryService recovery;
     private CancellationTokenSource? searchCancellation;
@@ -149,9 +150,9 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     private string installDetail = "";
     public string InstallDetail { get => installDetail; private set => Set(ref installDetail, value); }
     public Visibility InstallVisibility => InstallTitle.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-    public WorkspaceViewModel(PackageService service)
+    public WorkspaceViewModel(PackageService service, ActivityLog log)
     {
-        this.service = service;
+        this.service = service; this.log = log;
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         health = new(service, runner, locator);
         recovery = new(service, runner, locator);
@@ -166,14 +167,18 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         try
         {
             var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => health.CheckAsync(x.Kind, token: lifetime.Token))));
-            foreach (var status in statuses) Managers.Single(x => x.Definition.Kind == status.Definition.Kind).Update(status);
+            foreach (var status in statuses)
+            {
+                var row = Managers.Single(x => x.Definition.Kind == status.Definition.Kind);
+                ManagerStatusLog.Record(log, row.Status, status);
+                row.Update(status);
+            }
             Detecting = false;
             inventoryChecking = true; Changed(nameof(CanRefresh));
             foreach (var package in Packages) UpdateInstalledState(package);
             try
             {
-                inventory = await service.GetInstalledAsync(statuses, lifetime.Token);
-                inventoryErrors = string.Join("\n", inventory.Errors);
+                SetInventory(await service.GetInstalledAsync(statuses, lifetime.Token));
             }
             finally
             {
@@ -194,6 +199,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         foreach (var manager in Managers) manager.CanRecover = false;
         foreach (var package in Packages) package.CanInstall = false;
         RecoveryMessage = $"Checking {row.Name}…"; RecoveryDetail = "";
+        log.Write(ActivityLevel.Info, ActivityArea.Managers, $"{row.Name} setup started");
         try
         {
             var progress = new Progress<string>(message => { if (Recovering) RecoveryMessage = message; });
@@ -203,13 +209,16 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             if (result.Success)
             {
                 service.ClearSearchCache();
-                inventory = await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token);
-                inventoryErrors = string.Join("\n", inventory.Errors); UpdateErrors();
+                SetInventory(await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token));
+                UpdateErrors();
             }
             RecoveryMessage = result.Message;
+            // A failed attempt that changed nothing (declined, restricted, offline) is a warning; one that changed things and failed is an error.
+            if (result.Success) log.Write(ActivityLevel.Success, ActivityArea.Managers, result.Changed ? $"{row.Name} setup finished" : $"{row.Name} checked, no changes needed", result.LogDirectory is null ? null : "Backups and details: " + result.LogDirectory);
+            else log.Write(result.Changed ? ActivityLevel.Error : ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} setup failed", result.Message + "\n" + result.Status.Detail + (result.LogDirectory is null ? "" : "\nBackups and details: " + result.LogDirectory));
         }
-        catch (OperationCanceledException) { RecoveryMessage = "Setup was interrupted. Check the manager before retrying."; }
-        catch (Exception ex) { RecoveryMessage = "Setup could not be completed."; RecoveryDetail = ex.Message; }
+        catch (OperationCanceledException) { RecoveryMessage = "Setup was interrupted. Check the manager before retrying."; log.Write(ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} setup was interrupted", "Check the manager before retrying."); }
+        catch (Exception ex) { RecoveryMessage = "Setup could not be completed."; RecoveryDetail = ex.Message; log.Write(ActivityLevel.Error, ActivityArea.Managers, $"{row.Name} setup failed", ex.ToString()); }
         finally
         {
             Recovering = false; row.Busy = false;
@@ -246,9 +255,12 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             {
                 var completed = await Task.WhenAny(pending);
                 pending.Remove(completed);
-                responses.Add(await completed);
+                var response = await completed;
+                responses.Add(response);
                 token.ThrowIfCancellationRequested();
                 if (generation != searchGeneration) return;
+                // Searches themselves are routine; only a source failing is worth a line.
+                if (response.Error is not null) log.Write(ActivityLevel.Warning, ActivityArea.Search, $"{ManagerDefinition.All.Single(m => m.Kind == response.Manager).Name} search failed", response.Error);
                 var existing = Packages.ToDictionary(x => x.Package.Key);
                 Packages.Clear();
                 foreach (var package in PackageRanker.Rank(responses.SelectMany(x => x.Packages), query))
@@ -266,7 +278,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             EmptyDetail = Errors.Length > 0 ? "Expand the source details above." : "Try a different name or source.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception ex) { if (generation == searchGeneration) { sourceErrors = ex.Message; UpdateErrors(); SearchSummary = "Search needs attention"; EmptyDetail = "Check the details above and try again."; } }
+        catch (Exception ex) { if (generation == searchGeneration) { log.Write(ActivityLevel.Error, ActivityArea.Search, "Search failed unexpectedly", ex.ToString()); sourceErrors = ex.Message; UpdateErrors(); SearchSummary = "Search needs attention"; EmptyDetail = "Check the details above and try again."; } }
         finally { if (generation == searchGeneration) { Searching = false; Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); } }
     }
 
@@ -283,6 +295,8 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         foreach (var package in Packages) package.CanInstall = false;
         row.Action = "Installing…";
         InstallTitle = $"Installing {row.Name}";
+        var what = $"{row.Name} from {row.Source}";
+        log.Write(ActivityLevel.Info, ActivityArea.Install, $"Installing {what}", "Package ID: " + row.Package.Id);
         InstallDetail = row.Package.Manager == ManagerKind.Chocolatey ? "Approve the Windows administrator prompt, then follow the Chocolatey window. Keep TidyWindow open until it finishes." : "The package manager is working. Follow any installer or Windows permission prompt that opens. Keep TidyWindow open until it finishes.";
         try
         {
@@ -294,20 +308,24 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             InstallTitle = success ? result.ExitCode == 0 ? $"{row.Name} installed" : $"{row.Name} installed · restart required" : $"Couldn’t install {row.Name}";
             var output = PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
             InstallDetail = $"Exit code: {result.ExitCode}. " + (output.Length > 0 ? output : success ? "The package manager reported completion." : "Check the package manager’s window for details.");
+            var summary = $"Package ID: {row.Package.Id}\nExit code: {result.ExitCode}" + (output.Length > 0 ? "\n" + output : "");
+            if (!success) log.Write(ActivityLevel.Error, ActivityArea.Install, $"Couldn’t install {what}", summary);
+            else if (result.ExitCode == 0) log.Write(ActivityLevel.Success, ActivityArea.Install, $"Installed {what}");
+            else log.Write(ActivityLevel.Warning, ActivityArea.Install, $"Installed {what}, restart required", summary);
             if (success)
             {
                 // Reconcile other source choices for this app with the computer's actual inventory.
                 inventoryChecking = true; Changed(nameof(CanRefresh));
                 try
                 {
-                    inventory = await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token);
-                    inventoryErrors = string.Join("\n", inventory.Errors); UpdateErrors();
+                    SetInventory(await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token));
+                    UpdateErrors();
                 }
                 finally { inventoryChecking = false; Changed(nameof(CanRefresh)); }
             }
         }
-        catch (OperationCanceledException) { InstallTitle = "Installation interrupted"; InstallDetail = "Check the package manager before retrying. Changes already made are not rolled back."; row.Action = "Retry"; }
-        catch (Exception ex) { InstallTitle = $"Couldn’t install {row.Name}"; InstallDetail = ex.Message; row.Action = "Retry"; }
+        catch (OperationCanceledException) { InstallTitle = "Installation interrupted"; InstallDetail = "Check the package manager before retrying. Changes already made are not rolled back."; row.Action = "Retry"; log.Write(ActivityLevel.Warning, ActivityArea.Install, $"Installation of {what} was interrupted", InstallDetail); }
+        catch (Exception ex) { InstallTitle = $"Couldn’t install {row.Name}"; InstallDetail = ex.Message; row.Action = "Retry"; log.Write(ActivityLevel.Error, ActivityArea.Install, $"Couldn’t install {what}", ex.ToString()); }
         finally
         {
             Installing = false;
@@ -326,6 +344,13 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         if (installed) row.Action = "Installed";
         else if (inventoryChecking) row.Action = "Checking…";
         else if (row.Action != "Installing…" || !Installing) row.Action = "Install";
+    }
+
+    private void SetInventory(InstalledInventory value)
+    {
+        inventory = value;
+        inventoryErrors = string.Join("\n", value.Errors);
+        if (value.Errors.Any()) log.Write(ActivityLevel.Warning, ActivityArea.Managers, "Installed apps could not be fully checked", inventoryErrors);
     }
 
     private void UpdateErrors() => Errors = string.Join("\n", new[] { sourceErrors, inventoryErrors }.Where(x => x.Length > 0));

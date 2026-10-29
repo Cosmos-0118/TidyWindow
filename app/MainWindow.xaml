@@ -20,6 +20,9 @@
      <Button x:Name="InstallNav" Style="{StaticResource NavButton}" Click="InstallClick" ToolTipService.ToolTip="Install apps (Ctrl+K)" AutomationProperties.Name="Install Hub">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE7B8;" FontSize="15" /><TextBlock x:Name="InstallLabel" Text="Install Hub" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="LogsNav" Style="{StaticResource NavButton}" Click="LogsClick" ToolTipService.ToolTip="Logs" AutomationProperties.Name="Logs">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE81C;" FontSize="15" /><TextBlock x:Name="LogsLabel" Text="Logs" FontSize="13" /></StackPanel>
+     </Button>
      </StackPanel>
      <Button Grid.Row="1" Style="{StaticResource NavButton}" ToolTipService.ToolTip="Appearance" AutomationProperties.Name="Appearance">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE790;" FontSize="15" /><TextBlock x:Name="AppearanceLabel" Text="Appearance" FontSize="13" /></StackPanel>
@@ -130,6 +133,78 @@
       <StackPanel Grid.Row="3" Spacing="8" Visibility="{Binding InstallVisibility}">
        <StackPanel Orientation="Horizontal" Spacing="10"><ProgressRing IsActive="{Binding Installing}" Visibility="{Binding InstallProgressVisibility}" Width="14" Height="14" /><TextBlock Text="{Binding InstallTitle}" FontSize="13" TextWrapping="Wrap" /></StackPanel>
        <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"><ScrollViewer MaxHeight="100"><TextBlock Text="{Binding InstallDetail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
+      </StackPanel>
+     </Grid>
+    </Grid>
+    <Grid x:Name="LogsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="18">
+     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+     <Grid>
+      <TextBlock Text="Logs" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+       <Button x:Name="CopyLogsButton" Click="CopyLogsClick" Padding="12,7" ToolTipService.ToolTip="Copy the entries shown" AutomationProperties.Name="Copy entries">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock x:Name="CopyLogsLabel" Text="Copy" FontSize="12" /></StackPanel>
+       </Button>
+       <Button Click="OpenLogsFolderClick" Padding="12,7" ToolTipService.ToolTip="Open the folder containing the log files" AutomationProperties.Name="Open log folder">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock x:Name="OpenLogsLabel" Text="Open folder" FontSize="12" /></StackPanel>
+       </Button>
+       <Button Click="ClearLogsClick" Padding="12,7" ToolTipService.ToolTip="Delete all saved entries" AutomationProperties.Name="Clear log">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock x:Name="ClearLogsLabel" Text="Clear" FontSize="12" /></StackPanel>
+       </Button>
+      </StackPanel>
+     </Grid>
+     <Grid x:Name="LogFilters" Grid.Row="1" ColumnSpacing="10" RowSpacing="8">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="LogSelectColumn" Width="320" /></Grid.ColumnDefinitions>
+      <TextBox x:Name="LogSearch" PlaceholderText="Search entries" MaxLength="100" Height="38" VerticalContentAlignment="Center" TextChanged="LogFilterTextChanged" AutomationProperties.Name="Search entries" />
+      <Grid x:Name="LogSelects" Grid.Column="1" ColumnSpacing="10">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+       <ComboBox x:Name="LogLevelFilter" SelectedIndex="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="LogFilterChanged" AutomationProperties.Name="Severity">
+        <ComboBoxItem Content="All activity" /><ComboBoxItem Content="Problems only" /><ComboBoxItem Content="Errors only" />
+       </ComboBox>
+       <ComboBox x:Name="LogAreaFilter" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="LogFilterChanged" AutomationProperties.Name="Area">
+        <ComboBoxItem Content="All areas" /><ComboBoxItem Content="Managers" /><ComboBoxItem Content="Search" /><ComboBoxItem Content="Install" /><ComboBoxItem Content="App" />
+       </ComboBox>
+      </Grid>
+     </Grid>
+     <StackPanel Grid.Row="2" Spacing="6">
+      <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" />
+      <TextBlock Text="{Binding StorageWarning}" Visibility="{Binding StorageWarningVisibility}" FontSize="12" Foreground="{ThemeResource ErrorBrush}" TextWrapping="Wrap" />
+     </StackPanel>
+     <Grid Grid.Row="3">
+      <ListView ItemsSource="{Binding Rows}" Visibility="{Binding ListVisibility}" SelectionMode="None" IsItemClickEnabled="False" Padding="0" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Log entries">
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
+       <ListView.ItemTemplate><DataTemplate>
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,2">
+         <Grid ColumnSpacing="4">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <Button Grid.Column="1" Click="CopyEntryClick" Margin="0,6,8,0" VerticalAlignment="Top" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0" ToolTipService.ToolTip="Copy this entry" AutomationProperties.Name="Copy this entry">
+           <FontIcon Glyph="{Binding CopyGlyph}" FontSize="13" />
+          </Button>
+         <StackPanel>
+          <Button Click="LogRowClick" Background="Transparent" BorderThickness="0" Padding="12,11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="6" AutomationProperties.Name="{Binding Message}">
+           <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Ellipse Width="7" Height="7" Fill="{Binding DotBrush}" VerticalAlignment="Top" Margin="0,5,0,0" AutomationProperties.AccessibilityView="Raw" />
+            <StackPanel Grid.Column="1" Spacing="3">
+             <TextBlock Text="{Binding Message}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Left" />
+             <TextBlock Text="{Binding Meta}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Left" ToolTipService.ToolTip="{Binding Exact}" />
+            </StackPanel>
+            <FontIcon Grid.Column="2" Glyph="{Binding Chevron}" Visibility="{Binding ChevronVisibility}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,4,0,0" />
+           </Grid>
+          </Button>
+          <Border Visibility="{Binding DetailVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="6" Padding="10,8" Margin="32,0,12,10">
+           <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <TextBlock Text="{Binding Detail}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+           </ScrollViewer>
+          </Border>
+         </StackPanel>
+         </Grid>
+        </Border>
+       </DataTemplate></ListView.ItemTemplate>
+      </ListView>
+      <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24">
+       <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>
     </Grid>
