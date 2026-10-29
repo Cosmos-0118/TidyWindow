@@ -14,3 +14,7 @@ makeitperfect.txt
 
 # Ignore Windows ETW/perf trace captures that can land in repo root
 *.etl
+
+# New app build output
+artifacts/
+TestResults/

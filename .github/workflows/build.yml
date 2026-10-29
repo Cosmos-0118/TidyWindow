@@ -1,0 +1,29 @@
+name: Build new TidyWindow
+
+on:
+  push:
+    branches: [master, Developer]
+  pull_request:
+    branches: [master, Developer]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore locked dependencies
+        run: dotnet restore TidyWindow.slnx --locked-mode
+      - name: Build native app
+        run: dotnet build app/TidyWindow.Desktop.csproj -c Release --no-restore
+      - name: Test
+        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore

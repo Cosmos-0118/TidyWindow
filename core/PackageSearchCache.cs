@@ -33,6 +33,11 @@ public sealed class PackageSearchCache(TimeProvider? clock = null)
                 var created = entry;
                 // Process startup and provider parsing must not run on the UI thread.
                 entry.Work = Task.Run(() => FetchAsync(key, created, fetch));
+                _ = entry.Work.ContinueWith(task =>
+                {
+                    _ = task.Exception; // Observe failures even when every waiter cancelled.
+                    lock (gate) { if (created.Users == 0) created.Cancellation.Dispose(); }
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             }
             entry.Users++;
         }
@@ -41,10 +46,14 @@ public sealed class PackageSearchCache(TimeProvider? clock = null)
         {
             lock (gate)
             {
-                if (--entry.Users == 0 && !entry.Work.IsCompleted)
+                if (--entry.Users == 0)
                 {
-                    RemoveIfCurrent(key, entry);
-                    entry.Cancellation.Cancel();
+                    if (!entry.Work.IsCompleted)
+                    {
+                        RemoveIfCurrent(key, entry);
+                        entry.Cancellation.Cancel();
+                    }
+                    else entry.Cancellation.Dispose();
                 }
             }
         }
@@ -63,11 +72,6 @@ public sealed class PackageSearchCache(TimeProvider? clock = null)
             return result;
         }
         catch { lock (gate) RemoveIfCurrent(key, entry); throw; }
-        finally
-        {
-            // Dispose after work finishes; cancellation can still be requested by the last waiter.
-            lock (gate) entry.Cancellation.Dispose();
-        }
     }
 
     public void Clear()

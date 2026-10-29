@@ -98,7 +98,8 @@ public sealed partial class MainWindow : Window
         DetectionProgress.Visibility = Visibility.Visible;
         try { await model.RefreshAsync(); }
         finally { DetectionProgress.Visibility = Visibility.Collapsed; }
-        if (SearchBox.Text.Trim().Length >= 2) await model.SearchAsync(SearchBox.Text, Filter, false);
+        if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
+            await model.SearchAsync(SearchBox.Text, Filter, false);
     }
     private async void ManagerGuideClick(object sender, RoutedEventArgs e)
     {

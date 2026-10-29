@@ -185,7 +185,12 @@ public sealed class PackageTests(ITestOutputHelper output)
             output.WriteLine($"{status.Definition.Name}: {status.Health} {status.Version} {status.Detail}");
             if (status.Health == ManagerHealth.Missing) continue;
             Assert.Equal(ManagerHealth.Ready, status.Health);
+            var timer = System.Diagnostics.Stopwatch.StartNew();
             var result = await service.SearchAsync(status, "git");
+            output.WriteLine($"{status.Definition.Name} search: {timer.Elapsed.TotalMilliseconds:F0} ms");
+            timer.Restart();
+            await service.SearchAsync(status, "git");
+            output.WriteLine($"{status.Definition.Name} cached search: {timer.Elapsed.TotalMilliseconds:F2} ms");
             output.WriteLine($"{status.Definition.Name}: {result.Packages.Count} results. {result.Error}");
             Assert.Null(result.Error);
             Assert.NotEmpty(result.Packages);
