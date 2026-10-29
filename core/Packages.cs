@@ -1,7 +1,8 @@
 namespace TidyWindow.Next.Core;
 
 public enum ManagerKind { Winget, Chocolatey, Scoop }
-public enum ManagerHealth { Ready, Missing, Unavailable }
+public enum ManagerHealth { Ready, Missing, Unavailable, ConnectionIssue, Restricted }
+public enum ManagerProblem { None, NotInstalled, Executable, Configuration, Source, Network, Policy }
 
 public sealed record ManagerDefinition(ManagerKind Kind, string Name, string Description, string SetupUrl)
 {
@@ -13,7 +14,7 @@ public sealed record ManagerDefinition(ManagerKind Kind, string Name, string Des
     ];
 }
 
-public sealed record ManagerStatus(ManagerDefinition Definition, ManagerHealth Health, string Version, string? Executable, string Detail);
+public sealed record ManagerStatus(ManagerDefinition Definition, ManagerHealth Health, string Version, string? Executable, string Detail, ManagerProblem Problem = ManagerProblem.None);
 public sealed record Package(ManagerKind Manager, string Id, string Name, string Version, string Source)
 {
     public string Key => $"{Manager}:{Id}";

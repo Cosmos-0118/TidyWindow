@@ -35,7 +35,10 @@ public static partial class PackageOutputParser
             for (var i = 1; i < lines.Length; i++)
             {
                 if (!Regex.IsMatch(lines[i], @"^\s*-{2,}[\s-]*$")) continue;
-                var columns = Columns().Matches(lines[i - 1]).Select(m => CellWidth(lines[i - 1][..m.Index])).ToArray();
+                var dashed = Regex.Matches(lines[i], @"-{2,}");
+                var columns = dashed.Count >= 3
+                    ? dashed.Select(m => CellWidth(lines[i][..m.Index])).ToArray()
+                    : Columns().Matches(lines[i - 1]).Select(m => CellWidth(lines[i - 1][..m.Index])).ToArray();
                 if (columns.Length < 3) continue;
                 foreach (var row in lines.Skip(i + 1))
                 {

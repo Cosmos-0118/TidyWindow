@@ -14,6 +14,10 @@ public sealed partial class MainWindow : Window
     private readonly WorkspaceViewModel model = new(new PackageService(new ProcessRunner(), new ExecutableLocator()));
     private bool initialized;
     private bool closingDialog;
+    private bool installPageShown;
+    private readonly Windows.UI.ViewManagement.UISettings systemColors = new();
+    private readonly AppearanceSettings appearanceSettings = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "appearance.json"));
+    private Appearance appearance;
     public MainWindow()
     {
         InitializeComponent();
@@ -21,10 +25,10 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
         AppWindow.Resize(new(1100, 740));
-        AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
-        AppWindow.TitleBar.ButtonForegroundColor = Colors.White;
-        AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        AppWindow.TitleBar.ButtonInactiveForegroundColor = Colors.Gray;
+        appearance = appearanceSettings.Load();
+        Root.ActualThemeChanged += (_, _) => UpdateThemeChrome();
+        systemColors.ColorValuesChanged += SystemColorsChanged;
+        ApplyAppearance();
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.PreferredMinimumWidth = 480;
@@ -40,7 +44,7 @@ public sealed partial class MainWindow : Window
             await Refresh();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => model.Dispose();
+        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; model.Dispose(); };
     }
 
     private void FitInitialWindow()
@@ -60,7 +64,7 @@ public sealed partial class MainWindow : Window
     {
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
-        OverviewLabel.Visibility = InstallLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
+        OverviewLabel.Visibility = InstallLabel.Visibility = AppearanceLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
         var wrapSearch = Root.ActualWidth < 640;
@@ -74,13 +78,46 @@ public sealed partial class MainWindow : Window
 
     private void ShowPage(bool install)
     {
+        installPageShown = install;
         OverviewPage.Visibility = install ? Visibility.Collapsed : Visibility.Visible;
         InstallPage.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
-        OverviewNav.Background = new SolidColorBrush(install ? Colors.Transparent : ColorHelper.FromArgb(255, 31, 31, 31));
-        InstallNav.Background = new SolidColorBrush(install ? ColorHelper.FromArgb(255, 31, 31, 31) : Colors.Transparent);
-        OverviewNav.Foreground = new SolidColorBrush(install ? Colors.DarkGray : Colors.White);
-        InstallNav.Foreground = new SolidColorBrush(install ? Colors.White : Colors.DarkGray);
+        UpdateThemeChrome();
         if (install) SearchBox.Focus(FocusState.Programmatic);
+    }
+
+    private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(() => { if (appearance == Appearance.System) ApplyAppearance(); });
+    private void ApplyAppearance()
+    {
+        var background = systemColors.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background);
+        var systemLight = background.R * 0.299 + background.G * 0.587 + background.B * 0.114 > 128;
+        Root.RequestedTheme = appearance == Appearance.Light || appearance == Appearance.System && systemLight ? ElementTheme.Light : ElementTheme.Dark;
+        SystemThemeItem.IsChecked = appearance == Appearance.System;
+        LightThemeItem.IsChecked = appearance == Appearance.Light;
+        DarkThemeItem.IsChecked = appearance == Appearance.Dark;
+        UpdateThemeChrome();
+    }
+    private void UpdateThemeChrome()
+    {
+        var light = Root.ActualTheme == ElementTheme.Light;
+        var selected = light ? ColorHelper.FromArgb(255, 235, 235, 235) : ColorHelper.FromArgb(255, 31, 31, 31);
+        var primary = light ? ColorHelper.FromArgb(255, 23, 23, 23) : Colors.White;
+        var muted = light ? ColorHelper.FromArgb(255, 98, 98, 98) : Colors.DarkGray;
+        OverviewNav.Background = new SolidColorBrush(installPageShown ? Colors.Transparent : selected);
+        InstallNav.Background = new SolidColorBrush(installPageShown ? selected : Colors.Transparent);
+        OverviewNav.Foreground = new SolidColorBrush(installPageShown ? muted : primary);
+        InstallNav.Foreground = new SolidColorBrush(installPageShown ? primary : muted);
+        AppWindow.TitleBar.ButtonBackgroundColor = AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        AppWindow.TitleBar.ButtonForegroundColor = primary;
+        AppWindow.TitleBar.ButtonInactiveForegroundColor = muted;
+        foreach (var manager in model.Managers) manager.SetLightTheme(light);
+    }
+    private void ThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioMenuFlyoutItem item || !Enum.TryParse<Appearance>(item.Tag?.ToString(), out var choice)) return;
+        appearance = choice;
+        ApplyAppearance();
+        try { appearanceSettings.Save(choice); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { ToolTipService.SetToolTip(item, "Appearance changed, but the preference could not be saved: " + ex.Message); }
     }
     private void OverviewClick(object sender, RoutedEventArgs e) => ShowPage(false);
     private void InstallClick(object sender, RoutedEventArgs e) => ShowPage(true);
@@ -101,33 +138,39 @@ public sealed partial class MainWindow : Window
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);
     }
-    private async void ManagerGuideClick(object sender, RoutedEventArgs e)
+    private async void ManagerRecoveryClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: ManagerRow row })
-            await Launcher.LaunchUriAsync(new Uri(row.Definition.SetupUrl));
+        {
+            if (row.Status?.Health == ManagerHealth.Restricted)
+                await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "This manager is restricted", Content = new TextBlock { Text = row.Detail, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, CloseButtonText = "Close" }.ShowAsync();
+            else await model.RecoverAsync(row);
+        }
     }
     private async void InstallPackageClick(object sender, RoutedEventArgs e)
     {
-        if (model.Installing || sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;
+        if (model.Busy || sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;
         var content = new StackPanel { Spacing = 14, MaxWidth = 480 };
         content.Children.Add(new TextBlock { Text = $"{row.Id}\n{row.Source} · available version {row.Version}", TextWrapping = TextWrapping.Wrap });
         content.Children.Add(new TextBlock { Text = PackageService.DisplayInstallCommand(row.Package), FontFamily = new FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         content.Children.Add(new TextBlock { Text = "This installs the latest version from this source and accepts the package’s license agreements. The package manager may open an installer or request administrator permission.", TextWrapping = TextWrapping.Wrap, FontSize = 12 });
         if (row.Package.Manager == ManagerKind.Chocolatey)
             content.Children.Add(new TextBlock { Text = "Chocolatey will open in a separate administrator window. TidyWindow itself stays unelevated.", TextWrapping = TextWrapping.Wrap, FontSize = 12 });
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = ElementTheme.Dark, Title = $"Install {row.Name}?", Content = content, PrimaryButtonText = "Install package", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Install {row.Name}?", Content = content, PrimaryButtonText = "Install package", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.InstallAsync(row);
     }
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (!model.Installing) return;
+        if (!model.Busy) return;
         args.Cancel = true;
         if (closingDialog) return;
         closingDialog = true;
         try
         {
-            await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = ElementTheme.Dark, Title = "An installation is still running", Content = "Please let the package manager finish before closing TidyWindow. Check its installer window if it needs your attention.", CloseButtonText = "Keep open" }.ShowAsync();
+            await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "An operation is still running", Content = "Please let the package manager finish before closing TidyWindow. Follow any Windows permission prompt or installer window that opens.", CloseButtonText = "Keep open" }.ShowAsync();
         }
         finally { closingDialog = false; }
     }
 }
+
+

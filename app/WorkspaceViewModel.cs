@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -21,14 +22,26 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
     public ManagerDefinition Definition { get; } = definition;
     public ManagerStatus? Status { get; private set; }
     public string Name => Definition.Name;
-    public string Mark => Definition.Kind switch { ManagerKind.Winget => "W", ManagerKind.Chocolatey => "C", _ => "S" };
+    public ImageSource Icon
+    {
+        get
+        {
+            var uri = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Managers", Definition.Kind switch { ManagerKind.Winget => "winget.png", ManagerKind.Chocolatey => "chocolatey.svg", _ => "scoop.png" }));
+            return Definition.Kind == ManagerKind.Chocolatey ? new SvgImageSource(uri) : new BitmapImage(uri);
+        }
+    }
     public string Version => Status?.Version ?? "";
-    public string StatusText => Status?.Health switch { ManagerHealth.Ready => "Ready", ManagerHealth.Missing => "Not installed", ManagerHealth.Unavailable => "Needs attention", _ => "Checking…" };
+    public string StatusText => Busy ? "Working…" : Status?.Health switch { ManagerHealth.Ready => "Ready", ManagerHealth.Missing => "Not installed", ManagerHealth.ConnectionIssue => "Connection issue", ManagerHealth.Restricted => "Restricted", ManagerHealth.Unavailable => "Needs repair", _ => "Checking…" };
     public string Detail => Status?.Detail ?? "Checking this device";
-    public Visibility SetupVisibility => Status?.Health is ManagerHealth.Missing or ManagerHealth.Unavailable ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility SetupVisibility => Status is not null && Status.Health != ManagerHealth.Ready ? Visibility.Visible : Visibility.Collapsed;
+    public string SetupAction => Status?.Health switch { ManagerHealth.Missing => "Install", ManagerHealth.ConnectionIssue => "Retry", ManagerHealth.Restricted => "Details", _ => "Repair" };
+    private bool busy;
+    public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(StatusText)); } }
+    private bool canRecover;
+    public bool CanRecover { get => canRecover; set => Set(ref canRecover, value); }
     public bool Compact { get; set; }
     public GridLength StatusColumnWidth => new(Compact ? 0 : 145);
-    public GridLength SetupColumnWidth => Compact ? GridLength.Auto : new(78);
+    public GridLength SetupColumnWidth => Compact ? GridLength.Auto : new(86);
     public int StatusColumn => Compact ? 1 : 2;
     public int StatusRow => Compact ? 1 : 0;
     public void SetCompact(bool value)
@@ -37,9 +50,16 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
         Compact = value;
         foreach (var name in new[] { nameof(StatusColumnWidth), nameof(SetupColumnWidth), nameof(StatusColumn), nameof(StatusRow) }) Changed(name);
     }
-    public Brush StatusBrush => new SolidColorBrush(Status?.Health switch { ManagerHealth.Ready => ColorHelper.FromArgb(255,164,232,193), ManagerHealth.Unavailable => ColorHelper.FromArgb(255,244,191,110), _ => ColorHelper.FromArgb(255,164,164,173) });
+    private bool lightTheme;
+    public void SetLightTheme(bool value) { lightTheme = value; Changed(nameof(StatusBrush)); }
+    public Brush StatusBrush => new SolidColorBrush(Status?.Health switch
+    {
+        ManagerHealth.Ready => lightTheme ? ColorHelper.FromArgb(255, 28, 112, 63) : ColorHelper.FromArgb(255,164,232,193),
+        ManagerHealth.Unavailable or ManagerHealth.Restricted or ManagerHealth.ConnectionIssue => lightTheme ? ColorHelper.FromArgb(255, 134, 85, 0) : ColorHelper.FromArgb(255,244,191,110),
+        _ => lightTheme ? ColorHelper.FromArgb(255, 98, 98, 98) : ColorHelper.FromArgb(255,164,164,173)
+    });
     public void Update(ManagerStatus status)
-    { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(StatusBrush) }) Changed(name); }
+    { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush) }) Changed(name); }
 }
 
 public sealed class PackageRow(Package package) : ObservableState
@@ -76,6 +96,8 @@ public sealed class PackageRow(Package package) : ObservableState
 public sealed class WorkspaceViewModel : ObservableState, IDisposable
 {
     private readonly PackageService service;
+    private readonly ManagerHealthService health;
+    private readonly ManagerRecoveryService recovery;
     private CancellationTokenSource? searchCancellation;
     private readonly CancellationTokenSource lifetime = new();
     private int searchGeneration;
@@ -97,7 +119,16 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     }
     private bool detecting;
     public bool Detecting { get => detecting; private set { Set(ref detecting, value); Changed(nameof(CanRefresh)); } }
-    public bool CanRefresh => !Detecting && !inventoryChecking && !Installing;
+    public bool CanRefresh => !Detecting && !inventoryChecking && !Busy;
+    private bool recovering;
+    public bool Recovering { get => recovering; private set { Set(ref recovering, value); Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(RecoveryProgressVisibility)); } }
+    public bool Busy => Installing || Recovering;
+    public Visibility RecoveryProgressVisibility => Recovering ? Visibility.Visible : Visibility.Collapsed;
+    private string recoveryMessage = "";
+    public string RecoveryMessage { get => recoveryMessage; private set { Set(ref recoveryMessage, value); Changed(nameof(RecoveryVisibility)); } }
+    private string recoveryDetail = "";
+    public string RecoveryDetail { get => recoveryDetail; private set => Set(ref recoveryDetail, value); }
+    public Visibility RecoveryVisibility => RecoveryMessage.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     private bool searching;
     public bool Searching { get => searching; private set { Set(ref searching, value); Changed(nameof(CancelVisibility)); Changed(nameof(EmptyVisibility)); } }
     public Visibility CancelVisibility => Searching ? Visibility.Visible : Visibility.Collapsed;
@@ -111,23 +142,30 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     public string Errors { get => errors; private set { Set(ref errors, value); Changed(nameof(ErrorVisibility)); } }
     public Visibility ErrorVisibility => Errors.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     private bool installing;
-    public bool Installing { get => installing; private set { Set(ref installing, value); Changed(nameof(InstallProgressVisibility)); Changed(nameof(CanRefresh)); } }
+    public bool Installing { get => installing; private set { Set(ref installing, value); Changed(nameof(Busy)); Changed(nameof(InstallProgressVisibility)); Changed(nameof(CanRefresh)); foreach (var row in Managers) row.CanRecover = !value && !Recovering; } }
     public Visibility InstallProgressVisibility => Installing ? Visibility.Visible : Visibility.Collapsed;
     private string installTitle = "";
     public string InstallTitle { get => installTitle; private set { Set(ref installTitle, value); Changed(nameof(InstallVisibility)); } }
     private string installDetail = "";
     public string InstallDetail { get => installDetail; private set => Set(ref installDetail, value); }
     public Visibility InstallVisibility => InstallTitle.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-    public WorkspaceViewModel(PackageService service) => this.service = service;
+    public WorkspaceViewModel(PackageService service)
+    {
+        this.service = service;
+        var runner = new ProcessRunner(); var locator = new ExecutableLocator();
+        health = new(service, runner, locator);
+        recovery = new(service, runner, locator);
+    }
 
     public async Task RefreshAsync()
     {
-        if (Detecting) return;
+        if (Detecting || Recovering) return;
+        foreach (var manager in Managers) manager.CanRecover = false;
         service.ClearSearchCache();
         Detecting = true;
         try
         {
-            var statuses = await service.DetectAsync(lifetime.Token);
+            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => health.CheckAsync(x.Kind, token: lifetime.Token))));
             foreach (var status in statuses) Managers.Single(x => x.Definition.Kind == status.Definition.Kind).Update(status);
             Detecting = false;
             inventoryChecking = true; Changed(nameof(CanRefresh));
@@ -145,7 +183,39 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             }
         }
         catch (OperationCanceledException) { }
-        finally { Detecting = false; }
+        finally { Detecting = false; foreach (var manager in Managers) manager.CanRecover = !Busy && !inventoryChecking; }
+    }
+
+    public async Task RecoverAsync(ManagerRow row)
+    {
+        if (Busy || Detecting || inventoryChecking) return;
+        CancelSearch();
+        Recovering = true; row.Busy = true;
+        foreach (var manager in Managers) manager.CanRecover = false;
+        foreach (var package in Packages) package.CanInstall = false;
+        RecoveryMessage = $"Checking {row.Name}…"; RecoveryDetail = "";
+        try
+        {
+            var progress = new Progress<string>(message => { if (Recovering) RecoveryMessage = message; });
+            var result = await recovery.RecoverAsync(row.Definition.Kind, progress, lifetime.Token);
+            row.Update(result.Status);
+            RecoveryDetail = result.Status.Detail + (result.LogDirectory is null ? "" : "\n\nDetails and backups: " + result.LogDirectory);
+            if (result.Success)
+            {
+                service.ClearSearchCache();
+                inventory = await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token);
+                inventoryErrors = string.Join("\n", inventory.Errors); UpdateErrors();
+            }
+            RecoveryMessage = result.Message;
+        }
+        catch (OperationCanceledException) { RecoveryMessage = "Setup was interrupted. Check the manager before retrying."; }
+        catch (Exception ex) { RecoveryMessage = "Setup could not be completed."; RecoveryDetail = ex.Message; }
+        finally
+        {
+            Recovering = false; row.Busy = false;
+            foreach (var manager in Managers) manager.CanRecover = true;
+            foreach (var package in Packages) UpdateInstalledState(package);
+        }
     }
 
     public async Task SearchAsync(string query, ManagerKind? filter, bool debounce = true)
@@ -208,7 +278,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
 
     public async Task InstallAsync(PackageRow row)
     {
-        if (Installing || inventoryChecking || row.Installed is not null || installedThisSession.Contains(row.Package.Key)) return;
+        if (Busy || inventoryChecking || row.Installed is not null || installedThisSession.Contains(row.Package.Key)) return;
         Installing = true;
         foreach (var package in Packages) package.CanInstall = false;
         row.Action = "Installing…";
@@ -252,7 +322,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     {
         row.SetInstalled(inventory.Find(row.Package));
         var installed = row.Installed is not null || installedThisSession.Contains(row.Package.Key);
-        row.CanInstall = !Installing && !inventoryChecking && !installed;
+        row.CanInstall = !Busy && !inventoryChecking && !installed;
         if (installed) row.Action = "Installed";
         else if (inventoryChecking) row.Action = "Checking…";
         else if (row.Action != "Installing…" || !Installing) row.Action = "Install";

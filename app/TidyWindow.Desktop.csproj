@@ -13,6 +13,7 @@
     <AssemblyName>TidyWindow.Next</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="Assets/Managers/*"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <ProjectReference Include="../core/TidyWindow.Core.csproj" />
   </ItemGroup>

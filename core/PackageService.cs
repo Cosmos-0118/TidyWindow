@@ -6,6 +6,7 @@ namespace TidyWindow.Next.Core;
 public sealed class PackageService(ICommandRunner runner, IExecutableLocator locator)
 {
     private readonly SemaphoreSlim installGate = new(1, 1);
+    internal SemaphoreSlim OperationGate => installGate;
     private readonly PackageSearchCache searchCache = new();
     public void ClearSearchCache() => searchCache.Clear();
     public async Task<InstalledInventory> GetInstalledAsync(IReadOnlyList<ManagerStatus> managers, CancellationToken token = default)
@@ -31,10 +32,15 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
         {
             var result = await runner.RunAsync(BuildCommand(kind, manager.Executable, arguments, TimeSpan.FromSeconds(20)), token).ConfigureAwait(false);
             if (result.ExitCode == unchecked((int)0x8A150014)) return new(kind, []);
+            if (kind == ManagerKind.Scoop && result.ExitCode == 1 && result.Output.Contains("There aren't any apps installed", StringComparison.OrdinalIgnoreCase)) return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));
             // Inventory must not inherit the search result cap: an installed app can be row 61+.
             var apps = PackageOutputParser.Parse(kind, result.Output, int.MaxValue)
                 .Select(x => new InstalledApp(kind, x.Id, x.Name, x.Version)).ToArray();
+            var clean = PackageOutputParser.Clean(result.Output);
+            if (apps.Length == 0 && !string.IsNullOrWhiteSpace(clean) &&
+                !Regex.IsMatch(clean, @"(?m)^\s*-{2,}[\s-]*$|0 packages|no (?:installed |applications |apps |packages)|aren't any installed", RegexOptions.IgnoreCase))
+                return new(kind, [], "The installed-package inventory could not be read. The manager may have a damaged configuration or an unsupported output format.");
             return new(kind, apps);
         }
         catch (Exception ex) when (ex is not OperationCanceledException) { return new(kind, [], ex.Message); }
@@ -122,7 +128,7 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
         _ => $"scoop install {package.Id}"
     };
 
-    private CommandSpec BuildCommand(ManagerKind kind, string path, IReadOnlyList<string> arguments, TimeSpan timeout)
+    internal CommandSpec BuildCommand(ManagerKind kind, string path, IReadOnlyList<string> arguments, TimeSpan timeout)
     {
         if (kind != ManagerKind.Scoop) return new(path, arguments, timeout);
         // Only Scoop needs a PowerShell host. Arguments are literal strings, never executable user input.

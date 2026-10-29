@@ -4,17 +4,29 @@
  <Application.Resources>
   <ResourceDictionary>
    <ResourceDictionary.MergedDictionaries><XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" /></ResourceDictionary.MergedDictionaries>
-   <SolidColorBrush x:Key="CanvasBrush" Color="#0A0A0A" />
-   <SolidColorBrush x:Key="PanelBrush" Color="#111111" />
-   <SolidColorBrush x:Key="LineBrush" Color="#242424" />
-   <SolidColorBrush x:Key="MutedBrush" Color="#A1A1A1" />
-   <Color x:Key="SystemAccentColor">#D8D8D8</Color>
+   <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+     <SolidColorBrush x:Key="CanvasBrush" Color="#FFFFFF" /><SolidColorBrush x:Key="PanelBrush" Color="#FAFAFA" />
+     <SolidColorBrush x:Key="LineBrush" Color="#E5E5E5" /><SolidColorBrush x:Key="MutedBrush" Color="#626262" />
+     <SolidColorBrush x:Key="BadgeBrush" Color="#EBEBEB" /><SolidColorBrush x:Key="ErrorBrush" Color="#865500" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Default">
+     <SolidColorBrush x:Key="CanvasBrush" Color="#0A0A0A" /><SolidColorBrush x:Key="PanelBrush" Color="#111111" />
+     <SolidColorBrush x:Key="LineBrush" Color="#242424" /><SolidColorBrush x:Key="MutedBrush" Color="#A1A1A1" />
+     <SolidColorBrush x:Key="BadgeBrush" Color="#202020" /><SolidColorBrush x:Key="ErrorBrush" Color="#E3BB80" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="HighContrast">
+     <SolidColorBrush x:Key="CanvasBrush" Color="{ThemeResource SystemColorWindowColor}" /><SolidColorBrush x:Key="PanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
+     <SolidColorBrush x:Key="LineBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="MutedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+     <SolidColorBrush x:Key="BadgeBrush" Color="{ThemeResource SystemColorButtonFaceColor}" /><SolidColorBrush x:Key="ErrorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+    </ResourceDictionary>
+   </ResourceDictionary.ThemeDictionaries>
    <Style x:Key="Card" TargetType="Border">
-    <Setter Property="Background" Value="{StaticResource PanelBrush}" /><Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="Background" Value="{ThemeResource PanelBrush}" /><Setter Property="BorderBrush" Value="{ThemeResource LineBrush}" />
     <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="18" />
    </Style>
    <Style x:Key="Muted" TargetType="TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Setter Property="FontSize" Value="13" /><Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Foreground" Value="{ThemeResource MutedBrush}" /><Setter Property="FontSize" Value="13" /><Setter Property="TextWrapping" Value="Wrap" />
    </Style>
    <Style x:Key="PageTitle" TargetType="TextBlock">
     <Setter Property="FontSize" Value="23" /><Setter Property="FontWeight" Value="SemiBold" />

@@ -55,6 +55,15 @@ public sealed class PackageTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ScoopShortRowsUseDashGroupsWhenHeadersHaveSingleSpaces()
+    {
+        var result = PackageOutputParser.Parse(ManagerKind.Scoop, "Name Version Source Binaries\n---- ------- ------ --------\n7zip 26.01   main\n");
+        var package = Assert.Single(result);
+        Assert.Equal("main/7zip", package.Id);
+        Assert.Equal("26.01", package.Version);
+    }
+
+    [Fact]
     public async Task MissingManagersNeverLaunchAnyProcess()
     {
         var runner = new FakeRunner();

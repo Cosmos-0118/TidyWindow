@@ -6,5 +6,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="../../core/TidyWindow.Core.csproj" />
     <Compile Include="../../app/AdaptiveLayout.cs" Link="AdaptiveLayout.cs" />
+    <Compile Include="../../app/AppearanceSettings.cs" Link="AppearanceSettings.cs" />
   </ItemGroup>
 </Project>
