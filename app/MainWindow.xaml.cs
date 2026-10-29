@@ -11,12 +11,16 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
     private readonly InstallationsViewModel installations;
     private readonly OperationQueueViewModel operationQueue;
+    private readonly ScoutViewModel scout;
+    private readonly CleanupViewModel cleanup;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
+    private string? scoutFolder;
     private long reconciledCompletions;
     private bool initialized;
     private bool closingDialog;
@@ -34,17 +38,27 @@ public sealed partial class MainWindow : Window
         operationQueue = new(PackageOperationQueue.WithLiveOutput(executor.ExecuteAsync), log, action => DispatcherQueue.TryEnqueue(() => action()));
         model = new(packages, log, operationQueue);
         installations = new(management, model, log, operationQueue);
+        scout = new(new ScoutService(runner, Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()));
+        var undo = new CleanupQuarantine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Undo"));
+        cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, log, action => DispatcherQueue.TryEnqueue(() => action()));
+        _ = Task.Run(undo.Purge);
         InitializeComponent();
         Root.DataContext = model;
+        CleanupPage.DataContext = cleanup;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         LogsPage.DataContext = logs;
         InstalledPage.DataContext = installations;
         QueueButton.DataContext = operationQueue;
         QueuePage.DataContext = operationQueue;
+        ScoutPage.DataContext = scout;
+        scoutStatusTimer = DispatcherQueue.CreateTimer();
+        scoutStatusTimer.Interval = TimeSpan.FromSeconds(3);
+        scoutStatusTimer.Tick += async (_, _) => { if (page == Page.Scout && scout.NeedsBackendCheck) await RefreshScoutBackendAsync(); };
         operationQueue.StateChanged += QueueStateChanged;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
         ApplyBranding();
+        PreparePages();
         AppWindow.Resize(new(1100, 740));
         appearance = appearanceSettings.Load();
         Root.ActualThemeChanged += (_, _) => UpdateThemeChrome();
@@ -66,7 +80,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -95,12 +109,23 @@ public sealed partial class MainWindow : Window
     {
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
-        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
+        // The sidebar names its items already; tooltips are only needed once the labels are hidden. They open beside the rail, not over the content.
+        foreach (var (button, text) in new[] { (OverviewNav, "Overview"), (InstallNav, "Install apps"), (InstalledNav, "Installed apps"), (ScoutNav, "Scout"), (CleanupNav, "Cleanup"), (QueueButton, "Queue"), (LogsNav, "Logs"), (AppearanceNav, "Appearance") })
+        {
+            ToolTipService.SetPlacement(button, Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Right);
+            ToolTipService.SetToolTip(button, layout.NavigationRail ? text : null);
+        }
+        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = ScoutLabel.Visibility = CleanupLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
         installations.ApplyLayout(layout);
         operationQueue.SetOutputHeight(Math.Clamp((Root.ActualHeight - 180) * 0.45, 96, 280));
         var wrapSearch = Root.ActualWidth < 640;
+        var wrapScout = Root.ActualWidth < 900;
+        Grid.SetColumnSpan(ScoutSearchBox, wrapScout ? 3 : 1);
+        Grid.SetRow(ScoutLocation, wrapScout ? 1 : 0); Grid.SetColumn(ScoutLocation, wrapScout ? 0 : 1); Grid.SetColumnSpan(ScoutLocation, wrapScout ? 2 : 1);
+        Grid.SetRow(ScoutType, wrapScout ? 1 : 0);
+        ScoutLocationColumn.Width = wrapScout ? new GridLength(0) : new GridLength(180);
         Grid.SetColumnSpan(SearchBox, wrapSearch ? 3 : 1);
         Grid.SetRow(SourceFilter, wrapSearch ? 1 : 0);
         Grid.SetColumn(SourceFilter, wrapSearch ? 0 : 1);
@@ -124,19 +149,48 @@ public sealed partial class MainWindow : Window
         CopyLogsLabel.Visibility = OpenLogsLabel.Visibility = ClearLogsLabel.Visibility = Root.ActualWidth < 760 ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    private UIElement PageElement(Page value) => value switch
+    {
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+    };
+
+    private bool pageShown;
     private void ShowPage(Page next)
     {
-        page = next;
-        OverviewPage.Visibility = page == Page.Overview ? Visibility.Visible : Visibility.Collapsed;
-        InstallPage.Visibility = page == Page.Install ? Visibility.Visible : Visibility.Collapsed;
-        InstalledPage.Visibility = page == Page.Installed ? Visibility.Visible : Visibility.Collapsed;
-        QueuePage.Visibility = page == Page.Queue ? Visibility.Visible : Visibility.Collapsed;
-        LogsPage.Visibility = page == Page.Logs ? Visibility.Visible : Visibility.Collapsed;
-        UpdateThemeChrome();
+        if (pageShown && next == page) { if (next == Page.Install) SearchBox.Focus(FocusState.Programmatic); return; }
+        page = next; pageShown = true;
+        if (next == Page.Scout) scoutStatusTimer.Start(); else scoutStatusTimer.Stop();
+        // Cheap work first, so the sidebar answers the click before anything else happens.
+        UpdateNavSelection();
+        foreach (var other in Enum.GetValues<Page>()) if (other != next) PageElement(other).Visibility = Visibility.Collapsed;
+        Reveal(PageElement(next));
         if (page == Page.Install) SearchBox.Focus(FocusState.Programmatic);
     }
 
-    private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(() => { if (appearance == Appearance.System) ApplyAppearance(); });
+    // The incoming page is there at once and eases in over a split second, instead of snapping in.
+    private void Reveal(UIElement element)
+    {
+        if (!systemColors.AnimationsEnabled) { element.Opacity = 1; element.Translation = default; element.Visibility = Visibility.Visible; return; }
+        element.Opacity = 0; element.Translation = new System.Numerics.Vector3(0, 8, 0);
+        element.Visibility = Visibility.Visible;
+        DispatcherQueue.TryEnqueue(() => { element.Opacity = 1; element.Translation = default; });
+    }
+
+    private void PreparePages()
+    {
+        foreach (var value in Enum.GetValues<Page>())
+        {
+            var element = PageElement(value);
+            element.OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromMilliseconds(160) };
+            element.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(220) };
+        }
+    }
+
+    private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(() =>
+    {
+        if (appearance == Appearance.System) ApplyAppearance();
+        OutputPalette.Refresh();
+    });
     private void ApplyAppearance()
     {
         var background = systemColors.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background);
@@ -147,20 +201,31 @@ public sealed partial class MainWindow : Window
         DarkThemeItem.IsChecked = appearance == Appearance.Dark;
         UpdateThemeChrome();
     }
+    private ElementTheme chromeTheme = ElementTheme.Default;
+    private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent;
+    private void UpdateNavSelection()
+    {
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        {
+            var active = page == target;
+            button.Background = active ? navSelected : BrushCache.Transparent;
+            button.Foreground = active ? navPrimary : navMuted;
+        }
+    }
+    // Theme-dependent work touches every log and queue row and the window frame, so it runs only when the theme really changes, never on a page switch.
     private void UpdateThemeChrome()
     {
-        var light = Root.ActualTheme == ElementTheme.Light;
-        var selected = light ? ColorHelper.FromArgb(255, 235, 235, 235) : ColorHelper.FromArgb(255, 31, 31, 31);
-        var primary = light ? ColorHelper.FromArgb(255, 23, 23, 23) : Colors.White;
-        var muted = light ? ColorHelper.FromArgb(255, 98, 98, 98) : Colors.DarkGray;
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
-        {
-            button.Background = new SolidColorBrush(page == target ? selected : Colors.Transparent);
-            button.Foreground = new SolidColorBrush(page == target ? primary : muted);
-        }
+        var theme = Root.ActualTheme;
+        if (theme == chromeTheme) return;
+        chromeTheme = theme;
+        var light = theme == ElementTheme.Light;
+        navSelected = BrushCache.Rgb(light ? 0xEBEBEB : 0x1F1F1F);
+        navPrimary = BrushCache.Rgb(light ? 0x171717 : 0xFFFFFF);
+        navMuted = BrushCache.Rgb(light ? 0x626262 : 0xA9A9A9);
+        UpdateNavSelection();
         AppWindow.TitleBar.ButtonBackgroundColor = AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        AppWindow.TitleBar.ButtonForegroundColor = primary;
-        AppWindow.TitleBar.ButtonInactiveForegroundColor = muted;
+        AppWindow.TitleBar.ButtonForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF));
+        AppWindow.TitleBar.ButtonInactiveForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9));
         foreach (var manager in model.Managers) manager.SetLightTheme(light);
         logs.SetLightTheme(light);
         operationQueue.SetLightTheme(light);
@@ -179,6 +244,83 @@ public sealed partial class MainWindow : Window
     }
     private void OverviewClick(object sender, RoutedEventArgs e) => ShowPage(Page.Overview);
     private void InstallClick(object sender, RoutedEventArgs e) => ShowPage(Page.Install);
+    private void CleanupClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Cleanup);
+        // The first visit scans straight away; it takes a fraction of a second and fills in as results arrive.
+        if (!cleanup.Scanned && !cleanup.Busy) _ = cleanup.ScanAsync();
+    }
+    private async void ScoutClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Scout);
+        await RefreshScoutBackendAsync();
+        if (initialized && page == Page.Scout) ScoutSearchBox.Focus(FocusState.Programmatic);
+    }
+    private async Task RefreshScoutBackendAsync()
+    {
+        var wasReady = scout.Indexed;
+        await scout.CheckBackendAsync();
+        if (initialized && !wasReady && scout.Indexed && page == Page.Scout) await SearchScoutAsync(false);
+    }
+    private string? ScoutRoot => ScoutLocation.SelectedIndex switch { 1 => null, >= 2 => scoutFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), _ => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) };
+    private ScoutItemKind ScoutKind => (ScoutItemKind)Math.Clamp(ScoutType.SelectedIndex, 0, 2);
+    private Task SearchScoutAsync(bool debounce = true) => scout.SearchAsync(ScoutSearchBox.Text, ScoutRoot, ScoutKind, debounce, ScoutLocation.SelectedIndex >= 2);
+    private async void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized) await SearchScoutAsync(); }
+    private async void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized) await SearchScoutAsync(false); }
+    private async void ScoutLocationChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!initialized) return;
+        if (ScoutLocation.SelectedIndex == 2)
+        {
+            try
+            {
+            var picker = new Windows.Storage.Pickers.FolderPicker(); picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null) { ScoutLocation.SelectedIndex = scoutFolder is null ? 0 : 3; return; }
+            scoutFolder = folder.Path; ScoutFolderChoice.Content = folder.DisplayName; ScoutFolderChoice.Visibility = Visibility.Visible;
+            ToolTipService.SetToolTip(ScoutFolderChoice, scoutFolder);
+            ScoutLocation.SelectedIndex = 3;
+            }
+            catch (Exception ex)
+            {
+                ScoutLocation.SelectedIndex = scoutFolder is null ? 0 : 3;
+                scout.ReportError("The folder picker could not open. " + ex.Message);
+                log.Write(ActivityLevel.Warning, ActivityArea.App, "Scout folder selection failed", ex.Message);
+            }
+            return;
+        }
+        await SearchScoutAsync(false);
+    }
+    private async void ScoutRefreshClick(object sender, RoutedEventArgs e)
+    { scout.Cancel(); scout.RefreshFolder(); await scout.CheckBackendAsync(); await SearchScoutAsync(false); }
+    private void ScoutCancelClick(object sender, RoutedEventArgs e) => scout.Cancel();
+    private async void ScoutSetupClick(object sender, RoutedEventArgs e)
+    {
+        if (!scout.CanSetup) return;
+        await RefreshScoutBackendAsync();
+        if (!initialized || !scout.NeedsInstallation || !scout.CanSetup) return;
+        if (!model.CanQueue) return;
+        var manager = model.Managers.FirstOrDefault(x => x.Status?.Health == ManagerHealth.Ready && x.Definition.Kind is ManagerKind.Winget or ManagerKind.Chocolatey);
+        if (manager is null) { ShowPage(Page.Overview); return; }
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Enable instant search?", Content = "This installs Everything, a local filename index, using your package manager. Its Windows service enables fast NTFS indexing. Windows may ask for administrator permission. Folder search remains available without it.", PrimaryButtonText = "Queue installation", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var kind = manager.Definition.Kind;
+        model.QueueInstall(new(new(kind, kind == ManagerKind.Winget ? "voidtools.Everything" : "everything", "Everything", "", kind == ManagerKind.Winget ? "winget" : "chocolatey")));
+        ShowPage(Page.Queue);
+    }
+    private async void ScoutOpenClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ScoutRow row }) return;
+        try
+        {
+            var folder = row.Entry.IsFolder ? row.Path : Path.GetDirectoryName(row.Path);
+            if (folder is null || !Directory.Exists(folder)) throw new DirectoryNotFoundException("This location is no longer available. Refresh the search.");
+            if (!await Launcher.LaunchFolderPathAsync(folder)) throw new IOException("File Explorer could not open this location.");
+        }
+        catch (Exception ex) { scout.ReportError(ex.Message); log.Write(ActivityLevel.Warning, ActivityArea.App, "Scout could not open this location", ex.Message); }
+    }
+    private void ScoutCopyClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: ScoutRow row }) TryCopy(row.Path); }
     private async void InstalledClick(object sender, RoutedEventArgs e)
     {
         ShowPage(Page.Installed);
@@ -224,9 +366,12 @@ public sealed partial class MainWindow : Window
     }
     private async void QueueStateChanged()
     {
+        scout.SetInstallationPending(operationQueue.Snapshot.Entries.Any(x => x.State is QueueItemState.Waiting or QueueItemState.Running
+            && x.Operation.Kind == PackageOperationKind.Install
+            && (x.Operation.Id.Equals("voidtools.Everything", StringComparison.OrdinalIgnoreCase) || x.Operation.Manager == ManagerKind.Chocolatey && x.Operation.Id.Equals("everything", StringComparison.OrdinalIgnoreCase))));
         if (operationQueue.HasWork || operationQueue.Snapshot.Completions <= reconciledCompletions) return;
         reconciledCompletions = operationQueue.Snapshot.Completions;
-        try { await Refresh(); if (page == Page.Installed) await installations.RefreshAsync(); }
+        try { await RefreshScoutBackendAsync(); await Refresh(); if (page == Page.Installed) await installations.RefreshAsync(); }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
     }
     private async void UninstallInstalledClick(object sender, RoutedEventArgs e)
@@ -302,9 +447,7 @@ public sealed partial class MainWindow : Window
     private async void RefreshClick(object sender, RoutedEventArgs e) => await Refresh();
     private async Task Refresh()
     {
-        DetectionProgress.Visibility = Visibility.Visible;
-        try { await model.RefreshAsync(); }
-        finally { DetectionProgress.Visibility = Visibility.Collapsed; }
+        await model.RefreshAsync();
         installations.NeedsRefresh = true;
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);

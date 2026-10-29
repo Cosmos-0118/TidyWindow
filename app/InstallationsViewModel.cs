@@ -19,7 +19,9 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     public bool CanUpdate => CanAct && Package.AvailableVersion is not null && !Package.Held;
     public void SetQueueEntry(QueueEntry? entry)
     {
-        queueStatus = entry?.State switch { QueueItemState.Waiting => "Queued", QueueItemState.Running => "Working…", QueueItemState.Finished when entry.Result?.Outcome == ActionOutcome.Failed => "Failed · see Logs", QueueItemState.Finished when entry.Result?.Outcome == ActionOutcome.RestartRequired => "Restart required", _ => "" };
+        var status = entry?.State switch { QueueItemState.Waiting => "Queued", QueueItemState.Running => "Working…", QueueItemState.Finished when entry.Result?.Outcome == ActionOutcome.Failed => "Failed · see Logs", QueueItemState.Finished when entry.Result?.Outcome == ActionOutcome.RestartRequired => "Restart required", _ => "" };
+        if (status == queueStatus) return;
+        queueStatus = status;
         Changed(nameof(Available)); Changed(nameof(CompactDetail));
     }
     private bool isSelected;
@@ -54,7 +56,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     private bool refreshing;
 
     private bool loaded;
-    public ObservableCollection<InstalledRow> Rows { get; } = [];
+    public BulkObservableCollection<InstalledRow> Rows { get; } = [];
     public Visibility TableHeaderVisibility => !compact && Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public bool NeedsRefresh { get; set; } = true;
     public bool Refreshing { get => refreshing; private set { Set(ref refreshing, value); NotifyState(); } }
@@ -80,24 +82,38 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     }
     private void NotifyState()
     {
-        foreach (var row in all)
+        var index = queue.Index();
+        selecting = true;
+        try
         {
-            var entry = queue.Find(row.Package.Manager, row.Package.Id, row.Package.Global);
-            row.SetQueueEntry(entry);
-            row.CanAct = !Refreshing && workspace.CanQueue && !queue.Contains(row.Package.Manager, row.Package.Id, row.Package.Global);
-            if (!row.CanAct) row.IsSelected = false;
+            foreach (var row in all)
+            {
+                index.TryGetValue(PackageOperation.Resource(row.Package.Manager, row.Package.Id, row.Package.Global), out var entry);
+                row.SetQueueEntry(entry);
+                row.CanAct = !Refreshing && workspace.CanQueue && entry?.State is not (QueueItemState.Waiting or QueueItemState.Running);
+                if (!row.CanAct) row.IsSelected = false;
+            }
         }
+        finally { selecting = false; }
         NotifySelection();
         foreach (var name in new[] { nameof(CanRefresh), nameof(ProgressVisibility), nameof(ProgressText), nameof(EmptyVisibility) }) Changed(name);
     }
     internal void ApplyLayout(AdaptiveLayout layout) { compact = layout.CompactResults; foreach (var row in all) row.Compact = compact; Changed(nameof(TableHeaderVisibility)); }
-    public void Filter(string text, bool onlyUpdates) { foreach (var row in all) row.IsSelected = false; query = text.Trim(); updatesOnly = onlyUpdates; ApplyFilter(); }
+    // While true, selection changes are batched: one notification at the end instead of one per row.
+    private bool selecting;
+    public void Filter(string text, bool onlyUpdates) { ClearSelection(); query = text.Trim(); updatesOnly = onlyUpdates; ApplyFilter(); }
+    private void ClearSelection()
+    {
+        selecting = true;
+        try { foreach (var row in all) row.IsSelected = false; }
+        finally { selecting = false; }
+    }
     private void ApplyFilter()
     {
-        Rows.Clear();
-        foreach (var row in all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
+        // One reset instead of clearing and re-adding every row: a list of hundreds of apps would re-measure on each step.
+        Rows.Reset(all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
             (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager)) Rows.Add(row);
+            .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray());
         foreach (var name in new[] { nameof(EmptyVisibility), nameof(EmptyTitle), nameof(EmptyDetail), nameof(TableHeaderVisibility) }) Changed(name);
         NotifySelection();
     }
@@ -143,12 +159,16 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     {
         var selected = Rows.Where(x => x.IsSelected && x.CanAct && (action != PackageAction.Update || x.CanUpdate)).ToArray();
         queue.Enqueue(selected.Select(x => PackageOperation.Manage(x.Package, action)));
-        foreach (var row in Rows) row.IsSelected = false;
+        selecting = true;
+        try { foreach (var row in Rows) row.IsSelected = false; }
+        finally { selecting = false; }
         NotifySelection();
     }
     public void SelectAll(bool value)
     {
-        foreach (var row in Rows.Where(x => x.CanAct)) row.IsSelected = value;
+        selecting = true;
+        try { foreach (var row in Rows.Where(x => x.CanAct)) row.IsSelected = value; }
+        finally { selecting = false; }
         NotifySelection();
     }
     public IReadOnlyList<InstalledRow> Selected => Rows.Where(x => x.IsSelected && x.CanAct).ToArray();
@@ -166,7 +186,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public bool CanUninstallSelected => Selected.Count > 0;
     public string SelectionLabel => Selected.Count == 0 ? "" : $"{Selected.Count} selected";
     private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    { if (e.PropertyName == nameof(InstalledRow.IsSelected)) NotifySelection(); }
+    { if (!selecting && e.PropertyName == nameof(InstalledRow.IsSelected)) NotifySelection(); }
     private void NotifySelection()
     { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectionLabel) }) Changed(name); }
     public void Dispose() { queue.StateChanged -= NotifyState; workspace.PropertyChanged -= WorkspaceChanged; lifetime.Cancel(); lifetime.Dispose(); }

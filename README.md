@@ -7,6 +7,7 @@ The app keeps its main pages focused:
 - **Overview:** detect WinGet, Chocolatey and Scoop, check their versions, and open setup help when needed.
 - **Install Hub:** search real package sources, rank matches, recognize installed apps, and review an installation before starting it.
 - **Installed:** find installed packages, select apps to update or uninstall, and check available versions.
+- **Scout:** find files and folders by name/path, with ranked results, type/location filters, copy path and open location.
 - **Logs:** inspect outcomes and problems when needed.
 
 Installs, updates and uninstalls share one queue across pages. You can keep adding apps while an operation runs. Select all applies to the visible Installed list; Update selected queues only apps with an available update and skips held packages. Bulk uninstall asks for confirmation of the specific apps. Changing a filter clears the selection.
@@ -22,6 +23,12 @@ The Queue page's **Show installer options for new operations** setting asks newl
 The queue belongs to the current app session and is not resumed after a crash. Closing is blocked while work remains. Outcomes are saved in Logs rather than shown in a bottom results panel. When the queue drains, manager status and installed inventories refresh together. Scoop update checks use local bucket manifests.
 
 The interface uses a quiet sidebar and simple rows, with layouts that adapt from a narrow window to a large display. It follows the restrained layout of Clop for Windows rather than adding dashboard panels.
+
+Scout uses Everything's local index through a separate worker process for indexed Home/This PC searches. Enable instant search queues the Everything installation; it may request administrator permission for its index service. A chosen-folder search always uses TidyWindow's own reusable index and needs no dependency. Folder indexing includes hidden names, skips offline entries, never follows directory reparse points, respects current permissions and reports inaccessible locations. It keeps up to 400,000 entries in memory, watches name changes, and asks for a refresh after a watcher overflow or newly moved tree. It does not read file contents or delete files.
+
+Scout returns up to 150 ranked results. The Everything worker retrieves bounded candidate sets (2,000 broad/smart candidates plus an exact-name pass); broad-query ranking is therefore not a guarantee of global top matches. Alternate/beta Everything instance names are not supported. A folder search starts with directory discovery, so its first result set depends on filesystem speed; subsequent searches reuse discovered metadata. Research, alternatives, primary sources and local measurement notes are in [docs/scout-research.md](docs/scout-research.md).
+
+Scout detects installation separately from index readiness. It starts Everything's user process when only its Windows service is running, updates after setup, and retries readiness while the page is open. Setup shows Installing/Indexing while pending, hides when ready, and offers Retry for an installed engine that cannot respond. It does not offer another installation just because the index is still starting. Fuzzy retrieval targets names and is skipped for existing exact matches; literal paths remain searchable.
 
 ## Develop
 

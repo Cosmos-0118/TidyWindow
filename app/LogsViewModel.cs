@@ -21,12 +21,12 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
     public string Chevron => expanded ? "" : "";
     public string Exact => Entry.Time.ToLocalTime().ToString("F");
     public string Meta => string.Join(" · ", new[] { Entry.Level is ActivityLevel.Warning or ActivityLevel.Error ? Entry.Level.ToString() : "", Entry.Area.ToString(), Stamp(Entry.Time), Entry.Count > 1 ? $"{Entry.Count} times" : "" }.Where(x => x.Length > 0));
-    public Brush DotBrush => new SolidColorBrush(Entry.Level switch
+    public Brush DotBrush => BrushCache.Rgb(Entry.Level switch
     {
-        ActivityLevel.Success => light ? ColorHelper.FromArgb(255, 28, 112, 63) : ColorHelper.FromArgb(255, 164, 232, 193),
-        ActivityLevel.Warning => light ? ColorHelper.FromArgb(255, 134, 85, 0) : ColorHelper.FromArgb(255, 244, 191, 110),
-        ActivityLevel.Error => light ? ColorHelper.FromArgb(255, 179, 38, 30) : ColorHelper.FromArgb(255, 242, 165, 158),
-        _ => light ? ColorHelper.FromArgb(255, 98, 98, 98) : ColorHelper.FromArgb(255, 164, 164, 173)
+        ActivityLevel.Success => light ? 0x1C703F : 0xA4E8C1,
+        ActivityLevel.Warning => light ? 0x865500 : 0xF4BF6E,
+        ActivityLevel.Error => light ? 0xB3261E : 0xF2A59E,
+        _ => light ? 0x626262 : 0xA4A4AD
     });
 
     public void Toggle() { if (!HasDetail) return; expanded = !expanded; Changed(nameof(DetailVisibility)); Changed(nameof(Chevron)); }
@@ -75,7 +75,7 @@ public sealed class LogsViewModel : ObservableState, IDisposable
     public IReadOnlyList<ActivityEntry> Visible => Rows.Select(x => x.Entry).Reverse().ToArray();
 
     public void SetFilter(ActivityFilter value) { filter = value; Reload(); }
-    public void SetLightTheme(bool value) { light = value; foreach (var row in Rows) row.SetLightTheme(value); }
+    public void SetLightTheme(bool value) { if (light == value) return; light = value; foreach (var row in Rows) row.SetLightTheme(value); }
 
     private static string Plural(int count) => count == 1 ? "1 entry" : $"{count} entries";
     private void OnWritten(ActivityEntry entry) => post(() => Apply(entry));

@@ -28,7 +28,8 @@ public sealed class ProcessRunner : ICommandRunner
         using var process = new Process { StartInfo = start };
         if (command.Elevate) Report(command, new("Approve the Windows administrator prompt. Output will appear in the separate administrator window; it cannot be captured by this launch method.", CommandOutputKind.Notice));
         else if (command.MayShowInstaller) Report(command, new("Follow any installer or Windows permission window that opens. The queue waits for this command to finish.", CommandOutputKind.Notice));
-        try { process.Start(); }
+        // Starting a process can take tens of milliseconds (antivirus scans the executable), so never do it on the caller's thread: callers are often the UI thread.
+        try { await Task.Run(() => process.Start(), cancellationToken).ConfigureAwait(false); }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
             Report(command, new("Administrator permission was declined. Nothing was started.", CommandOutputKind.Notice));

@@ -7,5 +7,6 @@
     <ProjectReference Include="../../core/TidyWindow.Core.csproj" />
     <Compile Include="../../app/AdaptiveLayout.cs" Link="AdaptiveLayout.cs" />
     <Compile Include="../../app/AppearanceSettings.cs" Link="AppearanceSettings.cs" />
+    <Compile Include="../../app/BulkObservableCollection.cs" Link="BulkObservableCollection.cs" />
   </ItemGroup>
 </Project>

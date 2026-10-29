@@ -9,16 +9,26 @@
      <SolidColorBrush x:Key="CanvasBrush" Color="#FFFFFF" /><SolidColorBrush x:Key="PanelBrush" Color="#FAFAFA" />
      <SolidColorBrush x:Key="LineBrush" Color="#E5E5E5" /><SolidColorBrush x:Key="MutedBrush" Color="#626262" />
      <SolidColorBrush x:Key="BadgeBrush" Color="#EBEBEB" /><SolidColorBrush x:Key="ErrorBrush" Color="#865500" />
+     <Color x:Key="LoadingTintColor">#FFFFFF</Color><Color x:Key="LoadingFallbackColor">#E6FFFFFF</Color>
+     <Color x:Key="LoadingAccentStart">#0E9F8E</Color><Color x:Key="LoadingAccentEnd">#6D28D9</Color>
+     <SolidColorBrush x:Key="LoadingGoldBrush" Color="#F59E0B" /><SolidColorBrush x:Key="LoadingQuietBrush" Color="#A78BFA" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="Default">
      <SolidColorBrush x:Key="CanvasBrush" Color="#0A0A0A" /><SolidColorBrush x:Key="PanelBrush" Color="#111111" />
      <SolidColorBrush x:Key="LineBrush" Color="#242424" /><SolidColorBrush x:Key="MutedBrush" Color="#A1A1A1" />
      <SolidColorBrush x:Key="BadgeBrush" Color="#202020" /><SolidColorBrush x:Key="ErrorBrush" Color="#E3BB80" />
+     <Color x:Key="LoadingTintColor">#0A0A0A</Color><Color x:Key="LoadingFallbackColor">#E60A0A0A</Color>
+     <Color x:Key="LoadingAccentStart">#5EEAD4</Color><Color x:Key="LoadingAccentEnd">#A78BFA</Color>
+     <SolidColorBrush x:Key="LoadingGoldBrush" Color="#FFC857" /><SolidColorBrush x:Key="LoadingQuietBrush" Color="#E9E5FF" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="HighContrast">
      <SolidColorBrush x:Key="CanvasBrush" Color="{ThemeResource SystemColorWindowColor}" /><SolidColorBrush x:Key="PanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
      <SolidColorBrush x:Key="LineBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="MutedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
      <SolidColorBrush x:Key="BadgeBrush" Color="{ThemeResource SystemColorButtonFaceColor}" /><SolidColorBrush x:Key="ErrorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+     <!-- Placeholders only: LoadingOverlay switches to the user's high contrast colors in code. -->
+     <Color x:Key="LoadingTintColor">#000000</Color><Color x:Key="LoadingFallbackColor">#000000</Color>
+     <Color x:Key="LoadingAccentStart">#FFFFFF</Color><Color x:Key="LoadingAccentEnd">#FFFFFF</Color>
+     <SolidColorBrush x:Key="LoadingGoldBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="LoadingQuietBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
     </ResourceDictionary>
    </ResourceDictionary.ThemeDictionaries>
    <Style x:Key="Card" TargetType="Border">
@@ -30,6 +40,13 @@
    </Style>
    <Style x:Key="PageTitle" TargetType="TextBlock">
     <Setter Property="FontSize" Value="23" /><Setter Property="FontWeight" Value="SemiBold" />
+   </Style>
+   <!-- Tooltips open just below the control they describe, and stay readable when long. -->
+   <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+    <Setter Property="ToolTipService.Placement" Value="Bottom" />
+   </Style>
+   <Style TargetType="ToolTip" BasedOn="{StaticResource DefaultToolTipStyle}">
+    <Setter Property="FontSize" Value="12" /><Setter Property="MaxWidth" Value="340" /><Setter Property="Padding" Value="10,7" />
    </Style>
    <Style x:Key="NavButton" TargetType="Button">
     <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" />

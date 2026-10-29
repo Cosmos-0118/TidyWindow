@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="core/TidyWindow.Core.csproj" />
+  <Project Path="search-host/TidyWindow.SearchHost.csproj" />
   <Project Path="app/TidyWindow.Desktop.csproj" />
   <Project Path="tests/TidyWindow.Tests/TidyWindow.Tests.csproj" />
 </Solution>

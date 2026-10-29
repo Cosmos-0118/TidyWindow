@@ -3,26 +3,33 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
+using System.Runtime.InteropServices;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
 
 internal static class OutputPalette
 {
-    private static readonly Windows.UI.ViewManagement.AccessibilitySettings accessibility = new();
+    // One managed notification from the window's existing UISettings listener. Some unpackaged
+    // Windows installations reject AccessibilitySettings.HighContrastChanged with 0x80070490.
+    public static event Action? Changed;
+    public static void Refresh() => Changed?.Invoke();
     public static Brush Brush(OutputTone tone, bool light)
     {
-        if (accessibility.HighContrast)
-            return new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.Foreground));
-        var color = tone switch
+        try
+        {
+            if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
+                return new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.Foreground));
+        }
+        catch (COMException) { /* Optional accessibility services must not prevent output from rendering. */ }
+        return BrushCache.Rgb(tone switch
         {
             OutputTone.Success => light ? 0x1C703F : 0xA4E8C1,
             OutputTone.Warning => light ? 0x865500 : 0xF4BF6E,
             OutputTone.Error => light ? 0xB3261E : 0xFF9B93,
             OutputTone.Information or OutputTone.Progress => light ? 0x175CD3 : 0x8AB4FF,
             _ => light ? 0x454545 : 0xC6C6C6
-        };
-        return new SolidColorBrush(ColorHelper.FromArgb(255, (byte)(color >> 16), (byte)(color >> 8), (byte)color));
+        });
     }
 }
 
@@ -31,16 +38,15 @@ public sealed class CommandOutputView : UserControl
     private readonly RichTextBlock text = new() { IsTextSelectionEnabled = true, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Stretch };
     public static readonly DependencyProperty DocumentProperty = DependencyProperty.Register(nameof(Document), typeof(object), typeof(CommandOutputView), new PropertyMetadata(null, (sender, _) => ((CommandOutputView)sender).Render()));
     public object? Document { get => GetValue(DocumentProperty); set => SetValue(DocumentProperty, value); }
-    private readonly Windows.UI.ViewManagement.AccessibilitySettings accessibility = new();
+    private bool listening;
     public CommandOutputView()
     {
         Content = text;
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         ActualThemeChanged += (_, _) => Render();
-        Loaded += (_, _) => { accessibility.HighContrastChanged += ContrastChanged; Render(); };
-        Unloaded += (_, _) => accessibility.HighContrastChanged -= ContrastChanged;
+        Loaded += (_, _) => { if (!listening) { OutputPalette.Changed += Render; listening = true; } Render(); };
+        Unloaded += (_, _) => { if (listening) { OutputPalette.Changed -= Render; listening = false; } };
     }
-    private void ContrastChanged(Windows.UI.ViewManagement.AccessibilitySettings sender, object args) => DispatcherQueue.TryEnqueue(Render);
     private void Render()
     {
         text.Blocks.Clear(); text.FontFamily = FontFamily; text.FontSize = FontSize;

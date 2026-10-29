@@ -67,7 +67,7 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     private double outputHeight = 240;
     private bool showInstallerOptions;
     private bool light;
-    public void SetLightTheme(bool value) { light = value; foreach (var row in Rows) row.SetLightTheme(value); }
+    public void SetLightTheme(bool value) { if (light == value) return; light = value; foreach (var row in Rows) row.SetLightTheme(value); }
     public bool ShowInstallerOptions { get => showInstallerOptions; set => Set(ref showInstallerOptions, value); }
     public QueueSnapshot Snapshot { get; private set; } = new(-1, []);
     public ObservableCollection<QueueRow> Rows { get; } = [];
@@ -80,10 +80,12 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     public OperationQueueViewModel(PackageOperationQueue queue, ActivityLog log, Action<Action> post)
     {
         this.queue = queue; this.log = log; this.post = post;
+        OutputPalette.Changed += RefreshColors;
         updateTimer = new(_ => { if (!disposed) post(Apply); }, null, Timeout.Infinite, Timeout.Infinite);
         queue.Changed += QueueChanged; queue.Finished += QueueFinished;
         Apply();
     }
+    private void RefreshColors() { foreach (var row in Rows) row.SetLightTheme(light); }
     public void Enqueue(IEnumerable<PackageOperation> operations)
     {
         queue.Enqueue(operations.Select(x => x with { Interactive = x.Interactive || ShowInstallerOptions && x.Manager != ManagerKind.Scoop && x.Kind != PackageOperationKind.Uninstall }));
@@ -130,7 +132,14 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
             StateChanged?.Invoke();
         }
     }
+    /// <summary>Latest entry per package, so a long list can be matched without rescanning the queue for every row.</summary>
+    public Dictionary<string, QueueEntry> Index()
+    {
+        var index = new Dictionary<string, QueueEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in Snapshot.Entries) index[entry.Operation.ResourceKey] = entry;
+        return index;
+    }
     public QueueEntry? Find(ManagerKind manager, string id, bool global = false) => Snapshot.Find(PackageOperation.Resource(manager, id, global));
     public bool Contains(ManagerKind manager, string id, bool global = false) => Find(manager, id, global)?.State is QueueItemState.Waiting or QueueItemState.Running;
-    public void Dispose() { disposed = true; updateTimer.Dispose(); queue.Changed -= QueueChanged; queue.Finished -= QueueFinished; }
+    public void Dispose() { disposed = true; updateTimer.Dispose(); OutputPalette.Changed -= RefreshColors; queue.Changed -= QueueChanged; queue.Finished -= QueueFinished; }
 }

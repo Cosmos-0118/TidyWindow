@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -8,14 +6,6 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
-
-public abstract class ObservableState : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
-    protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
-    { if (EqualityComparer<T>.Default.Equals(field, value)) return false; field = value; Changed(name); return true; }
-}
 
 public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
 {
@@ -52,11 +42,11 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
     }
     private bool lightTheme;
     public void SetLightTheme(bool value) { lightTheme = value; Changed(nameof(StatusBrush)); }
-    public Brush StatusBrush => new SolidColorBrush(Status?.Health switch
+    public Brush StatusBrush => BrushCache.Rgb(Status?.Health switch
     {
-        ManagerHealth.Ready => lightTheme ? ColorHelper.FromArgb(255, 28, 112, 63) : ColorHelper.FromArgb(255,164,232,193),
-        ManagerHealth.Unavailable or ManagerHealth.Restricted or ManagerHealth.ConnectionIssue => lightTheme ? ColorHelper.FromArgb(255, 134, 85, 0) : ColorHelper.FromArgb(255,244,191,110),
-        _ => lightTheme ? ColorHelper.FromArgb(255, 98, 98, 98) : ColorHelper.FromArgb(255,164,164,173)
+        ManagerHealth.Ready => lightTheme ? 0x1C703F : 0xA4E8C1,
+        ManagerHealth.Unavailable or ManagerHealth.Restricted or ManagerHealth.ConnectionIssue => lightTheme ? 0x865500 : 0xF4BF6E,
+        _ => lightTheme ? 0x626262 : 0xA4A4AD
     });
     public void Update(ManagerStatus status)
     { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush) }) Changed(name); }
@@ -108,7 +98,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     private string sourceErrors = "";
     private string inventoryErrors = "";
     public ObservableCollection<ManagerRow> Managers { get; } = new(ManagerDefinition.All.Select(x => new ManagerRow(x)));
-    public ObservableCollection<PackageRow> Packages { get; } = [];
+    public BulkObservableCollection<PackageRow> Packages { get; } = [];
     private bool compactResults;
     public Visibility ResultsHeaderVisibility => compactResults ? Visibility.Collapsed : Visibility.Visible;
     internal void ApplyLayout(AdaptiveLayout layout)
@@ -138,7 +128,9 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     public string RecoveryDetail { get => recoveryDetail; private set => Set(ref recoveryDetail, value); }
     public Visibility RecoveryVisibility => RecoveryMessage.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     private bool searching;
-    public bool Searching { get => searching; private set { Set(ref searching, value); Changed(nameof(CancelVisibility)); Changed(nameof(EmptyVisibility)); } }
+    public bool Searching { get => searching; private set { Set(ref searching, value); Changed(nameof(CancelVisibility)); Changed(nameof(EmptyVisibility)); Changed(nameof(SearchLoading)); } }
+    /// <summary>True while a search has nothing to show yet; once results arrive they replace the loading state.</summary>
+    public bool SearchLoading => Searching && Packages.Count == 0;
     public Visibility CancelVisibility => Searching ? Visibility.Visible : Visibility.Collapsed;
     private string searchSummary = "Search for an app";
     public string SearchSummary { get => searchSummary; private set => Set(ref searchSummary, value); }
@@ -233,7 +225,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         searchCancellation?.Dispose();
         searchCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = searchCancellation.Token;
-        Packages.Clear(); Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); sourceErrors = ""; UpdateErrors();
+        Packages.Reset([]); Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading)); sourceErrors = ""; UpdateErrors();
         query = query.Trim();
         if (query.Length < 2)
         {
@@ -261,24 +253,25 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
                 // Searches themselves are routine; only a source failing is worth a line.
                 if (response.Error is not null) log.Write(ActivityLevel.Warning, ActivityArea.Search, $"{ManagerDefinition.All.Single(m => m.Kind == response.Manager).Name} search failed", response.Error);
                 var existing = Packages.ToDictionary(x => x.Package.Key);
-                Packages.Clear();
+                var rows = new List<PackageRow>();
                 foreach (var package in PackageRanker.Rank(responses.SelectMany(x => x.Packages), query))
                 {
                     var row = existing.GetValueOrDefault(package.Key) ?? new PackageRow(package);
                     row.Compact = compactResults;
                     UpdateInstalledState(row);
-                    Packages.Add(row);
+                    rows.Add(row);
                 }
+                Packages.Reset(rows);
                 sourceErrors = string.Join("\n", responses.Where(x => x.Error is not null).Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error}"));
                 UpdateErrors();
-                Changed(nameof(ResultsVisibility));
+                Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading));
             }
             SearchSummary = Packages.Count == 0 ? Errors.Length > 0 ? "Search could not be completed" : $"No results for “{query}”" : "";
             EmptyDetail = Errors.Length > 0 ? "Expand the source details above." : "Try a different name or source.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex) { if (generation == searchGeneration) { log.Write(ActivityLevel.Error, ActivityArea.Search, "Search failed unexpectedly", ex.ToString()); sourceErrors = ex.Message; UpdateErrors(); SearchSummary = "Search needs attention"; EmptyDetail = "Check the details above and try again."; } }
-        finally { if (generation == searchGeneration) { Searching = false; Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); } }
+        finally { if (generation == searchGeneration) { Searching = false; Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading)); } }
     }
 
     public void CancelSearch()

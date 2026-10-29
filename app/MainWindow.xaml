@@ -18,24 +18,30 @@
     <Grid Margin="10,20,10,12">
      <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
      <StackPanel Spacing="4">
-     <Button x:Name="OverviewNav" Style="{StaticResource NavButton}" Click="OverviewClick" ToolTipService.ToolTip="Overview" AutomationProperties.Name="Overview">
+     <Button x:Name="OverviewNav" Style="{StaticResource NavButton}" Click="OverviewClick" AutomationProperties.Name="Overview">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE80F;" FontSize="15" /><TextBlock x:Name="OverviewLabel" Text="Overview" FontSize="13" /></StackPanel>
      </Button>
-     <Button x:Name="InstallNav" Style="{StaticResource NavButton}" Click="InstallClick" ToolTipService.ToolTip="Install apps (Ctrl+K)" AutomationProperties.Name="Install Hub">
+     <Button x:Name="InstallNav" Style="{StaticResource NavButton}" Click="InstallClick" AutomationProperties.Name="Install Hub">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE7B8;" FontSize="15" /><TextBlock x:Name="InstallLabel" Text="Install Hub" FontSize="13" /></StackPanel>
      </Button>
-     <Button x:Name="InstalledNav" Style="{StaticResource NavButton}" Click="InstalledClick" ToolTipService.ToolTip="Installed apps" AutomationProperties.Name="Installed apps">
+     <Button x:Name="InstalledNav" Style="{StaticResource NavButton}" Click="InstalledClick" AutomationProperties.Name="Installed apps">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE74C;" FontSize="15" /><TextBlock x:Name="InstalledLabel" Text="Installed" FontSize="13" /></StackPanel>
      </Button>
-     <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" ToolTipService.ToolTip="Queue" AutomationProperties.Name="Queue">
+     <Button x:Name="ScoutNav" Style="{StaticResource NavButton}" Click="ScoutClick" AutomationProperties.Name="Scout file search">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE721;" FontSize="15" /><TextBlock x:Name="ScoutLabel" Text="Scout" FontSize="13" /></StackPanel>
+     </Button>
+     <Button x:Name="CleanupNav" Style="{StaticResource NavButton}" Click="CleanupClick" AutomationProperties.Name="Cleanup">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE74D;" FontSize="15" /><TextBlock x:Name="CleanupLabel" Text="Cleanup" FontSize="13" /></StackPanel>
+     </Button>
+     <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
-     <Button x:Name="LogsNav" Style="{StaticResource NavButton}" Click="LogsClick" ToolTipService.ToolTip="Logs" AutomationProperties.Name="Logs">
+     <Button x:Name="LogsNav" Style="{StaticResource NavButton}" Click="LogsClick" AutomationProperties.Name="Logs">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE81C;" FontSize="15" /><TextBlock x:Name="LogsLabel" Text="Logs" FontSize="13" /></StackPanel>
      </Button>
      </StackPanel>
      <StackPanel Grid.Row="1" Spacing="4">
-     <Button Style="{StaticResource NavButton}" ToolTipService.ToolTip="Appearance" AutomationProperties.Name="Appearance">
+     <Button Style="{StaticResource NavButton}" x:Name="AppearanceNav" AutomationProperties.Name="Appearance">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE790;" FontSize="15" /><TextBlock x:Name="AppearanceLabel" Text="Appearance" FontSize="13" /></StackPanel>
       <Button.Flyout><MenuFlyout>
        <RadioMenuFlyoutItem x:Name="SystemThemeItem" Text="Use Windows theme" GroupName="Theme" Tag="System" Click="ThemeClick" />
@@ -78,7 +84,7 @@
          </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
        </Border>
-       <ProgressBar x:Name="DetectionProgress" IsIndeterminate="True" Visibility="Collapsed" Height="2" VerticalAlignment="Top" />
+       <local:LoadingOverlay IsActive="{Binding Detecting}" Text="Checking package managers…" />
       </Grid>
       <StackPanel Spacing="10" Visibility="{Binding RecoveryVisibility}">
        <StackPanel Orientation="Horizontal" Spacing="10"><ProgressRing Width="14" Height="14" IsActive="{Binding Recovering}" Visibility="{Binding RecoveryProgressVisibility}" /><TextBlock Text="{Binding RecoveryMessage}" FontSize="13" TextWrapping="Wrap" /></StackPanel>
@@ -99,17 +105,11 @@
       <Button x:Name="SearchButton" Grid.Column="2" Content="Search" Click="SearchClick" Padding="16,8" Height="38" />
      </Grid>
      <Grid Grid.Row="2" RowSpacing="12">
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <Grid Visibility="{Binding CancelVisibility}">
-       <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <ProgressRing IsActive="{Binding Searching}" Width="14" Height="14" /><TextBlock Text="Searching…" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-       </StackPanel>
-       <Button Content="Cancel" Click="CancelSearchClick" HorizontalAlignment="Right" FontSize="12" Padding="10,4" />
-      </Grid>
-      <Expander Grid.Row="1" Header="Search needs attention" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{Binding ErrorVisibility}">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <Expander Header="Search needs attention" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{Binding ErrorVisibility}">
        <ScrollViewer MaxHeight="120"><TextBlock Text="{Binding Errors}" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource ErrorBrush}" IsTextSelectionEnabled="True" /></ScrollViewer>
       </Expander>
-      <Grid Grid.Row="2">
+      <Grid Grid.Row="1">
        <Grid Visibility="{Binding ResultsVisibility}">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Border Visibility="{Binding ResultsHeaderVisibility}" Height="36" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0">
@@ -125,11 +125,11 @@
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,14">
            <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="{Binding DetailColumnWidth}" /><ColumnDefinition Width="{Binding DetailColumnWidth}" /><ColumnDefinition Width="85" /></Grid.ColumnDefinitions>
             <StackPanel Spacing="4" VerticalAlignment="Center">
-             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Name}" />
-             <TextBlock Text="{Binding Id}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Id}" />
+             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+             <TextBlock Text="{Binding Id}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
              <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Version}" />
+            <TextBlock Grid.Column="1" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
             <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
             <Button Grid.Column="3" Content="{Binding Action}" IsEnabled="{Binding CanInstall}" Click="InstallPackageClick" FontSize="12" Padding="12,6" HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.Name="{Binding InstallLabel}" ToolTipService.ToolTip="{Binding ActionDetail}" />
            </Grid>
@@ -141,6 +141,7 @@
         <TextBlock Text="{Binding SearchSummary}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
        </StackPanel>
+       <local:LoadingOverlay IsActive="{Binding SearchLoading}" Text="Searching your sources…" CancelText="Cancel" Cancelled="CancelSearchClick" />
       </Grid>
      </Grid>
     </Grid>
@@ -174,9 +175,6 @@
         <Button Content="Uninstall selected" Click="UninstallSelectedClick" IsEnabled="{Binding CanUninstallSelected}" FontSize="12" Padding="10,6" />
        </StackPanel>
       </Grid>
-      <StackPanel Orientation="Horizontal" Spacing="10" Visibility="{Binding ProgressVisibility}">
-       <ProgressRing IsActive="True" Width="14" Height="14" VerticalAlignment="Center" /><TextBlock Text="{Binding ProgressText}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-      </StackPanel>
       <Expander Header="Some apps or updates could not be checked" Visibility="{Binding ErrorVisibility}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
        <ScrollViewer MaxHeight="120"><TextBlock Text="{Binding Errors}" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource ErrorBrush}" IsTextSelectionEnabled="True" /></ScrollViewer>
       </Expander>
@@ -200,13 +198,13 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="{Binding NameWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="156" /></Grid.ColumnDefinitions>
           <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanAct}" MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Name}" />
           <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Name}" />
-           <TextBlock Text="{Binding Id}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Id}" />
-           <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding CompactDetail}" />
+           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Id}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           </StackPanel>
-          <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Source}" />
-          <TextBlock Grid.Column="3" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Version}" />
-          <TextBlock Grid.Column="4" Text="{Binding Available}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding UpdateDetail}" />
+          <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          <TextBlock Grid.Column="3" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          <TextBlock Grid.Column="4" Text="{Binding Available}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           <Grid Grid.Column="5" ColumnSpacing="8" VerticalAlignment="Center">
            <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="76" /></Grid.ColumnDefinitions>
            <Button Content="Update" Visibility="{Binding UpdateVisibility}" IsEnabled="{Binding CanUpdate}" Click="UpdateInstalledClick" FontSize="12" Padding="10,6" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding UpdateName}" ToolTipService.ToolTip="{Binding UpdateDetail}" />
@@ -220,8 +218,65 @@
        <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
+      <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding Refreshing}" Text="{Binding ProgressText}" />
      </Grid>
     </Grid>
+    <Grid x:Name="ScoutPage" Visibility="Collapsed" RowSpacing="18">
+     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+     <Grid ColumnSpacing="10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="Scout" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="{Binding SetupLabel}" Click="ScoutSetupClick" Visibility="{Binding SetupVisibility}" IsEnabled="{Binding CanSetup}" FontSize="12" Padding="10,7" />
+      <Button Grid.Column="2" Click="ScoutRefreshClick" Padding="10,7" AutomationProperties.Name="Refresh search index" ToolTipService.ToolTip="Refresh search index"><FontIcon Glyph="&#xE72C;" FontSize="12" /></Button>
+     </Grid>
+     <Grid Grid.Row="1" ColumnSpacing="10" RowSpacing="8">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ScoutLocationColumn" Width="180" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
+      <TextBox x:Name="ScoutSearchBox" PlaceholderText="Search names and paths" MaxLength="200" Height="38" VerticalContentAlignment="Center" TextChanged="ScoutTextChanged" AutomationProperties.Name="Search file and folder names" />
+      <ComboBox x:Name="ScoutLocation" Grid.Column="1" SelectedIndex="0" SelectionChanged="ScoutLocationChanged" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" AutomationProperties.Name="Search location">
+         <ComboBoxItem Content="Home" /><ComboBoxItem Content="This PC" /><ComboBoxItem Content="Choose folder…" /><ComboBoxItem x:Name="ScoutFolderChoice" Visibility="Collapsed" />
+      </ComboBox>
+      <ComboBox x:Name="ScoutType" Grid.Column="2" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" AutomationProperties.Name="Search item type">
+       <ComboBoxItem Content="All items" /><ComboBoxItem Content="Files" /><ComboBoxItem Content="Folders" />
+      </ComboBox>
+     </Grid>
+     <StackPanel Grid.Row="2" Spacing="8">
+      <Grid ColumnSpacing="10">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+       <Button Grid.Column="1" Content="Stop" Click="ScoutCancelClick" Visibility="{Binding ProgressVisibility}" Padding="10,4" FontSize="12" />
+      </Grid>
+      <ProgressBar IsIndeterminate="True" Visibility="{Binding ProgressVisibility}" Height="2" />
+      <TextBlock Text="{Binding Error}" Visibility="{Binding ErrorVisibility}" Foreground="{ThemeResource ErrorBrush}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+     </StackPanel>
+     <Grid Grid.Row="3">
+      <ListView ItemsSource="{Binding Rows}" SelectionMode="None" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="File search results">
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="IsTabStop" Value="False" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
+       <ListView.ItemTemplate><DataTemplate>
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="10,12">
+         <Grid ColumnSpacing="12">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <FontIcon Glyph="{Binding Glyph}" FontSize="17" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Spacing="4">
+           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Path}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          </StackPanel>
+          <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+           <Button Click="ScoutCopyClick" Padding="8,6" ToolTipService.ToolTip="Copy path" AutomationProperties.Name="{Binding CopyLabel}"><FontIcon Glyph="&#xE8C8;" FontSize="12" /></Button>
+           <Button Click="ScoutOpenClick" Padding="8,6" ToolTipService.ToolTip="Show in File Explorer" AutomationProperties.Name="{Binding OpenLabel}"><FontIcon Glyph="&#xE838;" FontSize="12" /></Button>
+          </StackPanel>
+         </Grid>
+        </Border>
+       </DataTemplate></ListView.ItemTemplate>
+      </ListView>
+      <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Padding="24" Spacing="6">
+       <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
+      </StackPanel>
+     </Grid>
+    </Grid>
+    <local:CleanupView x:Name="CleanupPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
@@ -247,8 +302,8 @@
             <Grid ColumnSpacing="12">
              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
              <StackPanel Spacing="4">
-              <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Name}" />
-              <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Detail}" />
+              <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
              </StackPanel>
              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
               <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" />

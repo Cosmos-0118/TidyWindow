@@ -1,4 +1,4 @@
-# Renders the TidyWindow mark (a glowing window with a sparkle bursting from its corner) to PNGs and ICOs.
+# Renders the TidyWindow mark (three window panes snapped into a tidy layout) to PNGs and ICOs.
 # Run from anywhere: pwsh tools/Brand/build-icons.ps1
 Add-Type -AssemblyName System.Drawing
 $out = Join-Path $PSScriptRoot '../../app/Assets/Brand'
@@ -7,13 +7,15 @@ $out = (Resolve-Path $out).Path
 
 function Rgb([string]$hex) { [Drawing.ColorTranslator]::FromHtml($hex) }
 $tileFrom = Rgb '#1E1B4B'; $tileTo = Rgb '#7C3AED'
-$windowFrom = Rgb '#5EEAD4'; $windowTo = Rgb '#7DD3FC'
-$sparkFrom = Rgb '#FFF4B0'; $sparkTo = Rgb '#FFB347'
+$mintFrom = Rgb '#5EEAD4'; $mintTo = Rgb '#7DD3FC'
+$goldFrom = Rgb '#FFE08A'; $goldTo = Rgb '#FFB347'
+$paneWhite = Rgb '#F5F3FF'
 
-# All geometry is in a 256 unit square. "Bold" is the small-size variant: heavier strokes, bigger sparkle.
+# All geometry is in a 256 unit square. "Bold" is the small-size variant: wider gaps and fewer details.
+# Panes are tall-left, short-top-right, tall-bottom-right: a tiled window layout.
 $shapes = @{
-    Normal = @{ Tile = 8; Radius = 56; L = 48; T = 80; R = 198; B = 208; Corner = 30; Stroke = 17; Bar = 42; Star = @(186, 84, 50); Halo = 10 }
-    Bold   = @{ Tile = 0; Radius = 60; L = 34; T = 78; R = 200; B = 224; Corner = 34; Stroke = 28; Bar = 58; Star = @(182, 82, 58); Halo = 11 }
+    Normal = @{ Tile = 8; Radius = 56; X = 50; Y = 50; W = 156; H = 156; Gap = 12; LeftW = 70; TopH = 64; Corner = 22; Dots = $true }
+    Bold   = @{ Tile = 0; Radius = 60; X = 34; Y = 34; W = 188; H = 188; Gap = 16; LeftW = 84; TopH = 76; Corner = 26; Dots = $false }
 }
 
 function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
@@ -27,18 +29,8 @@ function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) 
     return $p
 }
 
-function New-SparklePath([float]$cx, [float]$cy, [float]$r) {
-    # Four-point star with concave sides: each side is a cubic curve pulled in toward the centre.
-    $c = $r * 0.13
-    $n = [Drawing.PointF]::new($cx, $cy - $r); $e = [Drawing.PointF]::new($cx + $r, $cy)
-    $s = [Drawing.PointF]::new($cx, $cy + $r); $w = [Drawing.PointF]::new($cx - $r, $cy)
-    $p = New-Object Drawing.Drawing2D.GraphicsPath
-    $p.AddBezier($n, [Drawing.PointF]::new($cx + $c, $cy - $c), [Drawing.PointF]::new($cx + $c, $cy - $c), $e)
-    $p.AddBezier($e, [Drawing.PointF]::new($cx + $c, $cy + $c), [Drawing.PointF]::new($cx + $c, $cy + $c), $s)
-    $p.AddBezier($s, [Drawing.PointF]::new($cx - $c, $cy + $c), [Drawing.PointF]::new($cx - $c, $cy + $c), $w)
-    $p.AddBezier($w, [Drawing.PointF]::new($cx - $c, $cy - $c), [Drawing.PointF]::new($cx - $c, $cy - $c), $n)
-    $p.CloseFigure()
-    return $p
+function New-Gradient([float]$x, [float]$y, [float]$w, [float]$h, $from, $to) {
+    New-Object Drawing.Drawing2D.LinearGradientBrush ([Drawing.PointF]::new($x, $y)), ([Drawing.PointF]::new($x + $w, $y + $h)), $from, $to
 }
 
 function Render([int]$size, [string]$variant) {
@@ -50,29 +42,26 @@ function Render([int]$size, [string]$variant) {
     $g.ScaleTransform($work / 256, $work / 256)
 
     $tile = $s.Tile
-    $tileBrush = New-Object Drawing.Drawing2D.LinearGradientBrush ([Drawing.PointF]::new($tile, $tile)), ([Drawing.PointF]::new(256 - $tile, 256 - $tile)), $tileFrom, $tileTo
+    $tileBrush = New-Gradient $tile $tile (256 - 2 * $tile) (256 - 2 * $tile) $tileFrom $tileTo
     $tilePath = New-RoundedPath $tile $tile (256 - 2 * $tile) (256 - 2 * $tile) $s.Radius
     $g.FillPath($tileBrush, $tilePath)
     $g.SetClip($tilePath)
 
-    # Window: a rounded outline with a title bar divider.
-    $w = $s.R - $s.L; $h = $s.B - $s.T
-    $windowBrush = New-Object Drawing.Drawing2D.LinearGradientBrush ([Drawing.PointF]::new($s.L, $s.T)), ([Drawing.PointF]::new($s.R, $s.B)), $windowFrom, $windowTo
-    $half = $s.Stroke / 2
-    $ringPen = New-Object Drawing.Pen $windowBrush, $s.Stroke
-    $g.DrawPath($ringPen, (New-RoundedPath ($s.L + $half) ($s.T + $half) ($w - $s.Stroke) ($h - $s.Stroke) ($s.Corner - $half)))
-    $divider = $s.Stroke * 0.8
-    $g.FillRectangle($windowBrush, $s.L + $half, $s.T + $s.Bar - $divider / 2, $w - $s.Stroke, $divider)
+    $c = $s.Corner
+    $rightX = $s.X + $s.LeftW + $s.Gap; $rightW = $s.W - $s.LeftW - $s.Gap
+    $bottomY = $s.Y + $s.TopH + $s.Gap; $bottomH = $s.H - $s.TopH - $s.Gap
 
-    # Sparkle: a halo in the tile gradient cuts it free of the window, then the warm star on top.
-    $cx, $cy, $r = $s.Star
-    $star = New-SparklePath $cx $cy $r
-    $haloPen = New-Object Drawing.Pen $tileBrush, ($s.Halo * 2)
-    $haloPen.LineJoin = 'Round'
-    $g.DrawPath($haloPen, $star)
-    $g.FillPath($tileBrush, $star)
-    $sparkBrush = New-Object Drawing.Drawing2D.LinearGradientBrush ([Drawing.PointF]::new($cx - $r, $cy - $r)), ([Drawing.PointF]::new($cx + $r, $cy + $r)), $sparkFrom, $sparkTo
-    $g.FillPath($sparkBrush, $star)
+    # Left pane: the "main window", with title bar dots cut out of it at larger sizes.
+    $leftBrush = New-Gradient $s.X $s.Y $s.LeftW $s.H $mintFrom $mintTo
+    $g.FillPath($leftBrush, (New-RoundedPath $s.X $s.Y $s.LeftW $s.H $c))
+    if ($s.Dots -and $size -ge 64) {
+        foreach ($i in 0..2) { $g.FillEllipse($tileBrush, $s.X + 15 + $i * 16, $s.Y + 15, 9, 9) }
+    }
+    # Top right: the warm accent pane.
+    $goldBrush = New-Gradient $rightX $s.Y $rightW $s.TopH $goldFrom $goldTo
+    $g.FillPath($goldBrush, (New-RoundedPath $rightX $s.Y $rightW $s.TopH $c))
+    # Bottom right: a quiet pane.
+    $g.FillPath((New-Object Drawing.SolidBrush $paneWhite), (New-RoundedPath $rightX $bottomY $rightW $bottomH $c))
     $g.Dispose()
 
     $final = New-Object Drawing.Bitmap $size, $size, ([Drawing.Imaging.PixelFormat]::Format32bppArgb)
