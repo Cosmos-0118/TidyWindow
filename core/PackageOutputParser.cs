@@ -65,8 +65,8 @@ public static partial class PackageOutputParser
             (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe10 && c <= 0xfe6f) ||
             (c >= 0xff00 && c <= 0xff60) || (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f300 && c <= 0x1faff) || c >= 0x20000) ? 2 : 1;
     }
-    private static int CellWidth(string text) => text.EnumerateRunes().Sum(RuneWidth);
-    private static string SliceCells(string text, int start, int end)
+    internal static int CellWidth(string text) => text.EnumerateRunes().Sum(RuneWidth);
+    internal static string SliceCells(string text, int start, int end)
     {
         var result = new StringBuilder();
         var position = 0;

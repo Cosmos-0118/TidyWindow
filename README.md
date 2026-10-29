@@ -2,10 +2,24 @@
 
 A new native Windows app, built from scratch with C#, .NET 10 and WinUI 3. The previous TidyWindow is preserved on [`main`](https://github.com/Cosmos-0118/TidyWindow/tree/main).
 
-This first version contains only two pages:
+The app keeps its main pages focused:
 
 - **Overview:** detect WinGet, Chocolatey and Scoop, check their versions, and open setup help when needed.
 - **Install Hub:** search real package sources, rank matches, recognize installed apps, and review an installation before starting it.
+- **Installed:** find installed packages, select apps to update or uninstall, and check available versions.
+- **Logs:** inspect outcomes and problems when needed.
+
+Installs, updates and uninstalls share one queue across pages. You can keep adding apps while an operation runs. Select all applies to the visible Installed list; Update selected queues only apps with an available update and skips held packages. Bulk uninstall asks for confirmation of the specific apps. Changing a filter clears the selection.
+
+The queue runs one operation at a time in order, rejects duplicate or conflicting requests for the same manager/package/scope, and continues after failures. Queue in the sidebar opens a full page with running, waiting and recent finished operations. Click a card to expand its command output. Output streams as bytes arrive (including partial lines), handles UTF-8 across chunk boundaries, and retains the newest 64 KiB per operation. UI updates are coalesced and keep the card expanded; output follows the bottom until you scroll up. Clear finished removes the session's card history; durable outcomes remain in Logs. Remove and Clear waiting never interrupt the active installer.
+
+Windows administrator prompts and installer dialogs remain native windows that the user must respond to. The queue waits for the command process to exit, then verifies inventory. A launcher that detaches from its installer cannot be tracked reliably; if the expected change cannot be verified, the card reports that rather than claiming success. Chocolatey and global Scoop operations use a separate elevated window, so their stdout cannot be redirected into TidyWindow with this launch method. Their cards explicitly direct you to that window. Normal captured WinGet and per-user Scoop output can stream; output from a separate GUI installer is not a console stream.
+
+Queue output uses selectable rich text: blue steps/information, green success, amber warnings and red errors, with STEP/OK/WARN/ERROR labels. Colors adapt to light, dark and high-contrast settings. PowerShell CLIXML is decoded incrementally into typed messages; duplicate host records and internal serialization metadata are omitted. The formatted view shows at most the newest 600 lines to keep verbose commands responsive.
+
+The Queue page's **Show installer options for new operations** setting asks newly queued WinGet/Chocolatey installs and updates to use their supported interactive mode (`--interactive` / `--not-silent`). Package support varies; Scoop uses its package scripts. This does not automatically answer security prompts or click installer controls. Normal package commands have a 20-minute timeout; explicitly interactive commands allow two hours. Declining elevation reports a failure and the queue proceeds to the next item.
+
+The queue belongs to the current app session and is not resumed after a crash. Closing is blocked while work remains. Outcomes are saved in Logs rather than shown in a bottom results panel. When the queue drains, manager status and installed inventories refresh together. Scoop update checks use local bucket manifests.
 
 The interface uses a quiet sidebar and simple rows, with layouts that adapt from a narrow window to a large display. It follows the restrained layout of Clop for Windows rather than adding dashboard panels.
 

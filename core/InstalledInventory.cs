@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
@@ -7,7 +8,7 @@ namespace TidyWindow.Next.Core;
 public sealed record InstalledApp(ManagerKind? Manager, string? Id, string Name, string Version);
 public sealed record InventoryResult(ManagerKind Manager, IReadOnlyList<InstalledApp> Apps, string? Error = null);
 
-public sealed class InstalledInventory
+public sealed partial class InstalledInventory
 {
     private readonly Dictionary<string, InstalledApp> identities;
     private readonly Dictionary<string, InstalledApp> names;
@@ -30,9 +31,31 @@ public sealed class InstalledInventory
         return names.GetValueOrDefault(NameKey(package.Name));
     }
 
+    /// <summary>What Windows reports as installed, with no package manager identities.</summary>
+    public static InstalledInventory ReadWindows()
+    {
+        if (!OperatingSystem.IsWindows()) return new([]);
+        var (apps, errors) = WindowsInstalledApps.Read();
+        return new(apps, errors);
+    }
+
     private static string Identity(ManagerKind manager, string id) => $"{manager}:{id.ToUpperInvariant()}";
-    private static string NameKey(string name) => string.Concat(name.Normalize(NormalizationForm.FormKC)
+    // Registry entries often add a generic trailing word the package name lacks ("MSYS2" vs "MSYS2 Installer").
+    // Dropping only that word keeps the comparison exact: "Git" still does not match "GitHub".
+    private static string NameKey(string name) => string.Concat(TrimGenericSuffix(name).Normalize(NormalizationForm.FormKC)
         .EnumerateRunes().Where(x => Rune.IsLetterOrDigit(x) || x.Value is '+' or '#').Select(x => Rune.ToUpperInvariant(x).ToString()));
+    private static string TrimGenericSuffix(string name)
+    {
+        for (var i = 0; i < 2; i++)
+        {
+            var trimmed = GenericSuffix().Replace(name, "");
+            if (trimmed == name) break;
+            name = trimmed;
+        }
+        return name;
+    }
+    [GeneratedRegex(@"(?<=\S)[\s\-_]+(?:installer|setup)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex GenericSuffix();
 }
 
 internal static class WindowsInstalledApps

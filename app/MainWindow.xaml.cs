@@ -11,10 +11,13 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Logs }
+    private enum Page { Overview, Install, Installed, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
+    private readonly InstallationsViewModel installations;
+    private readonly OperationQueueViewModel operationQueue;
+    private long reconciledCompletions;
     private bool initialized;
     private bool closingDialog;
     private Page page;
@@ -24,13 +27,24 @@ public sealed partial class MainWindow : Window
     public MainWindow(ActivityLog log)
     {
         this.log = log;
-        model = new(new PackageService(new ProcessRunner(), new ExecutableLocator()), log);
+        var runner = new ProcessRunner(); var locator = new ExecutableLocator();
+        var packages = new PackageService(runner, locator);
+        var management = new InstallationService(packages, runner, locator);
+        var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
+        operationQueue = new(PackageOperationQueue.WithLiveOutput(executor.ExecuteAsync), log, action => DispatcherQueue.TryEnqueue(() => action()));
+        model = new(packages, log, operationQueue);
+        installations = new(management, model, log, operationQueue);
         InitializeComponent();
         Root.DataContext = model;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         LogsPage.DataContext = logs;
+        InstalledPage.DataContext = installations;
+        QueueButton.DataContext = operationQueue;
+        QueuePage.DataContext = operationQueue;
+        operationQueue.StateChanged += QueueStateChanged;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
+        ApplyBranding();
         AppWindow.Resize(new(1100, 740));
         appearance = appearanceSettings.Load();
         Root.ActualThemeChanged += (_, _) => UpdateThemeChrome();
@@ -49,9 +63,19 @@ public sealed partial class MainWindow : Window
             FitInitialWindow();
             ApplyResponsiveLayout();
             await Refresh();
+            if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+    }
+
+    private void ApplyBranding()
+    {
+        // Missing art must never stop the app from opening.
+        var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Brand");
+        try { AppWindow.SetIcon(Path.Combine(folder, "tidywindow.ico")); } catch (Exception ex) when (ex is IOException or ArgumentException or System.Runtime.InteropServices.COMException) { }
+        var logo = Path.Combine(folder, "logo-64.png");
+        if (File.Exists(logo)) TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(logo));
     }
 
     private void FitInitialWindow()
@@ -71,9 +95,11 @@ public sealed partial class MainWindow : Window
     {
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
-        OverviewLabel.Visibility = InstallLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
+        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
+        installations.ApplyLayout(layout);
+        operationQueue.SetOutputHeight(Math.Clamp((Root.ActualHeight - 180) * 0.45, 96, 280));
         var wrapSearch = Root.ActualWidth < 640;
         Grid.SetColumnSpan(SearchBox, wrapSearch ? 3 : 1);
         Grid.SetRow(SourceFilter, wrapSearch ? 1 : 0);
@@ -81,6 +107,15 @@ public sealed partial class MainWindow : Window
         Grid.SetColumnSpan(SourceFilter, wrapSearch ? 2 : 1);
         Grid.SetRow(SearchButton, wrapSearch ? 1 : 0);
         FilterColumn.Width = new GridLength(wrapSearch ? 0 : 150);
+        Grid.SetColumnSpan(InstalledSearch, wrapSearch ? 2 : 1);
+        Grid.SetRow(InstalledFilter, wrapSearch ? 1 : 0);
+        Grid.SetColumn(InstalledFilter, wrapSearch ? 0 : 1);
+        Grid.SetColumnSpan(InstalledFilter, wrapSearch ? 2 : 1);
+        InstalledFilterColumn.Width = wrapSearch ? new GridLength(0) : GridLength.Auto;
+        var wrapSelection = Root.ActualWidth < 900;
+        Grid.SetRow(SelectionActions, wrapSelection ? 1 : 0);
+        Grid.SetColumn(SelectionActions, wrapSelection ? 0 : 1);
+        Grid.SetColumnSpan(SelectionActions, wrapSelection ? 2 : 1);
         Grid.SetColumnSpan(LogSearch, wrapSearch ? 2 : 1);
         Grid.SetRow(LogSelects, wrapSearch ? 1 : 0);
         Grid.SetColumn(LogSelects, wrapSearch ? 0 : 1);
@@ -94,6 +129,8 @@ public sealed partial class MainWindow : Window
         page = next;
         OverviewPage.Visibility = page == Page.Overview ? Visibility.Visible : Visibility.Collapsed;
         InstallPage.Visibility = page == Page.Install ? Visibility.Visible : Visibility.Collapsed;
+        InstalledPage.Visibility = page == Page.Installed ? Visibility.Visible : Visibility.Collapsed;
+        QueuePage.Visibility = page == Page.Queue ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == Page.Logs ? Visibility.Visible : Visibility.Collapsed;
         UpdateThemeChrome();
         if (page == Page.Install) SearchBox.Focus(FocusState.Programmatic);
@@ -116,7 +153,7 @@ public sealed partial class MainWindow : Window
         var selected = light ? ColorHelper.FromArgb(255, 235, 235, 235) : ColorHelper.FromArgb(255, 31, 31, 31);
         var primary = light ? ColorHelper.FromArgb(255, 23, 23, 23) : Colors.White;
         var muted = light ? ColorHelper.FromArgb(255, 98, 98, 98) : Colors.DarkGray;
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             button.Background = new SolidColorBrush(page == target ? selected : Colors.Transparent);
             button.Foreground = new SolidColorBrush(page == target ? primary : muted);
@@ -126,6 +163,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonInactiveForegroundColor = muted;
         foreach (var manager in model.Managers) manager.SetLightTheme(light);
         logs.SetLightTheme(light);
+        operationQueue.SetLightTheme(light);
     }
     private void ThemeClick(object sender, RoutedEventArgs e)
     {
@@ -141,6 +179,67 @@ public sealed partial class MainWindow : Window
     }
     private void OverviewClick(object sender, RoutedEventArgs e) => ShowPage(Page.Overview);
     private void InstallClick(object sender, RoutedEventArgs e) => ShowPage(Page.Install);
+    private async void InstalledClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Installed);
+        if (installations.NeedsRefresh) await installations.RefreshAsync();
+    }
+    private async void InstalledRefreshClick(object sender, RoutedEventArgs e) => await installations.RefreshAsync();
+    private void InstalledFilterChanged(object sender, RoutedEventArgs e)
+    { if (initialized) installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1); }
+    private void UpdateInstalledClick(object sender, RoutedEventArgs e)
+    { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
+    private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);
+    private void UpdateSelectedClick(object sender, RoutedEventArgs e) => installations.QueueSelected(PackageAction.Update);
+    private async void UninstallSelectedClick(object sender, RoutedEventArgs e)
+    {
+        var rows = installations.Selected.ToArray();
+        if (rows.Length == 0) return;
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Uninstall {rows.Length} apps?",
+            Content = new ScrollViewer { MaxHeight = 300, Content = new TextBlock { Text = "Save your work and close these apps. Each will be uninstalled in order.\n\n" + string.Join("\n", rows.Select(x => $"{x.Name} · {x.Source}")), TextWrapping = TextWrapping.Wrap } },
+            PrimaryButtonText = "Queue uninstalls", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            operationQueue.Enqueue(rows.Where(x => x.CanAct).Select(x => PackageOperation.Manage(x.Package, PackageAction.Uninstall)));
+    }
+    private void RemoveQueuedClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) operationQueue.Cancel(row); }
+    private void ClearWaitingClick(object sender, RoutedEventArgs e) => operationQueue.CancelWaiting();
+    private void ClearFinishedQueueClick(object sender, RoutedEventArgs e) => operationQueue.ClearFinished();
+    private void QueueClick(object sender, RoutedEventArgs e) => ShowPage(Page.Queue);
+    private void QueueRowClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) row.Toggle(); }
+    private sealed class OutputScrollState { public double Offset; public bool Follow = true; }
+    private void QueueOutputViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scroll || e.IsIntermediate) return;
+        var state = scroll.Tag as OutputScrollState ?? new();
+        // Content growing is not a request to stop following. Only a changed scroll position is.
+        if (Math.Abs(scroll.VerticalOffset - state.Offset) > 0.5) state.Follow = scroll.ScrollableHeight - scroll.VerticalOffset < 24;
+        state.Offset = scroll.VerticalOffset; scroll.Tag = state;
+    }
+    private void QueueOutputSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        DependencyObject? parent = sender as DependencyObject;
+        while (parent is not null && parent is not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
+        if (parent is not ScrollViewer scroll || scroll.Tag is OutputScrollState { Follow: false }) return;
+        DispatcherQueue.TryEnqueue(() => { if (scroll.Tag is not OutputScrollState { Follow: false }) scroll.ChangeView(null, scroll.ScrollableHeight, null, true); });
+    }
+    private async void QueueStateChanged()
+    {
+        if (operationQueue.HasWork || operationQueue.Snapshot.Completions <= reconciledCompletions) return;
+        reconciledCompletions = operationQueue.Snapshot.Completions;
+        try { await Refresh(); if (page == Page.Installed) await installations.RefreshAsync(); }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
+    }
+    private async void UninstallInstalledClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: InstalledRow row } || !row.CanAct) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Uninstall {row.Name}?",
+            Content = new TextBlock { Text = $"This removes {row.Name} using {row.Package.ManagerName}{(row.Package.Global ? " for all users" : "")}. Save your work and close the app first.\n\nThe app’s uninstaller may ask for administrator permission. Personal settings are handled by the uninstaller; Scoop’s persistent data is kept.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+            PrimaryButtonText = "Uninstall", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
+    }
     private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
     private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(Page.Install); args.Handled = true; }
 
@@ -206,6 +305,7 @@ public sealed partial class MainWindow : Window
         DetectionProgress.Visibility = Visibility.Visible;
         try { await model.RefreshAsync(); }
         finally { DetectionProgress.Visibility = Visibility.Collapsed; }
+        installations.NeedsRefresh = true;
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);
     }
@@ -220,7 +320,7 @@ public sealed partial class MainWindow : Window
     }
     private async void InstallPackageClick(object sender, RoutedEventArgs e)
     {
-        if (model.Busy || sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;
+        if (sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;
         var content = new StackPanel { Spacing = 14, MaxWidth = 480 };
         content.Children.Add(new TextBlock { Text = $"{row.Id}\n{row.Source} · available version {row.Version}", TextWrapping = TextWrapping.Wrap });
         content.Children.Add(new TextBlock { Text = PackageService.DisplayInstallCommand(row.Package), FontFamily = new FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
@@ -228,7 +328,7 @@ public sealed partial class MainWindow : Window
         if (row.Package.Manager == ManagerKind.Chocolatey)
             content.Children.Add(new TextBlock { Text = "Chocolatey will open in a separate administrator window. TidyWindow itself stays unelevated.", TextWrapping = TextWrapping.Wrap, FontSize = 12 });
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Install {row.Name}?", Content = content, PrimaryButtonText = "Install package", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.InstallAsync(row);
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.QueueInstall(row);
     }
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
@@ -238,7 +338,7 @@ public sealed partial class MainWindow : Window
         closingDialog = true;
         try
         {
-            await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "An operation is still running", Content = "Please let the package manager finish before closing TidyWindow. Follow any Windows permission prompt or installer window that opens.", CloseButtonText = "Keep open" }.ShowAsync();
+            await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Package work is still queued", Content = "Let the current operation finish before closing TidyWindow. You can remove waiting items using Queue in the sidebar.", CloseButtonText = "Keep open" }.ShowAsync();
         }
         finally { closingDialog = false; }
     }

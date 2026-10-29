@@ -99,7 +99,7 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
         catch (Exception ex) when (ex is not OperationCanceledException) { return new(kind, [], ex.Message); }
     }
 
-    public CommandSpec InstallCommand(ManagerStatus manager, Package package)
+    public CommandSpec InstallCommand(ManagerStatus manager, Package package, bool interactive = false)
     {
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null || manager.Definition.Kind != package.Manager)
             throw new InvalidOperationException("Refresh package managers before installing.");
@@ -110,12 +110,13 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             ManagerKind.Chocolatey => ["install", package.Id, "--yes", "--no-progress", "--source=https://community.chocolatey.org/api/v2/"],
             _ => ["install", package.Id]
         };
-        return BuildCommand(package.Manager, manager.Executable, args, TimeSpan.FromMinutes(20)) with { Elevate = package.Manager == ManagerKind.Chocolatey };
+        if (interactive && package.Manager != ManagerKind.Scoop) args = [.. args, package.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
+        return BuildCommand(package.Manager, manager.Executable, args, interactive ? TimeSpan.FromHours(2) : TimeSpan.FromMinutes(20)) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
     }
 
-    public async Task<CommandResult> InstallAsync(ManagerStatus manager, Package package, CancellationToken token = default)
+    public async Task<CommandResult> InstallAsync(ManagerStatus manager, Package package, CancellationToken token = default, IProgress<CommandOutput>? progress = null, bool interactive = false)
     {
-        var command = InstallCommand(manager, package);
+        var command = InstallCommand(manager, package, interactive) with { Progress = progress };
         if (!await installGate.WaitAsync(0, token).ConfigureAwait(false)) throw new InvalidOperationException("An installation is already running.");
         try { return await runner.RunAsync(command, token).ConfigureAwait(false); }
         finally { installGate.Release(); }

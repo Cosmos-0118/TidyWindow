@@ -21,7 +21,13 @@ public sealed record Package(ManagerKind Manager, string Id, string Name, string
     public string ManagerName => ManagerDefinition.All.Single(x => x.Kind == Manager).Name;
 }
 public sealed record SearchResult(ManagerKind Manager, IReadOnlyList<Package> Packages, string? Error = null);
-public sealed record CommandSpec(string FileName, IReadOnlyList<string> Arguments, TimeSpan Timeout, bool Elevate = false);
+public enum CommandOutputKind { Output, Error, Notice, Information, Warning, Progress, Success }
+public sealed record CommandOutput(string Text, CommandOutputKind Kind = CommandOutputKind.Output);
+public sealed record CommandSpec(string FileName, IReadOnlyList<string> Arguments, TimeSpan Timeout, bool Elevate = false)
+{
+    public IProgress<CommandOutput>? Progress { get; init; }
+    public bool MayShowInstaller { get; init; }
+}
 public sealed record CommandResult(int ExitCode, string Output, string Error);
 
 public interface ICommandRunner

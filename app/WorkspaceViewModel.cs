@@ -102,7 +102,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     private CancellationTokenSource? searchCancellation;
     private readonly CancellationTokenSource lifetime = new();
     private int searchGeneration;
-    private readonly HashSet<string> installedThisSession = [];
+    private readonly OperationQueueViewModel queue;
     private InstalledInventory inventory = new([]);
     private bool inventoryChecking = true;
     private string sourceErrors = "";
@@ -119,11 +119,18 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         Changed(nameof(ResultsHeaderVisibility));
     }
     private bool detecting;
-    public bool Detecting { get => detecting; private set { Set(ref detecting, value); Changed(nameof(CanRefresh)); } }
+    public bool Detecting { get => detecting; private set { Set(ref detecting, value); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); } }
     public bool CanRefresh => !Detecting && !inventoryChecking && !Busy;
     private bool recovering;
-    public bool Recovering { get => recovering; private set { Set(ref recovering, value); Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(RecoveryProgressVisibility)); } }
-    public bool Busy => Installing || Recovering;
+    public bool Recovering { get => recovering; private set { Set(ref recovering, value); Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); Changed(nameof(RecoveryProgressVisibility)); } }
+    public bool Busy => Recovering || queue.HasWork;
+    public bool CanQueue => !Detecting && !inventoryChecking && !Recovering;
+    private void QueueChanged()
+    {
+        Changed(nameof(Busy)); Changed(nameof(CanRefresh));
+        foreach (var manager in Managers) manager.CanRecover = !Busy && CanQueue;
+        foreach (var row in Packages) UpdateInstalledState(row);
+    }
     public Visibility RecoveryProgressVisibility => Recovering ? Visibility.Visible : Visibility.Collapsed;
     private string recoveryMessage = "";
     public string RecoveryMessage { get => recoveryMessage; private set { Set(ref recoveryMessage, value); Changed(nameof(RecoveryVisibility)); } }
@@ -142,17 +149,9 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     private string errors = "";
     public string Errors { get => errors; private set { Set(ref errors, value); Changed(nameof(ErrorVisibility)); } }
     public Visibility ErrorVisibility => Errors.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-    private bool installing;
-    public bool Installing { get => installing; private set { Set(ref installing, value); Changed(nameof(Busy)); Changed(nameof(InstallProgressVisibility)); Changed(nameof(CanRefresh)); foreach (var row in Managers) row.CanRecover = !value && !Recovering; } }
-    public Visibility InstallProgressVisibility => Installing ? Visibility.Visible : Visibility.Collapsed;
-    private string installTitle = "";
-    public string InstallTitle { get => installTitle; private set { Set(ref installTitle, value); Changed(nameof(InstallVisibility)); } }
-    private string installDetail = "";
-    public string InstallDetail { get => installDetail; private set => Set(ref installDetail, value); }
-    public Visibility InstallVisibility => InstallTitle.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-    public WorkspaceViewModel(PackageService service, ActivityLog log)
+    public WorkspaceViewModel(PackageService service, ActivityLog log, OperationQueueViewModel queue)
     {
-        this.service = service; this.log = log;
+        this.service = service; this.log = log; this.queue = queue; queue.StateChanged += QueueChanged;
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         health = new(service, runner, locator);
         recovery = new(service, runner, locator);
@@ -160,7 +159,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
 
     public async Task RefreshAsync()
     {
-        if (Detecting || Recovering) return;
+        if (Detecting || Busy) return;
         foreach (var manager in Managers) manager.CanRecover = false;
         service.ClearSearchCache();
         Detecting = true;
@@ -288,62 +287,23 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         SearchSummary = "Search cancelled"; EmptyDetail = "Edit your search or press Enter to try again.";
     }
 
-    public async Task InstallAsync(PackageRow row)
+    public void QueueInstall(PackageRow row)
     {
-        if (Busy || inventoryChecking || row.Installed is not null || installedThisSession.Contains(row.Package.Key)) return;
-        Installing = true;
-        foreach (var package in Packages) package.CanInstall = false;
-        row.Action = "Installing…";
-        InstallTitle = $"Installing {row.Name}";
-        var what = $"{row.Name} from {row.Source}";
-        log.Write(ActivityLevel.Info, ActivityArea.Install, $"Installing {what}", "Package ID: " + row.Package.Id);
-        InstallDetail = row.Package.Manager == ManagerKind.Chocolatey ? "Approve the Windows administrator prompt, then follow the Chocolatey window. Keep TidyWindow open until it finishes." : "The package manager is working. Follow any installer or Windows permission prompt that opens. Keep TidyWindow open until it finishes.";
-        try
-        {
-            var manager = Managers.Single(x => x.Definition.Kind == row.Package.Manager).Status!;
-            var result = await service.InstallAsync(manager, row.Package, lifetime.Token);
-            var success = result.ExitCode is 0 or 1641 or 3010;
-            if (success) installedThisSession.Add(row.Package.Key);
-            row.Action = success ? "Installed" : "Retry";
-            InstallTitle = success ? result.ExitCode == 0 ? $"{row.Name} installed" : $"{row.Name} installed · restart required" : $"Couldn’t install {row.Name}";
-            var output = PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
-            InstallDetail = $"Exit code: {result.ExitCode}. " + (output.Length > 0 ? output : success ? "The package manager reported completion." : "Check the package manager’s window for details.");
-            var summary = $"Package ID: {row.Package.Id}\nExit code: {result.ExitCode}" + (output.Length > 0 ? "\n" + output : "");
-            if (!success) log.Write(ActivityLevel.Error, ActivityArea.Install, $"Couldn’t install {what}", summary);
-            else if (result.ExitCode == 0) log.Write(ActivityLevel.Success, ActivityArea.Install, $"Installed {what}");
-            else log.Write(ActivityLevel.Warning, ActivityArea.Install, $"Installed {what}, restart required", summary);
-            if (success)
-            {
-                // Reconcile other source choices for this app with the computer's actual inventory.
-                inventoryChecking = true; Changed(nameof(CanRefresh));
-                try
-                {
-                    SetInventory(await service.GetInstalledAsync(Managers.Where(x => x.Status is not null).Select(x => x.Status!).ToArray(), lifetime.Token));
-                    UpdateErrors();
-                }
-                finally { inventoryChecking = false; Changed(nameof(CanRefresh)); }
-            }
-        }
-        catch (OperationCanceledException) { InstallTitle = "Installation interrupted"; InstallDetail = "Check the package manager before retrying. Changes already made are not rolled back."; row.Action = "Retry"; log.Write(ActivityLevel.Warning, ActivityArea.Install, $"Installation of {what} was interrupted", InstallDetail); }
-        catch (Exception ex) { InstallTitle = $"Couldn’t install {row.Name}"; InstallDetail = ex.Message; row.Action = "Retry"; log.Write(ActivityLevel.Error, ActivityArea.Install, $"Couldn’t install {what}", ex.ToString()); }
-        finally
-        {
-            Installing = false;
-            foreach (var package in Packages)
-            {
-                UpdateInstalledState(package);
-            }
-        }
+        if (!row.CanInstall || !CanQueue) return;
+        queue.Enqueue([PackageOperation.Install(row.Package)]);
     }
 
     private void UpdateInstalledState(PackageRow row)
     {
         row.SetInstalled(inventory.Find(row.Package));
-        var installed = row.Installed is not null || installedThisSession.Contains(row.Package.Key);
-        row.CanInstall = !Busy && !inventoryChecking && !installed;
-        if (installed) row.Action = "Installed";
-        else if (inventoryChecking) row.Action = "Checking…";
-        else if (row.Action != "Installing…" || !Installing) row.Action = "Install";
+        var entry = queue.Find(row.Package.Manager, row.Package.Id);
+        var pending = entry?.State is QueueItemState.Waiting or QueueItemState.Running;
+        var completedInstall = entry is { State: QueueItemState.Finished, Operation.Kind: PackageOperationKind.Install, Result.Outcome: ActionOutcome.Completed or ActionOutcome.RestartRequired };
+        var installed = row.Installed is not null || completedInstall && queue.HasWork;
+        row.CanInstall = CanQueue && !installed && !pending;
+        row.Action = pending ? entry!.State == QueueItemState.Waiting ? "Queued" : "Working…"
+            : installed ? "Installed" : inventoryChecking ? "Checking…"
+            : entry is { State: QueueItemState.Finished, Result.Outcome: ActionOutcome.Failed or ActionOutcome.Unverified } ? "Retry" : "Install";
     }
 
     private void SetInventory(InstalledInventory value)
@@ -355,5 +315,6 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
 
     private void UpdateErrors() => Errors = string.Join("\n", new[] { sourceErrors, inventoryErrors }.Where(x => x.Length > 0));
 
-    public void Dispose() { lifetime.Cancel(); searchCancellation?.Cancel(); lifetime.Dispose(); searchCancellation?.Dispose(); }
+
+    public void Dispose() { queue.StateChanged -= QueueChanged; lifetime.Cancel(); searchCancellation?.Cancel(); lifetime.Dispose(); searchCancellation?.Dispose(); }
 }
