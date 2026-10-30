@@ -17,7 +17,7 @@ public sealed class CleanupTests : IDisposable
         {
             ["USERPROFILE"] = profile, ["LOCALAPPDATA"] = Path.Combine(profile, "AppData", "Local"), ["APPDATA"] = Path.Combine(profile, "AppData", "Roaming"),
             ["TEMP"] = Path.Combine(profile, "AppData", "Local", "Temp"), ["WINDIR"] = Path.Combine(root, "Windows"), ["PROGRAMDATA"] = Path.Combine(root, "ProgramData"),
-            ["ProgramFiles"] = Path.Combine(root, "Program Files")
+            ["ProgramFiles"] = Path.Combine(root, "Program Files"), ["SYSTEMDRIVE"] = root
         };
         Directory.CreateDirectory(root);
     }
@@ -155,14 +155,17 @@ public sealed class CleanupTests : IDisposable
     }
 
     [Fact]
-    public async Task AdministratorRulesAreSkippedWithAReasonUnlessElevated()
+    public async Task AdministratorAreasAreMeasuredWithoutElevationButFlaggedAndNeverCleanedWithoutIt()
     {
-        Make("Windows/Temp/a.tmp", 100, ageDays: 3);
+        var file = Make("Windows/Temp/a.tmp", 100, ageDays: 3);
         var rule = Rule("windows-temp", ["%WINDIR%\\Temp"], admin: true);
-        var denied = await ScanOne(rule, admin: false);
-        Assert.Equal("Needs administrator rights", denied.Skipped);
-        Assert.Equal(0, denied.Bytes);
-        Assert.Equal(100, (await ScanOne(rule, admin: true)).Bytes);
+        var seen = await ScanOne(rule, admin: false);
+        Assert.True(seen.NeedsAdmin);
+        Assert.Equal(100, seen.Bytes);
+        var result = await new CleanupCleaner(Context(admin: false)).CleanAsync([seen]);
+        Assert.Equal(0, result.Removed);
+        Assert.True(File.Exists(file));
+        Assert.False((await ScanOne(rule, admin: true)).NeedsAdmin);
     }
 
     [Fact]

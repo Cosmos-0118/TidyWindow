@@ -89,14 +89,21 @@ public sealed class ScoutFolderIndex : IDisposable
     }
     private void Walk(string path, CancellationToken token)
     {
+        // Folders of tooling and caches are walked only after everything else, so the entry cap is spent on files people look for.
         var directories = new ConcurrentQueue<string>(); directories.Enqueue(path);
-        var active = 1;
+        var deferred = new ConcurrentQueue<string>();
+        var active = 1; var mainActive = 1;
         var workers = Enumerable.Range(0, Math.Clamp(Environment.ProcessorCount / 2, 2, 4)).Select(_ => Task.Run(() =>
         {
             var batch = new List<ScoutEntry>(256);
             while (!token.IsCancellationRequested && Volatile.Read(ref active) > 0)
             {
-                if (!directories.TryDequeue(out var directory)) { Thread.Sleep(2); continue; }
+                var main = true;
+                if (!directories.TryDequeue(out var directory))
+                {
+                    if (Volatile.Read(ref mainActive) == 0 && deferred.TryDequeue(out directory)) main = false;
+                    else { Thread.Sleep(2); continue; }
+                }
                 try
                 {
                     var items = new FileSystemEnumerable<ScoutEntry>(directory, (ref FileSystemEntry e) =>
@@ -105,19 +112,27 @@ public sealed class ScoutFolderIndex : IDisposable
                     foreach (var entry in items)
                     {
                         if (token.IsCancellationRequested) return;
-                        if (entry.IsFolder && !entry.IsReparse) { Interlocked.Increment(ref active); directories.Enqueue(entry.FullPath); }
+                        if (entry.IsFolder && !entry.IsReparse)
+                        {
+                            Interlocked.Increment(ref active);
+                            if (!main || IsLowPriority(entry.Name)) deferred.Enqueue(entry.FullPath);
+                            else { Interlocked.Increment(ref mainActive); directories.Enqueue(entry.FullPath); }
+                        }
                         batch.Add(entry);
                         if (batch.Count >= 256 && !Publish(batch, path, token)) return;
                     }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 { lock (gate) { if (!token.IsCancellationRequested) skipped++; } }
-                finally { Interlocked.Decrement(ref active); }
+                finally { Interlocked.Decrement(ref active); if (main) Interlocked.Decrement(ref mainActive); }
             }
             Publish(batch, path, token);
         })).ToArray();
         Task.WaitAll(workers);
     }
+    private static readonly HashSet<string> LowPriority = new(StringComparer.OrdinalIgnoreCase)
+    { "node_modules", ".git", ".hg", ".svn", "__pycache__", "$Recycle.Bin", "AppData", ".nuget", ".gradle", ".cache", "site-packages", ".venv", "venv" };
+    internal static bool IsLowPriority(string name) => LowPriority.Contains(name);
     private bool Publish(List<ScoutEntry> batch, string path, CancellationToken token)
     {
         lock (gate)

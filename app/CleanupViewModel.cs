@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using TidyWindow.Next.Core;
 
@@ -17,16 +18,23 @@ public static class ByteSize
 
 public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> changed) : ObservableState
 {
-    private bool selected = finding.Rule.Level == CleanupLevel.Recommended;
+    // A row whose size is unknown until it runs is offered but never ticked for the user.
+    private bool selected = finding.Rule.Level == CleanupLevel.Recommended && !finding.Unmeasured;
     public CleanupFinding Finding { get; } = finding;
     public bool IsSelected { get => selected; set { if (Set(ref selected, value)) changed(this); } }
     public string Name => Finding.Rule.Name;
     public string Detail => Finding.AppRunning ? Finding.Rule.Detail + " The app is open, so files it is using will be skipped." : Finding.Rule.Detail;
-    public string SizeText => Finding.Rule.Action == CleanupAction.RecycleBin || Finding.Bytes > 0 ? ByteSize.Format(Finding.Bytes) : "Empty";
-    public string FilesText => Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
+    public string SizeText => Finding.Unmeasured ? "Size shown after" : Finding.Bytes > 0 || Finding.Rule.Action == CleanupAction.RecycleBin ? (Finding.Unreadable > 0 ? "At least " : "") + ByteSize.Format(Finding.Bytes) : "Empty";
+    public string FilesText => Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
+    public bool NeedsAdmin => Finding.NeedsAdmin || Finding.Rule.IsSystemAction;
+    public Visibility AdminVisibility => NeedsAdmin ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ReviewVisibility => Finding.Rule.Level == CleanupLevel.Review ? Visibility.Visible : Visibility.Collapsed;
     public string ReviewText => Finding.Rule.Quarantine ? "Review · can be undone" : "Review";
     public string AutomationName => $"{Name}, {SizeText}";
+    private string stateText = "";
+    /// <summary>What is happening to this row during a clean: Waiting, Working…, Cleaned. Empty otherwise.</summary>
+    public string StateText { get => stateText; set { if (Set(ref stateText, value)) Changed(nameof(StateVisibility)); } }
+    public Visibility StateVisibility => stateText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 }
 
 public sealed class CleanupGroup(string name) : ObservableState
@@ -42,6 +50,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private readonly CleanupScanner scanner;
     private readonly CleanupCleaner cleaner;
     private readonly CleanupQuarantine quarantine;
+    private readonly SystemCleanLauncher system;
     private readonly ActivityLog log;
     private readonly Action<Action> post;
     private readonly CancellationTokenSource lifetime = new();
@@ -49,20 +58,33 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private long generation;
     private bool scanning, cleaning, scanned;
     private long selectedBytes;
-    private int needAdmin;
+    private int selectedCount, selectedAdmin;
     private string status = "Scan to see what can be cleaned";
     private string summary = "";
 
     public ObservableCollection<CleanupGroup> Groups { get; } = [];
-    public CleanupViewModel(IReadOnlyList<CleanupRule> rules, CleanupScanner scanner, CleanupCleaner cleaner, CleanupQuarantine quarantine, ActivityLog log, Action<Action> post)
+    public CleanupViewModel(IReadOnlyList<CleanupRule> rules, CleanupScanner scanner, CleanupCleaner cleaner, CleanupQuarantine quarantine, SystemCleanLauncher system, ActivityLog log, Action<Action> post)
     {
-        this.rules = rules; this.scanner = scanner; this.cleaner = cleaner; this.quarantine = quarantine; this.log = log; this.post = post;
+        this.rules = rules; this.scanner = scanner; this.cleaner = cleaner; this.quarantine = quarantine; this.system = system; this.log = log; this.post = post;
     }
+
+    private string cleanStep = "", cleanHint = "", cleanElapsed = "0:00";
+    private double cleanValue;
+    private bool cleanIndeterminate, progressShown;
+    private int stepsDone, stepsTotal;
+
+    public string CleanStep { get => cleanStep; private set => Set(ref cleanStep, value); }
+    public string CleanHint { get => cleanHint; private set { Set(ref cleanHint, value); Changed(nameof(HintVisibility)); } }
+    public string CleanElapsed { get => cleanElapsed; private set => Set(ref cleanElapsed, value); }
+    public double CleanValue { get => cleanValue; private set => Set(ref cleanValue, value); }
+    public bool CleanIndeterminate { get => cleanIndeterminate; private set => Set(ref cleanIndeterminate, value); }
+    public Visibility HintVisibility => cleanHint.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CleaningVisibility => progressShown ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Scanned => scanned;
     public bool Busy => scanning || cleaning;
     public bool CanScan => !Busy;
-    public bool CanClean => !Busy && selectedBytes > 0;
+    public bool CanClean => !Busy && selectedCount > 0;
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
     public string CleanLabel => cleaning ? "Cleaning…" : selectedBytes > 0 ? $"Clean {ByteSize.Format(selectedBytes)}" : "Clean";
     public string Status { get => status; private set => Set(ref status, value); }
@@ -72,8 +94,8 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UndoVisibility => UndoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string UndoText { get; private set; } = "";
-    public string AdminNote => needAdmin == 0 ? "" : $"{needAdmin} Windows system {(needAdmin == 1 ? "area needs" : "areas need")} administrator rights and {(needAdmin == 1 ? "was" : "were")} skipped.";
-    public Visibility AdminVisibility => needAdmin > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string AdminNote => selectedAdmin == 0 ? "" : $"{selectedAdmin} selected {(selectedAdmin == 1 ? "item needs" : "items need")} administrator permission. Windows will ask once when you clean.";
+    public Visibility AdminVisibility => selectedAdmin > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Names of selected items that cannot be undone and are not plain caches; empty when the clean needs no confirmation.</summary>
     public string ConfirmText
@@ -89,13 +111,14 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanClean), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanClean), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(CleaningVisibility) }) Changed(name);
     }
 
     private void RowChanged(CleanupRow row)
     {
-        selectedBytes = SelectedRows().Sum(x => x.Finding.Bytes);
-        Changed(nameof(CanClean)); Changed(nameof(CleanLabel));
+        var chosen = SelectedRows().ToList();
+        selectedBytes = chosen.Sum(x => x.Finding.Bytes); selectedCount = chosen.Count; selectedAdmin = chosen.Count(x => x.NeedsAdmin);
+        Changed(nameof(CanClean)); Changed(nameof(CleanLabel)); Changed(nameof(AdminNote)); Changed(nameof(AdminVisibility));
     }
 
     public async Task ScanAsync(bool keepSummary = false)
@@ -104,7 +127,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var current = ++generation;
         work?.Dispose(); work = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = work.Token;
-        scanning = true; selectedBytes = 0; needAdmin = 0;
+        scanning = true; selectedBytes = 0; selectedCount = 0; selectedAdmin = 0;
         Groups.Clear();
         if (!keepSummary) Summary = "";
         Status = "Scanning…";
@@ -115,8 +138,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             var progress = new Reporter(finding => post(() =>
             {
                 if (current != generation) return;
-                if (finding.Skipped is not null) needAdmin++;
-                else if (finding.HasContent) Add(finding);
+                if (finding.HasContent) Add(finding);
                 else empty++;
             }));
             var findings = await scanner.ScanAsync(rules, progress, token);
@@ -124,7 +146,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             scanned = true;
             var total = findings.Where(x => x.Skipped is null).Sum(x => x.Bytes);
             Status = total == 0 ? "Nothing to clean right now" : $"{ByteSize.Format(total)} can be cleaned. Items marked Review are not selected.";
-            log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup scan finished", $"{ByteSize.Format(total)} found in {findings.Count(x => x.HasContent)} areas; {empty} areas were already clean; {findings.Count(x => x.Skipped is not null)} need administrator rights.");
+            log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup scan finished", $"{ByteSize.Format(total)} found in {findings.Count(x => x.HasContent)} areas; {empty} areas were already clean; {findings.Count(x => x.NeedsAdmin && x.HasContent)} need administrator permission to clean.");
         }
         catch (OperationCanceledException) { Status = "Scan stopped"; }
         catch (Exception ex)
@@ -155,25 +177,45 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var row = new CleanupRow(finding, RowChanged);
         var index = group.Rows.TakeWhile(x => x.Finding.Bytes >= finding.Bytes).Count();
         group.Rows.Insert(index, row);
-        if (row.IsSelected) { selectedBytes += finding.Bytes; Changed(nameof(CanClean)); Changed(nameof(CleanLabel)); }
+        if (row.IsSelected) RowChanged(row);
     }
 
     private static int Rank(string group) { var i = Array.IndexOf(GroupOrder, group); return i < 0 ? GroupOrder.Length : i; }
 
     public async Task CleanAsync()
     {
-        if (Busy || selectedBytes == 0 || lifetime.IsCancellationRequested) return;
+        if (Busy || selectedCount == 0 || lifetime.IsCancellationRequested) return;
         var chosen = SelectedRows().Select(x => x.Finding).ToList();
+        // Anything that needs administrator rights goes to the elevated helper in one go; everything else stays in this process.
+        var elevated = chosen.Where(x => x.NeedsAdmin || x.Rule.IsSystemAction).ToList();
+        var normal = chosen.Except(elevated).ToList();
         work?.Dispose(); work = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = work.Token;
+        var rows = SelectedRows().ToList();
+        var timer = Stopwatch.StartNew();
+        using var clockStop = new CancellationTokenSource();
+        stepsDone = 0; stepsTotal = chosen.Count; progressShown = true; CleanElapsed = "0:00";
+        foreach (var row in rows) row.StateText = "Waiting";
+        BeginProgress(normal.Count > 0 ? "Cleaning…" : "Waiting for administrator permission…", normal.Count > 0 ? "" : PermissionHint, indeterminate: normal.Count == 0);
         cleaning = true; Notify();
         Status = "Cleaning…";
+        _ = RunClockAsync(timer, clockStop.Token);
         CleanupResult? result = null;
         try
         {
-            var progress = new Reporter<CleanupProgress>(step => post(() => { if (cleaning) Status = $"Cleaned {step.Name} · {ByteSize.Format(step.FreedBytes)} so far"; }));
-            result = await cleaner.CleanAsync(chosen, progress, token);
-            Summary = Describe(result);
+            var progress = new Reporter<CleanupProgress>(step => post(() => { if (cleaning) OnStep(rows, step); }));
+            result = await cleaner.CleanAsync(normal, progress, token);
+            var notes = new List<string>();
+            if (elevated.Count > 0)
+            {
+                // The permission prompt and Windows' own tools give no steady output, so the bar keeps moving on its own meanwhile.
+                BeginProgress("Waiting for administrator permission…", PermissionHint, indeterminate: true);
+                var report = await system.RunAsync(elevated.Select(x => x.Rule.Id).ToList(), progress, token);
+                result = result with { FreedBytes = result.FreedBytes + report.Result.FreedBytes, Removed = result.Removed + report.Result.Removed, InUse = result.InUse + report.Result.InUse, Denied = result.Denied + report.Result.Denied, Failed = result.Failed + report.Result.Failed };
+                notes.AddRange(report.Notes);
+            }
+            result = result with { Elapsed = timer.Elapsed };
+            Summary = Describe(result) + (notes.Count > 0 ? "\n" + string.Join("\n", notes) : "");
             log.Write(result.Skipped > 0 ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Cleanup freed {ByteSize.Format(result.FreedBytes)}",
                 $"{result.Removed:N0} files removed in {result.Elapsed.TotalSeconds:0.0} s. {result.InUse} in use, {result.Denied} protected, {result.Failed} failed." + (result.HeldBytes > 0 ? $" {ByteSize.Format(result.HeldBytes)} held for undo." : ""));
         }
@@ -183,8 +225,51 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             Summary = "Cleaning could not finish: " + ex.Message;
             log.Write(ActivityLevel.Error, ActivityArea.App, "Cleanup could not finish", ex.Message);
         }
-        finally { cleaning = false; Notify(); }
+        finally
+        {
+            clockStop.Cancel();
+            progressShown = false; cleaning = false; Notify();
+            foreach (var row in rows) row.StateText = "";
+            Changed(nameof(CleaningVisibility));
+        }
         await ScanAsync(keepSummary: true);
+    }
+
+    private const string PermissionHint = "Approve the Windows prompt to continue. It may be waiting behind this window.";
+
+    private void BeginProgress(string step, string hint, bool indeterminate)
+    {
+        CleanStep = step; CleanHint = hint; CleanIndeterminate = indeterminate;
+        CleanValue = stepsTotal == 0 ? 0 : stepsDone * 100d / stepsTotal;
+        Changed(nameof(CleaningVisibility));
+    }
+
+    private void OnStep(IReadOnlyList<CleanupRow> rows, CleanupProgress step)
+    {
+        var row = rows.FirstOrDefault(x => x.Name == step.Name);
+        if (step.Starting)
+        {
+            if (row is not null) row.StateText = "Working…";
+            BeginProgress($"Cleaning {step.Name}", "Windows is doing this itself and it can take several minutes. Keep TidyWindow open.", indeterminate: true);
+            return;
+        }
+        if (row is not null && row.StateText != "Cleaned") { row.StateText = "Cleaned"; stepsDone = Math.Min(stepsTotal, stepsDone + 1); }
+        BeginProgress($"Cleaned {step.Name}", $"{ByteSize.Format(step.FreedBytes)} freed so far", indeterminate: false);
+        Status = $"Cleaning · {stepsDone} of {stepsTotal} done";
+    }
+
+    private async Task RunClockAsync(Stopwatch timer, CancellationToken stop)
+    {
+        using var tick = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await tick.WaitForNextTickAsync(stop))
+            {
+                var elapsed = timer.Elapsed;
+                post(() => CleanElapsed = elapsed.TotalHours >= 1 ? $"{(int)elapsed.TotalHours}:{elapsed:mm\\:ss}" : $"{(int)elapsed.TotalMinutes}:{elapsed:ss}");
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     private static string Describe(CleanupResult result)

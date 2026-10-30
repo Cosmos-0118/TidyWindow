@@ -25,6 +25,7 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
     private bool indexed;
     private bool searching;
     private bool checkingBackend;
+    private bool usingFallback;
     private bool installing;
     private ScoutBackendStatus backend = new(false, false);
     private string query = "";
@@ -43,8 +44,9 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
     public Visibility EmptyVisibility => Rows.Count == 0 && !Searching ? Visibility.Visible : Visibility.Collapsed;
     private string status = "Search file and folder names";
     public string Status { get => status; private set => Set(ref status, value); }
-    public string EmptyTitle => backend.Indexing ? "Preparing instant search" : Error.Length > 0 ? "Search needs attention" : query.Length == 0 ? "Find files and folders" : "No matching items";
-    public string EmptyDetail => Error.Length > 0 ? "Check the message above, or choose a folder to search directly." : query.Length == 0 ? "Search by name or path. Choose a folder or use the whole-computer index." : Indexed || root is not null ? "Try another name, location or file type." : "Enable instant search or choose a folder.";
+    public string EmptyTitle => query.Length == 0 ? (backend.Indexing ? "Preparing instant search" : "Find files and folders") : Error.Length > 0 && !usingFallback ? "Search needs attention" : "No matching items";
+    public string EmptyDetail => query.Length == 0 ? (Indexed ? "Search by name or path. Choose a folder or use the whole-computer index." : "Search by name or path. Until the whole-computer index is ready, Scout searches your user folder; choose another folder any time.")
+        : Error.Length > 0 && !usingFallback ? "Check the message above, or choose a folder to search directly." : "Try another name, location or file type.";
     private string error = "";
     public string Error { get => error; private set { Set(ref error, value); Changed(nameof(ErrorVisibility)); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail)); } }
     public Visibility ErrorVisibility => Error.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -57,8 +59,8 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
         {
             backend = await service.CheckBackendAsync(lifetime.Token);
             Indexed = backend.Ready;
-            if (Indexed) Error = "";
-            else if (root is null) Error = BackendInstruction;
+            // Without the index Scout still works: whole-computer searches fall back to the user folder. The reason stays visible.
+            Error = Indexed ? "" : BackendInstruction;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Error = "Instant search could not be checked. " + ex.Message; }
@@ -77,9 +79,13 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
         query = text.Trim(); root = folder; kind = type;
         Error = ""; Rows.Reset([]); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail));
         if (query.Length == 0) { Searching = false; Status = "Search file and folder names"; return; }
-        if (!Indexed && root is null) { Searching = false; Status = NeedsInstallation ? "Whole-computer search needs the local index" : backend.Indexing ? "Preparing the whole-computer index…" : "The whole-computer index is not ready"; Error = BackendInstruction; return; }
+        // A whole-computer search with no index falls back to the user folder instead of failing.
+        var fallback = !Indexed && root is null;
+        if (fallback) root = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        usingFallback = fallback;
         var useIndex = Indexed && !directFolder;
-        Searching = true; Status = useIndex ? "Searching the local index…" : "Searching folder index…";
+        Searching = true; Status = useIndex ? "Searching the local index…" : fallback ? "Searching your user folder…" : "Searching folder index…";
+        if (fallback) Error = BackendInstruction;
         try
         {
             if (debounce) await Task.Delay(140, token);
@@ -98,10 +104,10 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
     private void Apply(ScoutResult result)
     {
         Rows.Reset(result.Entries.Select(x => new ScoutRow(x)));
-        Status = $"{Rows.Count} shown · {result.Engine}" + (!result.Complete ? $" · indexing {result.Checked:N0} items…" : "")
+        Status = $"{Rows.Count} shown · {result.Engine}" + (usingFallback ? " (your user folder; the whole-computer index is not ready)" : "") + (!result.Complete ? $" · indexing {result.Checked:N0} items…" : "")
             + (result.Skipped > 0 ? $" · {result.Skipped:N0} folders inaccessible" : "")
             + (result.Limited ? " · candidate limit reached" : "");
-        Error = result.Error ?? "";
+        Error = result.Error ?? (usingFallback ? BackendInstruction : "");
         Changed(nameof(EmptyVisibility));
     }
     public void RefreshFolder() => service.RefreshFolder();

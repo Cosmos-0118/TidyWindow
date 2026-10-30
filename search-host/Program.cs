@@ -3,83 +3,146 @@ using System.Text;
 using System.Text.Json;
 using TidyWindow.Next.Core;
 
-// Only this short-lived worker loads the native SDK. Parent cancellation can terminate it safely.
+// Only this helper loads the native SDK, so a native failure ends this process and never the app.
+// --serve keeps it running and answers one JSON line per request; otherwise it answers a single request given as an argument.
 try
 {
     var library = NativeLibrary.Load(Path.Combine(AppContext.BaseDirectory, "Assets", "Everything64.dll"));
     NativeLibrary.SetDllImportResolver(typeof(Native).Assembly, (name, _, _) => name == "Everything64.dll" ? library : IntPtr.Zero);
-    if (Native.Everything_GetMajorVersion() == 0) { Reply(new(false, [], Error: "The default Everything index is unavailable. Start its stable/default instance, or choose a folder to search directly.")); return; }
-    if (!Native.Everything_IsDBLoaded()) { Reply(new(false, [], Error: "Everything is still building its index. Try again shortly.", Indexing: true)); return; }
-    if (args.Length == 0 || args[0] == "--status") { Reply(new(true, [])); return; }
-    var request = JsonSerializer.Deserialize<ScoutRequest>(Encoding.UTF8.GetString(Convert.FromBase64String(args[0]))) ?? throw new ArgumentException("Missing search request.");
-    var query = new ScoutQuery(request.Query);
-    var diagnostic = args.Contains("--diagnostic");
-    var clock = System.Diagnostics.Stopwatch.StartNew();
-    void Trace(string stage) { if (diagnostic) Console.Error.WriteLine($"{clock.ElapsedMilliseconds} ms: {stage}"); }
-    Native.Everything_SetSearchW(query.EverythingExpression(request.Kind, request.Root));
-    Native.Everything_SetMatchPath(true);
-    Native.Everything_SetMatchCase(false);
-    Native.Everything_SetRequestFlags(0x4 | 0x10 | 0x40);
-    Native.Everything_SetMax(2000);
-    var candidates = new List<ScoutEntry>();
-    var rootPrefix = request.Root is { } selectedRoot ? Path.GetFullPath(selectedRoot).TrimEnd('\\') + "\\" : null;
-    // Protect exact names from a broad query's alphabetical candidate cap.
-    Native.Everything_SetSearchW((request.Kind == ScoutItemKind.Files ? "file: " : request.Kind == ScoutItemKind.Folders ? "folder: " : "") + "regex:\"^" + System.Text.RegularExpressions.Regex.Escape(request.Query.Trim().Trim('"')).Replace("\"", "\\x22") + "$\"");
-    Native.Everything_SetMatchPath(false); Native.Everything_SetMax(128);
-    Trace("exact query");
-    if (Native.Everything_QueryW(true)) ReadCandidates();
-    Trace("exact complete");
-    Native.Everything_SetSearchW(query.EverythingExpression(request.Kind, request.Root));
-    Native.Everything_SetMatchPath(true); Native.Everything_SetMax(2000);
-    Trace("broad query");
-    if (!Native.Everything_QueryW(true)) { Reply(new(false, [], Error: "Everything query failed (" + Native.Everything_GetLastError() + ").")); return; }
-    var total = Native.Everything_GetTotResults();
-    ReadCandidates();
-    Trace("broad complete");
-    if (candidates.Count < 25 && query.Terms.Count <= 3 && !candidates.Any(x => query.Score(x) == ScoutQuery.ExactScore))
-    {
-        Native.Everything_SetSearchW(query.EverythingExpression(request.Kind, request.Root, smart: true));
-        // Fuzzy matching is for names. Running abbreviation regexes across millions of full paths is expensive.
-        Native.Everything_SetMatchPath(false);
-        Trace("smart name query");
-        if (Native.Everything_QueryW(true)) { total = Native.Everything_GetTotResults(); ReadCandidates(); }
-        Trace("smart complete");
-    }
-    Reply(new(true, query.Rank(candidates.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase), request.Kind), Math.Max(total, (uint)candidates.Count), total > 2000));
-    void ReadCandidates()
-    {
-    // Reuse one native buffer instead of allocating/marshalling a 64 KiB StringBuilder per result.
-    const uint capacity = 32768;
-    var buffer = Marshal.AllocHGlobal((int)capacity * sizeof(char));
-    try
-    {
-    for (uint index = 0; index < Native.Everything_GetNumResults(); index++)
-    {
-        var pathLength = Native.Everything_GetResultFullPathNameW(index, buffer, capacity);
-        if (pathLength == 0 || pathLength >= capacity) continue;
-        var path = Marshal.PtrToStringUni(buffer);
-        if (path is null || !Path.IsPathFullyQualified(path)) continue;
-        if (rootPrefix is not null && !path.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-        var folder = Native.Everything_IsFolderResult(index);
-        long? size = Native.Everything_GetResultSize(index, out var length) && length >= 0 && !folder ? length : null;
-        DateTimeOffset? modified = null;
-        if (Native.Everything_GetResultDateModified(index, out var date))
-            try { modified = DateTimeOffset.FromFileTime(date); } catch (ArgumentOutOfRangeException) { }
-        candidates.Add(new(path, folder, size, modified));
-    }
-    }
-    finally { Marshal.FreeHGlobal(buffer); }
-    }
 }
-catch (Exception ex) { Reply(new(false, [], Error: ex.Message)); }
+catch (Exception ex)
+{
+    // The parent reads this to tell the user what is wrong instead of reporting a bare exit code.
+    Console.Error.WriteLine("Everything64.dll could not be loaded: " + ex.Message);
+    return 2;
+}
 
-static void Reply(ScoutReply value)
+var utf8 = new UTF8Encoding(false);
+if (args.Contains("--serve"))
+{
+    using var input = new StreamReader(Console.OpenStandardInput(), utf8);
+    using var output = new StreamWriter(Console.OpenStandardOutput(), utf8) { AutoFlush = true };
+    // Ends when the app closes its end of the pipe, so the helper never outlives TidyWindow.
+    while (input.ReadLine() is { } line)
+    {
+        ScoutWorkerRequest? request;
+        try { request = JsonSerializer.Deserialize<ScoutWorkerRequest>(line); }
+        catch (JsonException) { continue; }
+        if (request is null) continue;
+        ScoutReply reply;
+        try { reply = request.Op == "status" ? ScoutHost.Status() : ScoutHost.Search(request.Request ?? throw new ArgumentException("Missing search request."), request.Fuzzy, inlineFuzzy: false); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { reply = new(false, [], Error: ex.Message); }
+        output.WriteLine(JsonSerializer.Serialize(new ScoutWorkerReply(request.Id, reply)));
+    }
+    return 0;
+}
+
+Console.OutputEncoding = utf8;
+try
+{
+    var status = ScoutHost.Status();
+    if (!status.Ready || args.Length == 0 || args[0] == "--status") { Print(status); return 0; }
+    var request = JsonSerializer.Deserialize<ScoutRequest>(Encoding.UTF8.GetString(Convert.FromBase64String(args[0]))) ?? throw new ArgumentException("Missing search request.");
+    Print(ScoutHost.Search(request, fuzzyOnly: false, inlineFuzzy: true, trace: args.Contains("--diagnostic") ? Console.Error.WriteLine : null));
+    return 0;
+}
+catch (Exception ex) { Print(new(false, [], Error: ex.Message)); return 0; }
+
+static void Print(ScoutReply value)
 {
     var json = JsonSerializer.Serialize(value);
     while (Encoding.UTF8.GetByteCount(json) > 120000 && value.Entries.Count > 0)
     { value = value with { Entries = value.Entries.Take(value.Entries.Count / 2).ToArray(), Limited = true }; json = JsonSerializer.Serialize(value); }
-    Console.OutputEncoding = new UTF8Encoding(false);
     Console.WriteLine(json);
+}
+
+internal static class ScoutHost
+{
+    private const uint RequestFlags = 0x4 | 0x10 | 0x40; // full path, size, date modified
+    private const uint Capacity = 32768;
+    private static readonly IntPtr PathBuffer = Marshal.AllocHGlobal((int)Capacity * sizeof(char));
+    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    public static ScoutReply Status()
+    {
+        if (Native.Everything_GetMajorVersion() == 0) return new(false, [], Error: "The default Everything index is unavailable. Start its stable/default instance, or choose a folder to search directly.");
+        if (!Native.Everything_IsDBLoaded()) return new(false, [], Error: "Everything is still building its index. Try again shortly.", Indexing: true);
+        return new(true, []);
+    }
+
+    /// <param name="fuzzyOnly">Runs only the slower search for typos and abbreviations (used by the separate near-match helper).</param>
+    /// <param name="inlineFuzzy">Runs that search after the exact one when it found little, as the one-shot helper does.</param>
+    public static ScoutReply Search(ScoutRequest request, bool fuzzyOnly, bool inlineFuzzy, Action<string>? trace = null)
+    {
+        var status = Status();
+        if (!status.Ready) return status;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        void Trace(string stage) => trace?.Invoke($"{clock.ElapsedMilliseconds} ms: {stage}");
+        var query = new ScoutQuery(request.Query, Home);
+        var candidates = new List<ScoutEntry>();
+        var rootPrefix = request.Root is { } selected ? Path.GetFullPath(selected).TrimEnd('\\') + "\\" : null;
+        uint total = 0;
+        // Both matching modes are set on every query: the SDK keeps the previous query's settings between requests.
+        Native.Everything_SetMatchCase(false);
+        Native.Everything_SetRequestFlags(RequestFlags);
+        Native.Everything_SetOffset(0);
+
+        var homePrefix = Home.Length > 0 ? Home.TrimEnd('\\') + "\\" : null;
+        if (!fuzzyOnly)
+        {
+            // Cheapest queries first. Name matches take about 10 ms; matching inside full paths costs several times that, so it runs only when it can add something.
+            if (query.ExactExpression(request.Kind) is { } exact) { Run(exact, matchPath: false, 128, rootPrefix, out _); Trace("exact name"); }
+            // Your own files first: a search of the profile cannot be crowded out by millions of system files.
+            if (rootPrefix is null && homePrefix is not null) { Run(query.NameExpression(request.Kind, Home), matchPath: false, 1000, homePrefix, out _); Trace("your files"); }
+            Run(query.NameExpression(request.Kind, request.Root), matchPath: false, 2000, rootPrefix, out total);
+            Trace("names");
+            if (query.Terms.Count > 1 || candidates.Count < 100)
+            {
+                Run(query.PathExpression(request.Kind, request.Root), matchPath: true, 2000, rootPrefix, out var inPaths);
+                total = Math.Max(total, inPaths);
+                Trace("paths");
+            }
+        }
+        if (fuzzyOnly || inlineFuzzy && candidates.Count < ScoutService.FuzzyBelow && query.Terms.Count <= 3 && !query.HasWildcards && !candidates.Any(x => query.Score(x) >= ScoutQuery.ExactScore))
+        {
+            if (query.SmartExpression(request.Kind, request.Root) is { } smart)
+            {
+                Run(smart, matchPath: false, 2000, rootPrefix, out var near);
+                total = Math.Max(total, near);
+                Trace("close matches");
+            }
+        }        var ranked = query.Rank(candidates.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase), request.Kind);
+        return new(true, ranked, Math.Max(total, (uint)candidates.Count), total > 2000);
+
+        void Run(string expression, bool matchPath, uint max, string? prefix, out uint count)
+        {
+            Native.Everything_SetSearchW(expression);
+            Native.Everything_SetMatchPath(matchPath);
+            Native.Everything_SetMax(max);
+            if (!Native.Everything_QueryW(true)) throw new InvalidOperationException("Everything query failed (" + Native.Everything_GetLastError() + ").");
+            count = Native.Everything_GetTotResults();
+            ReadResults(candidates, prefix);
+        }
+    }
+
+    private static void ReadResults(List<ScoutEntry> into, string? prefix)
+    {
+        var count = Native.Everything_GetNumResults();
+        for (uint index = 0; index < count; index++)
+        {
+            var length = Native.Everything_GetResultFullPathNameW(index, PathBuffer, Capacity);
+            if (length == 0 || length >= Capacity) continue;
+            var path = Marshal.PtrToStringUni(PathBuffer);
+            if (path is null || !Path.IsPathFullyQualified(path)) continue;
+            if (prefix is not null && !path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            var folder = Native.Everything_IsFolderResult(index);
+            long? size = Native.Everything_GetResultSize(index, out var bytes) && bytes >= 0 && !folder ? bytes : null;
+            DateTimeOffset? modified = null;
+            if (Native.Everything_GetResultDateModified(index, out var date))
+                try { modified = DateTimeOffset.FromFileTime(date); } catch (ArgumentOutOfRangeException) { }
+            into.Add(new(path, folder, size, modified));
+        }
+    }
 }
 
 internal static class Native
@@ -92,6 +155,7 @@ internal static class Native
     [DllImport(Library)] internal static extern void Everything_SetMatchCase([MarshalAs(UnmanagedType.Bool)] bool value);
     [DllImport(Library)] internal static extern void Everything_SetRequestFlags(uint value);
     [DllImport(Library)] internal static extern void Everything_SetMax(uint value);
+    [DllImport(Library)] internal static extern void Everything_SetOffset(uint value);
     [DllImport(Library)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool Everything_QueryW([MarshalAs(UnmanagedType.Bool)] bool wait);
     [DllImport(Library)] internal static extern uint Everything_GetLastError();
     [DllImport(Library)] internal static extern uint Everything_GetTotResults();

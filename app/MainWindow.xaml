@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="using:TidyWindow.Next.Desktop"
  Title="TidyWindow">
- <Grid x:Name="Root" Background="{ThemeResource CanvasBrush}">
+ <Grid x:Name="Root" Background="{ThemeResource CanvasBrush}" KeyboardAcceleratorPlacementMode="Hidden">
   <Grid.KeyboardAccelerators><KeyboardAccelerator Key="K" Modifiers="Control" Invoked="SearchShortcut" /></Grid.KeyboardAccelerators>
   <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
   <Grid x:Name="TitleBar" Padding="20,0,140,0">

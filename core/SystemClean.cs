@@ -76,6 +76,8 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
         foreach (var finding in findings.Where(x => x.Rule.IsSystemAction && x.HasContent))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Windows' own tools can run for minutes without output, so say which one has started.
+            progress?.Report(new CleanupProgress(finding.Rule.Name, freed, removed, Starting: true));
             try
             {
                 var (bytes, count, note) = await RunActionAsync(finding, cancellationToken).ConfigureAwait(false);

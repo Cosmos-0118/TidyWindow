@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "tidywindow.core": {
+        "type": "Project"
+      }
+    },
+    "net10.0/win-x64": {}
+  }
+}

@@ -21,9 +21,29 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <ProjectReference Include="../core/TidyWindow.Core.csproj" />
     <ProjectReference Include="../search-host/TidyWindow.SearchHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir" />
+    <ProjectReference Include="../clean-host/TidyWindow.CleanHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir" />
   </ItemGroup>
+  <Target Name="CopyCleanHost" AfterTargets="Build">
+    <ItemGroup><CleanHostFiles Include="../artifacts/clean-host/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="../artifacts/clean-host/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <RemoveDir Directories="$(OutDir)CleanHost" />
+    <Copy SourceFiles="@(CleanHostFiles)" DestinationFiles="@(CleanHostFiles->'$(OutDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishCleanHost" AfterTargets="Publish">
+    <PropertyGroup>
+      <CleanHostPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../artifacts/clean-publish/$(Configuration)/$(ScoutRuntimeMode)/'))</CleanHostPublishDir>
+    </PropertyGroup>
+    <MSBuild Projects="../clean-host/TidyWindow.CleanHost.csproj" Targets="Publish"
+             Properties="Configuration=$(Configuration);SelfContained=$(SelfContained);PublishDir=$(CleanHostPublishDir)"
+             RemoveProperties="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishReadyToRun;WindowsAppSDKSelfContained;UseWinUI;RuntimeIdentifier" />
+    <ItemGroup>
+      <CleanHostPublishedFiles Include="$(CleanHostPublishDir)**/*" Exclude="$(CleanHostPublishDir)**/*.pdb" />
+    </ItemGroup>
+    <RemoveDir Directories="$(PublishDir)CleanHost" />
+    <Copy SourceFiles="@(CleanHostPublishedFiles)" DestinationFiles="@(CleanHostPublishedFiles->'$(PublishDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="CopyScoutWorker" AfterTargets="Build">
     <ItemGroup><ScoutWorkerFiles Include="../artifacts/scout-worker/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="../artifacts/scout-worker/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <RemoveDir Directories="$(OutDir)ScoutHost" />
     <Copy SourceFiles="@(ScoutWorkerFiles)" DestinationFiles="@(ScoutWorkerFiles->'$(OutDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <Target Name="PublishScoutWorker" AfterTargets="Publish">
@@ -36,6 +56,7 @@
     <ItemGroup>
       <ScoutPublishedFiles Include="$(ScoutWorkerPublishDir)**/*" Exclude="$(ScoutWorkerPublishDir)**/*.pdb" />
     </ItemGroup>
+    <RemoveDir Directories="$(PublishDir)ScoutHost" />
     <Copy SourceFiles="@(ScoutPublishedFiles)" DestinationFiles="@(ScoutPublishedFiles->'$(PublishDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 </Project>

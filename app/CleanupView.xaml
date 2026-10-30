@@ -17,6 +17,21 @@
   </Grid>
   <StackPanel Grid.Row="1" Spacing="10">
    <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
+   <TextBlock Text="{Binding AdminNote}" Visibility="{Binding AdminVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
+   <Border Style="{StaticResource Card}" Padding="16,14" Visibility="{Binding CleaningVisibility}">
+    <StackPanel Spacing="10">
+     <Grid ColumnSpacing="12">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" Spacing="10">
+       <ProgressRing IsActive="True" Width="18" Height="18" VerticalAlignment="Center" />
+       <TextBlock Text="{Binding CleanStep}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
+      <TextBlock Grid.Column="1" Text="{Binding CleanElapsed}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" AutomationProperties.Name="Time elapsed" />
+     </Grid>
+     <ProgressBar Minimum="0" Maximum="100" Value="{Binding CleanValue}" IsIndeterminate="{Binding CleanIndeterminate}" />
+     <TextBlock Text="{Binding CleanHint}" Visibility="{Binding HintVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
+    </StackPanel>
+   </Border>
    <Border Style="{StaticResource Card}" Padding="14,10" Visibility="{Binding SummaryVisibility}">
     <TextBlock Text="{Binding Summary}" FontSize="13" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
    </Border>
@@ -27,7 +42,7 @@
   <Grid Grid.Row="2">
    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel Spacing="18" Padding="0,0,0,8">
-     <ItemsControl ItemsSource="{Binding Groups}" AutomationProperties.Name="Things that can be cleaned">
+     <ItemsControl ItemsSource="{Binding Groups}" IsEnabled="{Binding CanScan}" AutomationProperties.Name="Things that can be cleaned">
       <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate><DataTemplate>
        <StackPanel Spacing="8">
@@ -42,6 +57,7 @@
               <StackPanel Spacing="3" VerticalAlignment="Center">
                <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+                <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
                 <Border Visibility="{Binding ReviewVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                  <TextBlock Text="{Binding ReviewText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
                 </Border>
@@ -51,6 +67,7 @@
               <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                <TextBlock Text="{Binding SizeText}" FontSize="13" FontWeight="SemiBold" TextAlignment="Right" />
                <TextBlock Text="{Binding FilesText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextAlignment="Right" />
+               <TextBlock Text="{Binding StateText}" Visibility="{Binding StateVisibility}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextAlignment="Right" />
               </StackPanel>
              </Grid>
             </CheckBox>
@@ -61,7 +78,6 @@
        </StackPanel>
       </DataTemplate></ItemsControl.ItemTemplate>
      </ItemsControl>
-     <TextBlock Text="{Binding AdminNote}" Visibility="{Binding AdminVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
     </StackPanel>
    </ScrollViewer>
    <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Padding="24" Spacing="6">

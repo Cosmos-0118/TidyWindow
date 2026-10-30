@@ -47,7 +47,7 @@ public sealed record CleanupResult(long FreedBytes, int Removed, int InUse, int 
     public int Skipped => InUse + Denied + Failed;
 }
 
-public sealed record CleanupProgress(string Name, long FreedBytes, int Removed);
+public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, bool Starting = false);
 
 /// <summary>Machine facts the engine depends on, replaceable in tests.</summary>
 public sealed class CleanupContext

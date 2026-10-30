@@ -29,14 +29,15 @@ public sealed class ScoutTests(ITestOutputHelper output) : IDisposable
         Assert.Empty(new ScoutQuery("2027 photos").Rank(entries, ScoutItemKind.All));
     }
     [Fact]
-    public void CandidateQueriesEscapeUserOperatorsAndSupportBoundedSmartRetrieval()
+    public void CandidateQueriesNeverLetUserTextBecomeEverythingOperators()
     {
-        var expression = new ScoutQuery("report|x:abc").EverythingExpression(ScoutItemKind.Files, fixture);
-        Assert.Contains(@"report\|x:abc", expression); Assert.StartsWith("file: regex:", expression);
-        Assert.Contains("regex:\"^", expression);
-        var smart = new ScoutQuery("report").EverythingExpression(ScoutItemKind.All, null, true);
+        var expression = new ScoutQuery("report|x:abc").NameExpression(ScoutItemKind.Files, fixture);
+        Assert.StartsWith("file: ", expression);
+        Assert.Contains("nowildcards:\"report|x:abc\"", expression);
+        Assert.EndsWith("\"" + fixture + "\\\"", expression);
+        var smart = new ScoutQuery("report").SmartExpression(ScoutItemKind.All, null);
         Assert.Contains("reprot", smart); Assert.Contains("r(?>[^e]*)e", smart);
-        Assert.True(smart.Length < 3000);
+        Assert.True(smart!.Length < 3000);
     }
     [Fact]
     public void ResultsAreBoundedFilteredAndCancellationIsObserved()
