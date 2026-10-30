@@ -39,7 +39,7 @@ public static partial class BackgroundGuard
         @"\Microsoft\Windows\Windows Filtering Platform\", @"\Microsoft\Windows\AppxDeploymentClient\", @"\Microsoft\Windows\Maintenance\", @"\Microsoft\Windows\SoftwareProtectionPlatform\"
     ];
 
-    private static readonly string[] AllowedPolicyKeys = [@"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", @"SOFTWARE\Policies\Microsoft\Dsh"];
+    private static readonly string[] AllowedPolicyKeys = [@"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", @"SOFTWARE\Policies\Microsoft\Dsh", @"SOFTWARE\Policies\Microsoft\Windows\GameDVR"];
 
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_.\- ]{0,127}$")]
     private static partial Regex ServiceName();

@@ -47,7 +47,8 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
     public IReadOnlyList<ServiceFact> Dependents(string name)
     {
         services ??= ReadServices();
-        return services.Values.Where(x => x.Start != 4 && x.DependsOn.Contains(name, StringComparer.OrdinalIgnoreCase)).ToList();
+        // Per-user services (such as BluetoothUserService) are Windows' own helpers for the same feature, not other programs relying on it.
+        return services.Values.Where(x => x.Start != 4 && (x.Type & 0xC0) == 0 && x.DependsOn.Contains(name, StringComparer.OrdinalIgnoreCase)).ToList();
     }
 
     private static Dictionary<string, ServiceFact> ReadServices()

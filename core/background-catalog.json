@@ -440,6 +440,10 @@
           "off": "disabled",
           "defaultStart": 3,
           "image": "%ProgramFiles%\\Windows Media Player\\"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Windows Media Sharing\\UpdateLibrary"
         }
       ],
       "risk": "safe"
@@ -495,6 +499,348 @@
           "kind": "policy",
           "key": "SOFTWARE\\Policies\\Microsoft\\Dsh",
           "name": "AllowNewsAndInterests",
+          "block": 0
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "device-census",
+      "name": "Device census",
+      "group": "telemetry",
+      "topic": "Diagnostic data",
+      "icon": "E774",
+      "summary": "Collects details about this PC's hardware and settings (using devicecensus.exe) and sends them to Microsoft.",
+      "effect": "Microsoft receives fewer details about this PC. Nothing you use depends on it.",
+      "processes": [
+        "DeviceCensus.exe"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Device Information\\Device"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Device Information\\Device User"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "compatibility-assistant",
+      "name": "Program Compatibility Assistant",
+      "group": "telemetry",
+      "topic": "Compatibility",
+      "icon": "E7BA",
+      "risk": "careful",
+      "summary": "Watches for older programs that have trouble running and offers compatibility fixes, and keeps its list of known problems up to date.",
+      "effect": "Windows stops offering to fix older programs and games that fail to start or install. Programs you already run are not affected.",
+      "processes": [
+        "pcalua.exe"
+      ],
+      "targets": [
+        {
+          "kind": "service",
+          "name": "PcaSvc",
+          "off": "manual",
+          "defaultStart": 2
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\PcaPatchDbTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\SdbinstMergeDbTask"
+        }
+      ]
+    },
+    {
+      "id": "bluetooth",
+      "name": "Bluetooth",
+      "group": "optional",
+      "topic": "Wireless",
+      "icon": "E702",
+      "risk": "careful",
+      "summary": "Finds and connects Bluetooth devices such as headphones, keyboards, mice, speakers and phones.",
+      "effect": "Every Bluetooth device stops working, including a Bluetooth keyboard or mouse, until you turn this back on. Only turn it off if this PC has no Bluetooth devices you use.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "bthserv",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "BTAGService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "BthAvctpSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "network-discovery",
+      "name": "Network device discovery (UPnP)",
+      "group": "optional",
+      "topic": "Network",
+      "icon": "E839",
+      "risk": "careful",
+      "summary": "Lets this PC find smart TVs, media players and other gadgets on your network, and lets them find it.",
+      "effect": "Apps may not find TVs or media devices on your network for casting or streaming, and some routers' automatic port setup stops working. Normal internet, file sharing and printing are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SSDPSRV",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "upnphost",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "lltdsvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\UPnP\\UPnPHostConfig"
+        }
+      ]
+    },
+    {
+      "id": "remote-management",
+      "name": "Remote management (WinRM)",
+      "group": "optional",
+      "topic": "Remote access",
+      "icon": "E968",
+      "summary": "Lets other computers run PowerShell commands and manage this PC over the network.",
+      "effect": "Nobody can manage this PC remotely with PowerShell remoting or similar tools. PowerShell on this PC works as before.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WinRM",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "remote-registry",
+      "name": "Remote Registry",
+      "group": "optional",
+      "topic": "Remote access",
+      "icon": "E968",
+      "summary": "Lets other computers read and change this PC's registry over the network. Windows ships it turned off.",
+      "effect": "Nothing changes on a normal PC. Keep it off unless an IT tool you use needs it.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "RemoteRegistry",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "scanner-import",
+      "name": "Scanners and camera import",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E722",
+      "risk": "careful",
+      "summary": "Runs scanners and lets Windows import photos from cameras and phones (Windows Image Acquisition).",
+      "effect": "Scanners, and importing photos from some cameras, stop working until you turn this back on. Printing is not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "stisvc",
+          "off": "manual",
+          "defaultStart": 2
+        },
+        {
+          "kind": "service",
+          "name": "WiaRpc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "sensors",
+      "name": "Sensors",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E713",
+      "risk": "careful",
+      "summary": "Reads the sensors in laptops and tablets, such as auto-rotate, ambient light and orientation.",
+      "effect": "Auto-rotate, automatic brightness and other sensor features may stop working. A desktop PC without sensors won't notice.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SensorService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SensrSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SensorDataService",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "smart-cards",
+      "name": "Smart cards and security keys",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E772",
+      "risk": "careful",
+      "summary": "Supports smart card readers and some security keys, such as work ID cards and certificate-based sign-in.",
+      "effect": "Smart card readers and the security keys that use them stop working for sign-in until you turn this back on. Passwords, PINs and Windows Hello are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SCardSvr",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "ScDeviceEnum",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SCPolicySvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "offline-files",
+      "name": "Offline Files and Work Folders",
+      "group": "optional",
+      "topic": "Work and school",
+      "icon": "E753",
+      "risk": "careful",
+      "summary": "Keeps copies of network folders and Work Folders on this PC so you can use them offline.",
+      "effect": "Files from network shares marked “always available offline”, and Work Folders from an employer or school, stop syncing. Most home PCs don't use either.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "CscService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "workfolderssvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Offline Files\\Background Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Offline Files\\Logon Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Work Folders\\Work Folders Logon Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Work Folders\\Work Folders Maintenance Work"
+        }
+      ]
+    },
+    {
+      "id": "family-safety",
+      "name": "Family Safety (parental controls)",
+      "group": "optional",
+      "topic": "Family",
+      "icon": "E716",
+      "risk": "careful",
+      "summary": "Applies Microsoft Family time limits, app limits and web filtering to child accounts on this PC.",
+      "effect": "Screen-time limits and web filtering stop being applied to child accounts on this PC. Only turn this off if nobody here is managed with Microsoft Family.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WpcMonSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Shell\\FamilySafetyMonitor"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Shell\\FamilySafetyRefreshTask"
+        }
+      ]
+    },
+    {
+      "id": "windows-insider",
+      "name": "Windows Insider Program",
+      "group": "optional",
+      "topic": "Updates",
+      "icon": "E713",
+      "risk": "careful",
+      "summary": "Receives test builds of Windows if you joined the Insider Program.",
+      "effect": "This PC stops receiving Insider preview builds and can't join the program. Normal Windows updates are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "wisvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "game-recording",
+      "name": "Game recording and broadcasting",
+      "group": "optional",
+      "topic": "Screen recording",
+      "icon": "E714",
+      "summary": "Lets Windows record your screen in the background while you play (Game Bar clips and “record what happened”) and broadcast it.",
+      "effect": "Game Bar can't record or broadcast. Other screen recorders, such as OBS, are not affected.",
+      "processes": [
+        "GameBar.exe",
+        "GameBarFTServer.exe"
+      ],
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR",
+          "name": "AllowGameDVR",
           "block": 0
         }
       ],

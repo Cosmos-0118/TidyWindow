@@ -140,7 +140,7 @@ public sealed class BackgroundCatalogTests
     public void TheCatalogThatShipsNeverNamesAnythingOutsideItsAllowedPlaces()
     {
         foreach (var target in BackgroundCatalog.Load().SelectMany(x => x.Targets).Where(x => x.Kind == BackgroundTargetKind.Policy))
-            Assert.Matches(@"^SOFTWARE\\Policies\\Microsoft\\(Windows\\WindowsAI|Dsh)$", target.Key);
+            Assert.Matches(@"^SOFTWARE\\Policies\\Microsoft\\(Windows\\WindowsAI|Dsh|Windows\\GameDVR)$", target.Key);
     }
 }
 
