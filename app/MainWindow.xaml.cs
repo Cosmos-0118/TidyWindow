@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly ScoutViewModel scout;
     private readonly CleanupViewModel cleanup;
     private readonly PathDoctorViewModel paths;
+    private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
     private long reconciledCompletions;
@@ -46,8 +47,14 @@ public sealed partial class MainWindow : Window
         cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()));
         _ = Task.Run(undo.Purge);
         var pathAnalyzer = new PathAnalyzer(Environment.ExpandEnvironmentVariables, Directory.Exists);
-        var pathDoctor = new PathDoctor(new RegistryPathStore(), new PathBackup(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "PathBackups")), pathAnalyzer, EnvironmentBroadcast.Notify);
-        paths = new(pathDoctor, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), PickFolderAsync, OpenAliasSettings);
+        var pathBackups = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "PathBackups");
+        var registry = new RegistryPathStore();
+        var pathDoctor = new PathDoctor(registry, new PathBackup(pathBackups), pathAnalyzer, EnvironmentBroadcast.Notify);
+        // Windows-wide edits go through a helper that only runs after the person approves the Windows permission prompt.
+        var machineSession = MachinePathSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var machineDoctor = new PathDoctor(new ElevatedPathStore(registry, machineSession), new PathBackup(Path.Combine(pathBackups, "machine")), pathAnalyzer, EnvironmentBroadcast.Notify, PathScope.Machine);
+        pathFinder = new PathFinder(Environment.ExpandEnvironmentVariables, SafeFolders, SafeFiles);
+        paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
         Root.DataContext = model;
         CleanupPage.DataContext = cleanup;
@@ -278,6 +285,39 @@ public sealed partial class MainWindow : Window
             log.Write(ActivityLevel.Warning, ActivityArea.App, "The folder picker could not open", ex.Message);
             return null;
         }
+    }
+
+    /// <summary>Our own window first: suggestions and search, with File Explorer one button away for anything it did not find.</summary>
+    private async Task<string?> ChooseFolderAsync(PathSnapshot snapshot)
+    {
+        try
+        {
+            using var finder = new AddFolderViewModel(pathFinder, snapshot);
+            var dialog = new AddFolderDialog(finder, PickFolderAsync) { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme };
+            await dialog.ShowAsync();
+            return dialog.Chosen;
+        }
+        catch (Exception ex)
+        {
+            // A window that cannot open must not take the app down; the plain folder picker still works.
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "The folder search window could not open", ex.ToString());
+            return await PickFolderAsync();
+        }
+    }
+
+    // Shortcuts and junctions are skipped so a folder that points back at its own parent cannot send the search round in circles.
+    private static readonly EnumerationOptions Walk = new() { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System };
+
+    private static IEnumerable<string> SafeFolders(string folder)
+    {
+        try { return Directory.Exists(folder) ? Directory.EnumerateDirectories(folder, "*", Walk).ToList() : []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    private static IEnumerable<string> SafeFiles(string folder)
+    {
+        try { return Directory.EnumerateFiles(folder, "*", Walk).ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
     }
 
     private static IEnumerable<string> SafeSubdirectories(string folder)

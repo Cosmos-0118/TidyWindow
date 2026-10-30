@@ -56,8 +56,8 @@
     </Grid>
    </Border>
    <Grid x:Name="ContentArea" Grid.Column="1" Padding="36,24,36,28">
-    <ScrollViewer x:Name="OverviewPage" HorizontalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-     <StackPanel HorizontalAlignment="Stretch" Spacing="24">
+    <ScrollViewer x:Name="OverviewPage" HorizontalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
+     <StackPanel HorizontalAlignment="Stretch" Spacing="24" Padding="0,0,12,12">
       <Grid>
        <TextBlock Text="Package managers" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
        <Button HorizontalAlignment="Right" Click="RefreshClick" IsEnabled="{Binding CanRefresh}" Padding="12,7">
@@ -122,7 +122,7 @@
           <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource Muted}" VerticalAlignment="Center" />
          </Grid>
         </Border>
-        <ListView Grid.Row="1" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Padding="0" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
+        <ListView Grid.Row="1" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
          <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
          <ListView.ItemTemplate><DataTemplate>
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,14">
@@ -193,7 +193,7 @@
         <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource Muted}" VerticalAlignment="Center" />
        </Grid>
       </Border>
-      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Installed packages">
+      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Installed packages">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,12" MinHeight="68">
@@ -253,7 +253,7 @@
       <TextBlock Text="{Binding Error}" Visibility="{Binding ErrorVisibility}" Foreground="{ThemeResource ErrorBrush}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
      </StackPanel>
      <Grid Grid.Row="3">
-      <ListView ItemsSource="{Binding Rows}" SelectionMode="None" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="File search results">
+      <ListView ItemsSource="{Binding Rows}" SelectionMode="None" HorizontalContentAlignment="Stretch" Margin="0,0,-12,0" Padding="0,0,12,12" AutomationProperties.Name="File search results">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="IsTabStop" Value="False" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="10,12">
@@ -295,7 +295,7 @@
       <TextBlock Text="Show installer options for new operations" TextWrapping="Wrap" />
      </CheckBox>
      <Grid Grid.Row="2">
-      <ListView ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="Package queue">
+      <ListView ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" HorizontalContentAlignment="Stretch" Margin="0,0,-12,0" Padding="0,0,12,12" AutomationProperties.Name="Package queue">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,10" /><Setter Property="IsTabStop" Value="False" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border Background="{ThemeResource PanelBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8">
@@ -371,7 +371,7 @@
       <TextBlock Text="{Binding StorageWarning}" Visibility="{Binding StorageWarningVisibility}" FontSize="12" Foreground="{ThemeResource ErrorBrush}" TextWrapping="Wrap" />
      </StackPanel>
      <Grid Grid.Row="3">
-      <ListView ItemsSource="{Binding Rows}" Visibility="{Binding ListVisibility}" SelectionMode="None" IsItemClickEnabled="False" Padding="0" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Log entries">
+      <ListView ItemsSource="{Binding Rows}" Visibility="{Binding ListVisibility}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Log entries">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,2">

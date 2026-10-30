@@ -21,6 +21,34 @@
   <Style x:Key="ColumnLabel" TargetType="TextBlock">
    <Setter Property="FontSize" Value="12" /><Setter Property="Foreground" Value="{ThemeResource MutedBrush}" />
   </Style>
+  <!-- One PATH folder in a table: shared by the user list and the Windows-wide list. -->
+  <DataTemplate x:Key="FolderRow">
+          <Grid>
+           <Border Background="{ThemeResource WarnSoftBrush}" Visibility="{Binding WarnVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" />
+           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,6">
+            <Grid ColumnSpacing="16" MinHeight="40">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
+             <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+              <TextBlock Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+             </StackPanel>
+             <Grid Grid.Column="2" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
+               <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+               <TextBlock Text="{Binding Badge}" FontSize="13" Foreground="{ThemeResource WarnBrush}" FontWeight="SemiBold" />
+              </StackPanel>
+              <TextBlock Text="{Binding Badge}" Visibility="{Binding InfoBadgeVisibility}" FontSize="13" Foreground="{ThemeResource MutedBrush}" />
+             </Grid>
+             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="0" HorizontalAlignment="Right" Visibility="{Binding EditVisibility}">
+              <Button Click="UpClick" IsEnabled="{Binding CanUp}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder earlier" AutomationProperties.Name="Move up"><FontIcon Glyph="&#xE70E;" FontSize="12" /></Button>
+              <Button Click="DownClick" IsEnabled="{Binding CanDown}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder later" AutomationProperties.Name="Move down"><FontIcon Glyph="&#xE70D;" FontSize="12" /></Button>
+              <Button Click="RemoveClick" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Remove from PATH. The folder itself is not deleted." AutomationProperties.Name="Remove from PATH"><FontIcon Glyph="&#xE74D;" FontSize="12" /></Button>
+             </StackPanel>
+            </Grid>
+           </Border>
+          </Grid>
+         </DataTemplate>
   <!-- A whole table row that can be clicked: a soft fill on hover and nothing else. -->
   <Style x:Key="RowButton" TargetType="Button">
    <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
@@ -69,13 +97,14 @@
   </Grid>
 
   <Grid Grid.Row="1">
-   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Spacing="24" Padding="0,0,14,28">
+   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
+    <StackPanel Spacing="24" Padding="0,0,12,28">
 
      <!-- Tabs -->
      <SelectorBar x:Name="Tabs" SelectionChanged="TabsChanged" HorizontalAlignment="Left" Margin="-10,0,0,-8" AutomationProperties.Name="Path Doctor sections">
       <SelectorBarItem x:Name="ProgramsItem" Text="Programs" IsSelected="True" />
-      <SelectorBarItem x:Name="FoldersItem" Text="PATH folders" />
+      <SelectorBarItem x:Name="FoldersItem" Text="Your folders" />
+      <SelectorBarItem x:Name="MachineItem" Text="Windows-wide" />
       <SelectorBarItem x:Name="ToolsItem" Text="{Binding ToolsTabTitle}" />
      </SelectorBar>
 
@@ -192,77 +221,81 @@
           <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource ColumnLabel}" />
          </Grid>
         </Border>
-        <ItemsControl ItemsSource="{Binding UserFolders}" AutomationProperties.Name="Your PATH folders in search order">
-         <ItemsControl.ItemTemplate><DataTemplate>
-          <Grid>
-           <Border Background="{ThemeResource WarnSoftBrush}" Visibility="{Binding WarnVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" />
-           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,6">
-            <Grid ColumnSpacing="16" MinHeight="40">
-             <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
-             <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-              <TextBlock Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-              <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-             </StackPanel>
-             <Grid Grid.Column="2" VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
-               <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
-               <TextBlock Text="{Binding Badge}" FontSize="13" Foreground="{ThemeResource WarnBrush}" FontWeight="SemiBold" />
-              </StackPanel>
-              <TextBlock Text="{Binding Badge}" Visibility="{Binding InfoBadgeVisibility}" FontSize="13" Foreground="{ThemeResource MutedBrush}" />
-             </Grid>
-             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="0" HorizontalAlignment="Right" Visibility="{Binding EditVisibility}">
-              <Button Click="UpClick" IsEnabled="{Binding CanUp}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder earlier" AutomationProperties.Name="Move up"><FontIcon Glyph="&#xE70E;" FontSize="12" /></Button>
-              <Button Click="DownClick" IsEnabled="{Binding CanDown}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder later" AutomationProperties.Name="Move down"><FontIcon Glyph="&#xE70D;" FontSize="12" /></Button>
-              <Button Click="RemoveClick" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Remove from PATH. The folder itself is not deleted." AutomationProperties.Name="Remove from PATH"><FontIcon Glyph="&#xE74D;" FontSize="12" /></Button>
-             </StackPanel>
-            </Grid>
-           </Border>
-          </Grid>
-         </DataTemplate></ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding UserFolders}" ItemTemplate="{StaticResource FolderRow}" AutomationProperties.Name="Your PATH folders in search order" />
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" CornerRadius="0,0,8,8" Padding="24,11">
          <TextBlock Text="Changes only affect your account, and every change can be undone. Programs that are already open keep the old PATH until you reopen them." Style="{StaticResource Muted}" FontSize="12" />
         </Border>
        </StackPanel>
       </Border>
+     </StackPanel>
 
-      <!-- Windows-wide folders (read-only) -->
-      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0" Visibility="{Binding MachineVisibility}">
-       <StackPanel>
-        <Button Style="{StaticResource RowButton}" Click="MachineToggleClick" AutomationProperties.Name="Windows-wide folders">
-         <Grid ColumnSpacing="16">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-           <TextBlock Text="Windows-wide folders" FontSize="15" FontWeight="SemiBold" />
-           <TextBlock Text="{Binding MachineNote}" Style="{StaticResource Muted}" FontSize="12" />
-          </StackPanel>
-          <FontIcon Grid.Column="1" Glyph="{Binding MachineChevron}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-         </Grid>
+     <!-- Tab 3: Windows-wide folders, editable after administrator permission -->
+     <StackPanel x:Name="MachineTab" Spacing="14" Visibility="Collapsed">
+      <Grid ColumnSpacing="10">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Windows-wide folders" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="Shared by every user on this PC and searched before your own folders." Style="{StaticResource Muted}" />
+       </StackPanel>
+       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding MachineUnlockedVisibility}" VerticalAlignment="Center">
+        <Button Click="MachineUndoClick" Visibility="{Binding MachineUndoVisibility}" IsEnabled="{Binding CanChange}" Padding="12,8" ToolTipService.ToolTip="{Binding MachineUndoText}">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Undo last change" FontSize="13" /></StackPanel>
         </Button>
-        <ItemsControl Visibility="{Binding MachineChoicesVisibility}" ItemsSource="{Binding MachineFolders}" AutomationProperties.Name="Windows-wide PATH folders">
-         <ItemsControl.ItemTemplate><DataTemplate>
-          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" Padding="24,8">
-           <Grid ColumnSpacing="16" MinHeight="28">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" VerticalAlignment="Center" />
-            <Grid Grid.Column="2" VerticalAlignment="Center">
-             <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
-              <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Badge}" FontSize="12" Foreground="{ThemeResource WarnBrush}" />
-             </StackPanel>
-             <TextBlock Text="{Binding Badge}" Visibility="{Binding InfoBadgeVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-            </Grid>
-           </Grid>
-          </Border>
-         </DataTemplate></ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <Button Click="AddMachineClick" IsEnabled="{Binding CanChange}" Padding="14,8">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE710;" FontSize="12" /><TextBlock Text="Add a folder" FontSize="13" /></StackPanel>
+        </Button>
+       </StackPanel>
+      </Grid>
+
+      <!-- Locked: why permission is needed, and the one button that asks for it -->
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="24,20" Visibility="{Binding MachineLockedVisibility}">
+       <Grid ColumnSpacing="16">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Border Width="40" Height="40" CornerRadius="20" Background="{ThemeResource WarnSoftBrush}" VerticalAlignment="Top"><FontIcon Glyph="&#xE72E;" FontSize="17" Foreground="{ThemeResource WarnBrush}" /></Border>
+        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+         <TextBlock Text="Changing these folders needs administrator permission" FontSize="15" FontWeight="SemiBold" />
+         <TextBlock Text="Windows will ask for your OK. TidyWindow then starts a small helper that can only change the Windows-wide PATH, and it closes when you lock editing or leave it idle. Every change can be undone." Style="{StaticResource Muted}" />
+        </StackPanel>
+        <Button Grid.Column="2" Click="UnlockClick" IsEnabled="{Binding CanChange}" Style="{StaticResource AccentButtonStyle}" Padding="16,8" VerticalAlignment="Center">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72E;" FontSize="13" /><TextBlock Text="Unlock editing" FontSize="13" FontWeight="SemiBold" /></StackPanel>
+        </Button>
+       </Grid>
+      </Border>
+
+      <!-- Unlocked: say so, and offer the way back -->
+      <Border Style="{StaticResource Card}" Background="{ThemeResource GoodSoftBrush}" Padding="20,12" Visibility="{Binding MachineUnlockedVisibility}">
+       <Grid ColumnSpacing="12">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <FontIcon Glyph="&#xE785;" FontSize="15" Foreground="{ThemeResource GoodBrush}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="Editing is unlocked. Changes apply to every user on this PC." FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap" />
+        <Button Grid.Column="2" Click="MachineFixClick" Visibility="{Binding MachineFixVisibility}" IsEnabled="{Binding CanChange}" Padding="12,6" VerticalAlignment="Center">
+         <TextBlock Text="{Binding MachineFixLabel}" FontSize="12" />
+        </Button>
+        <Button Grid.Column="3" Click="LockClick" Padding="12,6" VerticalAlignment="Center" ToolTipService.ToolTip="Stop the administrator helper. Folders become read-only again.">
+         <TextBlock Text="Lock editing" FontSize="12" />
+        </Button>
+       </Grid>
+      </Border>
+
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0">
+       <StackPanel>
+        <Border Background="{ThemeResource PanelBrush}" CornerRadius="8,8,0,0" Padding="24,10">
+         <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
+          <TextBlock Text="#" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="1" Text="Folder" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource ColumnLabel}" />
+         </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding MachineFolders}" ItemTemplate="{StaticResource FolderRow}" AutomationProperties.Name="Windows-wide PATH folders in search order" />
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" CornerRadius="0,0,8,8" Padding="24,11">
+         <TextBlock Text="Programs that are already open keep the old PATH until you reopen them." Style="{StaticResource Muted}" FontSize="12" />
+        </Border>
        </StackPanel>
       </Border>
      </StackPanel>
 
-     <!-- Tab 3: add tools that are installed but missing from PATH -->
+     <!-- Tab 4: add tools that are installed but missing from PATH -->
      <StackPanel x:Name="ToolsTab" Spacing="14" Visibility="Collapsed">
       <Grid ColumnSpacing="16">
        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -330,7 +363,7 @@
    <local:LoadingOverlay IsActive="{Binding ScanOverlay}" Text="Checking your PATH…" />
 
    <!-- Toasts: what needs attention, and the result of each change -->
-   <ItemsControl ItemsSource="{Binding Toasts}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,6" Width="380" IsTabStop="False" AutomationProperties.Name="Notifications">
+   <ItemsControl ItemsSource="{Binding Toasts}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,6" Width="380" IsTabStop="False" AutomationProperties.Name="Notifications">
     <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><AddDeleteThemeTransition /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
     <ItemsControl.ItemTemplate><DataTemplate>
      <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10">

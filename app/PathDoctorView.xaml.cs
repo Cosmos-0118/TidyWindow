@@ -34,6 +34,7 @@ public sealed partial class PathDoctorView : UserControl
         var selected = sender.SelectedItem;
         ProgramsTab.Visibility = selected == ProgramsItem ? Visibility.Visible : Visibility.Collapsed;
         FoldersTab.Visibility = selected == FoldersItem ? Visibility.Visible : Visibility.Collapsed;
+        MachineTab.Visibility = selected == MachineItem ? Visibility.Visible : Visibility.Collapsed;
         ToolsTab.Visibility = selected == ToolsItem ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -49,7 +50,11 @@ public sealed partial class PathDoctorView : UserControl
         storyboard.Begin();
     }
 
-    private void MachineToggleClick(object sender, RoutedEventArgs e) => Model?.ToggleMachine();
+    private async void UnlockClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UnlockMachineAsync(); }
+    private void LockClick(object sender, RoutedEventArgs e) => Model?.LockMachine();
+    private async void AddMachineClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.AddMachineFolderAsync(); }
+    private async void MachineFixClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.MachineFixAsync(); }
+    private async void MachineUndoClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.MachineUndoAsync(); }
     private void ToggleClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is CommandRow row) row.Toggle(); }
     private async void MakeFirstClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is CandidateRow row) await model.MakeFirstAsync(row); }
 }

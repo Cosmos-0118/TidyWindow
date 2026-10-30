@@ -29,7 +29,7 @@ public sealed class PathDoctorTests : IDisposable
         public readonly Dictionary<string, string> Variables = [];
         public string? Read(PathScope scope) => scope == PathScope.Machine ? Machine : User;
         public string? Variable(PathScope scope, string name) => Variables.GetValueOrDefault(name);
-        public void WriteUser(string value) => User = value;
+        public void Write(PathScope scope, string value, string? previous) { if (scope == PathScope.Machine) Machine = value; else User = value; }
     }
 
     [Fact]
@@ -269,5 +269,123 @@ public sealed class PathDoctorTests : IDisposable
         }
         var java = SetupAt(home).Find(Analyzer().Analyze(null, ""), Nothing).Single(x => x.Name == "Java (JDK)");
         Assert.Equal(Path.Combine(home, "Java", "jdk-25", "bin"), java.Folder, ignoreCase: true);
+    }
+}
+
+public sealed class MachinePathTests : IDisposable
+{
+    private readonly string root = Path.Combine(Path.GetTempPath(), "tw-mpath-" + Guid.NewGuid().ToString("N")[..8]);
+    public MachinePathTests() => Directory.CreateDirectory(root);
+    public void Dispose() { try { Directory.Delete(root, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+
+    private sealed class Registry
+    {
+        public string? Machine, User;
+        public int Writes;
+    }
+
+    private sealed class Store(Registry registry) : IPathStore
+    {
+        public string? Read(PathScope scope) => scope == PathScope.Machine ? registry.Machine : registry.User;
+        public string? Variable(PathScope scope, string name) => null;
+        public void Write(PathScope scope, string value, string? previous) { if (scope == PathScope.Machine) throw new UnauthorizedAccessException("no"); registry.User = value; }
+    }
+
+    // The helper runs inside the test, on the same pipe the real one would use.
+    private static MachinePathSession Session(Registry registry, bool admin = true) =>
+        new(pipe => MachinePathHost.RunAsync([MachinePathHost.Command, pipe], () => registry.Machine, value => { registry.Machine = value; registry.Writes++; }, () => admin, TimeSpan.FromSeconds(20)));
+
+    [Fact]
+    public async Task TheHelperReplacesTheWindowsWidePathOnlyWhenTheCallerSawTheCurrentOne()
+    {
+        var registry = new Registry { Machine = @"C:\a;C:\b" };
+        using var session = Session(registry);
+        await session.OpenAsync();
+
+        session.Write(@"C:\a;C:\b", @"C:\a");
+        Assert.Equal(@"C:\a", registry.Machine);
+
+        var stale = Assert.Throws<IOException>(() => session.Write(@"C:\a;C:\b", @"C:\x"));
+        Assert.Equal(PathDoctor.Stale, stale.Message);
+        Assert.Equal(@"C:\a", registry.Machine);
+        Assert.Equal(1, registry.Writes);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("C:\a;\u0007")]
+    public async Task TheHelperRefusesAPathThatCouldBreakTheComputer(string value)
+    {
+        var registry = new Registry { Machine = @"C:\a" };
+        using var session = Session(registry);
+        await session.OpenAsync();
+
+        Assert.Throws<IOException>(() => session.Write(@"C:\a", value));
+        Assert.Equal(@"C:\a", registry.Machine);
+        Assert.Equal(0, registry.Writes);
+    }
+
+    [Fact]
+    public async Task AHelperWithoutAdministratorRightsIsNotAccepted()
+    {
+        using var session = Session(new Registry { Machine = @"C:\a" }, admin: false);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => session.OpenAsync());
+        Assert.False(session.IsOpen);
+    }
+
+    [Fact]
+    public async Task DecliningThePermissionPromptLeavesEditingLocked()
+    {
+        using var session = new MachinePathSession(_ => throw new OperationCanceledException("declined"));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.OpenAsync());
+        Assert.False(session.IsOpen);
+        Assert.Throws<InvalidOperationException>(() => session.Write("", @"C:\a"));
+    }
+
+    [Fact]
+    public async Task LockingStopsTheHelper()
+    {
+        var registry = new Registry { Machine = @"C:\a" };
+        Task<int>? helper = null;
+        using var session = new MachinePathSession(pipe => helper = MachinePathHost.RunAsync([MachinePathHost.Command, pipe], () => registry.Machine, _ => { }, () => true, TimeSpan.FromSeconds(20)));
+        await session.OpenAsync();
+        Assert.True(session.IsOpen);
+
+        session.Close();
+        Assert.False(session.IsOpen);
+        Assert.Equal(0, await helper!.WaitAsync(TimeSpan.FromSeconds(10)));
+    }
+
+    [Fact]
+    public async Task EditingTheWindowsWideListGoesThroughTheHelperAndCanBeUndone()
+    {
+        var a = Path.Combine(root, "a"); var b = Path.Combine(root, "b"); var gone = Path.Combine(root, "gone");
+        Directory.CreateDirectory(a); Directory.CreateDirectory(b);
+        var registry = new Registry { Machine = $"{a};{gone};{b}", User = "" };
+        using var session = Session(registry);
+        var store = new ElevatedPathStore(new Store(registry), session);
+        var doctor = new PathDoctor(store, new PathBackup(Path.Combine(root, "_backups")), new PathAnalyzer(x => x, Directory.Exists), () => { }, PathScope.Machine);
+
+        // Locked: the change is refused and nothing is touched.
+        Assert.Throws<InvalidOperationException>(() => doctor.FixProblems());
+        Assert.Equal($"{a};{gone};{b}", registry.Machine);
+
+        await session.OpenAsync();
+        var fixedUp = doctor.FixProblems();
+        Assert.True(fixedUp.Changed);
+        Assert.Equal($"{a};{b}", registry.Machine);
+
+        var c = Path.Combine(root, "c");
+        Directory.CreateDirectory(c);
+        var added = doctor.Add(c);
+        Assert.Contains("the Windows-wide PATH", added.Message);
+        Assert.Equal($"{a};{b};{c}", registry.Machine);
+        Assert.Equal("", registry.User);
+
+        Assert.True(doctor.Undo().Changed);
+        Assert.Equal($"{a};{b}", registry.Machine);
+        Assert.True(doctor.Undo().Changed);
+        Assert.Equal($"{a};{gone};{b}", registry.Machine);
     }
 }

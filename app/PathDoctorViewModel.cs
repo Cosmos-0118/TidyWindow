@@ -4,7 +4,7 @@ using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
 
-public sealed class PathRow(PathEntry entry, int count) : ObservableState
+public sealed class PathRow(PathEntry entry, int count, bool editable) : ObservableState
 {
     public PathEntry Entry { get; } = entry;
     public string Number => (Entry.Index + 1).ToString();
@@ -14,7 +14,7 @@ public sealed class PathRow(PathEntry entry, int count) : ObservableState
     public string Badge => Entry.Missing ? "Missing" : Entry.Duplicate ? "Listed twice" : Entry.StoreApps ? "Store app shortcuts" : "";
     public Visibility WarnVisibility => Entry.NeedsFixing ? Visibility.Visible : Visibility.Collapsed;
     public Visibility InfoBadgeVisibility => Badge.Length > 0 && !Entry.NeedsFixing ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility EditVisibility => Entry.Scope == PathScope.User ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility EditVisibility => editable ? Visibility.Visible : Visibility.Collapsed;
     public bool CanUp => Entry.Index > 0;
     public bool CanDown => Entry.Index < count - 1;
     public string AutomationName => $"{Entry.Raw}, position {Entry.Index + 1}";
@@ -105,16 +105,17 @@ public sealed class ToolRow(ToolSetup setup) : ObservableState
     public double Emphasis => Setup.State == ToolState.NotInstalled ? 0.55 : 1;
 }
 
-public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resolver, PathSetup setup, ActivityLog log, Action<Action> post, Func<Task<string?>> pickFolder, Action openAliasSettings) : ObservableState, IDisposable
+public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoctor, MachinePathSession session, CommandResolver resolver, PathSetup setup, ActivityLog log, Action<Action> post, Func<PathSnapshot, Task<string?>> chooseFolder, Action openAliasSettings) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<string> custom = [];
     private readonly HashSet<string> opened = new(StringComparer.OrdinalIgnoreCase);
     private PathSnapshot? snapshot;
     private long generation;
-    private bool busy, loaded, machineOpen;
+    private bool busy, loaded, unlocked;
     private readonly HashSet<string> told = [];
-    private string undoText = "", missingCommands = "", lookupText = "";
+    private string undoText = "", machineUndoText = "", missingCommands = "", lookupText = "";
+    private int machineFixable;
 
     public ObservableCollection<ToastItem> Toasts { get; } = [];
     public ObservableCollection<CommandRow> Commands { get; } = [];
@@ -138,17 +139,19 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
     public Visibility UndoVisibility => undoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string MissingCommands { get => missingCommands; private set { Set(ref missingCommands, value); Changed(nameof(MissingVisibility)); } }
     public Visibility MissingVisibility => missingCommands.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility MachineVisibility => MachineFolders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string LookupText { get => lookupText; set => Set(ref lookupText, value); }
-    public bool MachineOpen { get => machineOpen; private set { Set(ref machineOpen, value); Changed(nameof(MachineChoicesVisibility)); Changed(nameof(MachineChevron)); } }
-    public Visibility MachineChoicesVisibility => machineOpen ? Visibility.Visible : Visibility.Collapsed;
-    public string MachineChevron => machineOpen ? "" : "";
-    public void ToggleMachine() => MachineOpen = !machineOpen;
-    public string MachineNote => $"{MachineFolders.Count} folders shared by every user · read-only, changing them needs an administrator";
+    public bool MachineUnlocked => unlocked;
+    public Visibility MachineLockedVisibility => unlocked ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility MachineUnlockedVisibility => unlocked ? Visibility.Visible : Visibility.Collapsed;
+    public string MachineCountText => MachineFolders.Count == 1 ? "1 folder" : $"{MachineFolders.Count} folders";
+    public string MachineFixLabel => machineFixable == 1 ? "Remove 1 broken entry" : $"Remove {machineFixable} broken entries";
+    public Visibility MachineFixVisibility => unlocked && machineFixable > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string MachineUndoText { get => machineUndoText; private set { Set(ref machineUndoText, value); Changed(nameof(MachineUndoVisibility)); } }
+    public Visibility MachineUndoVisibility => unlocked && machineUndoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanChange), nameof(ScanOverlay), nameof(Loaded), nameof(ToolsIntro) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanChange), nameof(ScanOverlay), nameof(Loaded), nameof(ToolsIntro), nameof(MachineUnlocked), nameof(MachineLockedVisibility), nameof(MachineUnlockedVisibility), nameof(MachineFixVisibility), nameof(MachineUndoVisibility) }) Changed(name);
     }
 
     public async Task RefreshAsync()
@@ -166,8 +169,10 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
             }, lifetime.Token);
             if (current != generation) return;
             snapshot = state;
-            Fill(UserFolders, state.User); Fill(MachineFolders, state.Machine);
-            Changed(nameof(MachineVisibility)); Changed(nameof(MachineNote));
+            SyncLock();
+            machineFixable = state.Machine.Count(x => x.NeedsFixing);
+            Fill(UserFolders, state.User, true); Fill(MachineFolders, state.Machine, unlocked);
+            foreach (var name in new[] { nameof(MachineCountText), nameof(MachineFixLabel), nameof(MachineFixVisibility) }) Changed(name);
 
             Tools.Clear();
             foreach (var tool in tools) Tools.Add(new ToolRow(tool));
@@ -196,6 +201,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
             Advise(state, notes);
             var backup = doctor.LastBackup;
             UndoText = backup is null ? "" : "Undo: " + backup.Why;
+            MachineUndoText = machineDoctor.LastBackup is { } machineBackup ? "Undo: " + machineBackup.Why : "";
             loaded = true; busy = false; Notify();
 
             await ProbeAsync(all, state, notes, current);
@@ -211,11 +217,17 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
 
     private void Remember(string name, bool open) { if (open) opened.Add(name); else opened.Remove(name); }
 
-    private static void Fill(ObservableCollection<PathRow> target, IReadOnlyList<PathEntry> entries)
+    private static void Fill(ObservableCollection<PathRow> target, IReadOnlyList<PathEntry> entries, bool editable)
     {
         target.Clear();
-        foreach (var entry in entries) target.Add(new PathRow(entry, entries.Count));
+        foreach (var entry in entries) target.Add(new PathRow(entry, entries.Count, editable));
     }
+
+    /// <summary>The helper leaves on its own after sitting idle; when it has, editing is locked again.</summary>
+    private void SyncLock() { if (unlocked && !session.IsOpen) unlocked = false; }
+
+    private PathDoctor For(PathRow row) => row.Entry.Scope == PathScope.Machine ? machineDoctor : doctor;
+    private Func<Task>? UndoFor(PathRow row) => row.Entry.Scope == PathScope.Machine ? MachineUndoAsync : null;
 
     private async Task ProbeAsync(List<CandidateRow> rows, PathSnapshot state, IReadOnlyList<string> notes, long current)
     {
@@ -292,8 +304,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
     }
 
     public async Task FixAllAsync() => await ApplyAsync(() => doctor.FixProblems());
-    public async Task RemoveAsync(PathRow row) => await ApplyAsync(() => doctor.Remove(row.Entry));
-    public async Task MoveAsync(PathRow row, int delta) => await ApplyAsync(() => doctor.Move(row.Entry, row.Entry.Index + delta));
+    public async Task RemoveAsync(PathRow row) => await ApplyAsync(() => For(row).Remove(row.Entry), undo: UndoFor(row));
+    public async Task MoveAsync(PathRow row, int delta) => await ApplyAsync(() => For(row).Move(row.Entry, row.Entry.Index + delta), undo: UndoFor(row));
     public async Task MakeFirstAsync(CandidateRow row) { if (row.Entry is { } entry) await ApplyAsync(() => doctor.Move(entry, 0)); }
     public async Task AddToolAsync(ToolRow row) => await ApplyAsync(() => doctor.AddMany([row.Folder]));
     public async Task AddAllToolsAsync()
@@ -304,9 +316,48 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
     public async Task UndoAsync() => await ApplyAsync(() => doctor.Undo(), offerUndo: false);
     public void OpenSettings() => openAliasSettings();
 
+    /// <summary>Asks Windows for administrator permission once, then shows the edit buttons on the Windows-wide folders.</summary>
+    public async Task UnlockMachineAsync()
+    {
+        if (busy || unlocked || lifetime.IsCancellationRequested) return;
+        busy = true; Notify();
+        try
+        {
+            await session.OpenAsync(lifetime.Token);
+            unlocked = true;
+            log.Write(ActivityLevel.Info, ActivityArea.App, "Path Doctor unlocked Windows-wide PATH editing", "Administrator permission was granted.");
+        }
+        catch (OperationCanceledException) { Toast("unlock", ToastKind.Info, "Administrator permission was declined", "The Windows-wide folders stay read-only."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Toast("unlock", ToastKind.Warning, "Could not unlock editing", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor could not get administrator permission", ex.Message);
+        }
+        busy = false;
+        if (snapshot is not null) Fill(MachineFolders, snapshot.Machine, unlocked);
+        Notify();
+    }
+
+    public void LockMachine()
+    {
+        session.Close();
+        unlocked = false;
+        if (snapshot is not null) Fill(MachineFolders, snapshot.Machine, false);
+        Notify();
+    }
+
+    public async Task MachineFixAsync() => await ApplyAsync(() => machineDoctor.FixProblems(), undo: MachineUndoAsync);
+    public async Task MachineUndoAsync() => await ApplyAsync(() => machineDoctor.Undo(), offerUndo: false);
+
+    public async Task AddMachineFolderAsync()
+    {
+        var folder = await chooseFolder(snapshot ?? await Task.Run(doctor.Load));
+        if (!string.IsNullOrWhiteSpace(folder)) await ApplyAsync(() => machineDoctor.Add(folder), undo: MachineUndoAsync);
+    }
+
     public async Task AddFolderAsync()
     {
-        var folder = await pickFolder();
+        var folder = await chooseFolder(snapshot ?? await Task.Run(doctor.Load));
         if (!string.IsNullOrWhiteSpace(folder)) await ApplyAsync(() => doctor.Add(folder));
     }
 
@@ -319,7 +370,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
         await RefreshAsync();
     }
 
-    private async Task ApplyAsync(Func<PathChange> change, bool offerUndo = true)
+    private async Task ApplyAsync(Func<PathChange> change, bool offerUndo = true, Func<Task>? undo = null)
     {
         if (busy || lifetime.IsCancellationRequested) return;
         busy = true; Notify();
@@ -331,12 +382,12 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, CommandResolver resol
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor change failed", ex.Message);
         }
         if (!result.Changed) Toast("result", ToastKind.Warning, result.Message);
-        else if (offerUndo) Toast("result", ToastKind.Success, result.Message, "Open a new terminal to see it. Windows that are already open keep the old PATH.", "Undo", UndoAsync);
+        else if (offerUndo) Toast("result", ToastKind.Success, result.Message, "Open a new terminal to see it. Windows that are already open keep the old PATH.", "Undo", undo ?? UndoAsync);
         else Toast("result", ToastKind.Success, result.Message);
         if (result.Changed) log.Write(ActivityLevel.Success, ActivityArea.App, "Path Doctor changed your PATH", result.Message);
         busy = false; Notify();
         await RefreshAsync();
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { lifetime.Cancel(); session.Close(); lifetime.Dispose(); }
 }
