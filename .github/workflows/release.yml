@@ -3,17 +3,30 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and attach to its release (for example v5.0.0)
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-dotnet@v5
         with:
@@ -21,8 +34,8 @@ jobs:
       - name: Read version from tag
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
-            throw "Tag '$env:GITHUB_REF_NAME' is not in the form v1.2.3."
+          if ($env:TAG -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
+            throw "Tag '$env:TAG' is not in the form v1.2.3."
           }
           "VERSION=$($Matches.version)" | Add-Content -Path $env:GITHUB_ENV
       - name: Restore locked dependencies
@@ -42,8 +55,17 @@ jobs:
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
-      - name: Publish GitHub release
+      - name: Attach to the GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$env:GITHUB_REF_NAME" "artifacts/TidyWindow-$env:VERSION-win-x64.zip" --title "TidyWindow $env:VERSION" --generate-notes --verify-tag
+        run: |
+          $zip = "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
+          # A release written by hand keeps its title and notes; only the file is added or replaced.
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG $zip --clobber
+          } else {
+            gh release create $env:TAG $zip --title "TidyWindow $env:VERSION" --generate-notes --verify-tag
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Could not publish the release asset." }
