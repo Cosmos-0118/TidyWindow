@@ -520,12 +520,14 @@ public sealed class LabLiveTests
         try
         {
             var live = new LiveProcesses(); var boost = new ProcessBoost(live);
-            var app = new AppProcess(process.Id, "ping", "ping", process.StartTime.Ticks, process.PriorityClass, 1);
+            // A child inherits its parent's priority, which is not always Normal (a CI runner's test host is not), so it is put back to whatever it started with.
+            var started = process.PriorityClass;
+            var app = new AppProcess(process.Id, "ping", "ping", process.StartTime.Ticks, started, 1);
 
             Assert.True(boost.Set(app, BoostLevel.Ease).Ok);
             Assert.Equal(ProcessPriorityClass.BelowNormal, live.Priority(app.Id, app.StartTicks));
             Assert.True(boost.Reset(app).Ok);
-            Assert.Equal(ProcessPriorityClass.Normal, live.Priority(app.Id, app.StartTicks));
+            Assert.Equal(started, live.Priority(app.Id, app.StartTicks));
         }
         finally { if (!process.HasExited) process.Kill(); }
     }

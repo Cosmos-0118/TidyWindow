@@ -696,7 +696,8 @@ public sealed class FixExecutorLiveTests
         // Without administrator rights sfc only says that it needs them, in UTF-16; readable text here proves the decoding.
         var code = await new FixStepExecutor().ExecuteAsync(Context(new() { Title = "sfc", File = "sfc.exe", Args = ["/?"], Encoding = FixEncoding.Utf16, Ok = [0, 1] }), progress, CancellationToken.None);
         Assert.InRange(code, 0, 1);
-        Assert.Contains("sfc utility", progress.Text, StringComparison.OrdinalIgnoreCase);
+        // The help wording differs between Windows builds, but every one names the program; UTF-16 read wrongly would be "S F C" with gaps.
+        Assert.Contains("sfc", progress.Text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain('\0', progress.Text);
     }
 
