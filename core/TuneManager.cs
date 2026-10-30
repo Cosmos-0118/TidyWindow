@@ -173,7 +173,13 @@ public sealed class TuneManager(ITuneChanger user, ITuneChanger machine, Func<Ta
         catch (UnauthorizedAccessException) when (entry.Item.Scope == TuneScope.Machine)
         {
             await unlock().ConfigureAwait(false);
-            outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
+            try { outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false); }
+            catch (IOException)
+            {
+                // The helper leaves by itself after five idle minutes, and the app only finds out when it next uses it. Ask again, once.
+                await unlock().ConfigureAwait(false);
+                outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
+            }
         }
         catch (UnauthorizedAccessException) { outcome = new(false, "Windows does not let this app change that setting."); }
         if (outcome.Ok)

@@ -194,7 +194,13 @@ public sealed class BackgroundManager(IBackgroundChanger user, IBackgroundChange
         catch (UnauthorizedAccessException)
         {
             await unlock().ConfigureAwait(false);
-            outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
+            try { outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false); }
+            catch (IOException)
+            {
+                // The helper leaves by itself after five idle minutes, and the app only finds out when it next uses it. Ask again, once.
+                await unlock().ConfigureAwait(false);
+                outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
+            }
         }
         if (outcome.Ok)
         {
@@ -272,7 +278,7 @@ public static class BackgroundHost
                 case "set" when admin && message.Request is { } request:
                     BackgroundOutcome outcome;
                     try { outcome = changer.Change(request); }
-                    catch (UnauthorizedAccessException ex) { outcome = new(false, ex.Message); }
+                    catch (UnauthorizedAccessException) { outcome = new(false, "Windows refused the change even with administrator permission. This may be a service that belongs to an app package."); }
                     await Reply(outcome).ConfigureAwait(false);
                     break;
                 default: await Reply(new(false, "That request was not understood.")).ConfigureAwait(false); break;
