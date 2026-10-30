@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -25,6 +25,8 @@ public sealed partial class MainWindow : Window
     private readonly RepairSession repairSession;
     private readonly StartupViewModel startup;
     private readonly StartupSession startupSession;
+    private readonly BackgroundViewModel quiet;
+    private readonly BackgroundSession quietSession;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -74,9 +76,16 @@ public sealed partial class MainWindow : Window
         startupSession = StartupSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var startupHistory = new StartupHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Startup"));
         startup = new(startupSystem, new StartupService(new LocalStartupChanger(startupSystem, new WindowsStartupWriter()), startupSession, () => startupSession.OpenAsync(), startupHistory), log, toasts);
+        // The same goes for the services, scheduled tasks and Windows settings behind Quiet Windows.
+        var quietSystem = new WindowsBackgroundSystem();
+        var quietCatalog = BackgroundCatalog.Load();
+        quietSession = BackgroundSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var quietHistory = new BackgroundHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Background"));
+        quiet = new(quietSystem, quietCatalog, new BackgroundManager(new LocalBackgroundChanger(quietSystem, new WindowsBackgroundWriter(), quietCatalog), quietSession, () => quietSession.OpenAsync(), quietHistory), log, toasts);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
         StartupPage.DataContext = startup;
+        QuietPage.DataContext = quiet;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
@@ -120,7 +129,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -227,7 +236,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -281,7 +290,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -347,6 +356,13 @@ public sealed partial class MainWindow : Window
         ShowPage(Page.Startup);
         startup.RefreshChanges();
         if (!startup.Scanned && !startup.Busy) _ = startup.ScanAsync();
+    }
+
+    private void QuietClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Quiet);
+        quiet.RefreshChanges();
+        if (!quiet.Scanned && !quiet.Busy) _ = quiet.ScanAsync();
     }
 
     private async Task<string?> PickFolderAsync()

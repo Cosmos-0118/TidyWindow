@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><EmbeddedResource Include="Recovery/*.ps1" /></ItemGroup>
-  <ItemGroup><EmbeddedResource Include="cleanup-catalog.json" LogicalName="cleanup-catalog.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="cleanup-catalog.json" LogicalName="cleanup-catalog.json" /><EmbeddedResource Include="background-catalog.json" LogicalName="background-catalog.json" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="TidyWindow.Tests" /></ItemGroup>
 </Project>
