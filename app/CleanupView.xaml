@@ -32,32 +32,6 @@
      <TextBlock Text="{Binding CleanHint}" Visibility="{Binding HintVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
     </StackPanel>
    </Border>
-   <Border Style="{StaticResource Card}" Padding="20,14" Visibility="{Binding ResultVisibility}">
-    <Grid ColumnSpacing="32" RowSpacing="10">
-     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-     <StackPanel VerticalAlignment="Center" Spacing="2">
-      <TextBlock Text="{Binding Headline}" FontSize="24" FontWeight="SemiBold" />
-      <TextBlock Text="{Binding HeadlineDetail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-     </StackPanel>
-     <ItemsControl Grid.Column="1" ItemsSource="{Binding Stats}" VerticalAlignment="Center" HorizontalAlignment="Left" AutomationProperties.Name="Cleanup results">
-      <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="32" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate><DataTemplate>
-       <StackPanel Spacing="2">
-        <TextBlock Text="{Binding Value}" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-       </StackPanel>
-      </DataTemplate></ItemsControl.ItemTemplate>
-     </ItemsControl>
-     <Button Grid.Column="2" Click="DismissClick" VerticalAlignment="Top" Background="Transparent" BorderThickness="0" Padding="8" AutomationProperties.Name="Dismiss results" ToolTipService.ToolTip="Dismiss">
-      <FontIcon Glyph="&#xE711;" FontSize="12" />
-     </Button>
-     <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding Notes}" Visibility="{Binding NotesVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-    </Grid>
-   </Border>
-   <Border Style="{StaticResource Card}" Padding="14,10" Visibility="{Binding SummaryVisibility}">
-    <TextBlock Text="{Binding Summary}" FontSize="13" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-   </Border>
    <Button Click="UndoClick" Visibility="{Binding UndoVisibility}" IsEnabled="{Binding CanScan}" Padding="12,7" FontSize="12" HorizontalAlignment="Left">
     <TextBlock Text="{Binding UndoText}" FontSize="12" />
    </Button>

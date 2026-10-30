@@ -46,7 +46,7 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
     public string Status { get => status; private set => Set(ref status, value); }
     public string EmptyTitle => query.Length == 0 ? (backend.Indexing ? "Preparing instant search" : "Find files and folders") : Error.Length > 0 && !usingFallback ? "Search needs attention" : "No matching items";
     public string EmptyDetail => query.Length == 0 ? (Indexed ? "Search by name or path. Choose a folder or use the whole-computer index." : "Search by name or path. Until the whole-computer index is ready, Scout searches your user folder; choose another folder any time.")
-        : Error.Length > 0 && !usingFallback ? "Check the message above, or choose a folder to search directly." : "Try another name, location or file type.";
+        : Error.Length > 0 && !usingFallback ? "Open Logs for details, or choose a folder to search directly." : "Try another name, location or file type.";
     private string error = "";
     public string Error { get => error; private set { Set(ref error, value); Changed(nameof(ErrorVisibility)); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail)); } }
     public Visibility ErrorVisibility => Error.Length > 0 ? Visibility.Visible : Visibility.Collapsed;

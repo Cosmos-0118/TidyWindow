@@ -8,8 +8,10 @@ public sealed class PathRow(PathEntry entry, int count, bool editable) : Observa
 {
     public PathEntry Entry { get; } = entry;
     public string Number => (Entry.Index + 1).ToString();
-    public string Folder => Entry.Raw;
-    public string Detail => Entry.Missing ? "This folder no longer exists." : Entry.Duplicate ? $"Already in {Entry.DuplicateOf}, so this copy does nothing." : Entry.Raw != Entry.Folder ? Entry.Folder : "";
+    public string Folder => Entry.Folder;
+    /// <summary>How the entry is written in the registry, when that differs from the folder it points to (for example %SystemRoot%\system32).</summary>
+    public string? Stored => Entry.Raw != Entry.Folder ? $"Stored as {Entry.Raw}" : null;
+    public string Detail => Entry.Missing ? "This folder no longer exists." : Entry.Duplicate ? $"Already in {Entry.DuplicateOf}, so this copy does nothing." : "";
     public Visibility DetailVisibility => Detail.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string Badge => Entry.Missing ? "Missing" : Entry.Duplicate ? "Listed twice" : Entry.StoreApps ? "Store app shortcuts" : "";
     public Visibility WarnVisibility => Entry.NeedsFixing ? Visibility.Visible : Visibility.Collapsed;
@@ -105,7 +107,7 @@ public sealed class ToolRow(ToolSetup setup) : ObservableState
     public double Emphasis => Setup.State == ToolState.NotInstalled ? 0.55 : 1;
 }
 
-public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoctor, MachinePathSession session, CommandResolver resolver, PathSetup setup, ActivityLog log, Action<Action> post, Func<PathSnapshot, Task<string?>> chooseFolder, Action openAliasSettings) : ObservableState, IDisposable
+public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoctor, MachinePathSession session, CommandResolver resolver, PathSetup setup, ActivityLog log, Action<Action> post, ToastCenter toasts, Func<PathSnapshot, Task<string?>> chooseFolder, Action openAliasSettings) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<string> custom = [];
@@ -117,7 +119,6 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     private string undoText = "", machineUndoText = "", missingCommands = "", lookupText = "";
     private int machineFixable;
 
-    public ObservableCollection<ToastItem> Toasts { get; } = [];
     public ObservableCollection<CommandRow> Commands { get; } = [];
     public ObservableCollection<PathRow> UserFolders { get; } = [];
     public ObservableCollection<PathRow> MachineFolders { get; } = [];
@@ -275,31 +276,21 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
 
         foreach (var note in notes) advice.Add(("java:" + note, "Java is set up two different ways", note, "", null));
 
-        foreach (var stale in Toasts.Where(x => IsAdvice(x.Key) && advice.All(a => a.Key != x.Key)).ToList()) Toasts.Remove(stale);
+        toasts.RemoveWhere(key => IsAdvice(key) && advice.All(a => a.Key != key));
         foreach (var item in advice)
             if (told.Add(item.Key)) Toast(item.Key, ToastKind.Warning, item.Title, item.Detail, item.Action, item.Run);
     }
 
     private static bool IsAdvice(string key) => key.StartsWith("fix:") || key.StartsWith("store:") || key.StartsWith("java:");
 
-    private void Toast(string key, ToastKind kind, string title, string detail = "", string action = "", Func<Task>? run = null)
-    {
-        // A newer message about the same thing replaces the older one instead of stacking up.
-        foreach (var old in Toasts.Where(x => x.Key == key).ToList()) Toasts.Remove(old);
+    private void Toast(string key, ToastKind kind, string title, string detail = "", string action = "", Func<Task>? run = null) =>
         // Things the person still has to deal with stay until dismissed; confirmations and one-off errors fade.
-        var seconds = IsAdvice(key) || key == "read-failed" ? 0 : kind == ToastKind.Success ? 8 : 10;
-        var item = new ToastItem(key, kind, title, detail, action, run, t => post(() => Toasts.Remove(t)), seconds);
-        Toasts.Add(item);
-        while (Toasts.Count > 4) Toasts.RemoveAt(0);
-        if (seconds == 0) return;
-        _ = Task.Delay(TimeSpan.FromSeconds(seconds), lifetime.Token)
-            .ContinueWith(_ => post(() => Toasts.Remove(item)), TaskContinuationOptions.OnlyOnRanToCompletion);
-    }
+        toasts.Show(key, kind, title, detail, action, run, IsAdvice(key) || key == "read-failed" ? 0 : -1);
 
     public async Task CheckAgainAsync()
     {
         told.Clear();
-        foreach (var advice in Toasts.Where(x => IsAdvice(x.Key)).ToList()) Toasts.Remove(advice);
+        toasts.RemoveWhere(IsAdvice);
         await RefreshAsync();
     }
 

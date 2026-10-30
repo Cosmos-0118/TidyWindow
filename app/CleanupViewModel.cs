@@ -37,8 +37,6 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     public Visibility StateVisibility => stateText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 }
 
-public sealed record ResultStat(string Value, string Label);
-
 public sealed class CleanupGroup(string name) : ObservableState
 {
     public string Name { get; } = name;
@@ -55,6 +53,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private readonly SystemCleanLauncher system;
     private readonly ActivityLog log;
     private readonly Action<Action> post;
+    private readonly ToastCenter toasts;
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? work;
     private long generation;
@@ -62,12 +61,11 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private long selectedBytes;
     private int selectedCount, selectedAdmin;
     private string status = "Scan to see what can be cleaned";
-    private string summary = "";
 
     public ObservableCollection<CleanupGroup> Groups { get; } = [];
-    public CleanupViewModel(IReadOnlyList<CleanupRule> rules, CleanupScanner scanner, CleanupCleaner cleaner, CleanupQuarantine quarantine, SystemCleanLauncher system, ActivityLog log, Action<Action> post)
+    public CleanupViewModel(IReadOnlyList<CleanupRule> rules, CleanupScanner scanner, CleanupCleaner cleaner, CleanupQuarantine quarantine, SystemCleanLauncher system, ActivityLog log, Action<Action> post, ToastCenter toasts)
     {
-        this.rules = rules; this.scanner = scanner; this.cleaner = cleaner; this.quarantine = quarantine; this.system = system; this.log = log; this.post = post;
+        this.rules = rules; this.scanner = scanner; this.cleaner = cleaner; this.quarantine = quarantine; this.system = system; this.log = log; this.post = post; this.toasts = toasts;
     }
 
     private string cleanStep = "", cleanHint = "", cleanElapsed = "0:00";
@@ -90,16 +88,6 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
     public string CleanLabel => cleaning ? "Cleaning…" : selectedBytes > 0 ? $"Clean {ByteSize.Format(selectedBytes)}" : "Clean";
     public string Status { get => status; private set => Set(ref status, value); }
-    public string Summary { get => summary; private set { Set(ref summary, value); Changed(nameof(SummaryVisibility)); if (value.Length > 0) ClearResult(); } }
-    private bool resultShown;
-    private string headline = "", headlineDetail = "", noteText = "";
-    public ObservableCollection<ResultStat> Stats { get; } = [];
-    public string Headline { get => headline; private set => Set(ref headline, value); }
-    public string HeadlineDetail { get => headlineDetail; private set => Set(ref headlineDetail, value); }
-    public string Notes { get => noteText; private set => Set(ref noteText, value); }
-    public Visibility ResultVisibility => resultShown ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility NotesVisibility => resultShown && noteText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility SummaryVisibility => Summary.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public bool ScanOverlay => scanning && Groups.Count == 0;
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UndoVisibility => UndoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -131,7 +119,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         Changed(nameof(CanClean)); Changed(nameof(CleanLabel)); Changed(nameof(AdminNote)); Changed(nameof(AdminVisibility));
     }
 
-    public async Task ScanAsync(bool keepSummary = false)
+    public async Task ScanAsync()
     {
         if (Busy || lifetime.IsCancellationRequested) return;
         var current = ++generation;
@@ -139,7 +127,6 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var token = work.Token;
         scanning = true; selectedBytes = 0; selectedCount = 0; selectedAdmin = 0;
         Groups.Clear();
-        if (!keepSummary) DismissResult();
         Status = "Scanning…";
         Notify(); Changed(nameof(AdminNote)); Changed(nameof(AdminVisibility));
         var empty = 0;
@@ -229,10 +216,10 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             log.Write(result.Skipped > 0 ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Cleanup freed {ByteSize.Format(result.FreedBytes)}",
                 $"{result.Removed:N0} files removed in {result.Elapsed.TotalSeconds:0.0} s. {result.InUse} in use, {result.Denied} protected, {result.Failed} failed." + (result.HeldBytes > 0 ? $" {ByteSize.Format(result.HeldBytes)} held for undo." : ""));
         }
-        catch (OperationCanceledException) { Summary = "Cleaning stopped. Anything already removed stays removed."; }
+        catch (OperationCanceledException) { toasts.Show("clean", ToastKind.Info, "Cleaning stopped", "Anything already removed stays removed."); }
         catch (Exception ex)
         {
-            Summary = "Cleaning could not finish: " + ex.Message;
+            toasts.Show("clean", ToastKind.Warning, "Cleaning could not finish", ToastCenter.Brief(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Cleanup could not finish", ex.Message);
         }
         finally
@@ -242,7 +229,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             foreach (var row in rows) row.StateText = "";
             Changed(nameof(CleaningVisibility));
         }
-        await ScanAsync(keepSummary: true);
+        await ScanAsync();
     }
 
     private const string PermissionHint = "Approve the Windows prompt to continue. It may be waiting behind this window.";
@@ -284,26 +271,14 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     private void ShowResult(CleanupResult result, IReadOnlyList<string> resultNotes)
     {
-        Summary = "";
-        Stats.Clear();
-        if (result.HeldBytes > 0) Stats.Add(new ResultStat(ByteSize.Format(result.HeldBytes), "held for 14 days"));
-        if (result.InUse > 0) Stats.Add(new ResultStat(result.InUse.ToString("N0"), result.InUse == 1 ? "file in use, skipped" : "files in use, skipped"));
+        var took = result.Elapsed.TotalMinutes >= 1 ? $"{(int)result.Elapsed.TotalMinutes} min {result.Elapsed.Seconds} s" : $"{result.Elapsed.TotalSeconds:0.0} s";
+        var parts = new List<string> { $"Finished in {took}" };
+        if (result.HeldBytes > 0) parts.Add($"{ByteSize.Format(result.HeldBytes)} held for 14 days");
+        if (result.InUse > 0) parts.Add(result.InUse == 1 ? "1 file in use, skipped" : $"{result.InUse:N0} files in use, skipped");
         var missed = result.Denied + result.Failed;
-        if (missed > 0) Stats.Add(new ResultStat(missed.ToString("N0"), "could not be removed"));
-        Headline = ByteSize.Format(result.FreedBytes) + " freed";
-        HeadlineDetail = $"Finished in {(result.Elapsed.TotalMinutes >= 1 ? $"{(int)result.Elapsed.TotalMinutes} min {result.Elapsed.Seconds} s" : $"{result.Elapsed.TotalSeconds:0.0} s")}";
-        Notes = string.Join("\n", resultNotes);
-        resultShown = true;
-        Changed(nameof(ResultVisibility)); Changed(nameof(NotesVisibility));
-    }
-
-    public void DismissResult() { Summary = ""; ClearResult(); }
-
-    private void ClearResult()
-    {
-        if (!resultShown) return;
-        resultShown = false; Stats.Clear(); Notes = "";
-        Changed(nameof(ResultVisibility)); Changed(nameof(NotesVisibility));
+        if (missed > 0) parts.Add($"{missed:N0} could not be removed");
+        var detail = string.Join(" · ", parts) + (resultNotes.Count > 0 ? "\n" + string.Join("\n", resultNotes) : "");
+        toasts.Show("clean", missed > 0 ? ToastKind.Warning : ToastKind.Success, ByteSize.Format(result.FreedBytes) + " freed", detail, result.HeldBytes > 0 ? "Undo" : "", result.HeldBytes > 0 ? UndoAsync : null, 14);
     }
 
     public async Task UndoAsync()
@@ -313,9 +288,10 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         RestoreResult restored;
         try { restored = await Task.Run(() => quarantine.Restore(batch.Id)); }
         finally { cleaning = false; Notify(); }
-        Summary = restored.Conflicts > 0 ? $"Restored {restored.Restored:N0} files. {restored.Conflicts:N0} were left held because a file already exists there." : $"Restored {restored.Restored:N0} files.";
-        log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup undone", Summary);
-        await ScanAsync(keepSummary: true);
+        var summary = restored.Conflicts > 0 ? $"Restored {restored.Restored:N0} files. {restored.Conflicts:N0} were left held because a file already exists there." : $"Restored {restored.Restored:N0} files.";
+        toasts.Show("clean", restored.Conflicts > 0 ? ToastKind.Warning : ToastKind.Success, "Cleanup undone", summary);
+        log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup undone", summary);
+        await ScanAsync();
     }
 
     private void RefreshUndo()

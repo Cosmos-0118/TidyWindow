@@ -27,16 +27,15 @@ public sealed class AdaptiveLayoutTests
     public void LargeWindowUsesTheAvailableContentWidth()
     {
         var layout = AdaptiveLayout.ForWidth(1920);
-        Assert.False(layout.NavigationRail);
         Assert.False(layout.CompactResults);
         Assert.True(1920 - layout.SidebarWidth - layout.Padding * 2 > 1600);
     }
 
     [Fact]
-    public void SmallWindowCollapsesNavigationAndMovesMetadataIntoRows()
+    public void SmallWindowMovesMetadataIntoRows()
     {
         var layout = AdaptiveLayout.ForWidth(480);
-        Assert.True(layout.NavigationRail);
+        Assert.Equal(AdaptiveLayout.RailWidth, layout.SidebarWidth);
         Assert.True(layout.CompactManagers);
         Assert.True(layout.CompactResults);
     }

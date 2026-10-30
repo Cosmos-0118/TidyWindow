@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -20,6 +20,11 @@ public sealed partial class MainWindow : Window
     private readonly ScoutViewModel scout;
     private readonly CleanupViewModel cleanup;
     private readonly PathDoctorViewModel paths;
+    private readonly RepairViewModel repair;
+    private readonly ToastCenter toasts;
+    private readonly RepairSession repairSession;
+    private readonly StartupViewModel startup;
+    private readonly StartupSession startupSession;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -33,6 +38,7 @@ public sealed partial class MainWindow : Window
     public MainWindow(ActivityLog log)
     {
         this.log = log;
+        toasts = new(action => DispatcherQueue.TryEnqueue(() => action()));
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator);
         var management = new InstallationService(packages, runner, locator);
@@ -44,7 +50,7 @@ public sealed partial class MainWindow : Window
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.
         scout = new(new ScoutService(runner, scoutHost, worker: new PersistentScoutWorker(scoutHost), fuzzyWorker: new PersistentScoutWorker(scoutHost, killOnCancel: true)), log, action => DispatcherQueue.TryEnqueue(() => action()));
         var undo = new CleanupQuarantine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Undo"));
-        cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()));
+        cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()), toasts);
         _ = Task.Run(undo.Purge);
         var pathAnalyzer = new PathAnalyzer(Environment.ExpandEnvironmentVariables, Directory.Exists);
         var pathBackups = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "PathBackups");
@@ -54,12 +60,29 @@ public sealed partial class MainWindow : Window
         var machineSession = MachinePathSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var machineDoctor = new PathDoctor(new ElevatedPathStore(registry, machineSession), new PathBackup(Path.Combine(pathBackups, "machine")), pathAnalyzer, EnvironmentBroadcast.Notify, PathScope.Machine);
         pathFinder = new PathFinder(Environment.ExpandEnvironmentVariables, SafeFolders, SafeFiles);
-        paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), ChooseFolderAsync, OpenAliasSettings);
+        paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), toasts, ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
+        ToastStack.ItemsSource = toasts.Items;
         Root.DataContext = model;
+        // Repairs to Windows-wide records go through a helper that only runs after the person approves the Windows permission prompt.
+        var installSystem = new WindowsInstallSystem();
+        var repairHistory = new RepairHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "RepairBackups"));
+        repairSession = RepairSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        repair = new(installSystem, new RepairService(installSystem, RegistryRepair.User, repairSession, repairSession.OpenAsync, repairSession.Close, repairHistory), repairHistory, log, toasts);
+        // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
+        var startupSystem = new WindowsStartupSystem();
+        startupSession = StartupSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var startupHistory = new StartupHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Startup"));
+        startup = new(startupSystem, new StartupService(new LocalStartupChanger(startupSystem, new WindowsStartupWriter()), startupSession, () => startupSession.OpenAsync(), startupHistory), log, toasts);
         CleanupPage.DataContext = cleanup;
+        RepairPage.DataContext = repair;
+        StartupPage.DataContext = startup;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
+        // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
+        model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(model.Errors) && model.Errors.Length > 0) ReportProblem("search-errors", "Search needs attention", model.Errors); };
+        installations.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(installations.Errors) && installations.Errors.Length > 0) ReportProblem("installed-errors", "Some apps or updates could not be checked", installations.Errors); };
+        scout.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(scout.Error) && scout.Error.Length > 0) ReportProblem("scout-error", "Search needs attention", scout.Error); };
         LogsPage.DataContext = logs;
         InstalledPage.DataContext = installations;
         QueueButton.DataContext = operationQueue;
@@ -86,6 +109,9 @@ public sealed partial class MainWindow : Window
         initialized = true;
         ShowPage(Page.Overview);
         Root.SizeChanged += (_, _) => ApplyResponsiveLayout();
+        // The sidebar stays open while the theme menu it launched is showing.
+        AppearanceMenu.Opened += (_, _) => { sidebarMenu = true; UpdateSidebar(); };
+        AppearanceMenu.Closed += (_, _) => { sidebarMenu = false; UpdateSidebar(); };
         Root.Loaded += async (_, _) =>
         {
             FitInitialWindow();
@@ -94,7 +120,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -123,13 +149,6 @@ public sealed partial class MainWindow : Window
     {
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
-        // The sidebar names its items already; tooltips are only needed once the labels are hidden. They open beside the rail, not over the content.
-        foreach (var (button, text) in new[] { (OverviewNav, "Overview"), (InstallNav, "Install apps"), (InstalledNav, "Installed apps"), (ScoutNav, "Scout"), (CleanupNav, "Cleanup"), (PathsNav, "Path Doctor"), (QueueButton, "Queue"), (LogsNav, "Logs"), (AppearanceNav, "Appearance") })
-        {
-            ToolTipService.SetPlacement(button, Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Right);
-            ToolTipService.SetToolTip(button, layout.NavigationRail ? text : null);
-        }
-        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = ScoutLabel.Visibility = CleanupLabel.Visibility = PathsLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
         installations.ApplyLayout(layout);
@@ -163,9 +182,52 @@ public sealed partial class MainWindow : Window
         CopyLogsLabel.Visibility = OpenLogsLabel.Visibility = ClearLogsLabel.Visibility = Root.ActualWidth < 760 ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    // The sidebar opens a moment after the pointer arrives and closes a little after it leaves, so crossing the edge of the window does not make it flicker.
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? sidebarTimer;
+    private bool sidebarOpen, sidebarPointer, sidebarKeyboard, sidebarMenu;
+
+    private void SidebarPointerEntered(object sender, PointerRoutedEventArgs e) { sidebarPointer = true; UpdateSidebar(); }
+    private void SidebarPointerExited(object sender, PointerRoutedEventArgs e) { sidebarPointer = false; UpdateSidebar(); }
+    private void SidebarGotFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = (e.OriginalSource as Control)?.FocusState == FocusState.Keyboard; UpdateSidebar(); }
+    private void SidebarLostFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = false; UpdateSidebar(); }
+    private void SidebarSizeChanged(object sender, SizeChangedEventArgs e) => Sidebar.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+
+    private void UpdateSidebar()
+    {
+        var wanted = sidebarPointer || sidebarKeyboard || sidebarMenu;
+        if (sidebarTimer is null)
+        {
+            sidebarTimer = DispatcherQueue.CreateTimer();
+            sidebarTimer.IsRepeating = false;
+            sidebarTimer.Tick += (_, _) => SetSidebar(sidebarPointer || sidebarKeyboard || sidebarMenu);
+        }
+        sidebarTimer.Stop();
+        if (wanted == sidebarOpen) return;
+        sidebarTimer.Interval = TimeSpan.FromMilliseconds(wanted ? 80 : 260);
+        sidebarTimer.Start();
+    }
+
+    private void SetSidebar(bool open)
+    {
+        if (open == sidebarOpen) return;
+        sidebarOpen = open;
+        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            To = open ? AdaptiveLayout.OpenWidth : AdaptiveLayout.RailWidth,
+            Duration = TimeSpan.FromMilliseconds(open ? 170 : 140),
+            EnableDependentAnimation = true,
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut }
+        };
+        var board = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, Sidebar);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "Width");
+        board.Children.Add(slide);
+        board.Begin();
+    }
+
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -219,7 +281,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -270,6 +332,21 @@ public sealed partial class MainWindow : Window
     {
         ShowPage(Page.Paths);
         if (!paths.Loaded && !paths.Busy) _ = paths.RefreshAsync();
+    }
+
+    private void RepairClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Repair);
+        // Reading the installed-programs list takes well under a second, so the first visit scans at once.
+        repair.RefreshHistory();
+        if (!repair.Scanned && !repair.Busy) _ = repair.ScanAsync();
+    }
+
+    private void StartupClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Startup);
+        startup.RefreshChanges();
+        if (!startup.Scanned && !startup.Busy) _ = startup.ScanAsync();
     }
 
     private async Task<string?> PickFolderAsync()
@@ -476,6 +553,24 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
     }
     private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
+
+    private void ReportProblem(string key, string title, string detail) =>
+        toasts.Show(key, ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
+
+    private async void ToastActionClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) await toast.RunAsync(); }
+    private void ToastDismissClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) toast.Dismiss(); }
+
+    // The bar shrinks over exactly as long as the toast has left.
+    private void TimerLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Border bar || bar.DataContext is not ToastItem { Seconds: > 0 } toast || bar.RenderTransform is not Microsoft.UI.Xaml.Media.ScaleTransform scale) return;
+        var animation = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { From = 1, To = 0, Duration = new Duration(TimeSpan.FromSeconds(toast.Seconds)), EasingFunction = null };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, scale);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "ScaleX");
+        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        storyboard.Children.Add(animation);
+        storyboard.Begin();
+    }
     private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(Page.Install); args.Handled = true; }
 
     private void ApplyLogFilter()

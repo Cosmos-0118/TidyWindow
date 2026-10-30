@@ -29,7 +29,7 @@
             <Grid ColumnSpacing="16" MinHeight="40">
              <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
              <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" ToolTipService.ToolTip="{Binding Stored}">
               <TextBlock Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
               <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
              </StackPanel>
@@ -361,37 +361,6 @@
     </StackPanel>
    </ScrollViewer>
    <local:LoadingOverlay IsActive="{Binding ScanOverlay}" Text="Checking your PATH…" />
-
-   <!-- Toasts: what needs attention, and the result of each change -->
-   <ItemsControl ItemsSource="{Binding Toasts}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,6" Width="380" IsTabStop="False" AutomationProperties.Name="Notifications">
-    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><AddDeleteThemeTransition /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-    <ItemsControl.ItemTemplate><DataTemplate>
-     <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10">
-      <Grid>
-      <Grid ColumnSpacing="12" Padding="16,14,10,16">
-       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-       <Grid VerticalAlignment="Top" Margin="0,2,0,0">
-        <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource GoodBrush}" Visibility="{Binding SuccessVisibility}" />
-        <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" Visibility="{Binding WarningVisibility}" />
-        <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding InfoVisibility}" />
-       </Grid>
-       <StackPanel Grid.Column="1" Spacing="3">
-        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-        <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" IsTextSelectionEnabled="True" />
-        <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ToastActionClick" FontSize="12" Padding="12,5" Margin="0,8,0,0" />
-       </StackPanel>
-       <Button Grid.Column="2" Click="ToastDismissClick" Style="{StaticResource GhostIcon}" VerticalAlignment="Top" Padding="6" AutomationProperties.Name="Dismiss" ToolTipService.ToolTip="Dismiss"><FontIcon Glyph="&#xE711;" FontSize="11" /></Button>
-      </Grid>
-      <!-- Runs down to nothing so the person can see the toast is about to go. -->
-      <Border Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Visibility="{Binding TimerVisibility}" Background="{ThemeResource BadgeBrush}">
-       <Border x:Name="TimerBar" Loaded="TimerLoaded" Background="{ThemeResource MutedBrush}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-        <Border.RenderTransform><ScaleTransform x:Name="TimerScale" ScaleX="1" /></Border.RenderTransform>
-       </Border>
-      </Border>
-      </Grid>
-     </Border>
-    </DataTemplate></ItemsControl.ItemTemplate>
-   </ItemsControl>
   </Grid>
  </Grid>
 </UserControl>

@@ -66,7 +66,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public Visibility ProgressVisibility => Refreshing ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EmptyVisibility => Rows.Count == 0 && !Refreshing ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyTitle => query.Length > 0 ? "No matching apps" : Errors.Length > 0 ? "The list could not be fully checked" : updatesOnly ? "No available updates" : "No packages to manage";
-    public string EmptyDetail => Errors.Length > 0 ? "Expand the details above, then refresh to try again." : query.Length > 0 || updatesOnly ? "Change your search or filter to see more apps." : "Packages from WinGet, Chocolatey and Scoop appear here. Check Overview if a manager needs attention.";
+    public string EmptyDetail => Errors.Length > 0 ? "Open Logs for details, then refresh to try again." : query.Length > 0 || updatesOnly ? "Change your search or filter to see more apps." : "Packages from WinGet, Chocolatey and Scoop appear here. Check Overview if a manager needs attention.";
     private string errors = "";
     public string Errors { get => errors; private set { Set(ref errors, value); Changed(nameof(ErrorVisibility)); } }
     public Visibility ErrorVisibility => Errors.Length == 0 ? Visibility.Collapsed : Visibility.Visible;

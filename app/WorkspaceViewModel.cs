@@ -267,7 +267,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
                 Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading));
             }
             SearchSummary = Packages.Count == 0 ? Errors.Length > 0 ? "Search could not be completed" : $"No results for “{query}”" : "";
-            EmptyDetail = Errors.Length > 0 ? "Expand the source details above." : "Try a different name or source.";
+            EmptyDetail = Errors.Length > 0 ? "Open Logs for details, then try again." : "Try a different name or source.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex) { if (generation == searchGeneration) { log.Write(ActivityLevel.Error, ActivityArea.Search, "Search failed unexpectedly", ex.ToString()); sourceErrors = ex.Message; UpdateErrors(); SearchSummary = "Search needs attention"; EmptyDetail = "Check the details above and try again."; } }

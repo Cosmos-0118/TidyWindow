@@ -13,8 +13,6 @@ public sealed partial class PathDoctorView : UserControl
     private async void RefreshClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.CheckAgainAsync(); }
     private async void UndoClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UndoAsync(); }
     private async void AddClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.AddFolderAsync(); }
-    private async void ToastActionClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) await toast.RunAsync(); }
-    private void ToastDismissClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) toast.Dismiss(); }
 
     private async void LookupKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
@@ -36,18 +34,6 @@ public sealed partial class PathDoctorView : UserControl
         FoldersTab.Visibility = selected == FoldersItem ? Visibility.Visible : Visibility.Collapsed;
         MachineTab.Visibility = selected == MachineItem ? Visibility.Visible : Visibility.Collapsed;
         ToolsTab.Visibility = selected == ToolsItem ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    // The bar shrinks over exactly as long as the toast has left.
-    private void TimerLoaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Border bar || bar.DataContext is not ToastItem { Seconds: > 0 } toast || bar.RenderTransform is not Microsoft.UI.Xaml.Media.ScaleTransform scale) return;
-        var animation = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { From = 1, To = 0, Duration = new Duration(TimeSpan.FromSeconds(toast.Seconds)), EasingFunction = null };
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, scale);
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "ScaleX");
-        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
-        storyboard.Children.Add(animation);
-        storyboard.Begin();
     }
 
     private async void UnlockClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UnlockMachineAsync(); }
