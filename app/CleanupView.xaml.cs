@@ -10,6 +10,7 @@ public sealed partial class CleanupView : UserControl
     private CleanupViewModel? Model => DataContext as CleanupViewModel;
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
+    private void DismissClick(object sender, RoutedEventArgs e) => Model?.DismissResult();
     private async void UndoClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UndoAsync(); }
 
     private async void CleanClick(object sender, RoutedEventArgs e)

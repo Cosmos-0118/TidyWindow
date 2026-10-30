@@ -33,6 +33,9 @@
      <Button x:Name="CleanupNav" Style="{StaticResource NavButton}" Click="CleanupClick" AutomationProperties.Name="Cleanup">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE74D;" FontSize="15" /><TextBlock x:Name="CleanupLabel" Text="Cleanup" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="PathsNav" Style="{StaticResource NavButton}" Click="PathsClick" AutomationProperties.Name="Path Doctor">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9D9;" FontSize="15" /><TextBlock x:Name="PathsLabel" Text="Path Doctor" FontSize="13" /></StackPanel>
+     </Button>
      <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
@@ -277,6 +280,7 @@
      </Grid>
     </Grid>
     <local:CleanupView x:Name="CleanupPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:PathDoctorView x:Name="PathsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">

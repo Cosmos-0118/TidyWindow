@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly OperationQueueViewModel operationQueue;
     private readonly ScoutViewModel scout;
     private readonly CleanupViewModel cleanup;
+    private readonly PathDoctorViewModel paths;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
     private long reconciledCompletions;
@@ -44,9 +45,13 @@ public sealed partial class MainWindow : Window
         var undo = new CleanupQuarantine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Undo"));
         cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()));
         _ = Task.Run(undo.Purge);
+        var pathAnalyzer = new PathAnalyzer(Environment.ExpandEnvironmentVariables, Directory.Exists);
+        var pathDoctor = new PathDoctor(new RegistryPathStore(), new PathBackup(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "PathBackups")), pathAnalyzer, EnvironmentBroadcast.Notify);
+        paths = new(pathDoctor, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), PickFolderAsync, OpenAliasSettings);
         InitializeComponent();
         Root.DataContext = model;
         CleanupPage.DataContext = cleanup;
+        PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         LogsPage.DataContext = logs;
         InstalledPage.DataContext = installations;
@@ -82,7 +87,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -112,12 +117,12 @@ public sealed partial class MainWindow : Window
         var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
         // The sidebar names its items already; tooltips are only needed once the labels are hidden. They open beside the rail, not over the content.
-        foreach (var (button, text) in new[] { (OverviewNav, "Overview"), (InstallNav, "Install apps"), (InstalledNav, "Installed apps"), (ScoutNav, "Scout"), (CleanupNav, "Cleanup"), (QueueButton, "Queue"), (LogsNav, "Logs"), (AppearanceNav, "Appearance") })
+        foreach (var (button, text) in new[] { (OverviewNav, "Overview"), (InstallNav, "Install apps"), (InstalledNav, "Installed apps"), (ScoutNav, "Scout"), (CleanupNav, "Cleanup"), (PathsNav, "Path Doctor"), (QueueButton, "Queue"), (LogsNav, "Logs"), (AppearanceNav, "Appearance") })
         {
             ToolTipService.SetPlacement(button, Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Right);
             ToolTipService.SetToolTip(button, layout.NavigationRail ? text : null);
         }
-        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = ScoutLabel.Visibility = CleanupLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
+        OverviewLabel.Visibility = InstallLabel.Visibility = InstalledLabel.Visibility = ScoutLabel.Visibility = CleanupLabel.Visibility = PathsLabel.Visibility = LogsLabel.Visibility = AppearanceLabel.Visibility = QueueLabel.Visibility = layout.NavigationRail ? Visibility.Collapsed : Visibility.Visible;
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
         installations.ApplyLayout(layout);
@@ -153,7 +158,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -204,13 +209,14 @@ public sealed partial class MainWindow : Window
         UpdateThemeChrome();
     }
     private ElementTheme chromeTheme = ElementTheme.Default;
-    private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent;
+    private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
+            button.BorderBrush = active ? navAccent : BrushCache.Transparent;
             button.Foreground = active ? navPrimary : navMuted;
         }
     }
@@ -224,6 +230,7 @@ public sealed partial class MainWindow : Window
         navSelected = BrushCache.Rgb(light ? 0xEBEBEB : 0x1F1F1F);
         navPrimary = BrushCache.Rgb(light ? 0x171717 : 0xFFFFFF);
         navMuted = BrushCache.Rgb(light ? 0x626262 : 0xA9A9A9);
+        navAccent = new SolidColorBrush(systemColors.GetColorValue(light ? Windows.UI.ViewManagement.UIColorType.Accent : Windows.UI.ViewManagement.UIColorType.AccentLight2));
         UpdateNavSelection();
         AppWindow.TitleBar.ButtonBackgroundColor = AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF));
@@ -252,6 +259,47 @@ public sealed partial class MainWindow : Window
         // The first visit scans straight away; it takes a fraction of a second and fills in as results arrive.
         if (!cleanup.Scanned && !cleanup.Busy) _ = cleanup.ScanAsync();
     }
+    private void PathsClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Paths);
+        if (!paths.Loaded && !paths.Busy) _ = paths.RefreshAsync();
+    }
+
+    private async Task<string?> PickFolderAsync()
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FolderPicker(); picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            return (await picker.PickSingleFolderAsync())?.Path;
+        }
+        catch (Exception ex)
+        {
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "The folder picker could not open", ex.Message);
+            return null;
+        }
+    }
+
+    private static IEnumerable<string> SafeSubdirectories(string folder)
+    {
+        try { return Directory.Exists(folder) ? Directory.GetDirectories(folder) : []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    private static bool IsStoreAlias(string file)
+    {
+        // Store shortcuts are empty link files in the WindowsApps folder; whether one really is a placeholder is decided by what it says when asked.
+        try { return file.Contains(@"\Microsoft\WindowsApps\", StringComparison.OrdinalIgnoreCase) && new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint); }
+        catch (IOException) { return false; }
+    }
+
+    private void OpenAliasSettings()
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:appsfeatures-app-execution-aliases") { UseShellExecute = true }); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        { log.Write(ActivityLevel.Warning, ActivityArea.App, "Windows settings could not open", ex.Message); }
+    }
+
     private async void ScoutClick(object sender, RoutedEventArgs e)
     {
         ShowPage(Page.Scout);

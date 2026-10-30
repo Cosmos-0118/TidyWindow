@@ -37,6 +37,8 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     public Visibility StateVisibility => stateText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 }
 
+public sealed record ResultStat(string Value, string Label);
+
 public sealed class CleanupGroup(string name) : ObservableState
 {
     public string Name { get; } = name;
@@ -88,7 +90,15 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
     public string CleanLabel => cleaning ? "Cleaning…" : selectedBytes > 0 ? $"Clean {ByteSize.Format(selectedBytes)}" : "Clean";
     public string Status { get => status; private set => Set(ref status, value); }
-    public string Summary { get => summary; private set { Set(ref summary, value); Changed(nameof(SummaryVisibility)); } }
+    public string Summary { get => summary; private set { Set(ref summary, value); Changed(nameof(SummaryVisibility)); if (value.Length > 0) ClearResult(); } }
+    private bool resultShown;
+    private string headline = "", headlineDetail = "", noteText = "";
+    public ObservableCollection<ResultStat> Stats { get; } = [];
+    public string Headline { get => headline; private set => Set(ref headline, value); }
+    public string HeadlineDetail { get => headlineDetail; private set => Set(ref headlineDetail, value); }
+    public string Notes { get => noteText; private set => Set(ref noteText, value); }
+    public Visibility ResultVisibility => resultShown ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility NotesVisibility => resultShown && noteText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility SummaryVisibility => Summary.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public bool ScanOverlay => scanning && Groups.Count == 0;
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -129,7 +139,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var token = work.Token;
         scanning = true; selectedBytes = 0; selectedCount = 0; selectedAdmin = 0;
         Groups.Clear();
-        if (!keepSummary) Summary = "";
+        if (!keepSummary) DismissResult();
         Status = "Scanning…";
         Notify(); Changed(nameof(AdminNote)); Changed(nameof(AdminVisibility));
         var empty = 0;
@@ -215,7 +225,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
                 notes.AddRange(report.Notes);
             }
             result = result with { Elapsed = timer.Elapsed };
-            Summary = Describe(result) + (notes.Count > 0 ? "\n" + string.Join("\n", notes) : "");
+            ShowResult(result, notes);
             log.Write(result.Skipped > 0 ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Cleanup freed {ByteSize.Format(result.FreedBytes)}",
                 $"{result.Removed:N0} files removed in {result.Elapsed.TotalSeconds:0.0} s. {result.InUse} in use, {result.Denied} protected, {result.Failed} failed." + (result.HeldBytes > 0 ? $" {ByteSize.Format(result.HeldBytes)} held for undo." : ""));
         }
@@ -272,13 +282,28 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private static string Describe(CleanupResult result)
+    private void ShowResult(CleanupResult result, IReadOnlyList<string> resultNotes)
     {
-        var parts = new List<string> { $"Freed {ByteSize.Format(result.FreedBytes)}" };
-        if (result.HeldBytes > 0) parts.Add($"{ByteSize.Format(result.HeldBytes)} held for 14 days");
-        if (result.InUse > 0) parts.Add($"{result.InUse:N0} {(result.InUse == 1 ? "file was" : "files were")} in use and skipped");
-        if (result.Denied + result.Failed > 0) parts.Add($"{result.Denied + result.Failed:N0} could not be removed");
-        return string.Join(" · ", parts) + $" · {result.Elapsed.TotalSeconds:0.0} s";
+        Summary = "";
+        Stats.Clear();
+        if (result.HeldBytes > 0) Stats.Add(new ResultStat(ByteSize.Format(result.HeldBytes), "held for 14 days"));
+        if (result.InUse > 0) Stats.Add(new ResultStat(result.InUse.ToString("N0"), result.InUse == 1 ? "file in use, skipped" : "files in use, skipped"));
+        var missed = result.Denied + result.Failed;
+        if (missed > 0) Stats.Add(new ResultStat(missed.ToString("N0"), "could not be removed"));
+        Headline = ByteSize.Format(result.FreedBytes) + " freed";
+        HeadlineDetail = $"Finished in {(result.Elapsed.TotalMinutes >= 1 ? $"{(int)result.Elapsed.TotalMinutes} min {result.Elapsed.Seconds} s" : $"{result.Elapsed.TotalSeconds:0.0} s")}";
+        Notes = string.Join("\n", resultNotes);
+        resultShown = true;
+        Changed(nameof(ResultVisibility)); Changed(nameof(NotesVisibility));
+    }
+
+    public void DismissResult() { Summary = ""; ClearResult(); }
+
+    private void ClearResult()
+    {
+        if (!resultShown) return;
+        resultShown = false; Stats.Clear(); Notes = "";
+        Changed(nameof(ResultVisibility)); Changed(nameof(NotesVisibility));
     }
 
     public async Task UndoAsync()

@@ -1,0 +1,364 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.PathDoctorView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="using:TidyWindow.Next.Desktop"
+ HorizontalContentAlignment="Stretch">
+ <UserControl.Resources>
+  <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
+  <Style x:Key="Chip" TargetType="Border">
+   <Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="8,2" /><Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style x:Key="ChipText" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style x:Key="GhostIcon" TargetType="Button">
+   <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="8" />
+   <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style x:Key="SectionTitle" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="17" /><Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style x:Key="ColumnLabel" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="12" /><Setter Property="Foreground" Value="{ThemeResource MutedBrush}" />
+  </Style>
+  <!-- A whole table row that can be clicked: a soft fill on hover and nothing else. -->
+  <Style x:Key="RowButton" TargetType="Button">
+   <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+   <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+   <Setter Property="Padding" Value="24,14" /><Setter Property="UseSystemFocusVisuals" Value="True" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Grid x:Name="Root" Background="{TemplateBinding Background}">
+       <VisualStateManager.VisualStateGroups>
+        <VisualStateGroup x:Name="CommonStates">
+         <VisualState x:Name="Normal" />
+         <VisualState x:Name="PointerOver">
+          <Storyboard><ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background"><DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource RowHoverBrush}" /></ObjectAnimationUsingKeyFrames></Storyboard>
+         </VisualState>
+         <VisualState x:Name="Pressed">
+          <Storyboard><ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background"><DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource RowHoverBrush}" /></ObjectAnimationUsingKeyFrames></Storyboard>
+         </VisualState>
+         <VisualState x:Name="Disabled" />
+        </VisualStateGroup>
+       </VisualStateManager.VisualStateGroups>
+       <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Padding="{TemplateBinding Padding}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="Center" />
+      </Grid>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+ </UserControl.Resources>
+
+ <Grid RowSpacing="20">
+  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+
+  <!-- Page header -->
+  <Grid ColumnSpacing="10">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+   <StackPanel VerticalAlignment="Center" Spacing="2">
+    <TextBlock Text="Path Doctor" Style="{StaticResource PageTitle}" />
+    <TextBlock Text="See which program runs when you type a command, and fix the folder list that decides it." Style="{StaticResource Muted}" />
+   </StackPanel>
+   <Button Grid.Column="1" Click="UndoClick" Visibility="{Binding UndoVisibility}" IsEnabled="{Binding CanChange}" Padding="12,7" VerticalAlignment="Center" ToolTipService.ToolTip="{Binding UndoText}">
+    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Undo last change" FontSize="12" /></StackPanel>
+   </Button>
+   <Button Grid.Column="2" Click="RefreshClick" IsEnabled="{Binding CanChange}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Check again">
+    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Check again" FontSize="12" /></StackPanel>
+   </Button>
+  </Grid>
+
+  <Grid Grid.Row="1">
+   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Spacing="24" Padding="0,0,14,28">
+
+     <!-- Tabs -->
+     <SelectorBar x:Name="Tabs" SelectionChanged="TabsChanged" HorizontalAlignment="Left" Margin="-10,0,0,-8" AutomationProperties.Name="Path Doctor sections">
+      <SelectorBarItem x:Name="ProgramsItem" Text="Programs" IsSelected="True" />
+      <SelectorBarItem x:Name="FoldersItem" Text="PATH folders" />
+      <SelectorBarItem x:Name="ToolsItem" Text="{Binding ToolsTabTitle}" />
+     </SelectorBar>
+
+     <!-- Tab 1: which program runs -->
+     <StackPanel x:Name="ProgramsTab" Spacing="14">
+      <Grid ColumnSpacing="16">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Which program runs" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="When a program exists in more than one place, Windows runs the first copy it finds. Open a row to choose a different one." Style="{StaticResource Muted}" />
+       </StackPanel>
+       <TextBox Grid.Column="1" Width="280" Text="{Binding LookupText, Mode=TwoWay}" PlaceholderText="Look up a command, e.g. ffmpeg" KeyDown="LookupKeyDown" VerticalAlignment="Center" AutomationProperties.Name="Look up a command" />
+      </Grid>
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0">
+       <StackPanel>
+        <Border Background="{ThemeResource PanelBrush}" CornerRadius="8,8,0,0" Padding="24,10">
+         <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="*" /><ColumnDefinition Width="220" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+          <TextBlock Text="Command" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="1" Text="Runs from" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="2" Text="Version" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="3" Text="Copies" Style="{StaticResource ColumnLabel}" HorizontalAlignment="Right" />
+         </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Commands}" AutomationProperties.Name="Commands and the programs they run">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
+           <StackPanel>
+            <Button Style="{StaticResource RowButton}" Click="ToggleClick" IsHitTestVisible="{Binding Expandable}" AutomationProperties.Name="{Binding Name}">
+             <Grid ColumnSpacing="16">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="*" /><ColumnDefinition Width="220" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Grid Grid.Column="1" ColumnSpacing="10" VerticalAlignment="Center">
+               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+               <Grid VerticalAlignment="Center" Width="8" Height="8">
+                <Ellipse Visibility="{Binding RunsVisibility}" Fill="{ThemeResource GoodBrush}" />
+                <Ellipse Visibility="{Binding StoreLinkVisibility}" Fill="{ThemeResource WarnBrush}" />
+               </Grid>
+               <TextBlock Grid.Column="1" Text="{Binding PathText}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" VerticalAlignment="Center" />
+              </Grid>
+              <TextBlock Grid.Column="2" Text="{Binding VersionText}" FontSize="13" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
+               <Border Style="{StaticResource Chip}" Visibility="{Binding ExpandableVisibility}" Background="{ThemeResource BadgeBrush}" ToolTipService.ToolTip="Open to see every copy and choose which one runs.">
+                <TextBlock Text="{Binding Headline}" Style="{StaticResource ChipText}" Foreground="{ThemeResource MutedBrush}" />
+               </Border>
+               <FontIcon Glyph="{Binding Chevron}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding ExpandableVisibility}" VerticalAlignment="Center" />
+               <TextBlock Text="{Binding Headline}" Visibility="{Binding SingleVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+             </Grid>
+            </Button>
+
+            <!-- Every copy Windows can see, so the person can pick the one that runs. -->
+            <Border Visibility="{Binding ChoicesVisibility}" Background="{ThemeResource PanelBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,16,24,18">
+             <StackPanel Spacing="12">
+              <TextBlock Text="Windows checks these in order and runs the first one. Choose another to run it instead." Style="{StaticResource Muted}" />
+              <ItemsControl ItemsSource="{Binding Candidates}">
+               <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+               <ItemsControl.ItemTemplate><DataTemplate>
+                <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10">
+                 <Grid ColumnSpacing="14" MinHeight="38">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <Grid VerticalAlignment="Center">
+                   <Border Style="{StaticResource Chip}" Visibility="{Binding RunsVisibility}" Background="{ThemeResource GoodSoftBrush}" HorizontalAlignment="Left">
+                    <TextBlock Text="Active" Style="{StaticResource ChipText}" Foreground="{ThemeResource GoodBrush}" />
+                   </Border>
+                   <Border Style="{StaticResource Chip}" Visibility="{Binding HiddenVisibility}" Background="{ThemeResource BadgeBrush}" HorizontalAlignment="Left" ToolTipService.ToolTip="Hidden by the copy above it, so it never runs.">
+                    <TextBlock Text="Hidden" Style="{StaticResource ChipText}" Foreground="{ThemeResource MutedBrush}" />
+                   </Border>
+                   <Border Style="{StaticResource Chip}" Visibility="{Binding StoreLinkVisibility}" Background="{ThemeResource WarnSoftBrush}" HorizontalAlignment="Left" ToolTipService.ToolTip="This only opens the Microsoft Store. Nothing is installed.">
+                    <TextBlock Text="Store link" Style="{StaticResource ChipText}" Foreground="{ThemeResource WarnBrush}" />
+                   </Border>
+                  </Grid>
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Opacity="{Binding Emphasis}">
+                   <TextBlock Text="{Binding File}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+                   <TextBlock Text="{Binding Version}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Content="Run this one" Visibility="{Binding MakeFirstVisibility}" Click="MakeFirstClick" FontSize="12" Padding="14,6" VerticalAlignment="Center" />
+                 </Grid>
+                </Border>
+               </DataTemplate></ItemsControl.ItemTemplate>
+              </ItemsControl>
+             </StackPanel>
+            </Border>
+           </StackPanel>
+          </Border>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" CornerRadius="0,0,8,8" Padding="24,11" Visibility="{Binding MissingVisibility}">
+         <TextBlock Text="{Binding MissingCommands}" Style="{StaticResource Muted}" FontSize="12" />
+        </Border>
+       </StackPanel>
+      </Border>
+     </StackPanel>
+
+     <!-- Tab 2: PATH folders -->
+     <StackPanel x:Name="FoldersTab" Spacing="14" Visibility="Collapsed">
+      <Grid ColumnSpacing="16">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Your PATH folders" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="The folders Windows searches, top to bottom, when you type a command. Folders higher up win." Style="{StaticResource Muted}" />
+       </StackPanel>
+       <Button Grid.Column="1" Click="AddClick" IsEnabled="{Binding CanChange}" Padding="14,8" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE710;" FontSize="12" /><TextBlock Text="Add a folder" FontSize="13" /></StackPanel>
+       </Button>
+      </Grid>
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0">
+       <StackPanel>
+        <Border Background="{ThemeResource PanelBrush}" CornerRadius="8,8,0,0" Padding="24,10">
+         <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
+          <TextBlock Text="#" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="1" Text="Folder" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource ColumnLabel}" />
+         </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding UserFolders}" AutomationProperties.Name="Your PATH folders in search order">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Grid>
+           <Border Background="{ThemeResource WarnSoftBrush}" Visibility="{Binding WarnVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" />
+           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,6">
+            <Grid ColumnSpacing="16" MinHeight="40">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
+             <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+              <TextBlock Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+             </StackPanel>
+             <Grid Grid.Column="2" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
+               <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+               <TextBlock Text="{Binding Badge}" FontSize="13" Foreground="{ThemeResource WarnBrush}" FontWeight="SemiBold" />
+              </StackPanel>
+              <TextBlock Text="{Binding Badge}" Visibility="{Binding InfoBadgeVisibility}" FontSize="13" Foreground="{ThemeResource MutedBrush}" />
+             </Grid>
+             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="0" HorizontalAlignment="Right" Visibility="{Binding EditVisibility}">
+              <Button Click="UpClick" IsEnabled="{Binding CanUp}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder earlier" AutomationProperties.Name="Move up"><FontIcon Glyph="&#xE70E;" FontSize="12" /></Button>
+              <Button Click="DownClick" IsEnabled="{Binding CanDown}" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Search this folder later" AutomationProperties.Name="Move down"><FontIcon Glyph="&#xE70D;" FontSize="12" /></Button>
+              <Button Click="RemoveClick" Style="{StaticResource GhostIcon}" ToolTipService.ToolTip="Remove from PATH. The folder itself is not deleted." AutomationProperties.Name="Remove from PATH"><FontIcon Glyph="&#xE74D;" FontSize="12" /></Button>
+             </StackPanel>
+            </Grid>
+           </Border>
+          </Grid>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" CornerRadius="0,0,8,8" Padding="24,11">
+         <TextBlock Text="Changes only affect your account, and every change can be undone. Programs that are already open keep the old PATH until you reopen them." Style="{StaticResource Muted}" FontSize="12" />
+        </Border>
+       </StackPanel>
+      </Border>
+
+      <!-- Windows-wide folders (read-only) -->
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0" Visibility="{Binding MachineVisibility}">
+       <StackPanel>
+        <Button Style="{StaticResource RowButton}" Click="MachineToggleClick" AutomationProperties.Name="Windows-wide folders">
+         <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+           <TextBlock Text="Windows-wide folders" FontSize="15" FontWeight="SemiBold" />
+           <TextBlock Text="{Binding MachineNote}" Style="{StaticResource Muted}" FontSize="12" />
+          </StackPanel>
+          <FontIcon Grid.Column="1" Glyph="{Binding MachineChevron}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+         </Grid>
+        </Button>
+        <ItemsControl Visibility="{Binding MachineChoicesVisibility}" ItemsSource="{Binding MachineFolders}" AutomationProperties.Name="Windows-wide PATH folders">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" Padding="24,8">
+           <Grid ColumnSpacing="16" MinHeight="28">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Folder}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" VerticalAlignment="Center" />
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+             <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
+              <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Badge}" FontSize="12" Foreground="{ThemeResource WarnBrush}" />
+             </StackPanel>
+             <TextBlock Text="{Binding Badge}" Visibility="{Binding InfoBadgeVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+            </Grid>
+           </Grid>
+          </Border>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+       </StackPanel>
+      </Border>
+     </StackPanel>
+
+     <!-- Tab 3: add tools that are installed but missing from PATH -->
+     <StackPanel x:Name="ToolsTab" Spacing="14" Visibility="Collapsed">
+      <Grid ColumnSpacing="16">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Add tools to PATH" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="{Binding ToolsIntro}" Style="{StaticResource Muted}" />
+       </StackPanel>
+       <Button Grid.Column="1" Click="AddAllClick" Visibility="{Binding AddAllVisibility}" IsEnabled="{Binding CanChange}" Style="{StaticResource AccentButtonStyle}" Padding="16,8" VerticalAlignment="Center">
+        <TextBlock Text="{Binding AddAllLabel}" FontSize="13" FontWeight="SemiBold" />
+       </Button>
+       <Button Grid.Column="2" Click="AddClick" IsEnabled="{Binding CanChange}" Padding="14,8" VerticalAlignment="Center" ToolTipService.ToolTip="Pick any other folder that holds programs you want to run by name.">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Choose a folder" FontSize="13" /></StackPanel>
+       </Button>
+      </Grid>
+      <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0">
+       <StackPanel>
+        <Border Background="{ThemeResource PanelBrush}" CornerRadius="8,8,0,0" Padding="24,10">
+         <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="200" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
+          <TextBlock Text="Tool" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="1" Text="Folder" Style="{StaticResource ColumnLabel}" />
+          <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource ColumnLabel}" />
+         </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Tools}" AutomationProperties.Name="Developer tools and whether they are in PATH">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Grid>
+           <Border Background="{ThemeResource WarnSoftBrush}" Visibility="{Binding WarnVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" />
+           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,8" Opacity="{Binding Emphasis}">
+            <Grid ColumnSpacing="16" MinHeight="46">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="200" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
+             <StackPanel VerticalAlignment="Center" Spacing="1">
+              <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Command}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+             </StackPanel>
+             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+              <TextBlock Text="{Binding Folder}" Visibility="{Binding FolderVisibility}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+             </StackPanel>
+             <Grid Grid.Column="2" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding WarnVisibility}">
+               <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+               <TextBlock Text="{Binding StatusText}" FontSize="13" Foreground="{ThemeResource WarnBrush}" FontWeight="SemiBold" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding GoodVisibility}">
+               <Ellipse Width="8" Height="8" Fill="{ThemeResource GoodBrush}" VerticalAlignment="Center" />
+               <TextBlock Text="{Binding StatusText}" FontSize="13" />
+              </StackPanel>
+              <TextBlock Text="{Binding StatusText}" FontSize="13" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding NotInstalledVisibility}" />
+             </Grid>
+             <Button Grid.Column="3" Content="Add to PATH" Visibility="{Binding AddVisibility}" Click="AddToolClick" IsEnabled="{Binding CanChange}" HorizontalAlignment="Right" FontSize="12" Padding="14,6" VerticalAlignment="Center" />
+            </Grid>
+           </Border>
+          </Grid>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Background="{ThemeResource PanelBrush}" CornerRadius="0,0,8,8" Padding="24,11">
+         <TextBlock Text="Only tools found in their usual install folders are listed. A tool that is not installed needs to be installed first; the Install Hub can do that." Style="{StaticResource Muted}" FontSize="12" />
+        </Border>
+       </StackPanel>
+      </Border>
+     </StackPanel>
+    </StackPanel>
+   </ScrollViewer>
+   <local:LoadingOverlay IsActive="{Binding ScanOverlay}" Text="Checking your PATH…" />
+
+   <!-- Toasts: what needs attention, and the result of each change -->
+   <ItemsControl ItemsSource="{Binding Toasts}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,6" Width="380" IsTabStop="False" AutomationProperties.Name="Notifications">
+    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><AddDeleteThemeTransition /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate><DataTemplate>
+     <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10">
+      <Grid>
+      <Grid ColumnSpacing="12" Padding="16,14,10,16">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <Grid VerticalAlignment="Top" Margin="0,2,0,0">
+        <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource GoodBrush}" Visibility="{Binding SuccessVisibility}" />
+        <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" Visibility="{Binding WarningVisibility}" />
+        <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding InfoVisibility}" />
+       </Grid>
+       <StackPanel Grid.Column="1" Spacing="3">
+        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+        <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" IsTextSelectionEnabled="True" />
+        <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ToastActionClick" FontSize="12" Padding="12,5" Margin="0,8,0,0" />
+       </StackPanel>
+       <Button Grid.Column="2" Click="ToastDismissClick" Style="{StaticResource GhostIcon}" VerticalAlignment="Top" Padding="6" AutomationProperties.Name="Dismiss" ToolTipService.ToolTip="Dismiss"><FontIcon Glyph="&#xE711;" FontSize="11" /></Button>
+      </Grid>
+      <!-- Runs down to nothing so the person can see the toast is about to go. -->
+      <Border Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Visibility="{Binding TimerVisibility}" Background="{ThemeResource BadgeBrush}">
+       <Border x:Name="TimerBar" Loaded="TimerLoaded" Background="{ThemeResource MutedBrush}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
+        <Border.RenderTransform><ScaleTransform x:Name="TimerScale" ScaleX="1" /></Border.RenderTransform>
+       </Border>
+      </Border>
+      </Grid>
+     </Border>
+    </DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+  </Grid>
+ </Grid>
+</UserControl>
