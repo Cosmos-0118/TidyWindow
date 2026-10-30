@@ -480,6 +480,20 @@ public sealed class StartupServiceTests : IDisposable
         Assert.Equal(1, unlocks); Assert.Equal(1, helper.Calls);
     }
 
+    [Fact]
+    public async Task AHelperThatLeftWhileIdleIsReplacedAndTheChangeIsMadeInTheSameClick()
+    {
+        var (pc, entry) = Machine();
+        pc.DenyWrites = true;
+        var unlocks = 0;
+        var helper = new Counter();
+        helper.Run = r => helper.Calls == 1 ? throw new IOException("The administrator helper stopped. Try again.") : new LocalStartupChanger(pc, new Allowing(pc)).Change(r);
+        var service = new StartupService(new LocalStartupChanger(pc, pc), helper, () => { unlocks++; return Task.CompletedTask; }, new(folder));
+
+        Assert.True((await service.SetAsync(entry, false)).Ok);
+        Assert.Equal(2, unlocks); Assert.Equal(2, helper.Calls);
+    }
+
     private sealed class Allowing(FakeStartupPc pc) : IStartupWriter
     {
         public void SetApproved(StartupScope scope, string subKey, string name, bool enabled) { pc.DenyWrites = false; pc.SetApproved(scope, subKey, name, enabled); pc.DenyWrites = true; }
