@@ -1,11 +1,15 @@
 namespace TidyWindow.Next.Core;
 
-public enum PackageOperationKind { Install, Update, Uninstall }
+public enum PackageOperationKind { Install, Update, Uninstall, Fix }
 public enum QueueItemState { Waiting, Running, Finished, Cancelled }
+/// <param name="Fix">Set for a fix from the Fixes page, which is not a package operation but shares the queue and its live output.</param>
 public sealed record PackageOperation(PackageOperationKind Kind, ManagerKind Manager, string Id, string Name,
-    Package? InstallPackage = null, ManagedPackage? InstalledPackage = null, bool Interactive = false)
+    Package? InstallPackage = null, ManagedPackage? InstalledPackage = null, bool Interactive = false, FixRun? Fix = null)
 {
-    public string ResourceKey => Resource(Manager, Id, InstalledPackage?.Global ?? false);
+    public const string FixPrefix = "fix:";
+    public string ResourceKey => Fix is not null ? FixResource(Fix.Id) : Resource(Manager, Id, InstalledPackage?.Global ?? false);
+    public static string FixResource(string id) => FixPrefix + id.ToUpperInvariant();
+    public static PackageOperation ForFix(FixItem item, IReadOnlyList<string> options) => new(PackageOperationKind.Fix, default, item.Id, item.Name, Fix: new(item.Id, options));
     public static string Resource(ManagerKind manager, string id, bool global = false) =>
         $"{manager}:{(manager == ManagerKind.Scoop ? id.Split('/')[^1] : id).ToUpperInvariant()}:{global}";
     public static PackageOperation Install(Package package) => new(PackageOperationKind.Install, package.Manager, package.Id, package.Name, InstallPackage: package);

@@ -1,0 +1,367 @@
+{
+  "items": [
+    {
+      "id": "repair-windows-files",
+      "name": "Repair Windows system files",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E90F",
+      "summary": "For crashes, errors about missing files, or Windows features that stopped working. Checks Windows' own files and replaces damaged ones.",
+      "effect": "Only damaged Windows files are replaced. It can take a long time and may ask for a restart. If SFC says it could not repair some files, details are in C:\\Windows\\Logs\\CBS\\CBS.log.",
+      "restart": "maybe",
+      "duration": "20 to 60 minutes",
+      "sources": ["Microsoft Support: System File Checker (DISM first, then SFC)"],
+      "options": [
+        { "id": "restore-point", "label": "Create a restore point first", "detail": "Windows allows one automatic restore point a day, so this may be skipped." },
+        { "id": "cleanup", "label": "Also clean up old update files afterwards", "detail": "Frees some space; old updates can no longer be uninstalled." }
+      ],
+      "steps": [
+        {
+          "title": "Create a restore point",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Checkpoint-Computer -Description 'TidyWindow: before repairing Windows files' -RestorePointType MODIFY_SETTINGS; 'Restore point created.'"],
+          "encoding": "utf8",
+          "minutes": 5,
+          "optional": true,
+          "when": "restore-point"
+        },
+        {
+          "title": "Repair the Windows component store (DISM)",
+          "file": "dism.exe",
+          "args": ["/Online", "/Cleanup-Image", "/RestoreHealth"],
+          "minutes": 90,
+          "restart": [3010]
+        },
+        {
+          "title": "Check and repair system files (SFC)",
+          "file": "sfc.exe",
+          "args": ["/scannow"],
+          "encoding": "utf16",
+          "minutes": 90,
+          "warn": [1]
+        },
+        {
+          "title": "Clean up old update files",
+          "file": "dism.exe",
+          "args": ["/Online", "/Cleanup-Image", "/StartComponentCleanup"],
+          "minutes": 60,
+          "optional": true,
+          "when": "cleanup"
+        }
+      ]
+    },
+    {
+      "id": "reset-windows-update",
+      "name": "Reset Windows Update",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E895",
+      "summary": "For updates that fail, get stuck downloading, or never finish checking. Stops the update services, clears what they downloaded, and starts them again.",
+      "effect": "Downloaded update files are renamed to .bak (Windows downloads them again). Your installed updates are not removed. Afterwards open Settings > Windows Update and check for updates.",
+      "duration": "A few minutes",
+      "sources": ["Microsoft Learn: Reset Windows Update components manually", "WinUtil (cross-check; its policy clean-up was not copied)"],
+      "options": [
+        { "id": "deep", "label": "Also reset the update database and certificate store", "detail": "Use only if the first try did not help. The list of past updates in Settings starts empty." }
+      ],
+      "steps": [
+        { "title": "Stop Background Intelligent Transfer", "file": "net.exe", "args": ["stop", "bits", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Windows Update", "file": "net.exe", "args": ["stop", "wuauserv", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Cryptographic Services", "file": "net.exe", "args": ["stop", "cryptsvc", "/y"], "ok": [0, 2], "minutes": 3 },
+        {
+          "title": "Remove the old download queue files",
+          "kind": "deleteFiles",
+          "path": "%ALLUSERSPROFILE%\\Microsoft\\Network\\Downloader",
+          "patterns": ["qmgr*.dat"],
+          "warn": [1],
+          "optional": true
+        },
+        { "title": "Set aside the downloaded update files", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\Download", "optional": true },
+        { "title": "Set aside the update database", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\DataStore", "optional": true, "when": "deep" },
+        { "title": "Set aside the update certificate store", "kind": "renameFolder", "path": "%SystemRoot%\\System32\\catroot2", "optional": true, "when": "deep" },
+        { "title": "Start Cryptographic Services", "file": "net.exe", "args": ["start", "cryptsvc"], "ok": [0, 2], "minutes": 3, "always": true },
+        { "title": "Start Background Intelligent Transfer", "file": "net.exe", "args": ["start", "bits"], "ok": [0, 2], "minutes": 3, "always": true },
+        { "title": "Start Windows Update", "file": "net.exe", "args": ["start", "wuauserv"], "ok": [0, 2], "minutes": 3, "always": true }
+      ]
+    },
+    {
+      "id": "check-disk",
+      "name": "Check the drive for errors",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E8B7",
+      "summary": "For slow or freezing PCs, files that will not open, or strange crashes. Reads the health of your drives and scans the system drive for problems.",
+      "effect": "Nothing is changed; this only reads and reports. If errors are reported, open an administrator Command Prompt and run chkdsk C: /f; Windows repairs the drive at the next restart.",
+      "duration": "A few minutes",
+      "sources": ["Microsoft Learn: Repair-Volume -Scan (an online scan that changes nothing)"],
+      "steps": [
+        {
+          "title": "Read drive health",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "Get-PhysicalDisk | Select-Object FriendlyName, MediaType, HealthStatus, OperationalStatus | Format-Table -AutoSize | Out-String -Width 120"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true
+        },
+        {
+          "title": "Scan the system drive",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { 'Scanning the drive. Windows shows no progress for this, so expect a quiet minute or two.'; $result = Repair-Volume -DriveLetter $env:SystemDrive.Substring(0, 1) -Scan; \"Result: $result\"; if ($result -ne 'NoErrorsFound') { exit 1 } } catch { $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 90,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "create-restore-point",
+      "name": "Create a restore point",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E777",
+      "summary": "A save point to go back to if something goes wrong after a change. Good to do before repairs or installing drivers.",
+      "effect": "Uses a little disk space. System Protection must be on for your system drive, and Windows allows one automatic restore point a day, so it may be skipped.",
+      "duration": "About a minute",
+      "sources": ["Microsoft Learn: Checkpoint-Computer"],
+      "steps": [
+        {
+          "title": "Create the restore point",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Checkpoint-Computer -Description 'TidyWindow restore point' -RestorePointType MODIFY_SETTINGS; 'Restore point created.'"],
+          "encoding": "utf8",
+          "minutes": 10
+        }
+      ]
+    },
+    {
+      "id": "sync-clock",
+      "name": "Fix the clock",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E823",
+      "summary": "For a clock that is a few minutes off, which also causes website certificate errors and sign-in problems. Starts the time service and asks the internet to set the time.",
+      "effect": "Only the time is corrected. The time zone is not changed; set it in Settings > Time & language if it is wrong.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: w32tm"],
+      "steps": [
+        { "title": "Start the Windows Time service", "file": "net.exe", "args": ["start", "w32time"], "ok": [0, 2], "minutes": 2 },
+        { "title": "Re-read the time settings", "file": "w32tm.exe", "args": ["/config", "/update"], "minutes": 2, "optional": true },
+        { "title": "Set the time from the internet", "file": "w32tm.exe", "args": ["/resync", "/rediscover"], "minutes": 3 }
+      ]
+    },
+    {
+      "id": "rebuild-search-index",
+      "name": "Rebuild the search index",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E721",
+      "summary": "For Windows search that finds nothing, shows old files, or uses a lot of the disk. Deletes the search database so Windows builds a fresh one.",
+      "effect": "Search results are incomplete while Windows re-indexes, which can take from a few minutes to over an hour and is quicker when you leave the PC alone.",
+      "risk": "careful",
+      "duration": "A minute, then Windows indexes in the background",
+      "sources": ["Microsoft Q&A: Windows Search troubleshooting (delete Windows.edb)"],
+      "steps": [
+        { "title": "Stop Windows Search", "file": "net.exe", "args": ["stop", "WSearch", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Delete the old search database", "kind": "deleteFiles", "path": "%ProgramData%\\Microsoft\\Search\\Data\\Applications\\Windows", "patterns": ["Windows.edb"], "warn": [1], "optional": true },
+        { "title": "Start Windows Search", "file": "net.exe", "args": ["start", "WSearch"], "ok": [0, 2], "minutes": 3, "always": true }
+      ]
+    },
+    {
+      "id": "defender-quick-scan",
+      "name": "Update Defender and run a quick scan",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E83D",
+      "summary": "Gets the latest virus definitions and scans the places malware usually hides.",
+      "effect": "Nothing is removed without Defender's own decision. Does not work if another antivirus has turned Microsoft Defender off.",
+      "duration": "5 to 20 minutes",
+      "sources": ["Microsoft Learn: Update-MpSignature, Start-MpScan"],
+      "steps": [
+        {
+          "title": "Update the virus definitions",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Update-MpSignature; 'Definitions are up to date.'"],
+          "encoding": "utf8",
+          "minutes": 15,
+          "optional": true
+        },
+        {
+          "title": "Run a quick scan",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Start-MpScan -ScanType QuickScan; 'Quick scan finished.'; Get-MpThreat | Select-Object ThreatName, IsActive | Format-Table -AutoSize | Out-String -Width 120"],
+          "encoding": "utf8",
+          "minutes": 60
+        }
+      ]
+    },
+    {
+      "id": "refresh-network",
+      "name": "Refresh the network connection",
+      "group": "network",
+      "scope": "machine",
+      "icon": "E839",
+      "summary": "For websites that will not load while others work, or after switching networks. Clears the saved addresses Windows remembers and optionally asks the router for a new one.",
+      "effect": "Your connection may drop for a few seconds. Nothing is reset to defaults, so settings such as a fixed IP address are kept.",
+      "duration": "Under a minute",
+      "sources": ["Microsoft Support: Fix network connection issues", "WinUtil (cross-check)"],
+      "options": [
+        { "id": "renew", "label": "Ask the router for a new IP address", "detail": "The usual fix for “connected, no internet”.", "default": true },
+        { "id": "adapters", "label": "Restart the network adapters", "detail": "Disconnects Wi-Fi and Ethernet for a few seconds." }
+      ],
+      "steps": [
+        { "title": "Clear the DNS cache", "file": "ipconfig.exe", "args": ["/flushdns"], "minutes": 2 },
+        { "title": "Clear the address table (ARP cache)", "file": "netsh.exe", "args": ["interface", "ip", "delete", "arpcache"], "minutes": 2, "optional": true },
+        { "title": "Release the current IP address", "file": "ipconfig.exe", "args": ["/release"], "ok": [0, 1], "minutes": 3, "optional": true, "when": "renew" },
+        { "title": "Get a new IP address", "file": "ipconfig.exe", "args": ["/renew"], "ok": [0, 1], "minutes": 5, "optional": true, "when": "renew", "always": true },
+        {
+          "title": "Restart the network adapters",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Get-NetAdapter -Physical | Where-Object Status -eq 'Up' | ForEach-Object { 'Restarting ' + $_.Name; Restart-NetAdapter -Name $_.Name -Confirm:$false }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "when": "adapters"
+        }
+      ]
+    },
+    {
+      "id": "reset-network",
+      "name": "Reset the network stack",
+      "group": "network",
+      "scope": "machine",
+      "icon": "E774",
+      "summary": "For when Refresh did not help: no internet on any app, or network adapters that are missing or stuck. Puts Windows' network settings back to their defaults.",
+      "effect": "A fixed IP address, custom DNS servers or a manually set proxy may need to be entered again, and VPN software may need reinstalling. Needs a restart to finish.",
+      "risk": "careful",
+      "restart": "always",
+      "duration": "A minute, then restart",
+      "sources": ["Microsoft Support: Fix network connection issues (Winsock and TCP/IP reset)", "WinUtil (cross-check)"],
+      "options": [
+        { "id": "proxy", "label": "Also clear the system proxy", "detail": "Use if a proxy you do not use is blocking the connection." }
+      ],
+      "steps": [
+        { "title": "Reset the Winsock catalog", "file": "netsh.exe", "args": ["winsock", "reset"], "minutes": 3 },
+        { "title": "Reset the TCP/IP settings", "file": "netsh.exe", "args": ["int", "ip", "reset"], "warn": [1], "minutes": 3 },
+        { "title": "Clear the system proxy", "file": "netsh.exe", "args": ["winhttp", "reset", "proxy"], "minutes": 2, "optional": true, "when": "proxy" },
+        { "title": "Clear the DNS cache", "file": "ipconfig.exe", "args": ["/flushdns"], "minutes": 2, "optional": true }
+      ]
+    },
+    {
+      "id": "fix-printing",
+      "name": "Clear stuck print jobs",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E749",
+      "summary": "For a printer that says “printing” forever, or documents that cannot be cancelled. Stops the print service, empties the print queue and starts it again.",
+      "effect": "All waiting print jobs are cancelled. Printers and their drivers are not touched.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Printer spooler troubleshooting (clear the PRINTERS folder)"],
+      "steps": [
+        { "title": "Stop the print service", "file": "net.exe", "args": ["stop", "spooler", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Empty the print queue", "kind": "deleteFiles", "path": "%SystemRoot%\\System32\\spool\\PRINTERS", "patterns": ["*"], "warn": [1], "optional": true },
+        { "title": "Start the print service", "file": "net.exe", "args": ["start", "spooler"], "ok": [0, 2], "minutes": 3, "always": true }
+      ]
+    },
+    {
+      "id": "restart-audio",
+      "name": "Restart sound services",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E767",
+      "summary": "For no sound, crackling, or a speaker or headset that Windows does not see. Restarts the services that run audio.",
+      "effect": "Sound stops for a few seconds, and apps playing audio may need to be restarted.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Fix sound or audio problems"],
+      "options": [
+        { "id": "bluetooth", "label": "Also restart Bluetooth support", "detail": "Bluetooth devices disconnect for a moment and reconnect by themselves." }
+      ],
+      "steps": [
+        { "title": "Stop Windows Audio", "file": "net.exe", "args": ["stop", "audiosrv", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Windows Audio Endpoint Builder", "file": "net.exe", "args": ["stop", "AudioEndpointBuilder", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Bluetooth Support", "file": "net.exe", "args": ["stop", "bthserv", "/y"], "ok": [0, 2], "minutes": 3, "when": "bluetooth" },
+        { "title": "Start Windows Audio Endpoint Builder", "file": "net.exe", "args": ["start", "AudioEndpointBuilder"], "ok": [0, 2], "minutes": 3, "always": true },
+        { "title": "Start Windows Audio", "file": "net.exe", "args": ["start", "audiosrv"], "ok": [0, 2], "minutes": 3, "always": true },
+        { "title": "Start Bluetooth Support", "file": "net.exe", "args": ["start", "bthserv"], "ok": [0, 2], "minutes": 3, "always": true, "when": "bluetooth" }
+      ]
+    },
+    {
+      "id": "rescan-devices",
+      "name": "Rescan hardware",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E772",
+      "summary": "For a USB device, drive or dock that was plugged in but does not show up. Asks Windows to look for hardware changes, like Device Manager's Scan button.",
+      "effect": "Nothing is removed or changed; devices Windows finds are set up as usual.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: PnPUtil /scan-devices"],
+      "steps": [
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3 }
+      ]
+    },
+    {
+      "id": "reset-store",
+      "name": "Reset Microsoft Store",
+      "group": "apps",
+      "scope": "machine",
+      "icon": "E719",
+      "summary": "For a Store that will not open, loads forever, or fails to download or update apps.",
+      "effect": "Clears the Store's cache. You stay signed in and keep your apps. The Store opens by itself when the reset finishes. Windows requires administrator permission for this tool.",
+      "duration": "A minute",
+      "sources": ["Microsoft Support: Reset the Microsoft Store cache (WSReset)"],
+      "steps": [
+        { "title": "Clear the Store cache", "file": "wsreset.exe", "minutes": 5 }
+      ]
+    },
+    {
+      "id": "repair-start-menu",
+      "name": "Fix Start menu and taskbar",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E80F",
+      "summary": "For a Start menu or search box that will not open, a blank or frozen taskbar, or a Settings app that closes at once. Registers Windows' own shell apps again.",
+      "effect": "The taskbar disappears for a few seconds while File Explorer restarts. Your pinned items and settings are kept.",
+      "duration": "1 to 3 minutes",
+      "sources": ["Microsoft Q&A: Start menu not working (re-register the shell packages)"],
+      "steps": [
+        {
+          "title": "Register the Start menu, taskbar and Settings apps again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; foreach ($name in 'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost', 'windows.immersivecontrolpanel') { $package = Get-AppxPackage -Name $name; if ($package) { Add-AppxPackage -DisableDevelopmentMode -Register (Join-Path $package.InstallLocation 'AppXManifest.xml'); \"Registered $name.\" } else { \"$name is not installed.\" } }"],
+          "encoding": "utf8",
+          "minutes": 10
+        },
+        { "title": "Restart File Explorer", "kind": "restartExplorer" }
+      ]
+    },
+    {
+      "id": "rebuild-icon-cache",
+      "name": "Fix wrong or blank icons",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E91B",
+      "summary": "For icons that show the wrong picture, a plain white page, or thumbnails that never appear. Deletes the saved icon pictures so Windows draws them fresh.",
+      "effect": "The taskbar and desktop disappear for a few seconds, and folders may be slow to show thumbnails the first time afterwards.",
+      "duration": "Under a minute",
+      "sources": ["Microsoft Q&A: Rebuild the icon cache"],
+      "steps": [
+        { "title": "Close File Explorer", "kind": "stopExplorer" },
+        { "title": "Delete the icon cache", "kind": "deleteFiles", "path": "%LOCALAPPDATA%", "patterns": ["IconCache.db"], "warn": [1], "optional": true },
+        { "title": "Delete the saved icons and thumbnails", "kind": "deleteFiles", "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "patterns": ["iconcache_*.db", "thumbcache_*.db"], "warn": [1], "optional": true },
+        { "title": "Start File Explorer", "kind": "startExplorer", "always": true }
+      ]
+    },
+    {
+      "id": "reset-onedrive",
+      "name": "Reset OneDrive",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E753",
+      "summary": "For OneDrive that is stuck syncing, shows the wrong status, or will not start. Resets the sync app without touching your files.",
+      "effect": "OneDrive restarts by itself within a minute or two (open it from Start if it does not) and checks all its files again, which can take a while. No files are deleted.",
+      "duration": "A minute, then OneDrive syncs again",
+      "sources": ["Microsoft Support: Reset OneDrive"],
+      "steps": [
+        { "title": "Reset OneDrive", "file": "onedrive", "args": ["/reset"], "minutes": 2 }
+      ]
+    }
+  ]
+}

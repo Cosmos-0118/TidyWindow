@@ -51,6 +51,9 @@
      <Button x:Name="TuneNav" Style="{StaticResource NavButton}" Click="TuneClick" AutomationProperties.Name="Tune">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9E9;" FontSize="15" /><TextBlock x:Name="TuneLabel" Text="Tune" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="FixesNav" Style="{StaticResource NavButton}" Click="FixesClick" AutomationProperties.Name="Fixes">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE713;" FontSize="15" /><TextBlock x:Name="FixesLabel" Text="Fixes" FontSize="13" /></StackPanel>
+     </Button>
      <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
@@ -305,6 +308,7 @@
     <local:StartupView x:Name="StartupPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:BackgroundView x:Name="QuietPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:TuneView x:Name="TunePage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:FixesView x:Name="FixesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">

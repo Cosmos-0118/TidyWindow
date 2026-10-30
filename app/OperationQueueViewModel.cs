@@ -16,7 +16,8 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
     public Microsoft.UI.Xaml.Media.Brush NoticeBrush => OutputPalette.Brush(Entry.State == QueueItemState.Running ? OutputTone.Information : StatusTone, light);
     public IReadOnlyList<FormattedOutputLine> OutputDocument => formatted ??= CommandOutputFormatter.Format(Entry.OutputSegments is { Count: > 0 } segments ? segments : [new CommandOutput(Output)]);
     public string Name => Entry.Operation.Name;
-    public string Detail => $"{Entry.Operation.Kind} · {ManagerDefinition.All.Single(x => x.Kind == Entry.Operation.Manager).Name} · {Entry.Operation.Id}" + (Entry.Operation.Interactive ? " · Installer options" : "");
+    public string Detail => Entry.Operation.Fix is not null ? $"Fix · {Entry.Operation.Id}"
+        : $"{Entry.Operation.Kind} · {ManagerDefinition.All.Single(x => x.Kind == Entry.Operation.Manager).Name} · {Entry.Operation.Id}" + (Entry.Operation.Interactive ? " · Installer options" : "");
     public string Status => Entry.State switch
     {
         QueueItemState.Waiting => "Queued",
@@ -77,6 +78,8 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     public bool CanClearFinished => Snapshot.Entries.Any(x => x.State is QueueItemState.Finished or QueueItemState.Cancelled);
     public Visibility EmptyVisibility => Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public event Action? StateChanged;
+    /// <summary>Raised on the UI thread after every update, including new output, for pages that show one line of live progress.</summary>
+    public event Action? Refreshed;
     public OperationQueueViewModel(PackageOperationQueue queue, ActivityLog log, Action<Action> post)
     {
         this.queue = queue; this.log = log; this.post = post;
@@ -88,7 +91,7 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     private void RefreshColors() { foreach (var row in Rows) row.SetLightTheme(light); }
     public void Enqueue(IEnumerable<PackageOperation> operations)
     {
-        queue.Enqueue(operations.Select(x => x with { Interactive = x.Interactive || ShowInstallerOptions && x.Manager != ManagerKind.Scoop && x.Kind != PackageOperationKind.Uninstall }));
+        queue.Enqueue(operations.Select(x => x with { Interactive = x.Interactive || ShowInstallerOptions && x.Fix is null && x.Manager != ManagerKind.Scoop && x.Kind != PackageOperationKind.Uninstall }));
         Apply();
     }
     public void Cancel(QueueRow row) { queue.Cancel(row.Entry.Id); Apply(); }
@@ -105,7 +108,7 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     {
         var result = entry.Result!;
         log.Write(result.Outcome == ActionOutcome.Completed ? ActivityLevel.Success : result.Outcome == ActionOutcome.Failed ? ActivityLevel.Error : ActivityLevel.Warning,
-            ActivityArea.Install, result.Message, result.Detail);
+            entry.Operation.Fix is not null ? ActivityArea.App : ActivityArea.Install, result.Message, result.Detail);
     }
     private void Apply()
     {
@@ -131,7 +134,10 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
             foreach (var name in new[] { nameof(HasWork), nameof(Label), nameof(CanClear), nameof(CanClearFinished), nameof(EmptyVisibility) }) Changed(name);
             StateChanged?.Invoke();
         }
+        Refreshed?.Invoke();
     }
+    /// <summary>The newest queue entry for a fix, if any.</summary>
+    public QueueEntry? FindFix(string id) => Snapshot.Find(PackageOperation.FixResource(id));
     /// <summary>Latest entry per package, so a long list can be matched without rescanning the queue for every row.</summary>
     public Dictionary<string, QueueEntry> Index()
     {

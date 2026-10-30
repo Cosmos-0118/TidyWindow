@@ -116,6 +116,13 @@ public static class ExplorerShell
 {
     public static async Task RestartAsync()
     {
+        await StopAsync().ConfigureAwait(false);
+        await StartAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Closes the current user's File Explorer (and with it the taskbar). Windows may start it again by itself.</summary>
+    public static Task StopAsync()
+    {
         var session = Process.GetCurrentProcess().SessionId;
         foreach (var process in Process.GetProcessesByName("explorer"))
         {
@@ -126,11 +133,17 @@ public static class ExplorerShell
                 catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
             }
         }
-        // Windows starts the shell again by itself; if it has not within a few seconds, start it.
-        for (var i = 0; i < 10; i++)
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Makes sure File Explorer is running again: waits briefly for Windows to start it, then starts it.</summary>
+    public static async Task StartAsync()
+    {
+        var session = Process.GetCurrentProcess().SessionId;
+        for (var i = 0; i < 6; i++)
         {
-            await Task.Delay(500).ConfigureAwait(false);
             if (Process.GetProcessesByName("explorer").Any(x => { using (x) return x.SessionId == session; })) return;
+            await Task.Delay(500).ConfigureAwait(false);
         }
         Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true });
     }
