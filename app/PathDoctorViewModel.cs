@@ -114,7 +114,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     private readonly HashSet<string> opened = new(StringComparer.OrdinalIgnoreCase);
     private PathSnapshot? snapshot;
     private long generation;
-    private bool busy, loaded, unlocked;
+    private bool busy, loaded, unlocked, scanning;
     private readonly HashSet<string> told = [];
     private string undoText = "", machineUndoText = "", missingCommands = "", lookupText = "";
     private int machineFixable;
@@ -135,7 +135,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     public bool Loaded => loaded;
     public bool Busy => busy;
     public bool CanChange => !busy;
-    public bool ScanOverlay => busy && !loaded;
+    /// <summary>True on the first visit and on every "Check again", so the loading animation always covers a scan.</summary>
+    public bool ScanOverlay => scanning;
     public string UndoText { get => undoText; private set { Set(ref undoText, value); Changed(nameof(UndoVisibility)); } }
     public Visibility UndoVisibility => undoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string MissingCommands { get => missingCommands; private set { Set(ref missingCommands, value); Changed(nameof(MissingVisibility)); } }
@@ -159,14 +160,17 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     {
         if (lifetime.IsCancellationRequested) return;
         var current = ++generation;
-        busy = true; Notify();
+        busy = true; scanning = true; Notify();
         try
         {
-            var (state, lookups, javaHome, tools) = await Task.Run(() =>
+            // Everything that touches the disk or the registry happens here, so the window only has to build rows afterwards.
+            var names = CommandResolver.Common.Concat(custom).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var (state, lookups, notes, tools, backup, machineBackup) = await Task.Run(() =>
             {
                 var s = doctor.Load();
-                var names = CommandResolver.Common.Concat(custom).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                return (s, names.Select(n => resolver.Find(n, s)).ToList(), doctor.Variable("JAVA_HOME"), setup.Find(s, n => resolver.Find(n, s)));
+                var found = names.Select(n => resolver.Find(n, s)).ToList();
+                var java = PathAdvice.JavaHome(doctor.Variable("JAVA_HOME"), found.First(x => x.Command == "java"), Directory.Exists);
+                return (s, found, java, setup.Find(s, n => resolver.Find(n, s)), doctor.LastBackup, machineDoctor.LastBackup);
             }, lifetime.Token);
             if (current != generation) return;
             snapshot = state;
@@ -198,12 +202,10 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             }
             MissingCommands = missing.Count == 0 ? "" : "Not installed or not in PATH: " + string.Join(", ", missing) + ". The Add tools tab can fix this when they are installed.";
 
-            var notes = PathAdvice.JavaHome(javaHome, lookups.First(x => x.Command == "java"), Directory.Exists);
             Advise(state, notes);
-            var backup = doctor.LastBackup;
             UndoText = backup is null ? "" : "Undo: " + backup.Why;
-            MachineUndoText = machineDoctor.LastBackup is { } machineBackup ? "Undo: " + machineBackup.Why : "";
-            loaded = true; busy = false; Notify();
+            MachineUndoText = machineBackup is null ? "" : "Undo: " + machineBackup.Why;
+            loaded = true; busy = false; scanning = false; Notify();
 
             await ProbeAsync(all, state, notes, current);
         }
@@ -213,7 +215,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             Toast("read-failed", ToastKind.Warning, "Path Doctor could not read your PATH", ex.Message, "Try again", () => RefreshAsync());
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor could not read PATH", ex.Message);
         }
-        finally { if (current == generation) { busy = false; Notify(); } }
+        finally { if (current == generation) { busy = false; scanning = false; Notify(); } }
     }
 
     private void Remember(string name, bool open) { if (open) opened.Add(name); else opened.Remove(name); }
@@ -233,7 +235,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     private async Task ProbeAsync(List<CandidateRow> rows, PathSnapshot state, IReadOnlyList<string> notes, long current)
     {
         using var gate = new SemaphoreSlim(6);
-        await Task.WhenAll(rows.Select(async row =>
+        // Started on the thread pool: launching a program is slow, and the first few launches would otherwise run on the UI thread.
+        await Task.Run(() => Task.WhenAll(rows.Select(async row =>
         {
             await gate.WaitAsync(lifetime.Token).ConfigureAwait(false);
             try
@@ -244,7 +247,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             }
             catch (OperationCanceledException) { }
             finally { gate.Release(); }
-        })).ConfigureAwait(true);
+        })), lifetime.Token).ConfigureAwait(true);
         if (current == generation && !lifetime.IsCancellationRequested) Advise(state, notes);
     }
 

@@ -116,6 +116,7 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = 420;
         }
         initialized = true;
+        PrepareSidebar();
         ShowPage(Page.Overview);
         Root.SizeChanged += (_, _) => ApplyResponsiveLayout();
         // The sidebar stays open while the theme menu it launched is showing.
@@ -193,13 +194,43 @@ public sealed partial class MainWindow : Window
 
     // The sidebar opens a moment after the pointer arrives and closes a little after it leaves, so crossing the edge of the window does not make it flicker.
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? sidebarTimer;
-    private bool sidebarOpen, sidebarPointer, sidebarKeyboard, sidebarMenu;
+    private bool sidebarOpen, sidebarPointer, sidebarKeyboard, sidebarMenu, keyboardUsed;
+    private Microsoft.UI.Composition.CompositionPropertySet? sidebarState;
+    private readonly bool sidebarAnimations = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
 
     private void SidebarPointerEntered(object sender, PointerRoutedEventArgs e) { sidebarPointer = true; UpdateSidebar(); }
     private void SidebarPointerExited(object sender, PointerRoutedEventArgs e) { sidebarPointer = false; UpdateSidebar(); }
-    private void SidebarGotFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = (e.OriginalSource as Control)?.FocusState == FocusState.Keyboard; UpdateSidebar(); }
+    // The first control to get focus when the app starts is in the sidebar; only focus the person moved there with the keyboard opens it.
+    private void SidebarGotFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = keyboardUsed && (e.OriginalSource as Control)?.FocusState == FocusState.Keyboard; UpdateSidebar(); }
     private void SidebarLostFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = false; UpdateSidebar(); }
-    private void SidebarSizeChanged(object sender, SizeChangedEventArgs e) => Sidebar.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+
+    /// <summary>
+    /// The sidebar is as wide as it opens from the moment it is hovered, and a clip that follows <c>Reveal</c> decides how much of it shows.
+    /// The clip and the edge line are animated by the compositor, so opening and closing never relayout the sidebar and keep their pace when the page behind is busy.
+    /// </summary>
+    private void PrepareSidebar()
+    {
+        var compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(Sidebar).Compositor;
+        var sidebar = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(Sidebar);
+        sidebarState = compositor.CreatePropertySet();
+        sidebarState.InsertScalar("Reveal", (float)AdaptiveLayout.RailWidth);
+
+        var clip = compositor.CreateInsetClip();
+        sidebar.Clip = clip;
+        var inset = compositor.CreateExpressionAnimation("Max(0, sidebar.Size.X - state.Reveal)");
+        inset.SetReferenceParameter("sidebar", sidebar);
+        inset.SetReferenceParameter("state", sidebarState);
+        clip.StartAnimation("RightInset", inset);
+
+        Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(SidebarEdge, true);
+        var edge = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(SidebarEdge);
+        var follow = compositor.CreateExpressionAnimation("state.Reveal - 1");
+        follow.SetReferenceParameter("state", sidebarState);
+        edge.StartAnimation("Translation.X", follow);
+
+        Root.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler((_, e) => { if (e.Key is VirtualKey.Tab or VirtualKey.Up or VirtualKey.Down or VirtualKey.Left or VirtualKey.Right) keyboardUsed = true; }), true);
+        Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, _) => keyboardUsed = false), true);
+    }
 
     private void UpdateSidebar()
     {
@@ -212,26 +243,32 @@ public sealed partial class MainWindow : Window
         }
         sidebarTimer.Stop();
         if (wanted == sidebarOpen) return;
-        sidebarTimer.Interval = TimeSpan.FromMilliseconds(wanted ? 80 : 260);
+        sidebarTimer.Interval = TimeSpan.FromMilliseconds(wanted ? 30 : 200);
         sidebarTimer.Start();
     }
 
     private void SetSidebar(bool open)
     {
-        if (open == sidebarOpen) return;
+        if (open == sidebarOpen || sidebarState is null) return;
         sidebarOpen = open;
-        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        // The width changes once, while the clip still shows only the rail (opening) or has just finished hiding the rest (closing).
+        if (open) Sidebar.Width = AdaptiveLayout.OpenWidth;
+        var target = (float)(open ? AdaptiveLayout.OpenWidth : AdaptiveLayout.RailWidth);
+        if (!sidebarAnimations)
         {
-            To = open ? AdaptiveLayout.OpenWidth : AdaptiveLayout.RailWidth,
-            Duration = TimeSpan.FromMilliseconds(open ? 170 : 140),
-            EnableDependentAnimation = true,
-            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut }
-        };
-        var board = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, Sidebar);
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "Width");
-        board.Children.Add(slide);
-        board.Begin();
+            sidebarState.InsertScalar("Reveal", target);
+            if (!open) Sidebar.Width = AdaptiveLayout.RailWidth;
+            return;
+        }
+        var compositor = sidebarState.Compositor;
+        var slide = compositor.CreateScalarKeyFrameAnimation();
+        slide.Duration = TimeSpan.FromMilliseconds(open ? 160 : 130);
+        slide.InsertKeyFrame(1, target, compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.215f, 0.61f), new System.Numerics.Vector2(0.355f, 1f)));
+        var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
+        sidebarState.StartAnimation("Reveal", slide);
+        batch.End();
+        // Closed again only once the clip has covered everything past the rail, and not if the pointer came back in the meantime.
+        batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() => { if (!sidebarOpen) Sidebar.Width = AdaptiveLayout.RailWidth; });
     }
 
     private UIElement PageElement(Page value) => value switch

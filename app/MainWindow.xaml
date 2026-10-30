@@ -15,8 +15,9 @@
   <Grid Grid.Row="1">
    <Grid.ColumnDefinitions><ColumnDefinition x:Name="SidebarColumn" Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
    <!-- Rests as an icon rail and opens over the page (it never pushes the content) while the pointer or keyboard focus is on it. -->
-   <Border x:Name="Sidebar" Grid.ColumnSpan="2" Canvas.ZIndex="1" Width="56" HorizontalAlignment="Left" Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,1,0"
-     PointerEntered="SidebarPointerEntered" PointerExited="SidebarPointerExited" GotFocus="SidebarGotFocus" LostFocus="SidebarLostFocus" SizeChanged="SidebarSizeChanged">
+   <!-- The border is the 1px SidebarEdge below instead of a BorderThickness, so the compositor can slide it along with the reveal. -->
+   <Border x:Name="Sidebar" Grid.ColumnSpan="2" Canvas.ZIndex="1" Width="56" HorizontalAlignment="Left" Background="{ThemeResource CanvasBrush}"
+     PointerEntered="SidebarPointerEntered" PointerExited="SidebarPointerExited" GotFocus="SidebarGotFocus" LostFocus="SidebarLostFocus">
     <Grid Margin="10,20,10,12">
      <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
      <StackPanel Spacing="4">
@@ -66,6 +67,7 @@
      </StackPanel>
     </Grid>
    </Border>
+   <Rectangle x:Name="SidebarEdge" Grid.ColumnSpan="2" Canvas.ZIndex="2" Width="1" HorizontalAlignment="Left" Fill="{ThemeResource LineBrush}" IsHitTestVisible="False" />
    <Grid x:Name="ContentArea" Grid.Column="1" Padding="36,24,36,28">
     <ScrollViewer x:Name="OverviewPage" HorizontalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
      <StackPanel HorizontalAlignment="Stretch" Spacing="24" Padding="0,0,12,12">
