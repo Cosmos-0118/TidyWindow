@@ -31,3 +31,29 @@ jobs:
         run: dotnet build TidyWindow.slnx -c Release --no-restore
       - name: Test
         run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
+
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish self-contained app
+        run: dotnet publish app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build.ps1 -Version 0.0.0 -PublishDir artifacts/publish
+      - name: Check the installer installs and uninstalls
+        shell: pwsh
+        run: ./installer/smoke-test.ps1 -Setup artifacts/TidyWindow-Setup-0.0.0.exe
+      - uses: actions/upload-artifact@v7
+        with:
+          name: TidyWindow-Setup-test
+          path: artifacts/TidyWindow-Setup-0.0.0.exe
+          retention-days: 3

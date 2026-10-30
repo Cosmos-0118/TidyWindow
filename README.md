@@ -87,6 +87,7 @@ dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release
 | `search-host/` | The Scout worker that talks to Everything. |
 | `tests/` | Parsing, catalog, safety-guard, ranking and layout tests. |
 | `docs/` | Research behind each page: [Scout](docs/scout-research.md), [Quiet](docs/quiet-research.md), [Tune](docs/tune-research.md), [Fixes](docs/fixes-research.md), [Lab](docs/lab-research.md). |
+| `installer/` | Inno Setup script, the script that builds it, and an install/uninstall smoke test. |
 | `tools/Brand/` | Script that renders the app icons. |
 
 WinUI 3 gives native controls and desktop integration without a web renderer, and .NET keeps the app and backend in one language. This is a Windows-specific app by design. See Microsoft's [desktop framework guidance](https://learn.microsoft.com/en-us/windows/apps/desktop/).
@@ -96,7 +97,12 @@ WinUI 3 gives native controls and desktop integration without a web renderer, an
 - `main`: the current app and the default branch. CI builds and tests every push and pull request.
 - `legacy`: the previous TidyWindow (v4.x), unchanged and no longer developed.
 
-Pushing a tag such as `v5.0.0` runs the release workflow, which tests, publishes a self-contained build and attaches `TidyWindow-<version>-win-x64.zip` to a GitHub release. Releases up to v4.7.x are the legacy app.
+Pushing a tag such as `v5.0.0` runs the release workflow. It tests, publishes a self-contained build, checks that the installer installs and uninstalls, and attaches two files to the GitHub release (adding to a release you wrote by hand, and leaving its notes alone):
+
+- `TidyWindow-Setup-<version>.exe`: the installer. It installs for the current user without administrator rights (or for all users if you choose), adds a Start menu entry, and on uninstall asks before deleting your settings and undo data.
+- `TidyWindow-<version>-win-x64.zip`: the same build, portable. Extract it and run `TidyWindow.Next.exe`.
+
+Releases up to v4.7.x are the legacy app. To build the installer yourself, install [Inno Setup 6](https://jrsoftware.org/isinfo.php), publish as above, then run `pwsh installer/build.ps1 -Version 5.0.0 -PublishDir artifacts/publish`.
 
 ## License
 
