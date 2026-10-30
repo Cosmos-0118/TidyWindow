@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Fixes, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Fixes, Lab, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private readonly TuneSession tuneSession;
     private readonly FixesViewModel fixes;
     private readonly FixSession fixSession;
+    private readonly LabViewModel lab;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -96,6 +97,8 @@ public sealed partial class MainWindow : Window
         var tuneCatalog = TuneCatalog.Load();
         tuneSession = TuneSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var tuneHistory = new TuneHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Tune"));
+        var labStore = new LabStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Lab"));
+        lab = new(new PowerMode(new PowerCfgProcess(), labStore), labStore, new ProcessBoost(new LiveProcesses()), tuneSystem, log, toasts, OpenTune, PowerSource.HasBattery());
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
@@ -103,6 +106,7 @@ public sealed partial class MainWindow : Window
         QuietPage.DataContext = quiet;
         TunePage.DataContext = tune;
         FixesPage.DataContext = fixes;
+        LabPage.DataContext = lab;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
@@ -147,7 +151,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -290,7 +294,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Fixes => FixesPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Fixes => FixesPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -344,7 +348,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (FixesNav, Page.Fixes), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (FixesNav, Page.Fixes), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -422,7 +426,15 @@ public sealed partial class MainWindow : Window
 
     private void FixesClick(object sender, RoutedEventArgs e) => ShowPage(Page.Fixes);
 
-    private void TuneClick(object sender, RoutedEventArgs e)
+    private void LabClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Lab);
+        _ = lab.LoadAsync();
+    }
+
+    private void TuneClick(object sender, RoutedEventArgs e) => OpenTune();
+
+    private void OpenTune()
     {
         ShowPage(Page.Tune);
         tune.RefreshChanges();

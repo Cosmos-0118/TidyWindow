@@ -145,7 +145,8 @@ public static partial class TuneGuard
         new(TuneScope.Machine, @"SOFTWARE\Policies\Microsoft\Edge", ["StartupBoostEnabled", "BackgroundModeEnabled"]),
         new(TuneScope.Machine, @"SOFTWARE\Policies\Microsoft\Windows\System", ["PublishUserActivities", "UploadUserActivities", "EnableActivityFeed"]),
         new(TuneScope.Machine, @"SOFTWARE\Policies\Microsoft\Windows\CloudContent", ["DisableWindowsConsumerFeatures"]),
-        new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\FileSystem", ["LongPathsEnabled"])
+        new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\FileSystem", ["LongPathsEnabled"]),
+        new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", ["Enabled"])
     ];
 
     // Keys that may be removed whole, because this page created them.

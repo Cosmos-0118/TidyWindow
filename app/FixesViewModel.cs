@@ -71,8 +71,12 @@ public sealed class FixRow : ObservableState
     public Visibility LiveVisibility => Live.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public bool Working => Busy;
 
-    public string LastText => note is null || entry is { State: QueueItemState.Finished } ? "" : $"Last run {note.When.ToLocalTime():d MMM, h:mm tt}: {Words(note.Outcome)}";
+    public string LastText => note is null || entry is { State: QueueItemState.Finished } ? "" : $"Last run: {Words(note.Outcome)} · {note.When.ToLocalTime():d MMM, h:mm tt}";
     public Visibility LastVisibility => LastText.Length > 0 && !Busy ? Visibility.Visible : Visibility.Collapsed;
+    private bool LastWentWell => note?.Outcome is nameof(ActionOutcome.Completed) or nameof(ActionOutcome.RestartRequired);
+    /// <summary>The dot beside the last run: green when it worked, amber when it did not, so the state shows without reading.</summary>
+    public Visibility LastGoodVisibility => LastWentWell ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility LastWarnVisibility => LastWentWell ? Visibility.Collapsed : Visibility.Visible;
 
     private static string Words(string outcome) => outcome switch
     {
@@ -120,7 +124,7 @@ public sealed class FixRow : ObservableState
         entry = latest; note = last;
         foreach (var name in new[]
         {
-            nameof(Queued), nameof(Running), nameof(Busy), nameof(CanRun), nameof(ButtonText), nameof(Live), nameof(LiveVisibility), nameof(Working), nameof(LastText), nameof(LastVisibility)
+            nameof(Queued), nameof(Running), nameof(Busy), nameof(CanRun), nameof(ButtonText), nameof(Live), nameof(LiveVisibility), nameof(Working), nameof(LastText), nameof(LastVisibility), nameof(LastGoodVisibility), nameof(LastWarnVisibility)
         }) Changed(name);
     }
 }

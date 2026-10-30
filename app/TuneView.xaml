@@ -31,7 +31,7 @@
         <Border Visibility="{Binding PartlyVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="Some of its settings are on and some are not. Turn it on to set all of them."><TextBlock Text="Partly on" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding TakesVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="When the change shows up"><TextBlock Text="{Binding TakesText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding CarefulVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="This has a trade-off. You will be asked first."><TextBlock Text="Careful" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
-        <FontIcon Visibility="{Binding AdminVisibility}" Glyph="&#xE7EF;" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" ToolTipService.ToolTip="Changing this asks for administrator permission" />
+        <Border Visibility="{Binding AdminVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="7,1" VerticalAlignment="Center" ToolTipService.ToolTip="Changing this asks for administrator permission"><TextBlock Text="Admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
        </StackPanel>
 
        <Grid Grid.Column="3" VerticalAlignment="Center" MinWidth="44">

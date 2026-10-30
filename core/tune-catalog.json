@@ -246,6 +246,22 @@
       "targets": [
         { "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem", "name": "LongPathsEnabled", "value": "1", "normal": "0" }
       ]
+    },
+    {
+      "id": "memory-integrity",
+      "name": "Memory integrity off",
+      "group": "speed",
+      "scope": "machine",
+      "topic": "Games",
+      "icon": "EA18",
+      "risk": "careful",
+      "summary": "Turns off memory integrity (also called HVCI), which runs a security check on drivers inside a protected area. Games and other heavy apps run a few percent faster, up to about 8% in some tests.",
+      "effect": "This lowers your protection. Memory integrity stops malware from loading harmful code into Windows itself, so leave it on unless you have tested that the speed matters to you. A company policy or a firmware lock can still keep it on. It takes effect after a restart, and Windows Security shows a warning while it is off.",
+      "takes": "restart",
+      "sources": ["Microsoft Learn: Enable memory integrity", "Tom's Hardware: Windows 11 VBS and HVCI gaming benchmarks", "ComputerBase: VBS and HVCI in Windows 11, game benchmarks"],
+      "targets": [
+        { "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity", "name": "Enabled", "value": "0", "normal": "1" }
+      ]
     }
   ]
 }

@@ -60,7 +60,7 @@ public sealed class TuneCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = TuneCatalog.Load();
-        Assert.Equal(15, catalog.Count);
+        Assert.Equal(16, catalog.Count);
         Assert.Empty(TuneGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<TuneGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); });

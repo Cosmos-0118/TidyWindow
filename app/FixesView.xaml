@@ -5,7 +5,7 @@
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
   <ResourceDictionary>
-   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /><ResourceDictionary Source="ms-appx:///PageStyles.xaml" /></ResourceDictionary.MergedDictionaries>
 
    <!-- One row for each fix. It says what the fix is for and has the Run button; the options and the steps open underneath. -->
    <DataTemplate x:Key="FixRowTemplate">
@@ -28,13 +28,17 @@
          <ProgressRing IsActive="{Binding Working}" Width="12" Height="12" VerticalAlignment="Center" />
          <TextBlock Text="{Binding Live}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
         </StackPanel>
-        <TextBlock Text="{Binding LastText}" Visibility="{Binding LastVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" Margin="0,2,0,0" />
+        <StackPanel Orientation="Horizontal" Spacing="7" Visibility="{Binding LastVisibility}" Margin="0,3,0,0">
+         <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding LastGoodVisibility}" Fill="{ThemeResource GoodBrush}" />
+         <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding LastWarnVisibility}" Fill="{ThemeResource WarnBrush}" />
+         <TextBlock Text="{Binding LastText}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+        </StackPanel>
        </StackPanel>
 
        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <Border Visibility="{Binding RestartVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="{Binding RestartTip}"><TextBlock Text="{Binding RestartText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding CarefulVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="This has a trade-off. You will be asked first."><TextBlock Text="Careful" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
-        <FontIcon Visibility="{Binding AdminVisibility}" Glyph="&#xE7EF;" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" ToolTipService.ToolTip="Asks for administrator permission" />
+        <Border Visibility="{Binding AdminVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="7,1" VerticalAlignment="Center" ToolTipService.ToolTip="Asks for administrator permission when it starts"><TextBlock Text="Admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
        </StackPanel>
 
        <Button Grid.Column="3" Click="RunClick" IsEnabled="{Binding CanRun}" Padding="14,7" MinWidth="86" VerticalAlignment="Center" AutomationProperties.Name="{Binding AutomationName}">

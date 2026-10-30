@@ -105,3 +105,7 @@ Reading, the guard, the rules for applying and putting back, rollback, and the h
 | [Microsoft TechNet: AutoEndTasks](https://technet.microsoft.com/en-us/library/cc978624.aspx) | Documentation | AutoEndTasks meaning |
 
 Nothing is copied from these projects. Catalog entries and descriptions are written for this app.
+
+## Added later: memory integrity
+
+"Memory integrity off" (`HypervisorEnforcedCodeIntegrity\Enabled`, machine, needs a restart, marked Careful) was added with the Lab. It is the only setting in the old Performance Lab with a measured effect on speed (about 4 to 8% in games, depending on CPU and game), and it is a security feature, so it asks first and says what is given up. Research and the evidence are in [lab-research.md](lab-research.md). The Lab shows its state and links here to change it.
