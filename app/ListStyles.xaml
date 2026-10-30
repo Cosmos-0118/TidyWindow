@@ -1,0 +1,85 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+   <ResourceDictionary.ThemeDictionaries>
+    <!-- Switches are black and white, like the rest of the app, instead of the system accent color. -->
+    <ResourceDictionary x:Key="Light">
+     <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#171717" /><SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#404040" /><SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#525252" />
+     <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#171717" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#404040" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#525252" />
+     <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FFFFFF" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FFFFFF" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FFFFFF" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Default">
+     <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#EDEDED" /><SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#D4D4D4" /><SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#BDBDBD" />
+     <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#EDEDED" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#D4D4D4" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#BDBDBD" />
+     <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#0A0A0A" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#0A0A0A" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#0A0A0A" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="HighContrast">
+     <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{ThemeResource SystemColorHighlightColor}" /><SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{ThemeResource SystemColorHighlightColor}" /><SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+     <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{ThemeResource SystemColorHighlightColor}" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{ThemeResource SystemColorHighlightColor}" /><SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+     <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{ThemeResource SystemColorHighlightTextColor}" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" /><SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+    </ResourceDictionary>
+   </ResourceDictionary.ThemeDictionaries>
+
+   <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
+
+   <Style x:Key="RowContainer" TargetType="ListViewItem">
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" />
+   </Style>
+
+   <!-- The big number tabs along the top: pick one and the list below becomes that group. -->
+   <Style x:Key="StatTabStyle" TargetType="RadioButton">
+    <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Padding" Value="12,10" /><Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="UseSystemFocusVisuals" Value="True" />
+    <Setter Property="Template">
+     <Setter.Value>
+      <ControlTemplate TargetType="RadioButton">
+       <Grid Background="Transparent">
+        <Border x:Name="Hover" Margin="0,3,0,5" CornerRadius="6" Background="{ThemeResource RowHoverBrush}" Opacity="0" />
+        <ContentPresenter x:Name="Content" Padding="{TemplateBinding Padding}" Content="{TemplateBinding Content}" HorizontalContentAlignment="Stretch" Opacity="0.62" AutomationProperties.AccessibilityView="Raw" />
+        <Border x:Name="Indicator" Height="2" Margin="12,0,12,-1" VerticalAlignment="Bottom" CornerRadius="1" Background="{ThemeResource TextFillColorPrimaryBrush}" Opacity="0" />
+        <VisualStateManager.VisualStateGroups>
+         <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="Normal" />
+          <VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="Hover.Opacity" Value="1" /><Setter Target="Content.Opacity" Value="0.92" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Hover.Opacity" Value="1" /><Setter Target="Content.Opacity" Value="0.8" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="Content.Opacity" Value="0.4" /></VisualState.Setters></VisualState>
+         </VisualStateGroup>
+         <VisualStateGroup x:Name="CheckStates">
+          <VisualState x:Name="Unchecked" />
+          <VisualState x:Name="Checked"><VisualState.Setters><Setter Target="Indicator.Opacity" Value="1" /><Setter Target="Content.Opacity" Value="1" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Indeterminate" />
+         </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+       </Grid>
+      </ControlTemplate>
+     </Setter.Value>
+    </Setter>
+   </Style>
+
+   <!-- The small All / On / Off switcher. -->
+   <Style x:Key="SegmentStyle" TargetType="RadioButton">
+    <Setter Property="Padding" Value="14,5" /><Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="FontSize" Value="12" /><Setter Property="UseSystemFocusVisuals" Value="True" />
+    <Setter Property="Template">
+     <Setter.Value>
+      <ControlTemplate TargetType="RadioButton">
+       <Grid Background="Transparent" CornerRadius="6">
+        <Border x:Name="Fill" CornerRadius="6" Background="{ThemeResource BadgeBrush}" Opacity="0" />
+        <ContentPresenter x:Name="Content" Padding="{TemplateBinding Padding}" Content="{TemplateBinding Content}" FontSize="{TemplateBinding FontSize}" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+        <VisualStateManager.VisualStateGroups>
+         <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="Normal" />
+          <VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="Content.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Content.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="Content.Opacity" Value="0.4" /></VisualState.Setters></VisualState>
+         </VisualStateGroup>
+         <VisualStateGroup x:Name="CheckStates">
+          <VisualState x:Name="Unchecked" />
+          <VisualState x:Name="Checked"><VisualState.Setters><Setter Target="Fill.Opacity" Value="1" /><Setter Target="Content.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" /></VisualState.Setters></VisualState>
+          <VisualState x:Name="Indeterminate" />
+         </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+       </Grid>
+      </ControlTemplate>
+     </Setter.Value>
+    </Setter>
+   </Style>
+</ResourceDictionary>

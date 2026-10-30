@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>TidyWindow.Next</AssemblyName>
+    <ApplicationIcon>Assets/Brand/tidywindow.ico</ApplicationIcon>
+    <ScoutRuntimeMode Condition="'$(SelfContained)' == 'true'">self-contained</ScoutRuntimeMode>
+    <ScoutRuntimeMode Condition="'$(ScoutRuntimeMode)' == ''">framework-dependent</ScoutRuntimeMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="Assets/Managers/*"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets/Brand/*" Exclude="Assets/Brand/logo-512.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <ProjectReference Include="../core/TidyWindow.Core.csproj" />
+    <ProjectReference Include="../search-host/TidyWindow.SearchHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir" />
+    <ProjectReference Include="../clean-host/TidyWindow.CleanHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir" />
+  </ItemGroup>
+  <Target Name="CopyCleanHost" AfterTargets="Build">
+    <ItemGroup><CleanHostFiles Include="../artifacts/clean-host/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="../artifacts/clean-host/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <RemoveDir Directories="$(OutDir)CleanHost" />
+    <Copy SourceFiles="@(CleanHostFiles)" DestinationFiles="@(CleanHostFiles->'$(OutDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishCleanHost" AfterTargets="Publish">
+    <PropertyGroup>
+      <CleanHostPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../artifacts/clean-publish/$(Configuration)/$(ScoutRuntimeMode)/'))</CleanHostPublishDir>
+    </PropertyGroup>
+    <MSBuild Projects="../clean-host/TidyWindow.CleanHost.csproj" Targets="Publish"
+             Properties="Configuration=$(Configuration);SelfContained=$(SelfContained);PublishDir=$(CleanHostPublishDir)"
+             RemoveProperties="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishReadyToRun;WindowsAppSDKSelfContained;UseWinUI;RuntimeIdentifier" />
+    <ItemGroup>
+      <CleanHostPublishedFiles Include="$(CleanHostPublishDir)**/*" Exclude="$(CleanHostPublishDir)**/*.pdb" />
+    </ItemGroup>
+    <RemoveDir Directories="$(PublishDir)CleanHost" />
+    <Copy SourceFiles="@(CleanHostPublishedFiles)" DestinationFiles="@(CleanHostPublishedFiles->'$(PublishDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyScoutWorker" AfterTargets="Build">
+    <ItemGroup><ScoutWorkerFiles Include="../artifacts/scout-worker/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="../artifacts/scout-worker/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <RemoveDir Directories="$(OutDir)ScoutHost" />
+    <Copy SourceFiles="@(ScoutWorkerFiles)" DestinationFiles="@(ScoutWorkerFiles->'$(OutDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishScoutWorker" AfterTargets="Publish">
+    <PropertyGroup>
+      <ScoutWorkerPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../artifacts/scout-publish/$(Configuration)/$(ScoutRuntimeMode)/'))</ScoutWorkerPublishDir>
+    </PropertyGroup>
+    <MSBuild Projects="../search-host/TidyWindow.SearchHost.csproj" Targets="Publish"
+             Properties="Configuration=$(Configuration);SelfContained=$(SelfContained);PublishDir=$(ScoutWorkerPublishDir)"
+             RemoveProperties="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishReadyToRun;WindowsAppSDKSelfContained;UseWinUI;RuntimeIdentifier" />
+    <ItemGroup>
+      <ScoutPublishedFiles Include="$(ScoutWorkerPublishDir)**/*" Exclude="$(ScoutWorkerPublishDir)**/*.pdb" />
+    </ItemGroup>
+    <RemoveDir Directories="$(PublishDir)ScoutHost" />
+    <Copy SourceFiles="@(ScoutPublishedFiles)" DestinationFiles="@(ScoutPublishedFiles->'$(PublishDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

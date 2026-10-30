@@ -1,0 +1,16 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.AppIcon"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ IsTabStop="False" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+ <!-- A fixed tile: the glyph is there from the first frame and the picture fades in over it, so nothing around it moves when the icon arrives. -->
+ <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}">
+  <Grid>
+   <FontIcon x:Name="Placeholder" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <FontIcon.OpacityTransition><ScalarTransition Duration="0:0:0.15" /></FontIcon.OpacityTransition>
+   </FontIcon>
+   <Image x:Name="Picture" Width="24" Height="24" Stretch="Uniform" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Image.OpacityTransition><ScalarTransition Duration="0:0:0.15" /></Image.OpacityTransition>
+   </Image>
+  </Grid>
+ </Border>
+</UserControl>

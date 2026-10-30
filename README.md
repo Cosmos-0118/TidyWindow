@@ -1,92 +1,103 @@
 # TidyWindow
 
-Windows maintenance companion for builders who prioritize safety, repeatability, and observability. TidyWindow coordinates PowerShell 7 automations through managed .NET services so every action is guarded, logged, and reversible and heavily secure.
+A native Windows app for installing software and keeping Windows tidy. Built with C#, .NET 10 and WinUI 3.
 
-## At a Glance
+Everything that changes your PC is reviewed first, runs from a short list of known actions, and can be put back. Where an option has no good evidence behind it, it is left out on purpose and the research notes say why.
 
-- Latest stable: **4.7.1** ([data/catalog/latest-release.json](data/catalog/latest-release.json))
-- Docs: [docs/](docs)
-- Roadmap: [roadmap.md](roadmap.md)
-- Press: [Press-and-Reviews.md](Press-and-Reviews.md)
+> The previous TidyWindow (v4.x) is kept on the [`legacy`](https://github.com/Cosmos-0118/TidyWindow/tree/legacy) branch. This branch is a ground-up rebuild and shares no code with it.
 
-## Core Capabilities
+## What it does
 
-- **Essentials repair center** ([docs/essentials.md](docs/essentials.md)): Curated fixes for networking, Defender, printing, and Windows Update with dry-run previews, sequential execution, restore points, and transcripts.
-- **Cleanup and storage hygiene** ([docs/cleanup.md](docs/cleanup.md)): Preview clutter, apply risk-aware deletions with recycle-bin-first flows, and schedule recurring sweeps.
-- **Registry optimizer** ([docs/registry-optimizer.md](docs/registry-optimizer.md)): Stage presets or custom tweaks with JSON restore points, rollback countdowns, baseline tracking, and preset customization alerts.
-- **Install and maintain software** ([docs/install-hub.md](docs/install-hub.md), [docs/maintenance.md](docs/maintenance.md)): Drive winget, Scoop, and Chocolatey from one queue and keep curated bundles current.
-- **PathPilot and process intelligence** ([docs/pathpilot.md](docs/pathpilot.md), [docs/known-processes.md](docs/known-processes.md)): Safely manage PATH edits, monitor running processes, and escalate Threat Watch findings with remediation guidance.
-- **Startup controller** ([docs/startup-controller.md](docs/startup-controller.md)): Inventory Run/RunOnce, Startup folders, logon tasks, and services with accurate enabled/disabled states, reversible backups, delays, and guardrails.
-- **PulseGuard observability** ([docs/activity-log.md](docs/activity-log.md), [docs/settings.md](docs/settings.md)): Turn significant Activity Log events into actionable notifications, prompts, and searchable transcripts.
-- **Backup & Restore (Reset Rescue)** ([docs/backup.md](docs/backup.md)): Archive and restore user/app data and registry ahead of OS resets or migrations, with manifest-based integrity, VSS snapshot support, and granular restore options. See [data/backup/README.md](data/backup/README.md) for storage layout and samples.
+| Page | What it is for |
+| --- | --- |
+| **Overview** | Detects WinGet, Chocolatey and Scoop, shows their versions and offers setup help when one is missing. |
+| **Install Hub** | Searches the real package sources together, ranks the matches, recognizes what is already installed and shows a review before anything starts. |
+| **Installed** | Lists installed packages, with update, uninstall and hold, and checks available versions. |
+| **Scout** | Finds files and folders by name or path with ranked results, type and location filters, copy path and open location. |
+| **Cleanup** | Clears caches and temporary files. Each clean can be undone afterwards. |
+| **Path Doctor** | Shows which program runs when you type a command, and fixes the folder list that decides it. |
+| **Repair** | Fixes installs and uninstalls that fail because an earlier one was cancelled or crashed. Every repair keeps a full copy of what it removed. |
+| **Startup** | Chooses what opens with Windows. Nothing is deleted; turning an item back on restores it exactly as it was. |
+| **Quiet** | Turns known Windows background items (telemetry, screen-watching features such as Recall, optional services) off and back on. See [docs/quiet-research.md](docs/quiet-research.md). |
+| **Tune** | A short list of registry settings that make a noticeable difference. Each shows its current value, saves the original before a change and can be put back exactly. See [docs/tune-research.md](docs/tune-research.md). |
+| **Fixes** | Repairs for common problems (system files, Windows Update, the drive, network, printing, sound, Store, Start menu, icons, OneDrive). Each is a plain list of standard Windows commands shown before it runs, with its output live. See [docs/fixes-research.md](docs/fixes-research.md). |
+| **Lab** | Measures what a change really does: a 15-second check saved with the settings in force and compared with the previous one, a power-plan switch, and a temporary priority change for one running app. See [docs/lab-research.md](docs/lab-research.md). |
+| **Queue** | Installs, updates and uninstalls from every page, one at a time, with live output. |
+| **Logs** | Outcomes and problems worth acting on. |
 
-## Safety by Design
+## How it stays safe
 
-- Restore-point enforcement for high-risk flows, with pruning to stay within disk budgets.
-- Cleanup guardrails: protected roots, skip-recent filters, recycle-bin preference, lock inspection, and permission-repair fallbacks.
-- Sequential automation queues with cancellation hooks, deterministic logging, and retry policies.
-- PulseGuard notification gating that respects user toggles, window focus, and cooldown windows.
-- Activity Log plus JSON/Markdown transcripts for audits, with direct "View log" actions.
-- PathPilot safeguards that validate, diff, and checkpoint PATH changes before applying them.
+- **Reviewed catalogs, not free-form commands.** Quiet, Tune, Fixes, Cleanup and the Lab can only act on items in a catalog that is checked when the app starts, and a second allowlist refuses anything outside it, whatever a caller sends.
+- **Shown before it runs.** You see the exact change, whether it needs administrator permission and whether a restart is needed.
+- **Reversible.** Original values are saved before a change, and the result is read back to check it took effect. Cleanups, repairs and startup changes keep what they removed so it can be restored, even after closing the app.
+- **Administrator permission only when needed.** The app runs without it. Changes to Windows-wide settings go through a small helper (`TidyWindow.CleanHost.exe`) that starts only after you approve the Windows prompt.
+- **Honest results.** When a change cannot be verified, the app says so instead of claiming success.
 
-## Architecture Overview
+## Install queue
 
-- Frontend: WPF (.NET 8) views with CommunityToolkit.Mvvm view models ([src/TidyWindow.App](src/TidyWindow.App)).
-- Services: C# services for cleanup, registry state, automation scheduling, PowerShell invocation, and tray presence ([src/TidyWindow.Core](src/TidyWindow.Core), [src/TidyWindow.App/Services](src/TidyWindow.App/Services)).
-- Automation: PowerShell 7 scripts in [automation/](automation) for essentials, cleanup, registry, and diagnostics; YAML/JSON catalogs describe tweaks, presets, processes, and bundles.
-- Packaging: Inno Setup installer ([installer/TidyWindowInstaller.iss](installer/TidyWindowInstaller.iss)) plus self-contained release artifacts in GitHub Releases.
+Installs, updates and uninstalls share one queue across pages. It runs one operation at a time, rejects duplicate or conflicting requests for the same manager, package and scope, and continues after a failure. Output streams as it arrives, and each card keeps the newest 64 KiB.
 
-## Install and Run
+Windows administrator prompts and installer dialogs stay native windows that you respond to. The queue waits for the command to exit, then checks the inventory; if the expected change cannot be verified, the card says that rather than reporting success. Chocolatey and global Scoop operations use a separate elevated window, so their output cannot be shown in TidyWindow, and their cards point you to that window. Declining elevation reports a failure and the queue moves on.
 
-Prerequisites: Windows 10 or later, .NET SDK 8.0+, PowerShell 7 on PATH.
+The queue belongs to the current session and is not resumed after a crash. Closing is blocked while work remains.
+
+## Search
+
+Package searches run against every source at once and appear as each finishes, after a 250 ms debounce. A bounded in-memory cache keeps successful searches for 60 seconds and shares identical in-flight work. Ranking is local: exact IDs and names first, then whole-word, prefix, substring and typo matches, scored with [BM25](https://lucene.apache.org/core/10_5_2/core/org/apache/lucene/search/similarities/BM25Similarity.html) and bounded Damerau–Levenshtein distance. It can only rank what a source returned.
+
+Installed status comes from each manager's local inventory plus the Windows uninstall registry. Exact IDs win; fuzzy name matching is deliberately not used, so forks and preview editions are not marked installed by similarity.
+
+Scout uses [Everything](https://www.voidtools.com/)'s local index through a separate worker for Home and This PC searches, and its own index for a chosen folder (no dependency). It returns up to 150 ranked results, never reads file contents and never deletes files. Details and limits are in [docs/scout-research.md](docs/scout-research.md).
+
+## Logs
+
+Logs record only what is worth acting on: install and setup outcomes, a package manager changing state, a failing search source and unexpected errors. A normal session leaves them empty. An identical event within six hours bumps one entry's count. Entries are JSON lines in `%LOCALAPPDATA%\TidyWindow.Next\Logs`, with your account name replaced by `%USERPROFILE%`.
+
+## Build
+
+Requires Windows 10 build 19041 or later (x64) and the .NET 10 SDK. Package managers are optional; install at least one to search and install software.
 
 ```powershell
-git clone https://github.com/Cosmos-0118/TidyWindow.git
-cd TidyWindow
-
-dotnet restore src/TidyWindow.sln
-dotnet build src/TidyWindow.sln -c Debug
-
-dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
+dotnet restore TidyWindow.slnx --locked-mode
+dotnet build app/TidyWindow.Desktop.csproj -c Release --no-restore --output artifacts/preview
+dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore
+./artifacts/preview/TidyWindow.Next.exe
 ```
 
-See [docs/getting-started.md](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest installer: **4.7.1** (stable). Inside the app, open Settings ▸ Updates to read the hosted manifest and jump to the newest release notes without a manual download.
-
-## Test Suite
+For a folder that includes .NET and the Windows App SDK:
 
 ```powershell
-dotnet test tests/TidyWindow.Core.Tests/TidyWindow.Core.Tests.csproj
-dotnet test tests/TidyWindow.Automation.Tests/TidyWindow.Automation.Tests.csproj
-dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
+dotnet publish app/TidyWindow.Desktop.csproj -c Release --self-contained true -o artifacts/publish
 ```
 
-- Tools in [tools/](tools) validate catalog consistency ([tools/check_duplicate_packages.py](tools/check_duplicate_packages.py), [tools/suggest_catalog_fixes.py](tools/suggest_catalog_fixes.py)) and PowerShell flows ([tools/test-process-catalog-parser.ps1](tools/test-process-catalog-parser.ps1)).
-- PulseGuard and the Activity Log surface runtime confirmation for long-running automations.
+Tests never install packages or change settings. Live, read-only checks against the machine are opt-in:
 
-## Documentation Map
+```powershell
+$env:TIDYWINDOW_LIVE_TESTS = '1'
+dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release
+```
 
-- [docs/cleanup.md](docs/cleanup.md) – Cleanup workflow, risk model, and scheduler.
-- [docs/essentials.md](docs/essentials.md) – Repair catalog, queues, and safety features.
-- [docs/deep-scan.md](docs/deep-scan.md) – Diagnostics, heuristics, and Threat Watch scanners.
-- [docs/backup.md](docs/backup.md) – Backup/restore archive format, manifest schema, and automation helper.
-- [docs/install-hub.md](docs/install-hub.md) / [docs/maintenance.md](docs/maintenance.md) – Package installation and upkeep cockpit.
-- [docs/pathpilot.md](docs/pathpilot.md) – PATH governance with diff previews and rollback plans.
-- [docs/registry-optimizer.md](docs/registry-optimizer.md) – Restore-point-backed registry tuning.
-- [docs/startup-controller.md](docs/startup-controller.md) – Startup sources, toggles, delays, backups, guardrails, and rollback guidance.
-- [docs/known-processes.md](docs/known-processes.md) – Process catalog, classifications, and Threat Watch signals.
-- [docs/activity-log.md](docs/activity-log.md) – Observability pipeline, transcripts, and PulseGuard integration.
-- [docs/settings.md](docs/settings.md) – Preference system, PulseGuard toggles, and background presence.
-- [docs/tech-stack.md](docs/tech-stack.md) – Full technology breakdown.
+## Repository
 
-## Support, Roadmap, and Press
+| Path | Contents |
+| --- | --- |
+| `app/` | WinUI shell, pages and observable state. |
+| `core/` | Package manager adapters, catalogs, the Windows-facing systems, process execution and ranking. |
+| `clean-host/` | The elevated helper for Windows-wide changes. |
+| `search-host/` | The Scout worker that talks to Everything. |
+| `tests/` | Parsing, catalog, safety-guard, ranking and layout tests. |
+| `docs/` | Research behind each page: [Scout](docs/scout-research.md), [Quiet](docs/quiet-research.md), [Tune](docs/tune-research.md), [Fixes](docs/fixes-research.md), [Lab](docs/lab-research.md). |
+| `tools/Brand/` | Script that renders the app icons. |
 
-- Open issues with Activity Log snippets, cleanup reports, or automation transcripts for faster triage.
-- Track work in [roadmap.md](roadmap.md).
-- Press and listings live in [Press-and-Reviews.md](Press-and-Reviews.md).
+WinUI 3 gives native controls and desktop integration without a web renderer, and .NET keeps the app and backend in one language. This is a Windows-specific app by design. See Microsoft's [desktop framework guidance](https://learn.microsoft.com/en-us/windows/apps/desktop/).
 
-## License and Credits
+## Branches and releases
 
-TidyWindow ships under the MIT License (see [LICENSE](LICENSE)).
+- `main`: the current app and the default branch. CI builds and tests every push and pull request.
+- `legacy`: the previous TidyWindow (v4.x), unchanged and no longer developed.
 
-Built with GitHub Copilot assistance alongside contributions from the Windows, PowerShell, winget, Scoop, and Chocolatey ecosystems.
+Pushing a tag such as `v5.0.0` runs the release workflow, which tests, publishes a self-contained build and attaches `TidyWindow-<version>-win-x64.zip` to a GitHub release. Releases up to v4.7.x are the legacy app.
 
+## License
+
+[MIT](LICENSE)

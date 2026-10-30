@@ -1,0 +1,850 @@
+{
+  "items": [
+    {
+      "id": "windows-telemetry",
+      "name": "Windows telemetry",
+      "group": "telemetry",
+      "topic": "Diagnostic data",
+      "icon": "E774",
+      "summary": "Collects diagnostic and usage data about this PC and sends it to Microsoft.",
+      "effect": "Microsoft receives less data about how this PC is used. Nothing you use stops working, though Feedback Hub and Windows Insider builds may not be able to report problems.",
+      "processes": [
+        "Connected User Experiences and Telemetry"
+      ],
+      "targets": [
+        {
+          "kind": "service",
+          "name": "DiagTrack",
+          "off": "disabled",
+          "defaultStart": 2
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "error-reporting",
+      "name": "Error reporting",
+      "group": "telemetry",
+      "topic": "Crash reports",
+      "icon": "E7BA",
+      "summary": "Offers to send details to Microsoft when an app crashes or stops responding.",
+      "effect": "Windows stops offering to send crash details after an app fails. Apps still close and restart as before.",
+      "processes": [
+        "Windows Error Reporting Service",
+        "WerFault.exe",
+        "wermgr.exe"
+      ],
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WerSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "wercplsupport",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Windows Error Reporting\\QueueReporting"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "compatibility-telemetry",
+      "name": "App compatibility telemetry",
+      "group": "telemetry",
+      "topic": "Diagnostic data",
+      "icon": "E774",
+      "summary": "Scans the programs installed on this PC and reports compatibility information to Microsoft.",
+      "effect": "Windows stops scanning your programs for compatibility data. Updating Windows still works; Microsoft just gets less warning about apps that may not suit a new version.",
+      "processes": [
+        "CompatTelRunner.exe",
+        "Microsoft Compatibility Telemetry"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser Exp"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\ProgramDataUpdater"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "improvement-program",
+      "name": "Customer Experience Improvement Program",
+      "group": "telemetry",
+      "topic": "Usage statistics",
+      "icon": "E774",
+      "summary": "Gathers usage statistics for Microsoft's improvement program, if you joined it.",
+      "effect": "Usage statistics are no longer gathered. If you never joined the program, these tasks already do nothing.",
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\KernelCeipTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Autochk\\Proxy"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "disk-reporting",
+      "name": "Disk health reporting",
+      "group": "telemetry",
+      "topic": "Diagnostic data",
+      "icon": "E774",
+      "summary": "Sends general disk and system information to Microsoft for the improvement program.",
+      "effect": "Disk information is no longer sent to Microsoft. Your drives are not affected.",
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "feedback-requests",
+      "name": "Feedback requests",
+      "group": "telemetry",
+      "topic": "Surveys",
+      "icon": "E774",
+      "summary": "Prepares the feedback questions and surveys Windows sometimes shows.",
+      "effect": "Windows stops asking for feedback. The Feedback Hub app still works when you open it yourself.",
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClient"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClientOnScenarioDownload"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "app-list-backup",
+      "name": "App list for Windows Backup",
+      "group": "telemetry",
+      "topic": "Backup",
+      "icon": "E774",
+      "summary": "Makes a list of your installed desktop apps so Windows Backup can offer them on a new PC.",
+      "effect": "Windows Backup may not know which desktop apps to suggest when you set up another PC.",
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\MareBackup"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "office-telemetry",
+      "name": "Office telemetry",
+      "group": "telemetry",
+      "topic": "Microsoft Office",
+      "icon": "E774",
+      "summary": "Collects Office usage and error data for Microsoft's telemetry dashboard, mostly used by IT teams.",
+      "effect": "Office stops gathering that data. Office itself works the same.",
+      "processes": [
+        "msoia.exe"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Office\\OfficeTelemetryAgentFallBack"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Office\\OfficeTelemetryAgentFallBack2016"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Office\\OfficeTelemetryAgentLogOn"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Office\\OfficeTelemetryAgentLogOn2016"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "recall-snapshots",
+      "name": "Recall snapshots",
+      "group": "ai",
+      "topic": "Screenshots",
+      "icon": "E7B3",
+      "risk": "careful",
+      "summary": "Recall can save snapshots of your screen every few seconds so you can search what you saw. It stays off unless you turn it on in Settings, and it only exists on Copilot+ PCs.",
+      "effect": "Switches on the Windows setting “Turn off saving snapshots for use with Recall”. Recall can no longer save snapshots, and Windows deletes any it saved before.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "block": 1,
+          "needsPro": true
+        }
+      ]
+    },
+    {
+      "id": "click-to-do",
+      "name": "Click to Do",
+      "group": "ai",
+      "topic": "Screenshots",
+      "icon": "E7B3",
+      "summary": "Takes a screenshot when you use it and analyzes it on your PC to suggest actions. It does nothing until you open it.",
+      "effect": "Click to Do is no longer available. Nothing else changes.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableClickToDo",
+          "block": 1,
+          "needsPro": true
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "windows-ai-components",
+      "name": "Windows AI components",
+      "group": "ai",
+      "topic": "On-device AI",
+      "icon": "E945",
+      "risk": "careful",
+      "summary": "Hosts the AI components built into Windows so apps can use them on your PC.",
+      "effect": "AI features in Windows apps may not work until you turn this back on. It stays available, so Windows can still start it for anything that asks.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WSAIFabricSvc",
+          "off": "manual",
+          "defaultStart": 2
+        }
+      ]
+    },
+    {
+      "id": "xbox-services",
+      "name": "Xbox services",
+      "group": "optional",
+      "topic": "Gaming",
+      "icon": "E7FC",
+      "risk": "careful",
+      "summary": "Xbox sign-in, cloud game saves, networking and accessory support.",
+      "effect": "Xbox app and Game Pass games, Microsoft Store games and Xbox accessories may stop signing in or saving to the cloud. Games from other stores are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "XblAuthManager",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "XblGameSave",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "XboxGipSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "XboxNetApiSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\XblGameSave\\XblGameSaveTask"
+        }
+      ]
+    },
+    {
+      "id": "phone-link",
+      "name": "Phone Link and nearby devices",
+      "group": "optional",
+      "topic": "Phone and sharing",
+      "icon": "E717",
+      "risk": "careful",
+      "summary": "Connects this PC with your phone and nearby devices.",
+      "effect": "Phone Link, Nearby Sharing and casting to a wireless display may stop working until you turn this back on.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "PhoneSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "CDPSvc",
+          "off": "manual",
+          "defaultStart": 2,
+          "defaultDelayed": true
+        }
+      ]
+    },
+    {
+      "id": "location",
+      "name": "Location",
+      "group": "optional",
+      "topic": "Location",
+      "icon": "E81D",
+      "risk": "careful",
+      "summary": "Works out where this PC is for apps and Windows features.",
+      "effect": "Weather, maps, Find My Device and automatic time zone can't find your location until you turn this back on.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "lfsvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "offline-maps",
+      "name": "Offline maps",
+      "group": "optional",
+      "topic": "Location",
+      "icon": "E707",
+      "summary": "Keeps maps you downloaded for offline use up to date.",
+      "effect": "Downloaded offline maps are no longer updated by themselves. Online maps are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "MapsBroker",
+          "off": "manual",
+          "defaultStart": 2,
+          "defaultDelayed": true
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Maps\\MapsToastTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Maps\\MapsUpdateTask"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "wallet-nfc",
+      "name": "Wallet and NFC payments",
+      "group": "optional",
+      "topic": "Payments",
+      "icon": "E713",
+      "risk": "careful",
+      "summary": "Supports tap-to-pay and other NFC features that use a secure chip.",
+      "effect": "Tap-to-pay and NFC features that use a secure chip stop working. Most PCs don't have this hardware.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WalletService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SEMgrSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "retail-demo",
+      "name": "Retail demo mode",
+      "group": "optional",
+      "topic": "Shop displays",
+      "icon": "E719",
+      "summary": "Runs the demo mode used on display PCs in shops.",
+      "effect": "Nothing changes on a normal PC.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "RetailDemo",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "connection-sharing",
+      "name": "Mobile hotspot and connection sharing",
+      "group": "optional",
+      "topic": "Network",
+      "icon": "E72D",
+      "risk": "careful",
+      "summary": "Lets this PC share its internet connection with other devices.",
+      "effect": "Mobile hotspot and internet connection sharing stop working until you turn this back on.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SharedAccess",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "icssvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "media-sharing",
+      "name": "Media sharing",
+      "group": "optional",
+      "topic": "Network",
+      "icon": "E714",
+      "summary": "Shares your music, pictures and videos with TVs and other devices on your network.",
+      "effect": "Your media library is no longer shared with other devices on your network.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WMPNetworkSvc",
+          "off": "disabled",
+          "defaultStart": 3,
+          "image": "%ProgramFiles%\\Windows Media Player\\"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Windows Media Sharing\\UpdateLibrary"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "superfetch",
+      "name": "Superfetch (SysMain)",
+      "group": "optional",
+      "topic": "Performance",
+      "icon": "E945",
+      "risk": "careful",
+      "summary": "Learns which apps you use and loads them into memory ahead of time.",
+      "effect": "Apps may take a little longer to open, mostly on older hard drives. On a PC with an SSD you may not notice any difference.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SysMain",
+          "off": "disabled",
+          "defaultStart": 2
+        }
+      ]
+    },
+    {
+      "id": "startup-reminders",
+      "name": "Startup app reminders",
+      "group": "optional",
+      "topic": "Startup",
+      "icon": "E7E8",
+      "summary": "Shows a notice when you have a lot of startup apps.",
+      "effect": "Windows stops reminding you about startup apps. The Startup page in TidyWindow still lists them.",
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\StartupAppTask"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "widgets",
+      "name": "Widgets",
+      "group": "optional",
+      "topic": "Windows Widgets",
+      "icon": "E71D",
+      "summary": "The Widgets board and the background programs it uses (WidgetService and WidgetBoard).",
+      "effect": "Hides the Widgets button and board and stops its background programs after you sign in again. It also removes the weather on the lock screen.",
+      "processes": [
+        "WidgetService.exe",
+        "WidgetBoard.exe"
+      ],
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Dsh",
+          "name": "AllowNewsAndInterests",
+          "block": 0
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "device-census",
+      "name": "Device census",
+      "group": "telemetry",
+      "topic": "Diagnostic data",
+      "icon": "E774",
+      "summary": "Collects details about this PC's hardware and settings (using devicecensus.exe) and sends them to Microsoft.",
+      "effect": "Microsoft receives fewer details about this PC. Nothing you use depends on it.",
+      "processes": [
+        "DeviceCensus.exe"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Device Information\\Device"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Device Information\\Device User"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "compatibility-assistant",
+      "name": "Program Compatibility Assistant",
+      "group": "telemetry",
+      "topic": "Compatibility",
+      "icon": "E7BA",
+      "risk": "careful",
+      "summary": "Watches for older programs that have trouble running and offers compatibility fixes, and keeps its list of known problems up to date.",
+      "effect": "Windows stops offering to fix older programs and games that fail to start or install. Programs you already run are not affected.",
+      "processes": [
+        "pcalua.exe"
+      ],
+      "targets": [
+        {
+          "kind": "service",
+          "name": "PcaSvc",
+          "off": "manual",
+          "defaultStart": 2
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\PcaPatchDbTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\SdbinstMergeDbTask"
+        }
+      ]
+    },
+    {
+      "id": "bluetooth",
+      "name": "Bluetooth",
+      "group": "optional",
+      "topic": "Wireless",
+      "icon": "E702",
+      "risk": "careful",
+      "summary": "Finds and connects Bluetooth devices such as headphones, keyboards, mice, speakers and phones.",
+      "effect": "Every Bluetooth device stops working, including a Bluetooth keyboard or mouse, until you turn this back on. Only turn it off if this PC has no Bluetooth devices you use.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "bthserv",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "BTAGService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "BthAvctpSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "network-discovery",
+      "name": "Network device discovery (UPnP)",
+      "group": "optional",
+      "topic": "Network",
+      "icon": "E839",
+      "risk": "careful",
+      "summary": "Lets this PC find smart TVs, media players and other gadgets on your network, and lets them find it.",
+      "effect": "Apps may not find TVs or media devices on your network for casting or streaming, and some routers' automatic port setup stops working. Normal internet, file sharing and printing are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SSDPSRV",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "upnphost",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "lltdsvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\UPnP\\UPnPHostConfig"
+        }
+      ]
+    },
+    {
+      "id": "remote-management",
+      "name": "Remote management (WinRM)",
+      "group": "optional",
+      "topic": "Remote access",
+      "icon": "E968",
+      "summary": "Lets other computers run PowerShell commands and manage this PC over the network.",
+      "effect": "Nobody can manage this PC remotely with PowerShell remoting or similar tools. PowerShell on this PC works as before.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WinRM",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "remote-registry",
+      "name": "Remote Registry",
+      "group": "optional",
+      "topic": "Remote access",
+      "icon": "E968",
+      "summary": "Lets other computers read and change this PC's registry over the network. Windows ships it turned off.",
+      "effect": "Nothing changes on a normal PC. Keep it off unless an IT tool you use needs it.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "RemoteRegistry",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "scanner-import",
+      "name": "Scanners and camera import",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E722",
+      "risk": "careful",
+      "summary": "Runs scanners and lets Windows import photos from cameras and phones (Windows Image Acquisition).",
+      "effect": "Scanners, and importing photos from some cameras, stop working until you turn this back on. Printing is not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "stisvc",
+          "off": "manual",
+          "defaultStart": 2
+        },
+        {
+          "kind": "service",
+          "name": "WiaRpc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "sensors",
+      "name": "Sensors",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E713",
+      "risk": "careful",
+      "summary": "Reads the sensors in laptops and tablets, such as auto-rotate, ambient light and orientation.",
+      "effect": "Auto-rotate, automatic brightness and other sensor features may stop working. A desktop PC without sensors won't notice.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SensorService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SensrSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SensorDataService",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "smart-cards",
+      "name": "Smart cards and security keys",
+      "group": "optional",
+      "topic": "Devices",
+      "icon": "E772",
+      "risk": "careful",
+      "summary": "Supports smart card readers and some security keys, such as work ID cards and certificate-based sign-in.",
+      "effect": "Smart card readers and the security keys that use them stop working for sign-in until you turn this back on. Passwords, PINs and Windows Hello are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "SCardSvr",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "ScDeviceEnum",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "SCPolicySvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "offline-files",
+      "name": "Offline Files and Work Folders",
+      "group": "optional",
+      "topic": "Work and school",
+      "icon": "E753",
+      "risk": "careful",
+      "summary": "Keeps copies of network folders and Work Folders on this PC so you can use them offline.",
+      "effect": "Files from network shares marked “always available offline”, and Work Folders from an employer or school, stop syncing. Most home PCs don't use either.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "CscService",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "workfolderssvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Offline Files\\Background Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Offline Files\\Logon Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Work Folders\\Work Folders Logon Synchronization"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Work Folders\\Work Folders Maintenance Work"
+        }
+      ]
+    },
+    {
+      "id": "family-safety",
+      "name": "Family Safety (parental controls)",
+      "group": "optional",
+      "topic": "Family",
+      "icon": "E716",
+      "risk": "careful",
+      "summary": "Applies Microsoft Family time limits, app limits and web filtering to child accounts on this PC.",
+      "effect": "Screen-time limits and web filtering stop being applied to child accounts on this PC. Only turn this off if nobody here is managed with Microsoft Family.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "WpcMonSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Shell\\FamilySafetyMonitor"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Shell\\FamilySafetyRefreshTask"
+        }
+      ]
+    },
+    {
+      "id": "windows-insider",
+      "name": "Windows Insider Program",
+      "group": "optional",
+      "topic": "Updates",
+      "icon": "E713",
+      "risk": "careful",
+      "summary": "Receives test builds of Windows if you joined the Insider Program.",
+      "effect": "This PC stops receiving Insider preview builds and can't join the program. Normal Windows updates are not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "wisvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
+    },
+    {
+      "id": "game-recording",
+      "name": "Game recording and broadcasting",
+      "group": "optional",
+      "topic": "Screen recording",
+      "icon": "E714",
+      "summary": "Lets Windows record your screen in the background while you play (Game Bar clips and “record what happened”) and broadcast it.",
+      "effect": "Game Bar can't record or broadcast. Other screen recorders, such as OBS, are not affected.",
+      "processes": [
+        "GameBar.exe",
+        "GameBarFTServer.exe"
+      ],
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR",
+          "name": "AllowGameDVR",
+          "block": 0
+        }
+      ],
+      "risk": "safe"
+    }
+  ]
+}

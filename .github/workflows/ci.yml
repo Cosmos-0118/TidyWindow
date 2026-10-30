@@ -1,91 +1,33 @@
 name: CI
 
 on:
-    workflow_dispatch:
-        inputs:
-            reason:
-                description: "Optional note when manually triggering CI"
-                required: false
-                type: string
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: .
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    build:
-        runs-on: windows-latest
-
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: 8.0.x
-
-            - name: Restore
-              run: dotnet restore src/TidyWindow.sln
-
-            - name: Build
-              run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
-
-            - name: Test
-              run: dotnet test src/TidyWindow.sln --configuration Release --no-build
-
-            - name: Publish packaging snapshot
-              run: |
-                  $repoRoot = $env:GITHUB_WORKSPACE
-                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
-                    throw "GITHUB_WORKSPACE is not available."
-                  }
-
-                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
-
-                  dotnet publish src/TidyWindow.App/TidyWindow.App.csproj `
-                    --configuration Release `
-                    --runtime win-x64 `
-                    --self-contained false `
-                    --no-restore `
-                    --output $publishDir
-
-            - name: Verify packaged automation assets
-              shell: pwsh
-              run: |
-                  $repoRoot = $env:GITHUB_WORKSPACE
-                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
-                    throw "GITHUB_WORKSPACE is not available."
-                  }
-
-                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
-                  if (-not (Test-Path $publishDir)) {
-                    throw "Publish directory not found: $publishDir"
-                  }
-
-                  $assetRoots = @(
-                    @{ Source = Join-Path $repoRoot "automation"; Target = Join-Path $publishDir "automation"; Label = "automation" },
-                    @{ Source = Join-Path $repoRoot "data"; Target = Join-Path $publishDir "data"; Label = "data" }
-                  )
-
-                  $missing = [System.Collections.Generic.List[string]]::new()
-
-                  foreach ($spec in $assetRoots) {
-                    if (-not (Test-Path $spec.Source)) {
-                      throw "Source asset root missing: $($spec.Label)"
-                    }
-
-                    Get-ChildItem -Path $spec.Source -File -Recurse | ForEach-Object {
-                      $relative = [System.IO.Path]::GetRelativePath($spec.Source, $_.FullName)
-                      $targetPath = Join-Path $spec.Target $relative
-                      if (-not (Test-Path $targetPath)) {
-                        $normalized = ($relative -replace '\\', '/')
-                        $missing.Add("$($spec.Label)/$normalized") | Out-Null
-                      }
-                    }
-                  }
-
-                  if ($missing.Count -gt 0) {
-                    $details = $missing | ForEach-Object { " - $_" }
-                    throw "Missing packaged assets:`n$($details -join [Environment]::NewLine)"
-                  }
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore locked dependencies
+        run: dotnet restore TidyWindow.slnx --locked-mode
+      - name: Build
+        run: dotnet build TidyWindow.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
