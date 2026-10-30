@@ -44,12 +44,12 @@ jobs:
         run: |
           dotnet build tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore
           dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
-      - name: Publish self-contained app
-        run: dotnet publish app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -p:Version=${{ env.VERSION }} -o artifacts/publish
+      - name: Build self-contained app
+        run: dotnet build app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -p:Version=${{ env.VERSION }} -o artifacts/publish
       - name: Check the helpers are packaged
         shell: pwsh
         run: |
-          foreach ($path in 'TidyWindow.Next.exe', 'CleanHost/TidyWindow.CleanHost.exe', 'ScoutHost/TidyWindow.SearchHost.exe') {
+          foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'MainWindow.xbf', 'CleanHost/TidyWindow.CleanHost.exe', 'ScoutHost/TidyWindow.SearchHost.exe') {
             if (-not (Test-Path (Join-Path artifacts/publish $path))) { throw "Missing from the package: $path" }
           }
       - name: Zip

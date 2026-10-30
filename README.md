@@ -64,10 +64,10 @@ dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-resto
 ./artifacts/preview/TidyWindow.Next.exe
 ```
 
-For a folder that includes .NET and the Windows App SDK:
+For a folder that includes .NET and the Windows App SDK, build it self-contained. Use `dotnet build`, not `dotnet publish`: publish leaves out the compiled pages (`*.xbf`) and `TidyWindow.Next.pri`, and the app then closes at startup.
 
 ```powershell
-dotnet publish app/TidyWindow.Desktop.csproj -c Release --self-contained true -o artifacts/publish
+dotnet build app/TidyWindow.Desktop.csproj -c Release --self-contained true -o artifacts/publish
 ```
 
 Tests never install packages or change settings. Live, read-only checks against the machine are opt-in:
