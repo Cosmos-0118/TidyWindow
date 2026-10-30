@@ -18,7 +18,7 @@ if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue)?.
 if (-not $iscc) { throw 'Inno Setup 6 (ISCC.exe) was not found.' }
 
 $publish = (Resolve-Path $PublishDir).Path
-foreach ($path in 'TidyWindow.Next.exe', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe') {
+foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'MainWindow.xbf', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe') {
     if (-not (Test-Path (Join-Path $publish $path))) { throw "The publish folder is missing $path." }
 }
 New-Item -ItemType Directory -Force $OutDir | Out-Null

@@ -9,10 +9,18 @@ $quiet = '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'
 $p = Start-Process -FilePath (Resolve-Path $Setup).Path -ArgumentList ($quiet + "/DIR=`"$dir`"") -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw "Setup exited with $($p.ExitCode)." }
 
-foreach ($path in 'TidyWindow.Next.exe', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe', 'unins000.exe') {
+foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'MainWindow.xbf', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe', 'unins000.exe') {
     if (-not (Test-Path (Join-Path $dir $path))) { throw "Not installed: $path" }
 }
 Write-Host "Installed to $dir"
+
+# The files being present is not enough: a package without the compiled pages installs fine and then dies on start.
+$app = Start-Process -FilePath (Join-Path $dir 'TidyWindow.Next.exe') -WorkingDirectory $dir -PassThru
+Start-Sleep -Seconds 12
+if ($app.HasExited) { throw ("The installed app closed by itself within 12 seconds (exit code 0x{0:X8})." -f $app.ExitCode) }
+Write-Host 'The installed app started and stayed open.'
+Stop-Process -Id $app.Id -Force
+$app.WaitForExit(10000) | Out-Null
 
 $p = Start-Process -FilePath (Join-Path $dir 'unins000.exe') -ArgumentList $quiet -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw "Uninstall exited with $($p.ExitCode)." }

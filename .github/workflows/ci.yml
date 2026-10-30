@@ -42,8 +42,8 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-      - name: Publish self-contained app
-        run: dotnet publish app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
+      - name: Build self-contained app
+        run: dotnet build app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Build installer
