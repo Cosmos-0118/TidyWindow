@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
         toasts = new(action => DispatcherQueue.TryEnqueue(() => action()));
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator);
-        var management = new InstallationService(packages, runner, locator);
+        var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")));
         var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
         operationQueue = new(PackageOperationQueue.WithLiveOutput(executor.ExecuteAsync), log, action => DispatcherQueue.TryEnqueue(() => action()));
         model = new(packages, log, operationQueue);
@@ -342,6 +342,7 @@ public sealed partial class MainWindow : Window
         if (theme == chromeTheme) return;
         chromeTheme = theme;
         var light = theme == ElementTheme.Light;
+        IconService.SetDark(!light);
         navSelected = BrushCache.Rgb(light ? 0xEBEBEB : 0x1F1F1F);
         navPrimary = BrushCache.Rgb(light ? 0x171717 : 0xFFFFFF);
         navMuted = BrushCache.Rgb(light ? 0x626262 : 0xA9A9A9);

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -27,9 +28,14 @@ public sealed class RepairGroup(string name) : ObservableState
 }
 
 /// <summary>One program in the full list, for removing an entry by hand.</summary>
-public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys)
+public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys) : ObservableState
 {
+    private ImageSource? icon;
     public UninstallEntry Entry { get; } = entry;
+    public ImageSource? Icon => icon;
+    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
+    // Windows Installer products without a registered icon are found through the shortcut or folder they installed; the uninstaller says where that is.
+    public IconQuery IconQuery => new(Entry.Name, "", "", Entry.DisplayIcon, Entry.InstallLocation, Entry.UninstallString.Length > 0 ? Entry.UninstallString : Entry.QuietUninstallString, InstallRepair.ProductCode(Entry) ?? "");
     public IReadOnlyList<string> Keys { get; } = keys;
     public string Name => Entry.Name;
     public string Sub => string.Join(" · ", new[] { Entry.Publisher, Entry.Version }.Where(x => x.Length > 0));
@@ -57,12 +63,13 @@ public sealed class HistoryRow(RepairBatch batch)
     public string AutomationName => $"Undo {Title}, {When}";
 }
 
-public sealed class RepairViewModel(IInstallSystem system, RepairService service, RepairHistory history, ActivityLog log, ToastCenter toasts) : ObservableState, IDisposable
+public sealed class RepairViewModel(IInstallSystem system, RepairService service, RepairHistory history, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
 {
+    private readonly IconService icons = iconService ?? IconService.Shared;
     private static readonly string[] GroupOrder = ["Programs Windows still lists but cannot remove", "Windows Installer records", "Installs that got stuck", "Waiting on Windows"];
     private readonly CancellationTokenSource lifetime = new();
     private IReadOnlyList<ProgramRow> allPrograms = [];
-    private bool scanning, fixing, scanned;
+    private bool scanning, fixing, scanned, listening;
     private int selectedCount;
     private string query = "";
 
@@ -150,8 +157,22 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             .Where(x => x.Name.Trim().Length > 0 && !x.SystemComponent && !x.IsUpdate)
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(x => new ProgramRow(x, InstallRepair.RemovalKeys(x, scan.Products))).ToList();
+        foreach (var row in allPrograms) if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
         ApplyFilter();
         Changed(nameof(ProgramCount));
+        if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+        _ = LoadIconsAsync(allPrograms);
+    }
+
+    private void ReloadIcons() => _ = LoadIconsAsync(allPrograms, everyRow: true);
+
+    // Icons arrive a few at a time after the list is up, rows in view first; a program with none keeps the plain app glyph.
+    private async Task LoadIconsAsync(IReadOnlyList<ProgramRow> rows, bool everyRow = false)
+    {
+        var shown = Programs.ToHashSet();
+        var queue = rows.Where(x => everyRow || x.Icon is null).OrderBy(x => shown.Contains(x) ? 0 : 1).ToList();
+        try { await Task.WhenAll(queue.Select(async row => row.SetIcon(await icons.LoadAsync(row.IconQuery, lifetime.Token)))); }
+        catch (OperationCanceledException) { }
     }
 
     private void ApplyFilter()
@@ -236,5 +257,5 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         Changed(nameof(UndoTabTitle)); Changed(nameof(NoHistoryVisibility));
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { IconService.DarkChanged -= ReloadIcons; lifetime.Cancel(); lifetime.Dispose(); }
 }

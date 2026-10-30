@@ -141,6 +141,63 @@ public sealed class InstallationTests(ITestOutputHelper output)
         Assert.Equal(expected, (await Create(runner).RunAsync(Ready(ManagerKind.Chocolatey), App(), PackageAction.Uninstall)).Outcome);
     }
 
+    // WinGet's "install technology is different" code, the real failure for Microsoft Edge.
+    private const int TechnologyMismatch = -1978335090;
+
+    private static FakeRunner EdgeLikeRunner(Func<string> available) => new()
+    {
+        Handler = c => c.Arguments[0] switch
+        {
+            "list" => new(0, "vendor.app|1.0", ""),
+            "outdated" => new(2, $"vendor.app|1.0|{available()}|false", ""),
+            _ => new(TechnologyMismatch, "A newer version was found, but the install technology is different from the current version installed.", "")
+        }
+    };
+
+    [Fact]
+    public async Task UpdateTheManagerCannotApplyStopsBeingOfferedButReturnsWithANewerVersion()
+    {
+        var offered = "2.0";
+        var service = new InstallationService(new PackageService(EdgeLikeRunner(() => offered), new FakeLocator()), EdgeLikeRunner(() => offered), new FakeLocator(), new SkippedUpdates()) { VerifyDelays = [] };
+        var manager = Ready(ManagerKind.Chocolatey);
+        Assert.Equal("2.0", Assert.Single((await service.ReadAsync(manager)).Packages).AvailableVersion);
+
+        var result = await service.RunAsync(manager, App(), PackageAction.Update);
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        Assert.Contains("different way", result.Detail);
+        Assert.Contains("won’t offer version 2.0 again", result.Detail);
+
+        var skipped = Assert.Single((await service.ReadAsync(manager)).Packages);
+        Assert.Null(skipped.AvailableVersion);
+        Assert.Contains("2.0", skipped.Note);
+
+        offered = "3.0";
+        Assert.Equal("3.0", Assert.Single((await service.ReadAsync(manager)).Packages).AvailableVersion);
+    }
+
+    [Fact]
+    public void SkippedUpdatesSurviveARestart()
+    {
+        var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "skipped.json");
+        try
+        {
+            new SkippedUpdates(file).Skip(App(), "2.0");
+            var reloaded = new SkippedUpdates(file);
+            Assert.True(reloaded.IsSkipped(App(), "2.0"));
+            Assert.False(reloaded.IsSkipped(App(), "3.0"));
+            Assert.False(reloaded.IsSkipped(App() with { Id = "other.app" }, "2.0"));
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(file)!, true); }
+    }
+
+    [Fact]
+    public void OtherFailuresAreNotRememberedAsUnupdatable()
+    {
+        Assert.True(InstallFailure.UpdateCannotBeApplied(TechnologyMismatch));
+        Assert.False(InstallFailure.UpdateCannotBeApplied(-1978335226));
+        Assert.False(InstallFailure.UpdateCannotBeApplied(1));
+    }
+
     [Fact]
     public async Task ManagementSharesTheInstallationGateAndReleasesItAfterFailure()
     {

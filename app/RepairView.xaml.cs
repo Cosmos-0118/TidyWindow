@@ -14,11 +14,12 @@ public sealed partial class RepairView : UserControl
     private async void UndoRowClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is HistoryRow row) await model.UndoAsync(row); }
     private void QueryChanged(object sender, TextChangedEventArgs e) { if (Model is { } model) model.Query = ((TextBox)sender).Text; }
 
-    private void TabsChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void TabChecked(object sender, RoutedEventArgs e)
     {
-        ProblemsTab.Visibility = sender.SelectedItem == ProblemsItem ? Visibility.Visible : Visibility.Collapsed;
-        ProgramsTab.Visibility = sender.SelectedItem == ProgramsItem ? Visibility.Visible : Visibility.Collapsed;
-        UndoTab.Visibility = sender.SelectedItem == UndoItem ? Visibility.Visible : Visibility.Collapsed;
+        if (UndoTab is null) return;
+        ProblemsTab.Visibility = ReferenceEquals(sender, ProblemsItem) ? Visibility.Visible : Visibility.Collapsed;
+        ProgramsTab.Visibility = ReferenceEquals(sender, ProgramsItem) ? Visibility.Visible : Visibility.Collapsed;
+        UndoTab.Visibility = ReferenceEquals(sender, UndoItem) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // The whole row is the target, not only the small box.

@@ -54,8 +54,31 @@
    <Style x:Key="Muted" TargetType="TextBlock">
     <Setter Property="Foreground" Value="{ThemeResource MutedBrush}" /><Setter Property="FontSize" Value="13" /><Setter Property="TextWrapping" Value="Wrap" />
    </Style>
+   <!-- Type ramp. Size, weight and tone each say one thing: SemiBold is only for page and section titles, Medium for the name of an item, Regular for everything else;
+        the primary text colour is for what you read first, MutedBrush for what explains it. Item titles are tightened a touch so the lines below them read as secondary. -->
    <Style x:Key="PageTitle" TargetType="TextBlock">
-    <Setter Property="FontSize" Value="23" /><Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="24" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="CharacterSpacing" Value="-20" />
+   </Style>
+   <Style x:Key="SectionTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="CharacterSpacing" Value="-10" />
+   </Style>
+   <Style x:Key="RowTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="Medium" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="CharacterSpacing" Value="-5" />
+   </Style>
+   <Style x:Key="ItemTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="Medium" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="CharacterSpacing" Value="-5" />
+   </Style>
+   <Style x:Key="RowSub" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" /><Setter Property="Foreground" Value="{ThemeResource MutedBrush}" /><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+   </Style>
+   <Style x:Key="ColumnLabel" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="Medium" /><Setter Property="Foreground" Value="{ThemeResource MutedBrush}" />
+   </Style>
+   <Style x:Key="GroupLabel" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{ThemeResource MutedBrush}" />
+   </Style>
+   <Style x:Key="EmptyTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="Medium" /><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="TextAlignment" Value="Center" />
    </Style>
    <!-- Tooltips open just below the control they describe, and stay readable when long. -->
    <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">

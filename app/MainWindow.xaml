@@ -72,7 +72,10 @@
     <ScrollViewer x:Name="OverviewPage" HorizontalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
      <StackPanel HorizontalAlignment="Stretch" Spacing="24" Padding="0,0,12,12">
       <Grid>
-       <TextBlock Text="Package managers" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+       <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Package managers" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="The tools TidyWindow uses to install and update apps." Style="{StaticResource Muted}" />
+       </StackPanel>
        <Button HorizontalAlignment="Right" Click="RefreshClick" IsEnabled="{Binding CanRefresh}" Padding="12,7">
         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Refresh" FontSize="12" /></StackPanel>
        </Button>
@@ -87,7 +90,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="{Binding StatusColumnWidth}" /><ColumnDefinition Width="{Binding SetupColumnWidth}" /></Grid.ColumnDefinitions>
             <Image Grid.RowSpan="2" Source="{Binding Icon}" Width="32" Height="32" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+             <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" />
              <TextBlock Text="{Binding Version}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
             </StackPanel>
             <Button Grid.Column="{Binding StatusColumn}" Grid.Row="{Binding StatusRow}" Background="Transparent" BorderThickness="0" Padding="0,4" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTipService.ToolTip="Status details">
@@ -108,9 +111,12 @@
       </StackPanel>
      </StackPanel>
     </ScrollViewer>
-    <Grid x:Name="InstallPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="22">
+    <Grid x:Name="InstallPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-     <TextBlock Text="Install apps" Style="{StaticResource PageTitle}" />
+     <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Install apps" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="Search WinGet, Chocolatey and Scoop, then install in one step." Style="{StaticResource Muted}" />
+       </StackPanel>
      <Grid x:Name="SearchControls" Grid.Row="1" ColumnSpacing="10" RowSpacing="8">
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="FilterColumn" Width="150" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -126,9 +132,9 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Border Visibility="{Binding ResultsHeaderVisibility}" Height="36" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0">
          <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="100" /><ColumnDefinition Width="85" /></Grid.ColumnDefinitions>
-          <TextBlock Text="Name" Style="{StaticResource Muted}" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Text="Version" Style="{StaticResource Muted}" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+          <TextBlock Text="Name" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="Version" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
          </Grid>
         </Border>
         <ListView Grid.Row="1" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
@@ -137,9 +143,9 @@
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,14">
            <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="{Binding DetailColumnWidth}" /><ColumnDefinition Width="{Binding DetailColumnWidth}" /><ColumnDefinition Width="85" /></Grid.ColumnDefinitions>
             <StackPanel Spacing="4" VerticalAlignment="Center">
-             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-             <TextBlock Text="{Binding Id}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-             <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+             <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+             <TextBlock Text="{Binding Id}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+             <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" Style="{StaticResource RowSub}" />
             </StackPanel>
             <TextBlock Grid.Column="1" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
             <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
@@ -150,18 +156,21 @@
         </ListView>
        </Grid>
        <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24">
-        <TextBlock Text="{Binding SearchSummary}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding SearchSummary}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
         <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
        </StackPanel>
        <local:LoadingOverlay IsActive="{Binding SearchLoading}" Text="Searching your sources…" CancelText="Cancel" Cancelled="CancelSearchClick" />
       </Grid>
      </Grid>
     </Grid>
-    <Grid x:Name="InstalledPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="18">
+    <Grid x:Name="InstalledPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock Text="Installed apps" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Installed apps" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="Apps from your package managers, and which have updates." Style="{StaticResource Muted}" />
+       </StackPanel>
       <Button Grid.Column="1" Click="InstalledRefreshClick" IsEnabled="{Binding CanRefresh}" Padding="12,7" ToolTipService.ToolTip="Refresh apps and check for updates. Scoop uses your current local buckets." AutomationProperties.Name="Refresh installed apps">
        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Refresh" FontSize="12" /></StackPanel>
       </Button>
@@ -193,10 +202,10 @@
       <Border Visibility="{Binding TableHeaderVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0" Height="34">
        <Grid ColumnSpacing="16">
         <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="2.5*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="156" /></Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="1" Text="App" Style="{StaticResource Muted}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource Muted}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="3" Text="Installed" Style="{StaticResource Muted}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="App" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3" Text="Installed" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
        </Grid>
       </Border>
       <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Installed packages">
@@ -207,9 +216,9 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="{Binding NameWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="156" /></Grid.ColumnDefinitions>
           <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanAct}" MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Name}" />
           <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding Id}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Id}" Visibility="{Binding WideVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
           </StackPanel>
           <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           <TextBlock Grid.Column="3" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
@@ -224,17 +233,20 @@
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
       <StackPanel Grid.RowSpan="2" Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24">
-       <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
       <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding Refreshing}" Text="{Binding ProgressText}" />
      </Grid>
     </Grid>
-    <Grid x:Name="ScoutPage" Visibility="Collapsed" RowSpacing="18">
+    <Grid x:Name="ScoutPage" Visibility="Collapsed" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="10">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock Text="Scout" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Scout" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="Look up any file or folder on this PC." Style="{StaticResource Muted}" />
+       </StackPanel>
         <Button Grid.Column="1" Content="{Binding SetupLabel}" Click="ScoutSetupClick" Visibility="{Binding SetupVisibility}" IsEnabled="{Binding CanSetup}" FontSize="12" Padding="10,7" />
       <Button Grid.Column="2" Click="ScoutRefreshClick" Padding="10,7" AutomationProperties.Name="Refresh search index" ToolTipService.ToolTip="Refresh search index"><FontIcon Glyph="&#xE72C;" FontSize="12" /></Button>
      </Grid>
@@ -266,8 +278,8 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <FontIcon Glyph="{Binding Glyph}" FontSize="17" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
           <StackPanel Grid.Column="1" Spacing="4">
-           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding Path}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Path}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
           </StackPanel>
           <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
           <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -279,7 +291,7 @@
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
       <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Padding="24" Spacing="6">
-       <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>
@@ -293,7 +305,10 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock Text="Queue" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Queue" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="Installs and updates you have added, with their output." Style="{StaticResource Muted}" />
+       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
        <Button Content="Clear waiting" Click="ClearWaitingClick" IsEnabled="{Binding CanClear}" FontSize="12" Padding="10,7" />
        <Button Content="Clear finished" Click="ClearFinishedQueueClick" IsEnabled="{Binding CanClearFinished}" FontSize="12" Padding="10,7" />
@@ -314,8 +329,8 @@
             <Grid ColumnSpacing="12">
              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
              <StackPanel Spacing="4">
-              <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-              <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
              </StackPanel>
              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
               <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" />
@@ -339,15 +354,18 @@
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
       <StackPanel Visibility="{Binding EmptyVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="360" Padding="24">
-       <TextBlock Text="Your queue is empty" FontSize="14" TextAlignment="Center" />
+       <TextBlock Text="Your queue is empty" Style="{StaticResource EmptyTitle}" />
        <TextBlock Text="Add installs or updates. Select an operation here to see its output." Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>
     </Grid>
-    <Grid x:Name="LogsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="18">
+    <Grid x:Name="LogsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid>
-      <TextBlock Text="Logs" Style="{StaticResource PageTitle}" VerticalAlignment="Center" />
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Logs" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="A record of what TidyWindow has done." Style="{StaticResource Muted}" />
+       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
        <Button x:Name="CopyLogsButton" Click="CopyLogsClick" Padding="12,7" ToolTipService.ToolTip="Copy the entries shown" AutomationProperties.Name="Copy entries">
         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock x:Name="CopyLogsLabel" Text="Copy" FontSize="12" /></StackPanel>
@@ -394,7 +412,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <Ellipse Width="7" Height="7" Fill="{Binding DotBrush}" VerticalAlignment="Top" Margin="0,5,0,0" AutomationProperties.AccessibilityView="Raw" />
             <StackPanel Grid.Column="1" Spacing="3">
-             <TextBlock Text="{Binding Message}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Left" />
+             <TextBlock Text="{Binding Message}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" TextAlignment="Left" />
              <TextBlock Text="{Binding Meta}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Left" ToolTipService.ToolTip="{Binding Exact}" />
             </StackPanel>
             <FontIcon Grid.Column="2" Glyph="{Binding Chevron}" Visibility="{Binding ChevronVisibility}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,4,0,0" />
@@ -411,7 +429,7 @@
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
       <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24">
-       <TextBlock Text="{Binding EmptyTitle}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>
@@ -430,7 +448,7 @@
           <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding InfoVisibility}" />
          </Grid>
          <StackPanel Grid.Column="1" Spacing="3">
-          <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+          <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
           <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
           <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ToastActionClick" FontSize="12" Padding="12,5" Margin="0,8,0,0" />
          </StackPanel>

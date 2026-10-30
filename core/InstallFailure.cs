@@ -23,6 +23,7 @@ public static partial class InstallFailure
         [0x8A150110] = "A dependency of this app could not be installed.",
         [0x8A150113] = "This app is not supported on this computer.",
         [0x8A15003A] = "Group Policy blocks this operation.",
+        [0x8A15008E] = "WinGet can’t update this app because the newer version installs a different way. Update it from the app itself.",
         [0x8A150049] = "The MSI installer failed."
     };
 
@@ -61,6 +62,9 @@ public static partial class InstallFailure
         0x8A150109 or 0x8A15010B => ActionOutcome.RestartRequired,
         _ => null
     };
+
+    /// <summary>WinGet lists the update but can never apply it, so retrying or re-listing it is pointless.</summary>
+    public static bool UpdateCannotBeApplied(int exitCode) => unchecked((uint)exitCode) == 0x8A15008E;
 
     [GeneratedRegex(@"(?:installer|install) failed with exit code:?\s*(-?\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex InnerCode();

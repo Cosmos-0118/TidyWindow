@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -22,7 +23,10 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
     // Items that are off stay in the list, but step back so the ones still active are easy to spot.
     public double Dim => current.On ? 1 : 0.55;
 
-    public string Glyph => char.ConvertFromUtf32(int.TryParse(current.Item.Icon, System.Globalization.NumberStyles.HexNumber, null, out var code) ? code : current.Item.Group switch
+    public string Glyph => GlyphFor(current.Item);
+
+    /// <summary>The icon the catalog gives an item, or one for its group when it names none.</summary>
+    public static string GlyphFor(BackgroundItem item) => char.ConvertFromUtf32(int.TryParse(item.Icon, System.Globalization.NumberStyles.HexNumber, null, out var code) ? code : item.Group switch
     {
         BackgroundGroup.Telemetry => 0xE774,
         BackgroundGroup.Ai => 0xE7B3,
@@ -99,19 +103,25 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
     }
 }
 
-public sealed class BackgroundChangeRow(BackgroundChange change) : ObservableState
+public sealed class BackgroundChangeRow(BackgroundChange change, string glyph, IconQuery? query) : ObservableState
 {
+    private ImageSource? icon;
     public BackgroundChange Change { get; } = change;
+    /// <summary>The app's own icon when one is found, else the same category icon the item has in its list.</summary>
+    public ImageSource? Icon => icon;
+    public string Glyph { get; } = glyph;
+    public IconQuery? IconQuery { get; } = query;
+    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
     public string Name => Change.Name;
     public string Sub => $"Turned off {Change.When.ToLocalTime():d MMM yyyy, h:mm tt}";
-    public string Initial => Name.Any(char.IsLetterOrDigit) ? char.ToUpperInvariant(Name.First(char.IsLetterOrDigit)).ToString() : "?";
     public string AutomationName => $"Turn {Name} back on";
 }
 
-public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<BackgroundItem> catalog, BackgroundManager manager, ActivityLog log, ToastCenter toasts) : ObservableState, IDisposable
+public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<BackgroundItem> catalog, BackgroundManager manager, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
-    private bool scanning, scanned, working;
+    private readonly IconService icons = iconService ?? IconService.Shared;
+    private bool scanning, scanned, working, listening;
     private string query = "", checkedAt = "";
     private BackgroundTab tab = BackgroundTab.Telemetry;
     private BackgroundFilter filter = BackgroundFilter.All;
@@ -150,8 +160,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
 
     public string TabNote => tab switch
     {
-        BackgroundTab.Telemetry => "Windows and Office send diagnostic and usage data to Microsoft. Nothing you use depends on these, so they are the safest to turn off.",
-        BackgroundTab.Ai => "Features that look at your screen or run AI on this PC. Turning one off asks Windows not to use it; nothing is uninstalled.",
+        BackgroundTab.Telemetry => "Diagnostic and usage data sent to Microsoft. Nothing you use depends on it, so this is the safest group.",
+        BackgroundTab.Ai => "Features that watch your screen or run AI on this PC. Turning one off does not uninstall it.",
         BackgroundTab.Optional => "Features many people never use. Each one says what you would lose, and Windows can still start the ones set to “when needed”.",
         _ => ""
     };
@@ -235,9 +245,42 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
     public void RefreshChanges()
     {
         // An item Windows has already switched back on is not "turned off" any more; it shows in its list with a notice instead.
-        var stillOff = manager.History.All().Where(x => all.FirstOrDefault(r => r.Id == x.Id) is not { Entry.FullyOn: true }).Select(x => new BackgroundChangeRow(x)).ToList();
+        var stillOff = manager.History.All().Where(x => all.FirstOrDefault(r => r.Id == x.Id) is not { Entry.FullyOn: true }).Select(x =>
+        {
+            var item = catalog.FirstOrDefault(c => string.Equals(c.Id, x.Id, StringComparison.OrdinalIgnoreCase));
+            // An item the catalog no longer lists keeps the generic Optional icon.
+            return new BackgroundChangeRow(x, item is null ? "" : BackgroundRow.GlyphFor(item), item is null ? null : AppIconQuery(item));
+        }).ToList();
+        foreach (var row in stillOff) if (row.IconQuery is { } query && icons.TryGet(query, out var cached) && cached is not null) row.SetIcon(cached);
         Changes.Reset(stillOff);
         foreach (var name in new[] { nameof(ChangesCount), nameof(NoChangesVisibility), nameof(CanRestore) }) Changed(name);
+        if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+        _ = LoadIconsAsync(stillOff);
+    }
+
+    private void ReloadIcons() => _ = LoadIconsAsync(Changes.ToList(), everyRow: true);
+
+    // Most items are parts of Windows that run from the Windows folder, which have no icon of their own; only a program installed elsewhere (a media player's sharing service, say) is worth looking up.
+    private IconQuery? AppIconQuery(BackgroundItem item)
+    {
+        foreach (var target in item.Targets)
+        {
+            if (target.Kind != BackgroundTargetKind.Service || system.Service(target.Name) is not { ImagePath.Length: > 0 } service) continue;
+            if (!BackgroundGuard.IsInWindows(service.ImagePath, system.WindowsFolder)) return new(item.Name, service.ImagePath);
+        }
+        return null;
+    }
+
+    private async Task LoadIconsAsync(IReadOnlyList<BackgroundChangeRow> rows, bool everyRow = false)
+    {
+        try
+        {
+            await Task.WhenAll(rows.Where(x => x.IconQuery is not null && (everyRow || x.Icon is null)).Select(async row =>
+            {
+                if (await icons.LoadAsync(row.IconQuery!, lifetime.Token) is { } image) row.SetIcon(image);
+            }));
+        }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>What turning this off will mean, shown before the person confirms. Null when no confirmation is needed.</summary>
@@ -317,5 +360,5 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         await ScanAsync();
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { IconService.DarkChanged -= ReloadIcons; lifetime.Cancel(); lifetime.Dispose(); }
 }

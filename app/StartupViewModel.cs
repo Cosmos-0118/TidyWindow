@@ -1,9 +1,6 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
-using Windows.Storage;
-using Windows.Storage.FileProperties;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -60,11 +57,11 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     public string AutomationName => $"{Name} starts with Windows";
     public string DetailsName => $"Details for {Name}";
 
-    public string Initial => Name.Any(char.IsLetterOrDigit) ? char.ToUpperInvariant(Name.First(char.IsLetterOrDigit)).ToString() : "?";
     public ImageSource? Icon => icon;
-    public Visibility IconVisibility => icon is null ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility InitialVisibility => icon is null ? Visibility.Visible : Visibility.Collapsed;
-    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); Changed(nameof(IconVisibility)); Changed(nameof(InitialVisibility)); }
+    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
+    /// <summary>Shown while the real icon loads, and kept when the item has none: what kind of thing it is.</summary>
+    public string Glyph => StartupGlyph.For(current.Kind);
+    public IconQuery IconQuery => new(current.Name, current.Command, current.ExePath);
 
     public bool Expanded => expanded;
     public Visibility DetailsVisibility => expanded ? Visibility.Visible : Visibility.Collapsed;
@@ -100,8 +97,21 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     }
 }
 
+public static class StartupGlyph
+{
+    public static string For(StartupKind kind) => kind switch
+    {
+        StartupKind.ScheduledTask => "",
+        StartupKind.Service => "",
+        StartupKind.StoreApp => "",
+        StartupKind.WindowsSetting => "",
+        _ => AppIcon.DefaultGlyph
+    };
+}
+
 public sealed class ChangeRow(StartupChange change) : ObservableState
 {
+    private ImageSource? icon;
     public StartupChange Change { get; } = change;
     public string Name => Change.Name;
     public string When => Change.When.ToLocalTime().ToString("d MMM yyyy, h:mm tt");
@@ -114,15 +124,17 @@ public sealed class ChangeRow(StartupChange change) : ObservableState
         _ => "Startup entry"
     };
     public string Sub => $"{Kind} · turned off {When}";
-    public string Initial => Name.Any(char.IsLetterOrDigit) ? char.ToUpperInvariant(Name.First(char.IsLetterOrDigit)).ToString() : "?";
+    public ImageSource? Icon => icon;
+    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
+    public string Glyph => StartupGlyph.For(Change.Kind);
     public string AutomationName => $"Turn {Name} back on";
 }
 
-public sealed class StartupViewModel(IStartupSystem system, StartupService service, ActivityLog log, ToastCenter toasts) : ObservableState, IDisposable
+public sealed class StartupViewModel(IStartupSystem system, StartupService service, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
-    private readonly Dictionary<string, ImageSource?> icons = new(StringComparer.OrdinalIgnoreCase);
-    private bool scanning, scanned, working;
+    private readonly IconService icons = iconService ?? IconService.Shared;
+    private bool scanning, scanned, working, listening;
     private string query = "", checkedAt = "";
     private StartupTab tab = StartupTab.Apps;
     private StartupFilter filter = StartupFilter.All;
@@ -183,6 +195,8 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             var services = remembered.Where(x => x.Kind == StartupKind.Service).Select(x => x.Id.Split('|')[^1]).ToList();
             var scan = await Task.Run(() => StartupScan.Run(system, services), lifetime.Token);
             all = scan.Entries.Select(x => new StartupRow(x)).ToList();
+            // Icons seen before come back with the list, so a refresh does not blank them.
+            foreach (var row in all) if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
             hiddenTasks = scan.WindowsTasks; hiddenServices = scan.WindowsServices;
             scanned = true;
             // Anything turned back on outside TidyWindow no longer counts as turned off by it.
@@ -192,6 +206,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             ApplyFilter();
             RefreshChanges();
             foreach (var name in new[] { nameof(HiddenNote), nameof(CheckedText) }) Changed(name);
+            if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
             _ = LoadIconsAsync(all);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Startup scan finished", $"{scan.Entries.Count} items; {scan.Entries.Count(x => x.CanChange && x.Enabled)} can be turned off.");
         }
@@ -221,36 +236,30 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
 
     public void RefreshChanges()
     {
-        Changes.Reset(service.History.All().Select(x => new ChangeRow(x)).ToList());
+        var remembered = service.History.All().Select(x => new ChangeRow(x)).ToList();
+        foreach (var change in remembered) if (all.FirstOrDefault(x => x.Id == change.Change.Id) is { Icon: { } image }) change.SetIcon(image);
+        Changes.Reset(remembered);
         foreach (var name in new[] { nameof(ChangesCount), nameof(NoChangesVisibility), nameof(CanRestore) }) Changed(name);
     }
 
-    // Real icons make an unfamiliar list readable at a glance. They arrive a moment after the list, one at a time, and a row without one keeps its initial.
-    private async Task LoadIconsAsync(IReadOnlyList<StartupRow> rows)
+    // Real icons make an unfamiliar list readable at a glance. They arrive a moment after the list, a few at a time, and a row without one keeps its glyph.
+    private void ReloadIcons() => _ = LoadIconsAsync(all, everyRow: true);
+
+    private async Task LoadIconsAsync(IReadOnlyList<StartupRow> rows, bool everyRow = false)
     {
-        foreach (var row in rows)
-        {
-            if (lifetime.IsCancellationRequested) return;
-            var path = row.Entry.ExePath;
-            if (path.Length == 0) continue;
-            if (!icons.TryGetValue(path, out var image)) icons[path] = image = await IconOf(path);
-            if (image is not null) row.SetIcon(image);
-        }
+        // What is on screen first.
+        var shown = Rows.ToHashSet();
+        var queue = rows.Where(x => everyRow || x.Icon is null).OrderBy(x => shown.Contains(x) ? 0 : 1).ToList();
+        try { await Task.WhenAll(queue.Select(LoadIconAsync)); }
+        catch (OperationCanceledException) { }
     }
 
-    private static async Task<ImageSource?> IconOf(string path)
+    private async Task LoadIconAsync(StartupRow row)
     {
-        try
-        {
-            if (!File.Exists(path)) return null;
-            var file = await StorageFile.GetFileFromPathAsync(path);
-            using var thumbnail = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 64, ThumbnailOptions.UseCurrentScale);
-            if (thumbnail is null || thumbnail.Size == 0) return null;
-            var image = new BitmapImage();
-            await image.SetSourceAsync(thumbnail);
-            return image;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.COMException) { return null; }
+        var image = await icons.LoadAsync(row.IconQuery, lifetime.Token);
+        if (image is null) return;
+        row.SetIcon(image);
+        foreach (var change in Changes.Where(x => x.Change.Id == row.Id)) change.SetIcon(image);
     }
 
     /// <summary>What turning this off will mean, shown before the person confirms. Null when no confirmation is needed.</summary>
@@ -336,5 +345,5 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { IconService.DarkChanged -= ReloadIcons; lifetime.Cancel(); lifetime.Dispose(); }
 }

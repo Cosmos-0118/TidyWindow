@@ -16,8 +16,10 @@ public sealed record ManagedInventory(ManagerKind Manager, IReadOnlyList<Managed
 public sealed record PackageActionResult(ActionOutcome Outcome, string Message, string Detail);
 
 /// <summary>Manages exact installed identities. Shares the install/setup operation gate.</summary>
-public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator)
+public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator, SkippedUpdates? skipped = null)
 {
+    private readonly SkippedUpdates skipped = skipped ?? new();
+
     public async Task<ManagedInventory> ReadAsync(ManagerStatus manager, bool checkUpdates = true, CancellationToken token = default)
     {
         var kind = manager.Definition.Kind;
@@ -62,7 +64,10 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                     // list supplies global scope and hold state for the actual command.
                     var update = updates.FirstOrDefault(x => x.Id.Equals(app.Id, StringComparison.OrdinalIgnoreCase) &&
                         (kind != ManagerKind.Scoop || x.Version == app.Version));
-                    return update is null ? app : app with { AvailableVersion = update.AvailableVersion, Held = app.Held || update.Held };
+                    if (update is null) return app;
+                    if (update.AvailableVersion is { Length: > 0 } latest && skipped.IsSkipped(app, latest))
+                        return app with { Note = $"{manager.Definition.Name} can’t apply the {latest} update. Update it from the app itself." };
+                    return app with { AvailableVersion = update.AvailableVersion, Held = app.Held || update.Held };
                 }).ToArray());
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -132,8 +137,17 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             if (action == PackageAction.Update && app.AvailableVersion is { Length: > 0 } target && current.Version == target)
                 return new(ActionOutcome.Completed, $"{app.Name} is already up to date", "The queued target version is already installed. No update was started.");
             var result = await runner.RunAsync(ActionCommand(manager, current, action, interactive) with { Progress = progress }, token).ConfigureAwait(false);
-            var detail = $"{current.ManagerName} · {current.Id}\nExit code: {result.ExitCode}\n" + PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
-            if (result.ExitCode is not (0 or 1641 or 3010)) return new(ActionOutcome.Failed, $"Couldn’t {(action == PackageAction.Update ? "update" : "uninstall")} {app.Name}", detail);
+            var reason = InstallFailure.Explain(result);
+            var detail = $"{current.ManagerName} · {current.Id}\nExit code: {result.ExitCode}\n" + (reason is null ? "" : reason + "\n") + PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
+            if (result.ExitCode is not (0 or 1641 or 3010))
+            {
+                if (action == PackageAction.Update && InstallFailure.UpdateCannotBeApplied(result.ExitCode) && app.AvailableVersion is { Length: > 0 } rejected)
+                {
+                    skipped.Skip(current, rejected);
+                    detail += $"\nTidyWindow won’t offer version {rejected} again. A newer version will be offered when one is released.";
+                }
+                return new(ActionOutcome.Failed, $"Couldn’t {(action == PackageAction.Update ? "update" : "uninstall")} {app.Name}", detail);
+            }
             packages.ClearSearchCache();
             if (result.ExitCode is 1641 or 3010) return new(ActionOutcome.RestartRequired, $"{app.Name}: restart required", detail + "\nRestart Windows to finish applying the change.");
             ManagedPackage? Find(ManagedInventory x) => x.Packages.FirstOrDefault(p => p.Key.Equals(app.Key, StringComparison.OrdinalIgnoreCase));

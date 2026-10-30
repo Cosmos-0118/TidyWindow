@@ -21,8 +21,8 @@
        </Border>
 
        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
-        <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
+        <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
+        <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
         <TextBlock Text="{Binding Note}" Visibility="{Binding NoteVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
         <TextBlock Text="Windows turned this back on after you turned it off." Visibility="{Binding RevertedVisibility}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" Margin="0,2,0,0" />
        </StackPanel>
@@ -68,7 +68,7 @@
   </ResourceDictionary>
  </UserControl.Resources>
 
- <Grid RowSpacing="14">
+ <Grid RowSpacing="16">
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
   <!-- Title -->
@@ -76,7 +76,7 @@
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <StackPanel Spacing="4" VerticalAlignment="Center">
     <TextBlock Text="Quiet Windows" Style="{StaticResource PageTitle}" />
-    <TextBlock Text="See what Windows keeps running in the background and turn off what you don't want. Only known, safe items are listed, and each one can be turned back on." Style="{StaticResource Muted}" />
+    <TextBlock Text="Turn off what Windows runs in the background. Every change can be undone." Style="{StaticResource Muted}" />
    </StackPanel>
    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
     <TextBlock Text="{Binding CheckedText}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" TextWrapping="NoWrap" />
@@ -133,7 +133,7 @@
         <Border Width="44" Height="44" CornerRadius="10" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" HorizontalAlignment="Center">
          <FontIcon Glyph="{Binding EmptyGlyph}" FontSize="18" Foreground="{ThemeResource MutedBrush}" />
         </Border>
-        <TextBlock Text="{Binding EmptyTitle}" FontSize="14" FontWeight="SemiBold" TextAlignment="Center" />
+        <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" />
         <TextBlock Text="{Binding EmptyText}" Style="{StaticResource Muted}" TextAlignment="Center" MaxWidth="360" />
        </StackPanel>
       </Grid>
@@ -162,12 +162,10 @@
          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12" MinHeight="64">
           <Grid ColumnSpacing="14">
            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-           <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Initial}" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-           </Border>
+           <local:AppIcon Source="{Binding Icon}" Glyph="{Binding Glyph}" />
            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-            <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+            <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
+            <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
            </StackPanel>
            <Button Grid.Column="2" Click="TurnBackOnClick" VerticalAlignment="Center" Padding="12,6" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Allow this to run again">
             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Turn back on" FontSize="12" /></StackPanel>
@@ -181,7 +179,7 @@
        <Border Width="44" Height="44" CornerRadius="10" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" HorizontalAlignment="Center">
         <FontIcon Glyph="&#xE73E;" FontSize="18" Foreground="{ThemeResource MutedBrush}" />
        </Border>
-       <TextBlock Text="Nothing turned off yet" FontSize="14" FontWeight="SemiBold" TextAlignment="Center" />
+       <TextBlock Text="Nothing turned off yet" Style="{StaticResource EmptyTitle}" />
        <TextBlock Text="When you turn something off, it will be listed here." Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>

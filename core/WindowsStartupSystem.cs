@@ -216,9 +216,10 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         return tasks;
     }
 
-    private sealed record Manifest(string DisplayName, string Publisher, string Folder, IReadOnlyDictionary<string, string> Executables)
+    private sealed record Manifest(string DisplayName, string Publisher, string Folder, IReadOnlyDictionary<string, string> Executables, string Main = "")
     {
-        public string ExecutableFor(string taskId) => Executables.TryGetValue(taskId, out var exe) && Folder.Length > 0 ? Path.Combine(Folder, exe) : "";
+        // A startup task that names no program belongs to the package's main app.
+        public string ExecutableFor(string taskId) => Folder.Length > 0 && (Executables.TryGetValue(taskId, out var exe) ? exe : Main) is { Length: > 0 } found ? Path.Combine(Folder, found) : "";
     }
 
     private static Manifest ReadManifest(string packageFullName)
@@ -237,10 +238,12 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
             var publisher = Read("PublisherDisplayName");
             var executables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var task in document.Descendants().Where(x => x.Name.LocalName == "StartupTask"))
-                if (task.Attribute("TaskId")?.Value is { } id && task.Attribute("Executable")?.Value is { } exe) executables[id] = exe;
+                // The program is named on the task itself, or on the extension that holds it (uap5:Extension Executable="app\Tool.exe").
+                if (task.Attribute("TaskId")?.Value is { } id && (task.Attribute("Executable") ?? task.Parent?.Attribute("Executable"))?.Value is { } exe) executables[id] = exe;
             if (display.StartsWith("ms-resource:", StringComparison.OrdinalIgnoreCase)) display = "";
             if (publisher.StartsWith("ms-resource:", StringComparison.OrdinalIgnoreCase)) publisher = "";
-            return new(display, publisher, folder, executables);
+            var main = document.Descendants().FirstOrDefault(x => x.Name.LocalName == "Application")?.Attribute("Executable")?.Value ?? "";
+            return new(display, publisher, folder, executables, main);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException) { return none; }
     }

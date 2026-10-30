@@ -4,9 +4,11 @@
  xmlns:local="using:TidyWindow.Next.Desktop"
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
-  <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+  </ResourceDictionary>
  </UserControl.Resources>
- <Grid RowSpacing="14">
+ <Grid RowSpacing="16">
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
   <Grid ColumnSpacing="10">
@@ -23,11 +25,13 @@
    </Button>
   </Grid>
 
-  <SelectorBar Grid.Row="1" x:Name="Tabs" SelectionChanged="TabsChanged" HorizontalAlignment="Left" Margin="-10,0,0,-6" AutomationProperties.Name="Repair sections">
-   <SelectorBarItem x:Name="ProblemsItem" Text="Problems" IsSelected="True" />
-   <SelectorBarItem x:Name="ProgramsItem" Text="All programs" />
-   <SelectorBarItem x:Name="UndoItem" Text="{Binding UndoTabTitle}" />
-  </SelectorBar>
+  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
+   <StackPanel Orientation="Horizontal">
+    <RadioButton x:Name="ProblemsItem" GroupName="RepairTabs" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Problems"><TextBlock Text="Problems" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
+    <RadioButton x:Name="ProgramsItem" GroupName="RepairTabs" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="All programs"><TextBlock Text="All programs" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
+    <RadioButton x:Name="UndoItem" GroupName="RepairTabs" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="{Binding UndoTabTitle}"><TextBlock Text="{Binding UndoTabTitle}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
+   </StackPanel>
+  </Grid>
 
   <Grid Grid.Row="2">
    <!-- Tab 1: what the scan found -->
@@ -38,7 +42,7 @@
        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
        <ItemsControl.ItemTemplate><DataTemplate>
         <StackPanel Spacing="8">
-         <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource MutedBrush}" />
+         <TextBlock Text="{Binding Name}" Style="{StaticResource GroupLabel}" />
          <Border Style="{StaticResource Card}" Padding="0">
           <ItemsControl ItemsSource="{Binding Rows}">
            <ItemsControl.ItemTemplate><DataTemplate>
@@ -51,7 +55,7 @@
               </Grid>
               <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+                <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
                 <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
                 <Border Visibility="{Binding ReviewVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Review" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
                </StackPanel>
@@ -70,7 +74,7 @@
     </ScrollViewer>
     <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" Padding="24" Spacing="8">
      <FontIcon Glyph="&#xE73E;" FontSize="28" Foreground="{ThemeResource GoodBrush}" />
-     <TextBlock Text="No leftovers found" FontSize="15" FontWeight="SemiBold" TextAlignment="Center" />
+     <TextBlock Text="No leftovers found" Style="{StaticResource EmptyTitle}" />
      <TextBlock Text="Installing and uninstalling should work normally. If one app still fails, find it under All programs and remove its entry by hand." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
     </StackPanel>
    </Grid>
@@ -90,13 +94,14 @@
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,10" MinHeight="56">
          <Grid ColumnSpacing="14">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-           <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
+          <local:AppIcon Source="{Binding Icon}" />
+          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+           <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
+           <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
           </StackPanel>
-          <TextBlock Grid.Column="1" Text="{Binding Where}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-          <Button Grid.Column="2" Click="RemoveProgramClick" FontSize="12" Padding="10,6" HorizontalAlignment="Stretch" Content="Remove entry" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Take this program off the list, with its Windows Installer record if it has one. Its files are not deleted." />
+          <TextBlock Grid.Column="2" Text="{Binding Where}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+          <Button Grid.Column="3" Click="RemoveProgramClick" FontSize="12" Padding="10,6" HorizontalAlignment="Stretch" Content="Remove entry" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Take this program off the list, with its Windows Installer record if it has one. Its files are not deleted." />
          </Grid>
         </Border>
        </DataTemplate></ListView.ItemTemplate>
@@ -119,10 +124,10 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <StackPanel Spacing="3" VerticalAlignment="Center">
            <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+            <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
             <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
            </StackPanel>
-           <TextBlock FontSize="12" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True"><Run Text="{Binding When}" /><Run Text=" · " /><Run Text="{Binding Count}" /></TextBlock>
+           <TextBlock Style="{StaticResource RowSub}" local:TrimTip.Enabled="True"><Run Text="{Binding When}" /><Run Text=" · " /><Run Text="{Binding Count}" /></TextBlock>
            <TextBlock Text="{Binding Keys}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Opacity="0.8" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           </StackPanel>
           <Button Grid.Column="1" Click="UndoRowClick" VerticalAlignment="Center" Padding="14,7" FontSize="12" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Put back everything this repair removed">
@@ -133,7 +138,7 @@
        </DataTemplate></ItemsControl.ItemTemplate>
       </ItemsControl>
       <StackPanel Visibility="{Binding NoHistoryVisibility}" HorizontalAlignment="Center" Padding="24,40" Spacing="6">
-       <TextBlock Text="Nothing to undo yet" FontSize="14" TextAlignment="Center" />
+       <TextBlock Text="Nothing to undo yet" Style="{StaticResource EmptyTitle}" />
        <TextBlock Text="When you repair something, it will be listed here." Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
      </Grid>

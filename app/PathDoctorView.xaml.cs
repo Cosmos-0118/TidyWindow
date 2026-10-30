@@ -27,13 +27,13 @@ public sealed partial class PathDoctorView : UserControl
     private async void AddAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.AddAllToolsAsync(); }
     private async void AddToolClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is ToolRow row) await model.AddToolAsync(row); }
 
-    private void TabsChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void TabChecked(object sender, RoutedEventArgs e)
     {
-        var selected = sender.SelectedItem;
-        ProgramsTab.Visibility = selected == ProgramsItem ? Visibility.Visible : Visibility.Collapsed;
-        FoldersTab.Visibility = selected == FoldersItem ? Visibility.Visible : Visibility.Collapsed;
-        MachineTab.Visibility = selected == MachineItem ? Visibility.Visible : Visibility.Collapsed;
-        ToolsTab.Visibility = selected == ToolsItem ? Visibility.Visible : Visibility.Collapsed;
+        if (ToolsTab is null) return;
+        ProgramsTab.Visibility = ReferenceEquals(sender, ProgramsItem) ? Visibility.Visible : Visibility.Collapsed;
+        FoldersTab.Visibility = ReferenceEquals(sender, FoldersItem) ? Visibility.Visible : Visibility.Collapsed;
+        MachineTab.Visibility = ReferenceEquals(sender, MachineItem) ? Visibility.Visible : Visibility.Collapsed;
+        ToolsTab.Visibility = ReferenceEquals(sender, ToolsItem) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void UnlockClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UnlockMachineAsync(); }
