@@ -55,17 +55,25 @@ jobs:
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build.ps1 -Version $env:VERSION -PublishDir artifacts/publish
+      - name: Check the installer installs and uninstalls
+        shell: pwsh
+        run: ./installer/smoke-test.ps1 -Setup "artifacts/TidyWindow-Setup-$env:VERSION.exe"
       - name: Attach to the GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $zip = "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
-          # A release written by hand keeps its title and notes; only the file is added or replaced.
+          $files = "artifacts/TidyWindow-$env:VERSION-win-x64.zip", "artifacts/TidyWindow-Setup-$env:VERSION.exe"
+          # A release written by hand keeps its title and notes; only the files are added or replaced.
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:TAG $zip --clobber
+            gh release upload $env:TAG @files --clobber
           } else {
-            gh release create $env:TAG $zip --title "TidyWindow $env:VERSION" --generate-notes --verify-tag
+            gh release create $env:TAG @files --title "TidyWindow $env:VERSION" --generate-notes --verify-tag
           }
           if ($LASTEXITCODE -ne 0) { throw "Could not publish the release asset." }
