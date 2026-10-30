@@ -13,7 +13,20 @@ public static partial class PackageOutputParser
     [GeneratedRegex(@"\S(?:.*?\S)?(?= {2,}|$)")]
     private static partial Regex Columns();
 
+    [GeneratedRegex(@"\S+")]
+    private static partial Regex Words();
+
     public static string Clean(string text) => Ansi().Replace(text, "").Replace("\b", "");
+
+    // WinGet pads a column to its widest cell plus one space, so when every name is short the header reads "Name Id" with a single space.
+    // Splitting on runs of spaces would then merge those two columns; the labels are single words, so fall back to them.
+    internal static int[] HeaderColumns(string header)
+    {
+        var words = Words().Matches(header);
+        var spaced = Columns().Matches(header);
+        var found = words.Count is >= 3 and <= 5 && words.Count > spaced.Count ? words : spaced;
+        return found.Select(m => CellWidth(header[..m.Index])).ToArray();
+    }
     public static bool IsSafeId(string id) => id.Length is > 0 and <= 256 && Identifier().IsMatch(id) && !id.Contains("..");
 
     public static IReadOnlyList<Package> Parse(ManagerKind manager, string output, int limit = 60)
@@ -38,7 +51,7 @@ public static partial class PackageOutputParser
                 var dashed = Regex.Matches(lines[i], @"-{2,}");
                 var columns = dashed.Count >= 3
                     ? dashed.Select(m => CellWidth(lines[i][..m.Index])).ToArray()
-                    : Columns().Matches(lines[i - 1]).Select(m => CellWidth(lines[i - 1][..m.Index])).ToArray();
+                    : HeaderColumns(lines[i - 1]);
                 if (columns.Length < 3) continue;
                 foreach (var row in lines.Skip(i + 1))
                 {

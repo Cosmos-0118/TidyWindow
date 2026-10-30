@@ -24,6 +24,18 @@ public sealed class InstallationTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void UpdatesAreReadWhenEveryNameIsShortAndTheHeaderColumnsSitOneSpaceApart()
+    {
+        // Real WinGet output with a single short package: "Name" is the widest cell in its column, so "Name Id" has one space.
+        const string table = "Name Id      Version  Available Source\r\n--------------------------------------\r\nGit  Git.Git 2.56.0.3 2.56.0.4  winget\r\n1 upgrades available.\r\n1 package(s) have version numbers that cannot be determined. Use --include-unknown to see all results.\r\n";
+        var git = Assert.Single(InstallationOutput.ParseUpdates(ManagerKind.Winget, table));
+        Assert.Equal("Git.Git", git.Id);
+        Assert.Equal("Git", git.Name);
+        Assert.Equal("2.56.0.3", git.Version);
+        Assert.Equal("2.56.0.4", git.AvailableVersion);
+    }
+
+    [Fact]
     public void ScoopStructuredInventoryPreservesCustomManifestsAndFailedGlobalHeldInstalls()
     {
         const string json = "Installed apps:\nTIDYWINDOW_JSON:[{\"Name\":\"python\",\"Version\":\"3.14\",\"Source\":\"C:\\\\custom\\\\python.json\",\"Info\":\"Global install, Held package\"},{\"Name\":\"mingw\",\"Version\":null,\"Source\":null,\"Info\":\"Install failed\"}]";
