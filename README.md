@@ -9,6 +9,7 @@ The app keeps its main pages focused:
 - **Installed:** find installed packages, select apps to update or uninstall, and check available versions.
 - **Scout:** find files and folders by name/path, with ranked results, type/location filters, copy path and open location.
 - **Quiet:** see known Windows background items (telemetry, screen-watching features such as Recall, optional services) and turn each off or back on. Only a reviewed catalog can be changed, and anything other things rely on is locked. See [docs/quiet-research.md](docs/quiet-research.md).
+- **Tune:** a short, reviewed list of Windows registry settings that make a noticeable difference (big folders, shutdown, menus, Edge in the background, ads and suggestions, the full right-click menu, mouse acceleration and a few more). Popular "registry booster" values with no evidence behind them are left out on purpose. Each setting shows its current value, saves the original before a change and can be put back exactly. See [docs/tune-research.md](docs/tune-research.md).
 - **Logs:** inspect outcomes and problems when needed.
 
 Installs, updates and uninstalls share one queue across pages. You can keep adding apps while an operation runs. Select all applies to the visible Installed list; Update selected queues only apps with an available update and skips held packages. Bulk uninstall asks for confirmation of the specific apps. Changing a filter clears the selection.

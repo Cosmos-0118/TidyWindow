@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -27,6 +27,8 @@ public sealed partial class MainWindow : Window
     private readonly StartupSession startupSession;
     private readonly BackgroundViewModel quiet;
     private readonly BackgroundSession quietSession;
+    private readonly TuneViewModel tune;
+    private readonly TuneSession tuneSession;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -82,10 +84,17 @@ public sealed partial class MainWindow : Window
         quietSession = BackgroundSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var quietHistory = new BackgroundHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Background"));
         quiet = new(quietSystem, quietCatalog, new BackgroundManager(new LocalBackgroundChanger(quietSystem, new WindowsBackgroundWriter(), quietCatalog), quietSession, () => quietSession.OpenAsync(), quietHistory), log, toasts);
+        // Tune changes your own settings directly; settings for every user go through the same kind of helper, after the permission prompt.
+        var tuneSystem = new WindowsTuneSystem();
+        var tuneCatalog = TuneCatalog.Load();
+        tuneSession = TuneSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var tuneHistory = new TuneHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Tune"));
+        tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
         StartupPage.DataContext = startup;
         QuietPage.DataContext = quiet;
+        TunePage.DataContext = tune;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
@@ -130,7 +139,7 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ApplyBranding()
@@ -273,7 +282,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -327,7 +336,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -401,6 +410,14 @@ public sealed partial class MainWindow : Window
         ShowPage(Page.Quiet);
         quiet.RefreshChanges();
         if (!quiet.Scanned && !quiet.Busy) _ = quiet.ScanAsync();
+    }
+
+    private void TuneClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Tune);
+        tune.RefreshChanges();
+        // Reading a few dozen registry values is instant, so the first visit scans at once.
+        if (!tune.Scanned && !tune.Busy) _ = tune.ScanAsync();
     }
 
     private async Task<string?> PickFolderAsync()

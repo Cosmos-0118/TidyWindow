@@ -1,0 +1,251 @@
+{
+  "items": [
+    {
+      "id": "folder-discovery",
+      "name": "Big folders open faster",
+      "group": "speed",
+      "scope": "user",
+      "topic": "File Explorer",
+      "icon": "E8B7",
+      "summary": "File Explorer stops reading a folder's files to guess whether it holds pictures, music or documents, so folders with thousands of files open without a long wait.",
+      "effect": "Folders no longer switch to a picture or music view on their own; you can still pick a view yourself. Folders you have already set a view for keep it.",
+      "takes": "explorer",
+      "sources": ["WinUtil", "Windows Latest"],
+      "targets": [
+        { "key": "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\\AllFolders\\Shell", "name": "FolderType", "kind": "string", "value": "NotSpecified" }
+      ]
+    },
+    {
+      "id": "shutdown-apps",
+      "name": "Stuck apps do not hold up shutdown",
+      "group": "speed",
+      "scope": "user",
+      "topic": "Shutdown",
+      "icon": "E7E8",
+      "summary": "Shutdown, restart and sign-out stop waiting on apps that will not close. Apps that do not answer are closed after 5 seconds instead of 20.",
+      "effect": "An app with unsaved work that is slow to answer is closed without asking. Save your work before you shut down.",
+      "risk": "careful",
+      "takes": "signOut",
+      "sources": ["Microsoft TechNet (AutoEndTasks)", "Tom's Hardware"],
+      "targets": [
+        { "key": "Control Panel\\Desktop", "name": "AutoEndTasks", "kind": "string", "value": "1" },
+        { "key": "Control Panel\\Desktop", "name": "WaitToKillAppTimeout", "kind": "string", "rule": "atMost", "value": "5000", "normal": "20000" }
+      ]
+    },
+    {
+      "id": "quick-menus",
+      "name": "Menus and windows respond sooner",
+      "group": "speed",
+      "scope": "user",
+      "topic": "Menus and windows",
+      "summary": "Menus open without their short pause, and windows minimize and maximize without animating.",
+      "effect": "Windows lose their small fade and zoom animations.",
+      "takes": "signOut",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Control Panel\\Desktop", "name": "MenuShowDelay", "kind": "string", "rule": "atMost", "value": "200", "normal": "400" },
+        { "key": "Control Panel\\Desktop\\WindowMetrics", "name": "MinAnimate", "kind": "string", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "TaskbarAnimations", "kind": "dword", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "edge-background",
+      "name": "Edge stays closed when closed",
+      "group": "speed",
+      "scope": "machine",
+      "topic": "Microsoft Edge",
+      "icon": "E774",
+      "summary": "Edge no longer starts quietly when you sign in and no longer keeps running after you close it, so fewer msedge.exe processes sit in memory.",
+      "effect": "Edge takes a moment longer to open, and background notifications from Edge web apps stop. Edge also says “managed by your organization”, which is how it shows any policy. Applies the next time Edge starts.",
+      "risk": "careful",
+      "sources": ["Microsoft Learn: StartupBoostEnabled", "Microsoft Learn: BackgroundModeEnabled"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "StartupBoostEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "BackgroundModeEnabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "suggestions",
+      "name": "No suggestions or promoted apps",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Start, Settings and lock screen",
+      "summary": "Windows stops suggesting apps and tips in Start, Settings and the lock screen, and stops quietly installing promoted apps for your account.",
+      "effect": "You stop seeing Microsoft's tips and suggestions. Nothing you installed is removed.",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "ContentDeliveryAllowed", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "OemPreinstalledAppsEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "PreInstalledAppsEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "PreInstalledAppsEverEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SilentInstalledAppsEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SoftLandingEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SystemPaneSuggestionsEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-310093Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338387Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338388Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338389Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338393Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353694Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353696Enabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "advertising-id",
+      "name": "No personalized ads in apps",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Advertising",
+      "summary": "Apps can no longer use an advertising ID to show ads based on what you do, and Windows stops tailoring tips from your diagnostic data.",
+      "effect": "You still see ads in apps that show them, just not personalized ones.",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo", "name": "Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Privacy", "name": "TailoredExperiencesWithDiagnosticDataEnabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "web-search",
+      "name": "Start search without web results",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Start and Search",
+      "summary": "Searching from Start or the taskbar shows only your PC, apps and settings, with no Bing web suggestions mixed in. This is the “Web Searches” switch in Settings > Privacy & security > Search.",
+      "effect": "You search the web from your browser instead. Microsoft Store suggestions in search are a separate switch and stay as they are. Only Windows 11 26H2 (build 26300.8697 and later) has this setting.",
+      "minBuild": 26300,
+      "minRevision": 8697,
+      "sources": ["Windows Settings (Privacy & security > Search)", "KapilArya"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsWebSuggestionsEnabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "activity-history",
+      "name": "No activity history",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "Privacy",
+      "summary": "Windows stops recording which apps and files you open into an activity history and stops sending it to Microsoft.",
+      "effect": "Features that continue what you were doing on another device, or list past activities, have nothing to show.",
+      "takes": "restart",
+      "sources": ["WinUtil"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "EnableActivityFeed", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "PublishUserActivities", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System", "name": "UploadUserActivities", "value": "0" }
+      ]
+    },
+    {
+      "id": "consumer-features",
+      "name": "No promoted apps on new accounts",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "Windows Store",
+      "summary": "Windows stops installing promoted apps and games on new accounts and after updates, for everyone who uses this PC.",
+      "effect": "Nothing you use. Apps already installed stay.",
+      "needsPro": true,
+      "takes": "signOut",
+      "sources": ["WinUtil", "Microsoft Learn: CloudContent policy"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableWindowsConsumerFeatures", "value": "1" }
+      ]
+    },
+    {
+      "id": "classic-menu",
+      "name": "Full right-click menu",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Right-click menu",
+      "summary": "Right-clicking shows the full menu straight away, instead of Windows 11's short one with “Show more options”.",
+      "effect": "You get the older, longer menu. The newer short menu is gone until you turn this off.",
+      "minBuild": 22000,
+      "takes": "explorer",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        {
+          "key": "Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+          "name": "",
+          "kind": "string",
+          "value": "",
+          "removeKey": "Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
+        }
+      ]
+    },
+    {
+      "id": "mouse-acceleration",
+      "name": "Pointer follows your hand exactly",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Mouse",
+      "summary": "The pointer moves the same distance for the same hand movement, however fast you move the mouse (Enhance pointer precision off).",
+      "effect": "Small, slow movements can feel less precise to some people. You can switch it back here any time.",
+      "takes": "signOut",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Control Panel\\Mouse", "name": "MouseSpeed", "kind": "string", "value": "0", "normal": "1" },
+        { "key": "Control Panel\\Mouse", "name": "MouseThreshold1", "kind": "string", "value": "0", "normal": "6" },
+        { "key": "Control Panel\\Mouse", "name": "MouseThreshold2", "kind": "string", "value": "0", "normal": "10" }
+      ]
+    },
+    {
+      "id": "sticky-keys-prompt",
+      "name": "No Sticky Keys pop-ups",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Accessibility shortcuts",
+      "icon": "E765",
+      "summary": "Pressing Shift five times, or holding Shift or Num Lock, no longer opens the Sticky Keys, Filter Keys or Toggle Keys prompt in the middle of a game or a document.",
+      "effect": "The shortcuts that start these accessibility features stop working. The features themselves can still be turned on in Settings.",
+      "takes": "signOut",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Control Panel\\Accessibility\\StickyKeys", "name": "Flags", "kind": "string", "rule": "clearBits", "value": "4", "normal": "510" },
+        { "key": "Control Panel\\Accessibility\\ToggleKeys", "name": "Flags", "kind": "string", "rule": "clearBits", "value": "4", "normal": "62" },
+        { "key": "Control Panel\\Accessibility\\Keyboard Response", "name": "Flags", "kind": "string", "rule": "clearBits", "value": "4", "normal": "126" }
+      ]
+    },
+    {
+      "id": "file-extensions",
+      "name": "Show file endings",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "File names",
+      "summary": "File names show their real ending, so “invoice.pdf.exe” cannot pass for a PDF.",
+      "effect": "Names are a little longer, and renaming a file lets you change its ending too, so take care when you rename.",
+      "takes": "explorer",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "HideFileExt", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "taskbar-end-task",
+      "name": "End task from the taskbar",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Taskbar",
+      "summary": "Right-click an app on the taskbar and choose End task to close one that is stuck, without opening Task Manager.",
+      "effect": "Nothing you would miss. End task closes the app without asking you to save.",
+      "minBuild": 22621,
+      "takes": "explorer",
+      "sources": ["WinUtil", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings", "name": "TaskbarEndTask", "value": "1" }
+      ]
+    },
+    {
+      "id": "long-paths",
+      "name": "Long file paths",
+      "group": "comfort",
+      "scope": "machine",
+      "topic": "Files",
+      "summary": "Apps that support it can open files whose full path is longer than 260 characters, instead of failing with “path too long”.",
+      "effect": "Nothing you would miss. Older apps that do not support long paths keep their old limit.",
+      "takes": "restart",
+      "sources": ["Microsoft Learn: Maximum path length"],
+      "targets": [
+        { "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem", "name": "LongPathsEnabled", "value": "1", "normal": "0" }
+      ]
+    }
+  ]
+}

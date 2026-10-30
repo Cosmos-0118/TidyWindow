@@ -48,6 +48,9 @@
      <Button x:Name="QuietNav" Style="{StaticResource NavButton}" Click="QuietClick" AutomationProperties.Name="Quiet Windows">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE708;" FontSize="15" /><TextBlock x:Name="QuietLabel" Text="Quiet" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="TuneNav" Style="{StaticResource NavButton}" Click="TuneClick" AutomationProperties.Name="Tune">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9E9;" FontSize="15" /><TextBlock x:Name="TuneLabel" Text="Tune" FontSize="13" /></StackPanel>
+     </Button>
      <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
@@ -301,6 +304,7 @@
     <local:RepairView x:Name="RepairPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:StartupView x:Name="StartupPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:BackgroundView x:Name="QuietPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:TuneView x:Name="TunePage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
