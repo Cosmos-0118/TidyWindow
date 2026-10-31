@@ -14,9 +14,16 @@ public static partial class PackageOutputParser
     private static partial Regex Columns();
 
     public static string Clean(string text) => Ansi().Replace(text, "").Replace("\b", "");
+    // WinGet names what it did not install from a source by where Windows keeps it: the registry's uninstall list (ARP) or a Store package (MSIX).
+    // Registry key names are free text, so the characters allowed are a fixed set with no quotes, pipes, percent signs or redirection.
+    [GeneratedRegex(@"^(?:ARP\\(?:Machine|User)\\X(?:64|86)|MSIX)\\[A-Za-z0-9 ._+\-{}()&,@~=#!\\]+$")]
+    private static partial Regex WindowsIdentifier();
     public static bool IsSafeId(string id) => id.Length is > 0 and <= 256 && Identifier().IsMatch(id) && !id.Contains("..");
+    public static bool IsWindowsId(string id) => id.Length is > 0 and <= 256 && WindowsIdentifier().IsMatch(id) && !id.Contains("..");
+    public static bool IsSafeInstalledId(string id) => IsSafeId(id) || IsWindowsId(id);
 
-    public static IReadOnlyList<Package> Parse(ManagerKind manager, string output, int limit = 60)
+    /// <param name="windowsApps">Keep the apps WinGet found on the PC but did not install (registry programs and Store apps), and read each row's source.</param>
+    public static IReadOnlyList<Package> Parse(ManagerKind manager, string output, int limit = 60, bool windowsApps = false)
     {
         var lines = Clean(output).Split('\n').Select(x => x.TrimEnd('\r')).ToArray();
         var result = new List<Package>();
@@ -47,8 +54,10 @@ public static partial class PackageOutputParser
                     var name = fields[0];
                     var id = manager == ManagerKind.Winget ? fields[1] : fields[2] + "/" + name;
                     var version = manager == ManagerKind.Winget ? fields[2] : fields[1];
-                    if (!IsSafeId(id) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(version)) continue;
-                    result.Add(new(manager, id, name, version, manager == ManagerKind.Winget ? "winget" : fields[2]));
+                    if (!(windowsApps ? IsSafeInstalledId(id) : IsSafeId(id)) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(version)) continue;
+                    // The source is the last column, and blank for apps WinGet did not install.
+                    var source = manager != ManagerKind.Winget ? fields[2] : windowsApps && columns.Length >= 4 ? fields[^1] : "winget";
+                    result.Add(new(manager, id, name, version, source));
                 }
                 break;
             }

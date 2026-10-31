@@ -8,9 +8,15 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
 {
     public ManagedPackage Package { get; } = package;
     public string Name => Package.Name;
-    public string Detail => $"{Package.ManagerName}{(Package.Global ? " · all users" : "")} · {Package.Id}";
+    // Registry programs and Store apps have no package name to show; their WinGet id is a registry path.
+    public string Detail => Package.Origin == AppOrigin.Package ? $"{Package.ManagerName}{(Package.Global ? " · all users" : "")} · {Package.Id}" : Source;
     public string Id => Package.Id;
-    public string Source => Package.ManagerName + (Package.Global ? " · all users" : "");
+    public string Source => Package.Origin switch
+    {
+        AppOrigin.WindowsProgram => "Installed on this PC",
+        AppOrigin.StoreApp => "Microsoft Store app",
+        _ => Package.ManagerName + (Package.Global ? " · all users" : "")
+    };
     public string Version => Package.Version.Length == 0 ? "Unknown version" : Package.Version;
     public string UpdateDetail => Package.Held ? "Pinned in package manager" : Package.AvailableVersion is { Length: > 0 } latest ? $"Update to {latest}" : Package.Note;
     private string queueStatus = "";
@@ -27,7 +33,7 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     private bool isSelected;
     public bool IsSelected { get => isSelected; set => Set(ref isSelected, value); }
     public string UpdateName => $"Update {Name} using {Package.ManagerName}";
-    public string UninstallName => $"Uninstall {Name} using {Package.ManagerName}";
+    public string UninstallName => Package.Origin == AppOrigin.Package ? $"Uninstall {Name} using {Package.ManagerName}" : $"Uninstall {Name}";
     public Visibility UpdateVisibility => Package.AvailableVersion is not null && !Package.Held ? Visibility.Visible : Visibility.Collapsed;
     private bool canAct;
     public bool CanAct { get => canAct; set { if (Set(ref canAct, value)) Changed(nameof(CanUpdate)); } }
@@ -112,7 +118,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     {
         // One reset instead of clearing and re-adding every row: a list of hundreds of apps would re-measure on each step.
         Rows.Reset(all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
-            (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray());
         foreach (var name in new[] { nameof(EmptyVisibility), nameof(EmptyTitle), nameof(EmptyDetail), nameof(TableHeaderVisibility) }) Changed(name);
         NotifySelection();
@@ -144,11 +150,26 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 ApplyFilter();
             }
             loaded = true; NeedsRefresh = false;
+            await LogCoverageAsync();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Errors = ex.Message; log.Write(ActivityLevel.Warning, ActivityArea.Install, "Installed packages could not be checked", ex.ToString()); }
         finally { Refreshing = false; NotifyState(); }
     }
+    // Records how much of Windows' own installed-apps list this page shows, so a gap in detection is visible in Logs instead of silent.
+    private async Task LogCoverageAsync()
+    {
+        try
+        {
+            var listed = all.Select(x => x.Name).ToArray();
+            var coverage = await Task.Run(() => InstalledInventory.Coverage(InstalledInventory.ReadListedByWindows(), listed), lifetime.Token);
+            if (coverage.Total == 0 || coverage.Missing.Count == 0) return;
+            log.Write(ActivityLevel.Info, ActivityArea.Install, $"{coverage.Listed} of {coverage.Total} installed programs are listed ({coverage.Percent:0}%)",
+                "Windows lists these but no package manager reported them:\n" + string.Join("\n", coverage.Missing));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { }
+    }
+
     public void QueueAction(InstalledRow row, PackageAction action)
     {
         if (!row.CanAct || action == PackageAction.Update && !row.CanUpdate) return;

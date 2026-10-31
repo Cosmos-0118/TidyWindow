@@ -6,11 +6,17 @@ namespace TidyWindow.Next.Core;
 
 public enum PackageAction { Update, Uninstall }
 public enum ActionOutcome { Completed, RestartRequired, Unverified, Failed }
+/// <summary>Where an installed app came from. WinGet also lists what it did not install: registry programs and Store apps, which it can still uninstall.</summary>
+public enum AppOrigin { Package, WindowsProgram, StoreApp }
 public sealed record ManagedPackage(ManagerKind Manager, string Id, string Name, string Version,
-    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "")
+    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "", string Source = "")
 {
     public string Key => $"{Manager}:{Id}:{Global}";
     public string ManagerName => ManagerDefinition.All.Single(x => x.Kind == Manager).Name;
+    public AppOrigin Origin => Manager != ManagerKind.Winget ? AppOrigin.Package
+        : Id.StartsWith(@"ARP\", StringComparison.Ordinal) ? AppOrigin.WindowsProgram
+        : Id.StartsWith(@"MSIX\", StringComparison.Ordinal) ? AppOrigin.StoreApp : AppOrigin.Package;
+    public bool Updatable => Origin == AppOrigin.Package;
 }
 public sealed record ManagedInventory(ManagerKind Manager, IReadOnlyList<ManagedPackage> Packages, string? Error = null, string? UpdateError = null);
 public sealed record PackageActionResult(ActionOutcome Outcome, string Message, string Detail);
@@ -37,9 +43,10 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             }
             else
             {
-                var inventory = await packages.ReadInstalledAsync(manager, token).ConfigureAwait(false);
+                var inventory = await packages.ReadInstalledAsync(manager, token, windowsApps: true).ConfigureAwait(false);
                 if (inventory.Error is not null) return new(kind, [], inventory.Error);
-                installed = inventory.Apps.Select(x => new ManagedPackage(kind, x.Id!, x.Name, x.Version)).ToArray();
+                installed = inventory.Apps.Select(x => new ManagedPackage(kind, x.Id!, x.Name, x.Version, Source: x.Source))
+                    .Where(x => !InstallationOutput.IsPlatformComponent(x)).ToArray();
             }
             if (!checkUpdates || installed.Count == 0) return new(kind, installed);
             try
@@ -106,14 +113,18 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
     {
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null || manager.Definition.Kind != app.Manager)
             throw new InvalidOperationException("The package manager is unavailable. Check Overview.");
-        if (!Enum.IsDefined(action) || !PackageOutputParser.IsSafeId(app.Id) || app.Id.Equals("all", StringComparison.OrdinalIgnoreCase))
+        if (!Enum.IsDefined(action) || !PackageOutputParser.IsSafeInstalledId(app.Id) || app.Id.Equals("all", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("The installed package identifier is incomplete or invalid.");
         if (action == PackageAction.Update && app.Held) throw new InvalidOperationException("This package is pinned or held in its package manager.");
+        if (action == PackageAction.Update && !app.Updatable) throw new InvalidOperationException("WinGet did not install this app, so it can’t update it. Use the app itself.");
         var uninstall = action == PackageAction.Uninstall;
+        // WinGet's own packages keep their source; a registry program or Store app has none to name, and Store packages are uninstalled from msstore.
+        string[] winget = app.Origin != AppOrigin.Package ? []
+            : app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase) ? ["--source", "msstore"] : ["--source", "winget"];
         string[] args = app.Manager switch
         {
             ManagerKind.Winget => uninstall
-                ? ["uninstall", "--id", app.Id, "--exact", "--source", "winget", "--accept-source-agreements", "--disable-interactivity"]
+                ? ["uninstall", "--id", app.Id, "--exact", .. winget, "--accept-source-agreements", "--disable-interactivity"]
                 : ["upgrade", "--id", app.Id, "--exact", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Chocolatey => [uninstall ? "uninstall" : "upgrade", app.Id, "--yes", "--no-progress"],
             _ => app.Global ? [uninstall ? "uninstall" : "update", app.Id, "--global"] : [uninstall ? "uninstall" : "update", app.Id]
@@ -164,8 +175,15 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
     private static string Failure(CommandResult result) => $"Exit {result.ExitCode}: " + PackageOutputParser.Clean(string.IsNullOrWhiteSpace(result.Error) ? result.Output : result.Error).Trim();
 }
 
-public static class InstallationOutput
+public static partial class InstallationOutput
 {
+    // Store packages that other apps depend on or that make up Windows itself. Windows' own Installed apps list hides them, and removing one breaks what depends on it.
+    [GeneratedRegex(@"^MSIX\\(?:[^_\\]*\.)?(?:NET\.Native|VCLibs|UI\.Xaml|WinAppRuntime|WindowsAppRuntime|DirectX|Services\.Store\.Engagement|Winget\.Source|WidgetsPlatformRuntime|StartExperiencesApp|StorePurchaseApp|Xbox\.TCUI|XboxIdentityProvider|ApplicationCompatibilityEnhancements|Client\.(?:WebExperience|CBS|Core|FileExp|AIX)|Speech\.[\w-]+|OfficePushNotificationUtility|Office\.ActionsServer)[\w.\-]*_", RegexOptions.IgnoreCase)]
+    private static partial Regex PlatformStorePackage();
+
+    /// <summary>A Store package that is part of Windows or a library for other apps, not something a person installed to use.</summary>
+    public static bool IsPlatformComponent(ManagedPackage package) => package.Origin == AppOrigin.StoreApp && PlatformStorePackage().IsMatch(package.Id);
+
     public static IReadOnlyList<ManagedPackage> ParseScoop(string output, bool updates)
     {
         var line = PackageOutputParser.Clean(output).Split('\n').LastOrDefault(x => x.StartsWith("TIDYWINDOW_JSON:", StringComparison.Ordinal))

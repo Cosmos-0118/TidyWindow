@@ -5,7 +5,11 @@ using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
 
-public sealed record InstalledApp(ManagerKind? Manager, string? Id, string Name, string Version);
+public sealed record InstalledApp(ManagerKind? Manager, string? Id, string Name, string Version, string Source = "");
+public sealed record CoverageReport(int Total, int Listed, IReadOnlyList<string> Missing)
+{
+    public double Percent => Total == 0 ? 100 : 100.0 * Listed / Total;
+}
 public sealed record InventoryResult(ManagerKind Manager, IReadOnlyList<InstalledApp> Apps, string? Error = null);
 
 public sealed partial class InstalledInventory
@@ -39,6 +43,26 @@ public sealed partial class InstalledInventory
         return new(apps, errors);
     }
 
+    /// <summary>How much of what Windows lists in Settings > Installed apps is also in <paramref name="listed"/>, matched by display name.</summary>
+    public static CoverageReport Coverage(IEnumerable<InstalledApp> windows, IEnumerable<string> listed)
+    {
+        var keys = listed.Select(NameKey).Where(x => x.Length > 0).ToHashSet();
+        var missing = new List<string>();
+        var total = 0;
+        foreach (var name in windows.Select(x => x.Name).DistinctBy(NameKey))
+        {
+            var key = NameKey(name);
+            if (key.Length == 0) continue;
+            total++;
+            // "Visual Studio Code (User)" is the same program as "Visual Studio Code" installed for one user.
+            if (!keys.Contains(key) && !keys.Any(x => x.Length >= 6 && key.StartsWith(x, StringComparison.Ordinal))) missing.Add(name);
+        }
+        return new(total, total - missing.Count, missing);
+    }
+
+    /// <summary>The programs Windows shows in Settings > Installed apps, for checking another list against.</summary>
+    public static IReadOnlyList<InstalledApp> ReadListedByWindows() => OperatingSystem.IsWindows() ? WindowsInstalledApps.Read(listedByWindows: true).Apps : [];
+
     private static string Identity(ManagerKind manager, string id) => $"{manager}:{id.ToUpperInvariant()}";
     // Registry entries often add a generic trailing word the package name lacks ("MSYS2" vs "MSYS2 Installer").
     // Dropping only that word keeps the comparison exact: "Git" still does not match "GitHub".
@@ -61,7 +85,8 @@ public sealed partial class InstalledInventory
 internal static class WindowsInstalledApps
 {
     [SupportedOSPlatform("windows")]
-    public static (IReadOnlyList<InstalledApp> Apps, IReadOnlyList<string> Errors) Read()
+    /// <param name="listedByWindows">Only what Windows shows in Settings: no hidden system components and no updates of other products.</param>
+    public static (IReadOnlyList<InstalledApp> Apps, IReadOnlyList<string> Errors) Read(bool listedByWindows = false)
     {
         var apps = new List<InstalledApp>();
         var errors = new List<string>();
@@ -79,6 +104,7 @@ internal static class WindowsInstalledApps
                     {
                         using var app = uninstall.OpenSubKey(id);
                         if (app?.GetValue("DisplayName") is not string name || string.IsNullOrWhiteSpace(name)) continue;
+                        if (listedByWindows && !ListedByWindows(app)) continue;
                         apps.Add(new(null, null, name, app.GetValue("DisplayVersion") as string ?? ""));
                     }
                     catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
@@ -90,4 +116,11 @@ internal static class WindowsInstalledApps
         }
         return (apps, errors.Distinct().ToArray());
     }
+
+    // SystemComponent is a DWORD for most installers but a string for some, so it is read as text.
+    [SupportedOSPlatform("windows")]
+    private static bool ListedByWindows(RegistryKey app) =>
+        !(app.GetValue("SystemComponent")?.ToString() is { Length: > 0 } hidden && hidden != "0") &&
+        app.GetValue("ParentKeyName") is null && app.GetValue("ParentDisplayName") is null &&
+        !(app.GetValue("ReleaseType") as string is "Update" or "Hotfix" or "Security Update" or "Update Rollup" or "ServicePack");
 }
