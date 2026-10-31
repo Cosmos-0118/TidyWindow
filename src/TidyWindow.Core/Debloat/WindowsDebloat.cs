@@ -84,7 +84,7 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
     {
         var script = (elevated ? "$p=Get-AppxPackage -AllUsers;" : "$p=Get-AppxPackage;") +
             "$r=@($p|ForEach-Object{[pscustomobject]@{n=$_.Name;f=$_.PackageFullName;y=$_.PackageFamilyName;r=[bool]$_.NonRemovable;w=[bool]$_.IsFramework;" +
-            "u=@($_.PackageUserInformation|Where-Object{\"$($_.InstallState)\" -eq 'Installed'}|ForEach-Object{\"$($_.UserSecurityID.SID)\"})}});" +
+            "l=\"$($_.InstallLocation)\";u=@($_.PackageUserInformation|Where-Object{\"$($_.InstallState)\" -eq 'Installed'}|ForEach-Object{\"$($_.UserSecurityID.SID)\"})}});" +
             "ConvertTo-Json -InputObject $r -Compress -Depth 3";
         var result = DebloatProcess.Script(script, TimeSpan.FromSeconds(90));
         if (result.TimedOut || result.ExitCode != 0) throw new InvalidOperationException("Windows did not list the installed apps. " + Brief(result.Output));
@@ -98,20 +98,17 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
                 if (u.ValueKind == JsonValueKind.Array) users.AddRange(u.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0));
                 else if (u.ValueKind == JsonValueKind.String && u.GetString() is { Length: > 0 } one) users.Add(one);
             }
-            list.Add(new(Text(row, "n"), Text(row, "f"), Text(row, "y"), Flag(row, "r"), Flag(row, "w"), users));
+            list.Add(new(Text(row, "n"), Text(row, "f"), Text(row, "y"), Flag(row, "r"), Flag(row, "w"), users, Text(row, "l")));
         }
-        // Without administrator rights Windows does not say who has a package; what it lists is the current user's.
-        return elevated ? list : list.Select(x => x with { Users = [] }).ToList();
+        // Without administrator rights Windows does not say who has a package; what it lists is the current user's. The store adds what is installed for other accounts.
+        return elevated ? list : AppxStoreRecords.Merge(list.Select(x => x with { Users = [] }).ToList(), AppxRegistry.Read("Applications", AppxStoreRecords.Package));
     }
 
-    public IReadOnlyList<ProvisionedFact> Provisioned()
-    {
-        if (!elevated) return [];
-        var result = DebloatProcess.Script("ConvertTo-Json -InputObject @(Get-AppxProvisionedPackage -Online|ForEach-Object{[pscustomobject]@{d=$_.DisplayName;p=$_.PackageName}}) -Compress", TimeSpan.FromSeconds(90));
-        if (result.TimedOut || result.ExitCode != 0) throw new InvalidOperationException("Windows did not list the apps it installs for new accounts. " + Brief(result.Output));
-        using var json = JsonDocument.Parse(result.Output.Length == 0 ? "[]" : result.Output);
-        return json.RootElement.EnumerateArray().Select(x => new ProvisionedFact(Text(x, "d"), Text(x, "p"))).Where(x => x.DisplayName.Length > 0).ToList();
-    }
+    /// <summary>
+    /// What Windows installs for new accounts. This is read from the package store in the registry, which needs no administrator rights and no slow DISM call,
+    /// and which still lists an app after "Uninstall" removed it for one account only.
+    /// </summary>
+    public IReadOnlyList<ProvisionedFact> Provisioned() => AppxRegistry.Read("InboxApplications", AppxStoreRecords.Staged);
 
     public PlaybookFacts Playbooks()
     {
@@ -186,6 +183,31 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
     private static string Text(JsonElement row, string name) => row.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
     private static bool Flag(JsonElement row, string name) => row.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
     private static string Brief(string text) => text.Length <= 200 ? text : text[..200] + "…";
+}
+
+/// <summary>Reads one list of package records from the registry (see <see cref="AppxStoreRecords"/>).</summary>
+[SupportedOSPlatform("windows")]
+internal static class AppxRegistry
+{
+    private const string Root = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\";
+
+    public static List<T> Read<T>(string list, Func<string, string, T?> record) where T : class
+    {
+        var found = new List<T>();
+        try
+        {
+            using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var key = hklm.OpenSubKey(Root + list);
+            if (key is null) return found;
+            foreach (var name in key.GetSubKeyNames())
+            {
+                using var package = key.OpenSubKey(name);
+                if (record(name, package?.GetValue("Path") as string ?? "") is { } fact) found.Add(fact);
+            }
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { }
+        return found;
+    }
 }
 
 /// <summary>The part of the app registry that deals with removal. Only these four places are ever written, and only with names that passed the guard.</summary>
@@ -293,6 +315,72 @@ public sealed class WindowsAppxOps : IAppxOps
     private static string Brief(string text) => text.Length <= 220 ? text : text[..220] + "…";
 }
 
+/// <summary>One account on this PC with its registry open for writing. <paramref name="Classes"/> is its file-type and class settings (HKCU\Software\Classes), when they could be opened.</summary>
+internal sealed record UserAccount(string Sid, string Profile, RegistryKey Root, RegistryKey? Classes);
+
+/// <summary>
+/// Visits every account that has a profile on this PC, not only the one that approved the permission prompt. An account that is signed in already has its
+/// registry loaded; for the others it is loaded for the length of the visit and unloaded again. An account that cannot be opened is skipped.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal static class UserHives
+{
+    private const string ProfileList = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList";
+
+    public static void ForEach(Action<UserAccount> visit)
+    {
+        var reg = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "reg.exe");
+        var signedIn = Registry.Users.GetSubKeyNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var mounted = 0;
+        foreach (var (sid, profile) in Profiles())
+        {
+            try
+            {
+                if (signedIn.Contains(sid)) Visit(sid, profile, sid, signedIn.Contains(sid + "_Classes") ? sid + "_Classes" : null, visit);
+                else
+                {
+                    var mount = "TidyWindowUser" + ++mounted;
+                    var classes = mount + "_Classes";
+                    var hive = Path.Combine(profile, "NTUSER.DAT");
+                    if (!File.Exists(hive) || Load(reg, mount, hive) is false) continue;
+                    var classesFile = Path.Combine(profile, "AppData", "Local", "Microsoft", "Windows", "UsrClass.dat");
+                    var classesLoaded = File.Exists(classesFile) && Load(reg, classes, classesFile);
+                    try { Visit(sid, profile, mount, classesLoaded ? classes : null, visit); }
+                    finally
+                    {
+                        // A handle left open keeps the file locked, and reg refuses to unload it.
+                        GC.Collect(); GC.WaitForPendingFinalizers();
+                        if (classesLoaded) Unload(reg, classes);
+                        Unload(reg, mount);
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException or Win32Exception) { }
+        }
+    }
+
+    private static void Visit(string sid, string profile, string root, string? classes, Action<UserAccount> visit)
+    {
+        using var user = Registry.Users.OpenSubKey(root, writable: true);
+        using var classKey = classes is null ? null : Registry.Users.OpenSubKey(classes, writable: true);
+        if (user is not null) visit(new(sid, profile, user, classKey));
+    }
+
+    private static IEnumerable<(string Sid, string Profile)> Profiles()
+    {
+        using var list = Registry.LocalMachine.OpenSubKey(ProfileList);
+        if (list is null) yield break;
+        foreach (var sid in list.GetSubKeyNames().Where(DebloatCleanup.IsAccountSid))
+        {
+            using var key = list.OpenSubKey(sid);
+            if (key?.GetValue("ProfileImagePath") is string path && Directory.Exists(Environment.ExpandEnvironmentVariables(path))) yield return (sid, Environment.ExpandEnvironmentVariables(path));
+        }
+    }
+
+    private static bool Load(string reg, string mount, string file) => DebloatProcess.Run(reg, ["load", @"HKU\" + mount, file], TimeSpan.FromSeconds(20)).ExitCode == 0;
+    private static void Unload(string reg, string mount) => DebloatProcess.Run(reg, ["unload", @"HKU\" + mount], TimeSpan.FromSeconds(20));
+}
+
 /// <summary>
 /// Removes the things that are not ordinary apps. Each one is done the way its owner's own uninstaller expects, never by deleting program folders,
 /// and none of them deletes a file of yours.
@@ -347,10 +435,55 @@ public sealed class WindowsPlaybooks : IDebloatPlaybooks
         var result = DebloatProcess.Run(setup, ["/uninstall"], TimeSpan.FromMinutes(3));
         if (result.TimedOut) return "OneDrive took too long to uninstall.";
 
-        // Do not start it again at sign-in, for you or for accounts made later.
-        using (var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true)) run?.DeleteValue("OneDrive", throwOnMissingValue: false);
+        // Do not start it again at sign-in, for any account on this PC or for accounts made later. The helper may be running as another administrator
+        // than the people it is cleaning for, so the current user's registry is not enough: every account is visited, and what is not signed in is loaded for a moment.
+        UserHives.ForEach(account =>
+        {
+            ForgetRunValues(account.Root, DebloatCleanup.IsOneDriveRunValue);
+            if (account.Classes is { } classes) HideOneDriveInSideBar(classes);
+        });
         ForgetOneDriveInNewAccounts();
+        RemoveOneDriveTasks();
         return null;
+    }
+
+    /// <summary>Takes the startup entries that match, and the "allowed to start" marks Task Manager keeps for them, out of one account's registry.</summary>
+    private static void ForgetRunValues(RegistryKey account, Func<string, bool> matches)
+    {
+        foreach (var path in new[] { DebloatCleanup.RunKey, DebloatCleanup.ApprovedKey })
+        {
+            using var key = account.OpenSubKey(path, writable: true);
+            if (key is null) continue;
+            foreach (var name in key.GetValueNames().Where(matches).ToList()) key.DeleteValue(name, throwOnMissingValue: false);
+        }
+    }
+
+    // OneDrive's uninstaller leaves its folder in File Explorer's side bar. Windows hides it when the entry says it is not pinned (32-bit and 64-bit views alike).
+    private static void HideOneDriveInSideBar(RegistryKey classes)
+    {
+        foreach (var path in new[] { @"CLSID\" + DebloatCleanup.OneDriveNavigationPane, @"Wow6432Node\CLSID\" + DebloatCleanup.OneDriveNavigationPane })
+        {
+            using var key = classes.CreateSubKey(path, writable: true);
+            key?.SetValue("System.IsPinnedToNameSpaceTree", 0, RegistryValueKind.DWord);
+        }
+    }
+
+    // The installer registers an update task and a reporting task for each account that signed in; without OneDrive they only fail every day.
+    private static void RemoveOneDriveTasks()
+    {
+        var listed = DebloatProcess.Script("ConvertTo-Json -InputObject @(Get-ScheduledTask|Where-Object{$_.TaskName -like 'OneDrive*'}|ForEach-Object{$_.TaskName}) -Compress", TimeSpan.FromSeconds(60));
+        if (listed.TimedOut || listed.ExitCode != 0 || listed.Output.Length == 0) return;
+        List<string> names;
+        try
+        {
+            using var json = JsonDocument.Parse(listed.Output);
+            names = json.RootElement.ValueKind == JsonValueKind.Array
+                ? json.RootElement.EnumerateArray().Select(x => x.GetString() ?? "").Where(DebloatCleanup.IsOneDriveTask).ToList()
+                : json.RootElement.ValueKind == JsonValueKind.String && DebloatCleanup.IsOneDriveTask(json.RootElement.GetString() ?? "") ? [json.RootElement.GetString()!] : [];
+        }
+        catch (JsonException) { return; }
+        if (names.Count == 0) return;
+        DebloatProcess.Script(string.Concat(names.Select(x => $"try{{Unregister-ScheduledTask -TaskName '{x}' -Confirm:$false}}catch{{}};")), TimeSpan.FromSeconds(60));
     }
 
     private static void ForgetOneDriveInNewAccounts()
@@ -407,13 +540,23 @@ public sealed class WindowsPlaybooks : IDebloatPlaybooks
         // Tell the updater not to install Edge again. The WebView2 runtime has its own product id and is not affected.
         using (var policy = Registry.LocalMachine.CreateSubKey(EdgeUpdatePolicy)) policy.SetValue("Install" + EdgeStableId, 0, RegistryValueKind.DWord);
 
-        foreach (var link in new[]
+        // Shortcuts shared by everyone, then those of each account: its desktop, Start menu and taskbar pin, and Edge's startup entries.
+        var links = new List<string>
         {
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "Microsoft Edge.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Microsoft Edge.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "Microsoft Edge.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Microsoft Edge.lnk")
-        })
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "Microsoft Edge.lnk")
+        };
+        UserHives.ForEach(account =>
+        {
+            ForgetRunValues(account.Root, DebloatCleanup.IsEdgeRunValue);
+            links.AddRange(DebloatCleanup.EdgeShortcuts(account.Profile));
+        });
+        foreach (var path in new[] { DebloatCleanup.RunKey, @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" })
+        {
+            using var run = Registry.LocalMachine.OpenSubKey(path, writable: true);
+            if (run is not null) foreach (var name in run.GetValueNames().Where(DebloatCleanup.IsEdgeRunValue).ToList()) run.DeleteValue(name, throwOnMissingValue: false);
+        }
+        foreach (var link in links)
         {
             try { File.Delete(link); } catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
         }

@@ -54,6 +54,26 @@ public sealed partial class DebloatView : UserControl
         await model.RemoveAsync(rows);
     }
 
+    // Putting everything back installs apps again from the Store, which can take a while, so it is confirmed once.
+    private async void PutAllBackClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model) return;
+        var count = model.Removed.Count(x => x.Item is not null);
+        if (count == 0) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = count == 1 ? "Put 1 item back?" : $"Put {count:N0} items back?",
+            Content = new TextBlock { Text = "Windows will be allowed to install each of them again, and TidyWindow installs them from the Microsoft Store or WinGet where that is possible. This can take a few minutes. Windows will ask for administrator permission once.", TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = "Put back",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ActualTheme
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await model.PutAllBackAsync();
+    }
+
     private async void PutBackClick(object sender, RoutedEventArgs e)
     {
         if (Model is { } model && (sender as FrameworkElement)?.DataContext is DebloatRemovedRow row) await model.PutBackAsync(row);

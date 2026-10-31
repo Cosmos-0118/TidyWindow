@@ -30,10 +30,10 @@ public sealed class DebloatItem
     public string[] Sources { get; init; } = [];
 }
 
-/// <summary>One installed package, as Windows reports it.</summary>
-public sealed record AppxFact(string Name, string FullName, string FamilyName, bool NonRemovable, bool Framework, IReadOnlyList<string> Users);
-/// <summary>A package that Windows installs for every new account.</summary>
-public sealed record ProvisionedFact(string DisplayName, string PackageName);
+/// <summary>One installed package, as Windows reports it. <paramref name="InstallLocation"/> is the folder that holds its manifest and logo; empty when unknown.</summary>
+public sealed record AppxFact(string Name, string FullName, string FamilyName, bool NonRemovable, bool Framework, IReadOnlyList<string> Users, string InstallLocation = "");
+/// <summary>A package that Windows installs for every new account. <paramref name="InstallLocation"/> is the folder of its manifest; empty when unknown.</summary>
+public sealed record ProvisionedFact(string DisplayName, string PackageName, string InstallLocation = "");
 /// <summary>What the scanner needs to know about OneDrive, Edge and Recall, none of which are ordinary packages.</summary>
 public sealed record PlaybookFacts(bool OneDrive, IReadOnlyList<string> OneDriveFolders, bool Edge, bool OtherBrowser, bool Recall);
 
@@ -43,7 +43,7 @@ public interface IDebloatSystem
     int Build { get; }
     /// <summary>Installed packages. Without administrator rights these are the current user's; with them, everyone's.</summary>
     IReadOnlyList<AppxFact> Packages();
-    /// <summary>Packages Windows installs for new accounts. Only readable with administrator rights; empty otherwise.</summary>
+    /// <summary>Packages Windows installs for new accounts. Read from Windows' own package store, which anyone may read, so an app that was only uninstalled for one account still shows.</summary>
     IReadOnlyList<ProvisionedFact> Provisioned();
     PlaybookFacts Playbooks();
 }
@@ -104,13 +104,15 @@ public static partial class DebloatGuard
         "Microsoft.MicrosoftEdge", "Windows.", "NcsiUwpApp",
         // Store, WinGet and sign-in
         "Microsoft.WindowsStore", "Microsoft.StorePurchaseApp", "Microsoft.Services.Store", "Microsoft.DesktopAppInstaller", "Microsoft.Winget",
-        "Microsoft.XboxIdentityProvider", "Microsoft.Xbox.TCUI", "Microsoft.AAD.BrokerPlugin", "Microsoft.AccountsControl", "Microsoft.CredDialogHost", "Microsoft.LockApp", "Microsoft.BioEnrollment",
+        "Microsoft.XboxIdentityProvider", "Microsoft.Xbox.TCUI", "Microsoft.GamingServices", "Microsoft.AAD.BrokerPlugin", "Microsoft.AccountsControl", "Microsoft.CredDialogHost", "Microsoft.LockApp", "Microsoft.BioEnrollment",
         // The shell: Start, taskbar, search, setup, security
         "Microsoft.Windows.ShellExperienceHost", "Microsoft.Windows.StartMenuExperienceHost", "Microsoft.Windows.Search", "Microsoft.Windows.CloudExperienceHost", "Microsoft.Windows.ContentDeliveryManager",
         "Microsoft.Windows.OOBENetwork", "Microsoft.Windows.PeopleExperienceHost", "Microsoft.Windows.SecureAssessmentBrowser", "Microsoft.Windows.CapturePicker", "Microsoft.Windows.AssignedAccessLockApp",
         "Microsoft.Windows.PinningConfirmationDialog", "Microsoft.Windows.ParentalControls", "Microsoft.Windows.XGpuEjectDialog", "Microsoft.Windows.Apprep.ChxApp", "Microsoft.Windows.CallingShellApp",
         "Microsoft.Windows.NarratorQuickStart", "Microsoft.SecHealthUI", "Microsoft.Win32WebViewHost", "Microsoft.ECApp", "Microsoft.AsyncTextService",
-        "MicrosoftWindows.Client.", "MicrosoftWindows.UndockedDevKit"
+        "MicrosoftWindows.Client.", "MicrosoftWindows.UndockedDevKit",
+        // The everyday tools: nobody should lose a calculator, a screenshot tool, an image viewer or a terminal by ticking a box
+        "Microsoft.WindowsCalculator", "Microsoft.WindowsNotepad", "Microsoft.Paint", "Microsoft.ScreenSketch", "Microsoft.Windows.Photos", "Microsoft.WindowsTerminal", "Microsoft.WindowsCamera"
     ];
 
     [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]

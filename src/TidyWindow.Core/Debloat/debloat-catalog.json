@@ -10,7 +10,7 @@
       "id": "bing-news-weather", "name": "News, Weather and Bing apps", "group": "microsoft", "topic": "Bing", "icon": "E774", "recommended": true, "storeId": "9WZDNCRFHVFW",
       "summary": "News, Weather, Finance, Sports, Travel, Health and Food apps that open as web feeds full of ads and suggestions.",
       "effect": "The News and Weather apps go. The Weather and News tiles of the Widgets board are separate and stay.",
-      "packages": ["Microsoft.BingNews", "Microsoft.BingWeather", "Microsoft.BingFinance", "Microsoft.BingSports", "Microsoft.BingTravel", "Microsoft.BingHealthAndFitness", "Microsoft.BingFoodAndDrink", "Microsoft.BingTranslator"],
+      "packages": ["Microsoft.BingNews", "Microsoft.News", "Microsoft.BingWeather", "Microsoft.BingFinance", "Microsoft.BingSports", "Microsoft.BingTravel", "Microsoft.BingHealthAndFitness", "Microsoft.BingFoodAndDrink", "Microsoft.BingTranslator"],
       "sources": ["Win11Debloat Apps.json", "AtlasOS appx.yml"]
     },
     {
@@ -101,7 +101,7 @@
       "id": "mixed-reality-3d", "name": "3D Viewer, Paint 3D and Mixed Reality", "group": "microsoft", "icon": "E7BE", "recommended": true, "storeId": "9NBLGGH42THS",
       "summary": "Older 3D and headset apps. Microsoft has retired them.",
       "effect": "You lose the 3D viewer and headset portal. Regular Paint is a different app and stays.",
-      "packages": ["Microsoft.Microsoft3DViewer", "Microsoft.Print3D", "Microsoft.MixedReality.Portal", "Microsoft.MSPaint"], "sources": ["Win11Debloat Apps.json"]
+      "packages": ["Microsoft.Microsoft3DViewer", "Microsoft.3DBuilder", "Microsoft.3DScan", "Microsoft.Print3D", "Microsoft.MixedReality.Portal", "Microsoft.MSPaint"], "sources": ["Win11Debloat Apps.json"]
     },
     {
       "id": "cortana-wallet", "name": "Cortana and Microsoft Wallet", "group": "microsoft", "icon": "E720", "recommended": true,
@@ -137,29 +137,90 @@
       "id": "xbox-app", "name": "Xbox app and Game Bar", "group": "microsoft", "topic": "Gaming", "icon": "E7FC", "risk": "careful", "storeId": "9MV0B5HZVK9Z",
       "summary": "The Xbox app, the Game Bar overlay (Win+G) and its helpers.",
       "effect": "Win+G, game captures and the Xbox app stop working. Games from the Store and Steam still run. The sign-in components that games need are kept.",
-      "packages": ["Microsoft.GamingApp", "Microsoft.XboxGamingOverlay", "Microsoft.XboxGameOverlay", "Microsoft.XboxSpeechToTextOverlay"], "sources": ["Win11Debloat Apps.json"]
+      "packages": ["Microsoft.GamingApp", "Microsoft.XboxApp", "Microsoft.XboxGamingOverlay", "Microsoft.XboxGameOverlay", "Microsoft.XboxSpeechToTextOverlay"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "pc-manager", "name": "Microsoft PC Manager", "group": "microsoft", "icon": "E9D9", "recommended": true, "storeId": "9PM860492SZD",
+      "summary": "A cleaner and booster app from Microsoft that stays in the tray and keeps suggesting Bing and Edge as your defaults.",
+      "effect": "You lose its one-click cleanup and its tray icon. TidyWindow does the same jobs without a background app.",
+      "packages": ["Microsoft.PCManager", "Microsoft.MicrosoftPCManager"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "widgets-experiences", "name": "Start feed and Widgets runtime", "group": "microsoft", "icon": "E71D", "risk": "careful",
+      "summary": "The MSN feed behind Start suggestions and the runtime that Widgets use to run in the background.",
+      "effect": "The Widgets board can stop loading and the feed in Start goes. The Windows web experience pack that Snipping Tool and the emoji panel need is never touched. You can also just turn Widgets off in Quiet.",
+      "packages": ["Microsoft.StartExperiencesApp", "Microsoft.WidgetsPlatformRuntime"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "m365-companions", "name": "Microsoft 365 Companions", "group": "microsoft", "icon": "E902",
+      "summary": "Small People, Files and Calendar helpers that Microsoft adds to the taskbar and starts with Windows.",
+      "effect": "The taskbar companions go. Microsoft 365 apps such as Word and Teams keep working.",
+      "packages": ["Microsoft.M365Companions"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "whiteboard-journal", "name": "Whiteboard, Sway, Journal and Power BI", "group": "microsoft", "icon": "E70B", "recommended": true,
+      "summary": "Office extras that Microsoft pre-installs or promotes and almost nobody opens.",
+      "effect": "You lose these four apps. Boards, sways and journal pages kept in your Microsoft account stay online.",
+      "packages": ["Microsoft.Whiteboard", "Microsoft.Office.Sway", "Microsoft.MicrosoftJournal", "Microsoft.MicrosoftPowerBIForWindows"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "mobile-plans", "name": "Mobile Plans and Operator Messages", "group": "microsoft", "icon": "E8EA", "recommended": true,
+      "summary": "Apps for buying a mobile data plan and reading messages from a mobile operator. Installed even on PCs with no SIM slot.",
+      "effect": "Nothing changes on a PC without mobile data. On a PC with a SIM, you manage the plan in Settings or with your operator's own app.",
+      "packages": ["Microsoft.OneConnect", "Microsoft.Messaging"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "remote-desktop-apps", "name": "Windows App and Remote Desktop (Store)", "group": "microsoft", "icon": "E8AF", "risk": "careful", "storeId": "9N1F85V9T8BN",
+      "summary": "The Windows 365 and Azure Virtual Desktop client, and the older Store version of Remote Desktop. The Remote Desktop Connection that comes with Windows is a different program.",
+      "effect": "You can no longer connect to a Cloud PC or work desktop with these apps. Remote Desktop Connection (mstsc) keeps working.",
+      "packages": ["MicrosoftCorporationII.Windows365", "Microsoft.RemoteDesktop"], "sources": ["Win11Debloat Apps.json"]
     },
 
     {
       "id": "candy-crush", "name": "Candy Crush and promoted games", "group": "promoted", "topic": "Games", "icon": "E7FC", "recommended": true,
       "summary": "Games Windows installs and pins to Start for you after setup or a feature update.",
       "effect": "The games go, along with their progress on this PC.",
-      "packages": ["king.com.*", "A278AB0D.*", "828B5831.HiddenCityMysteryofShadows", "flaregamesGmbH.RoyalRevolt2", "Playtika.CaesarsSlotsFreeCasino", "NORDCURRENT.COOKINGFEVER", "GAMELOFTSA.Asphalt8Airborne"],
+      "packages": ["king.com.*", "A278AB0D.*", "828B5831.HiddenCityMysteryofShadows", "flaregamesGmbH.RoyalRevolt2", "Playtika.CaesarsSlotsFreeCasino", "NORDCURRENT.COOKINGFEVER", "GAMELOFTSA.Asphalt8Airborne", "DisneyMagicKingdoms*", "FarmVille2CountryEscape*", "MarchofEmpires*", "NYTCrossword*"],
       "sources": ["Win11Debloat Apps.json", "Revision APPX-REMOVER.ps1"]
     },
     {
       "id": "streaming-social", "name": "Streaming and social apps", "group": "promoted", "topic": "Sponsored", "icon": "E8B2", "recommended": true,
       "summary": "Spotify, Netflix, Disney+, Prime Video, TikTok, Facebook, Instagram, X and similar apps that come pinned to Start.",
       "effect": "The pinned app goes. The same service still works in your browser, and you can install the real app again whenever you want.",
-      "packages": ["SpotifyAB.SpotifyMusic", "4DF9E0F8.Netflix", "Disney.37853FC22B2CE", "AmazonVideo.PrimeVideo", "BytedancePte.Ltd.TikTok", "Facebook.Facebook", "Facebook.InstagramBeta", "9E2F88E3.Twitter", "Twitter.Twitter", "PandoraMediaInc.*", "ShazamEntertainmentLtd.Shazam", "Duolingo-LearnLanguagesforFree", "7EE7776C.LinkedInforWindows", "57540AMZNMobileLLC.AmazonAlexa", "AdobeSystemsIncorporated.AdobeCreativeCloudExpress"],
+      "packages": ["SpotifyAB.SpotifyMusic", "4DF9E0F8.Netflix", "Disney.37853FC22B2CE", "AmazonVideo.PrimeVideo", "BytedancePte.Ltd.TikTok", "Facebook.Facebook", "Facebook.Instagram", "Facebook.InstagramBeta", "9E2F88E3.Twitter", "Twitter.Twitter", "PandoraMediaInc.*", "ShazamEntertainmentLtd.Shazam", "Duolingo-LearnLanguagesforFree", "7EE7776C.LinkedInforWindows", "LinkedInforWindows", "57540AMZNMobileLLC.AmazonAlexa", "AdobeSystemsIncorporated.AdobeCreativeCloudExpress", "HULULLC.HULUPLUS", "SlingTV*", "iHeartRadio*", "TuneInRadio*", "CAF9E577.Plex"],
       "sources": ["Win11Debloat Apps.json", "Revision APPX-REMOVER.ps1"]
+    },
+    {
+      "id": "preinstalled-trials", "name": "Antivirus and shopping trials", "group": "promoted", "topic": "PC maker", "icon": "E7BA", "risk": "careful",
+      "summary": "McAfee, a Dropbox offer and shopping links (Booking.com, eBay, Amazon, Priceline) that new laptops ship with.",
+      "effect": "The trial and offer apps go. If McAfee is your active antivirus, uninstall McAfee itself from Installed apps first so that Windows Security takes over.",
+      "packages": ["5A894077.McAfeeSecurity", "McAfeeWPSSparsePackage", "McAfeeInc.*", "C27EB4BA.DropboxOEM*", "PricelinePartnerNetwork.*", "4AE8B7C2.Booking.comPartnerEdition", "eBayInc.eBay", "Amazon.com.Amazon"], "sources": ["TidyWindow debloat audit"]
+    },
+    {
+      "id": "promoted-media-tools", "name": "Photo and video trial apps", "group": "promoted", "topic": "Sponsored", "icon": "E722", "recommended": true,
+      "summary": "Trial editors and tools that PC makers or Windows pin to Start: CyberLink, PicsArt, Photoshop Express, WinZip, Drawboard and similar.",
+      "effect": "The trial apps go. Files you made with them stay where they are, and you can install the full app again whenever you want.",
+      "packages": ["CyberLinkMediaSuiteEssentials*", "DB6EA5DB.*", "AdobeSystemsIncorporated.AdobePhotoshopExpress", "2FE3CB00.PicsArt-PhotoStudio", "PicsArt-PhotoStudio*", "ActiproSoftwareLLC*", "DrawboardPDF*", "PhototasticCollage*", "PolarrPhotoEditorAcademicEdition*", "AutodeskSketchBook*", "WinZipUniversal*", "Sidia.LiveWallpaper"],
+      "sources": ["Win11Debloat Apps.json"]
     },
 
     {
       "id": "copilot-app", "name": "Copilot app", "group": "ai", "icon": "E99A", "recommended": true, "storeId": "9NHT9RB2F4HD",
       "summary": "The Copilot assistant app and the pieces that put it on the taskbar.",
       "effect": "The Copilot button and app go. Copilot on the web in your browser keeps working.",
-      "packages": ["Microsoft.Copilot", "Microsoft.Windows.Ai.Copilot.Provider", "Microsoft.WindowsCopilot"], "sources": ["Win11Debloat Apps.json", "RemoveWindowsAI"]
+      "packages": ["Microsoft.Copilot", "Microsoft.Windows.Ai.Copilot.Provider", "Microsoft.WindowsCopilot", "Microsoft.Office.ActionsServer", "Microsoft.WritingAssistant"], "sources": ["Win11Debloat Apps.json", "RemoveWindowsAI"]
+    },
+    {
+      "id": "ai-hub", "name": "Copilot+ AI Hub", "group": "ai", "icon": "E950", "recommended": true,
+      "summary": "A Windows 11 app that advertises Copilot+ PC features and AI apps.",
+      "effect": "The promotional hub goes. Nothing you use stops working.",
+      "packages": ["Microsoft.Windows.AIHub"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "edge-game-assist", "name": "Edge Game Assist", "group": "ai", "icon": "E7FC",
+      "summary": "An Edge browser overlay that opens inside games from the Game Bar, with Copilot help.",
+      "effect": "The in-game browser overlay goes. Game Bar and Edge itself are not touched.",
+      "packages": ["Microsoft.Edge.GameAssist"], "sources": ["TidyWindow debloat audit"]
     },
     {
       "id": "recall", "name": "Recall", "group": "ai", "kind": "recall", "icon": "E7B3", "risk": "careful",
@@ -178,13 +239,13 @@
       "id": "oem-dell", "name": "Dell pre-installed apps", "group": "manufacturer", "topic": "Dell", "icon": "E7F8", "risk": "careful",
       "summary": "Dell Update, SupportAssist, Digital Delivery, Optimizer and other Dell extras.",
       "effect": "Dell's update and support tools go. Keep them if you want Dell to deliver BIOS and driver updates for you.",
-      "packages": ["DellInc.*"], "sources": ["Win11Debloat Apps.json"]
+      "packages": ["DellInc.*", "ScreenovateTechnologies.DellMobileConnect*", "STMicroelectronicsMEMS.DellFreeFallDataProtection*"], "sources": ["Win11Debloat Apps.json"]
     },
     {
       "id": "oem-lenovo", "name": "Lenovo pre-installed apps", "group": "manufacturer", "topic": "Lenovo", "icon": "E7F8", "risk": "careful",
       "summary": "Lenovo Vantage, Smart Experience, Welcome and other Lenovo extras.",
-      "effect": "Vantage's hardware settings (battery limit, performance mode) and Lenovo's update tool go. Keep them if you use those.",
-      "packages": ["E046963F.*", "E0469640.*", "LenovoCompanyLimited.*"], "sources": ["Win11Debloat Apps.json"]
+      "effect": "Vantage's hardware settings (battery limit, performance mode) and Lenovo's update tool go. Keep them if you use those. Glance, which uses the camera to notice when you look away, goes too.",
+      "packages": ["E046963F.*", "E0469640.*", "LenovoCompanyLimited.*", "MirametrixInc.GlancebyMirametrix*"], "sources": ["Win11Debloat Apps.json"]
     },
     {
       "id": "oem-asus", "name": "ASUS pre-installed apps", "group": "manufacturer", "topic": "ASUS", "icon": "E7F8", "risk": "careful",
@@ -209,6 +270,24 @@
       "summary": "Samsung Settings, Galaxy apps, LG Smart Share and other extras.",
       "effect": "The manufacturer's settings and update apps go.",
       "packages": ["SAMSUNGELECTRONICSCO.LTD.*", "SamsungElectronicsCoLtd.*", "LGElectronics.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-network-throttling", "name": "SmartByte and Killer network apps", "group": "manufacturer", "topic": "Dell, Alienware, Acer, MSI", "icon": "E839", "risk": "careful",
+      "summary": "Rivet Networks' SmartByte and Killer Control Center, which prioritise some traffic and are known for slowing down fast connections.",
+      "effect": "The apps and their settings panels go. Killer Control Center users lose the per-app bandwidth rules. If SmartByte still runs afterwards, remove its driver service under Installed apps.",
+      "packages": ["RivetNetworks.*"], "sources": ["TidyWindow debloat audit"]
+    },
+    {
+      "id": "oem-surface", "name": "Surface Hub app", "group": "manufacturer", "topic": "Microsoft", "icon": "E7F8", "risk": "careful",
+      "summary": "The management app for Surface Hub conference-room devices. It sometimes lingers on other PCs.",
+      "effect": "On a Surface Hub the device can no longer be managed with this app. On any other PC nothing changes.",
+      "packages": ["Microsoft.SurfaceHub"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-audio", "name": "Audio enhancer apps", "group": "manufacturer", "topic": "Dolby, Waves, Nahimic", "icon": "E767", "risk": "careful",
+      "summary": "Dolby Access, Waves MaxxAudio and Nahimic companions that PC makers add for equalizers and spatial sound.",
+      "effect": "The equalizer and spatial audio controls go. Sound itself keeps working through the normal Windows driver. Keep these if you use those effects.",
+      "packages": ["DolbyLaboratories.*", "WavesAudio.*", "A-Volute.*"], "sources": ["TidyWindow debloat audit"]
     },
 
     {

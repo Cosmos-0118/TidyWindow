@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -17,6 +18,11 @@ public sealed class DebloatRow(DebloatEntry entry, Action selectionChanged) : Ob
     public string Id => current.Id;
     public string Name => current.Item.Name;
     public string Glyph => GlyphFor(current.Item);
+
+    /// <summary>The app's own picture when one is found, else <see cref="Glyph"/>.</summary>
+    public ImageSource? Icon { get; private set; }
+    public IconQuery? IconQuery { get; init; }
+    public void SetIcon(ImageSource? image) { Icon = image; Changed(nameof(Icon)); }
 
     public static string GlyphFor(DebloatItem item) => char.ConvertFromUtf32(int.TryParse(item.Icon, System.Globalization.NumberStyles.HexNumber, null, out var code) ? code : item.Group switch
     {
@@ -108,15 +114,22 @@ public sealed class DebloatRemovedRow(DebloatRemoved removed, DebloatItem? item)
     public string Id => Removed.Id;
     public string Name => Removed.Name;
     public string Glyph => Item is null ? "" : DebloatRow.GlyphFor(Item);
+    /// <summary>The picture the app had in the list before it was removed, while this session still remembers it.</summary>
+    public ImageSource? Icon { get; private set; }
+    public void SetIcon(ImageSource? image) { Icon = image; Changed(nameof(Icon)); }
     public string Sub => $"Removed {Removed.When.ToLocalTime():d MMM yyyy, h:mm tt}";
     public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanPutBack)); } }
     public bool CanPutBack => !busy && Item is not null;
     public string AutomationName => $"Put {Name} back";
 }
 
-public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<DebloatItem> catalog, DebloatManager manager, ActivityLog log, ToastCenter toasts) : ObservableState, IDisposable
+public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<DebloatItem> catalog, DebloatManager manager, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
+    private readonly IconService icons = iconService ?? IconService.Shared;
+    // Where each item's picture came from, kept so that an item that has been removed can still be shown with it for the rest of the session.
+    private readonly Dictionary<string, IconQuery> iconQueries = new(StringComparer.OrdinalIgnoreCase);
+    private bool listening;
     private bool scanning, scanned, working;
     private string query = "", checkedAt = "", workHeading = "", workCounter = "", workText = "Removing…";
     private DebloatTab tab = DebloatTab.Microsoft;
@@ -146,6 +159,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
     public string ManufacturerCount => Count(DebloatGroup.Manufacturer);
     public string ComponentsCount => Count(DebloatGroup.Components);
     public string RemovedCount => Removed.Count.ToString("N0");
+    public bool CanPutAllBack => !Busy && Removed.Any(x => x.Item is not null);
     private string Count(DebloatGroup group) => scanned ? all.Count(x => x.Entry.Item.Group == group).ToString("N0") : "–";
 
     public int SelectedCount => all.Count(x => x.Selected);
@@ -182,7 +196,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRemove), nameof(CanSuggest), nameof(ScanLabel), nameof(ScanOverlay), nameof(WorkOverlay), nameof(WorkHeading), nameof(WorkCounter), nameof(WorkText), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRemove), nameof(CanSuggest), nameof(CanPutAllBack), nameof(ScanLabel), nameof(ScanOverlay), nameof(WorkOverlay), nameof(WorkHeading), nameof(WorkCounter), nameof(WorkText), nameof(EmptyVisibility) }) Changed(name);
     }
 
     private void SelectionChanged()
@@ -200,7 +214,13 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             var kept = all.Where(x => x.Selected).Select(x => x.Id).ToHashSet();
             // Recall stays installed when it is switched off, so what TidyWindow has already switched off is not offered again.
             var done = manager.History.All().Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            all = scan.Entries.Where(x => !(x.Item.Kind == DebloatKind.Recall && done.Contains(x.Id))).Select(x => new DebloatRow(x, SelectionChanged) { Selected = kept.Contains(x.Id) }).ToList();
+            all = scan.Entries.Where(x => !(x.Item.Kind == DebloatKind.Recall && done.Contains(x.Id))).Select(x => new DebloatRow(x, SelectionChanged) { Selected = kept.Contains(x.Id), IconQuery = IconQueryFor(x) }).ToList();
+            foreach (var row in all)
+                if (row.IconQuery is { } query)
+                {
+                    iconQueries[row.Id] = query;
+                    if (icons.TryGet(query, out var cached) && cached is not null) row.SetIcon(cached);
+                }
             notOnThisPc = scan.NotOnThisPc;
             scanned = true;
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
@@ -209,6 +229,8 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             foreach (var name in new[] { nameof(FooterNote), nameof(CheckedText), nameof(Summary) }) Changed(name);
             SelectionChanged();
             log.Write(ActivityLevel.Info, ActivityArea.App, "Apps scan finished", $"{all.Count} removable items found on this PC.");
+            if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+            _ = LoadIconsAsync(all);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -239,8 +261,53 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     public void RefreshRemoved()
     {
-        Removed.Reset(manager.History.All().Select(x => new DebloatRemovedRow(x, catalog.FirstOrDefault(c => string.Equals(c.Id, x.Id, StringComparison.OrdinalIgnoreCase)))).ToList());
-        foreach (var name in new[] { nameof(RemovedCount), nameof(NoRemovedVisibility) }) Changed(name);
+        var rows = manager.History.All().Select(x => new DebloatRemovedRow(x, catalog.FirstOrDefault(c => string.Equals(c.Id, x.Id, StringComparison.OrdinalIgnoreCase)))).ToList();
+        foreach (var row in rows)
+            if (iconQueries.TryGetValue(row.Id, out var query) && icons.TryGet(query, out var cached) && cached is not null) row.SetIcon(cached);
+        Removed.Reset(rows);
+        foreach (var name in new[] { nameof(RemovedCount), nameof(NoRemovedVisibility), nameof(CanPutAllBack) }) Changed(name);
+    }
+
+    /// <summary>
+    /// What to look at to draw an item's picture: a Store app's package folder (its logo is in the manifest), or the program of OneDrive and Edge.
+    /// Packages are tried in the order the catalog lists them, so an item that covers many apps shows its main one. Recall has no picture of its own.
+    /// </summary>
+    public static IconQuery? IconQueryFor(DebloatEntry entry)
+    {
+        var item = entry.Item;
+        switch (item.Kind)
+        {
+            case DebloatKind.Appx:
+                foreach (var pattern in item.Packages)
+                {
+                    if (entry.Packages.FirstOrDefault(x => x.InstallLocation.Length > 0 && DebloatGuard.Matches(pattern, x.Name)) is { } package) return new(package.Name, InstallLocation: package.InstallLocation);
+                    if (entry.Provisioned.FirstOrDefault(x => x.InstallLocation.Length > 0 && DebloatGuard.Matches(pattern, x.DisplayName)) is { } staged) return new(staged.DisplayName, InstallLocation: staged.InstallLocation);
+                }
+                return null;
+            case DebloatKind.OneDrive:
+                return FirstExisting(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft OneDrive", "OneDrive.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "OneDrive", "OneDrive.exe")) is { } oneDrive ? new(item.Name, ExePath: oneDrive) : null;
+            case DebloatKind.Edge:
+                return FirstExisting(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe")) is { } edge ? new(item.Name, ExePath: edge) : null;
+            default:
+                return null;
+        }
+    }
+
+    private static string? FirstExisting(params string[] paths) => paths.FirstOrDefault(File.Exists);
+
+    private void ReloadIcons() => _ = LoadIconsAsync(all, everyRow: true);
+
+    private async Task LoadIconsAsync(IReadOnlyList<DebloatRow> rows, bool everyRow = false)
+    {
+        try
+        {
+            await Task.WhenAll(rows.Where(x => x.IconQuery is not null && (everyRow || x.Icon is null)).Select(async row =>
+            {
+                if (await icons.LoadAsync(row.IconQuery!, lifetime.Token) is { } image) row.SetIcon(image);
+            }));
+        }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>Ticks everything that is suggested: apps nobody misses. Nothing marked Careful is ever ticked.</summary>
@@ -352,5 +419,45 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         await ScanAsync();
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    /// <summary>Puts back everything that was removed, one item after another, after a single permission prompt.</summary>
+    public async Task PutAllBackAsync()
+    {
+        var rows = Removed.Where(x => x.Item is not null).ToList();
+        if (Busy || rows.Count == 0) return;
+        working = true; Progress.Clear(); workText = "Putting it back…"; workHeading = ""; workCounter = "";
+        foreach (var row in rows) row.Busy = true;
+        Notify();
+        DebloatRestoreBatch? batch = null;
+        var started = 0;
+        try
+        {
+            batch = await manager.RestoreAllAsync(rows.Select(x => x.Item!).ToList(), (item, outcome) =>
+            {
+                if (outcome is null) { started++; workHeading = item.Name; workCounter = rows.Count > 1 ? $"{started} of {rows.Count}" : ""; Notify(); }
+                else if (outcome.Ok) Progress.Add(item.Name);
+            }, lifetime.Token);
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            foreach (var row in rows) row.Busy = false;
+            working = false; Notify();
+        }
+        if (batch is not null) ReportPutBack(batch, rows.Count);
+        RefreshRemoved();
+        await ScanAsync();
+    }
+
+    private void ReportPutBack(DebloatRestoreBatch batch, int asked)
+    {
+        var done = batch.Results.Count(x => x.Outcome.Ok);
+        var failed = batch.Results.Where(x => !x.Outcome.Ok).ToList();
+        var title = done == 1 ? "1 item put back" : $"{done:N0} items put back";
+        if (batch.Declined) toasts.Show("debloat", ToastKind.Info, "Administrator permission was declined", done > 0 ? $"{title} before that. The rest were not changed." : "Nothing was changed.", seconds: 12);
+        else if (failed.Count == 0) toasts.Show("debloat", ToastKind.Success, title, "Installed again where that is possible.", seconds: 10);
+        else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} of {asked:N0} put back", ToastCenter.Brief(string.Join(" ", failed.Select(x => $"{x.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
+        log.Write(failed.Count == 0 && !batch.Declined ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, "Put everything back", $"{done} of {asked}.{(batch.Declined ? " Administrator permission was declined." : "")}{(failed.Count > 0 ? " Not put back: " + string.Join(", ", failed.Select(x => x.Item.Name)) + "." : "")}");
+    }
+
+    public void Dispose() { IconService.DarkChanged -= ReloadIcons; lifetime.Cancel(); lifetime.Dispose(); }
 }

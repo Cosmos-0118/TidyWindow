@@ -233,6 +233,8 @@ public sealed partial class IconFinder(IIconSystem system, Func<bool>? dark = nu
         if (query.ExePath.Length > 0) targets.Add(new(system.Expand(query.ExePath), ""));
         foreach (var target in targets) FromTarget(target, 0);
 
+        // A Store app's folder holds its manifest, and the logo in it is the app's own picture.
+        if (query.InstallLocation.Length > 0 && FolderLogo(system.Expand(query.InstallLocation).Trim().Trim('"')) is { } folderLogo) Add(folderLogo);
         if (query.InstallLocation.Length > 0 && BestExecutable(system.Expand(query.InstallLocation).Trim().Trim('"'), query.Name) is { } installed) Add(new(installed, 0, IconSource.Folder));
 
         foreach (var (fact, _) in Matching(query, programsFound).Take(2))
@@ -331,6 +333,9 @@ public sealed partial class IconFinder(IIconSystem system, Func<bool>? dark = nu
                 return LogoOf(folder, xml) is { } logo ? new(logo, 0, IconSource.Package) : null;
         return null;
     }
+
+    private IconRef? FolderLogo(string folder) =>
+        folder.Length > 0 && system.ReadText(Path.Combine(folder, "AppxManifest.xml")) is { } xml && LogoOf(folder, xml) is { } logo ? new(logo, 0, IconSource.Package) : null;
 
     private string? LogoOf(string folder, string xml)
     {

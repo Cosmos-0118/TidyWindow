@@ -21,9 +21,7 @@
         <FontIcon Glyph="&#xE72E;" FontSize="14" Visibility="{Binding LockVisibility}" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" ToolTipService.ToolTip="This cannot be removed right now" />
        </Grid>
 
-       <Border Grid.Column="1" Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center">
-        <FontIcon Glyph="{Binding Glyph}" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-       </Border>
+       <local:AppIcon Grid.Column="1" Source="{Binding Icon}" Glyph="{Binding Glyph}" />
 
        <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
         <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
@@ -150,8 +148,12 @@
     <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12" VerticalAlignment="Top" Visibility="{Binding RemovedVisibility}">
      <Grid>
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-      <Grid Padding="16,12" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
-       <TextBlock Text="Everything TidyWindow has removed is kept here, even after you close the app. Putting an item back lets Windows have it again and installs it from the Microsoft Store or WinGet where that is possible." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+      <Grid Padding="16,12" ColumnSpacing="12" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <TextBlock Text="Everything TidyWindow has removed is kept here, even after you close the app. Putting an item back lets Windows have it again and installs it from the Microsoft Store or WinGet where that is possible." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+       <Button Grid.Column="1" Click="PutAllBackClick" IsEnabled="{Binding CanPutAllBack}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Put everything back" ToolTipService.ToolTip="Put back every item in this list, asking for permission once">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Put everything back" FontSize="12" /></StackPanel>
+       </Button>
       </Grid>
       <ItemsControl Grid.Row="1" ItemsSource="{Binding Removed}" IsTabStop="False" AutomationProperties.Name="Removed items">
        <ItemsControl.ItemTemplate>
@@ -159,9 +161,7 @@
          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12" MinHeight="64">
           <Grid ColumnSpacing="14">
            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-           <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center">
-            <FontIcon Glyph="{Binding Glyph}" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-           </Border>
+           <local:AppIcon Source="{Binding Icon}" Glyph="{Binding Glyph}" />
            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
             <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
             <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />

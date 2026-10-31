@@ -6,6 +6,9 @@ using System.Text.Json;
 
 namespace TidyWindow.Next.Core;
 
+/// <summary>What happened to each item when several were put back at once. <paramref name="Declined"/> is set when the person said no to the administrator prompt.</summary>
+public sealed record DebloatRestoreBatch(IReadOnlyList<(DebloatItem Item, DebloatOutcome Outcome)> Results, bool Declined);
+
 /// <summary>Brings an app back after it was removed: WinGet installs it again from the Store. Items with no Store id are only allowed back for new accounts.</summary>
 public sealed class DebloatReinstaller(ICommandRunner runner, IExecutableLocator locator)
 {
@@ -56,6 +59,34 @@ public sealed class DebloatManager(IDebloatChanger machine, Func<Task> unlock, D
         }
         history.Remove(item.Id);
         return new(true, null, note);
+    }
+
+    /// <summary>
+    /// Puts back several items one after another. The permission prompt appears once, because the helper stays open between them. An item that fails does not stop the
+    /// others, but a declined prompt or a helper that has gone does, since asking again for each would only repeat the prompt.
+    /// </summary>
+    public async Task<DebloatRestoreBatch> RestoreAllAsync(IReadOnlyList<DebloatItem> items, Action<DebloatItem, DebloatOutcome?>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var results = new List<(DebloatItem Item, DebloatOutcome Outcome)>();
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Deliberately without ConfigureAwait(false): progress is reported on the caller's thread, which for the page is the one that may touch the screen.
+            progress?.Invoke(item, null);
+            try
+            {
+                var outcome = await RestoreAsync(item, cancellationToken);
+                results.Add((item, outcome));
+                progress?.Invoke(item, outcome);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(results, true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                results.Add((item, new(false, ex.Message)));
+                break;
+            }
+        }
+        return new(results, false);
     }
 
     private async Task<DebloatOutcome> SendAsync(DebloatRequest request)
