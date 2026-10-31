@@ -99,10 +99,14 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     private bool refreshAgain;
 
     public bool CanRefresh => !Refreshing && !Updating && workspace.CanRefresh;
-    public string ProgressText => "Checking installed apps and updates…";
-    public Visibility ProgressVisibility => Refreshing ? Visibility.Visible : Visibility.Collapsed;
+    // A read was asked for while the package managers were still being checked (or busy): it starts by itself as soon as they are free.
+    private bool waiting;
+    /// <summary>Covers the page while there is nothing to show yet, whether the read is running or only waiting for its turn.</summary>
+    public bool ShowLoading => Refreshing || waiting && !loaded;
+    public string ProgressText => Refreshing ? "Checking installed apps and updates…" : "Waiting for your package managers…";
+    public Visibility ProgressVisibility => ShowLoading ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UpdatingVisibility => Updating ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility EmptyVisibility => Rows.Count == 0 && !Refreshing ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility EmptyVisibility => Rows.Count == 0 && !ShowLoading ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyTitle => query.Length > 0 ? "No matching apps" : Errors.Length > 0 ? "The list could not be fully checked" : updatesOnly ? "No available updates" : "No packages to manage";
     public string EmptyDetail => Errors.Length > 0 ? "Open Logs for details, then refresh to try again." : query.Length > 0 || updatesOnly ? "Change your search or filter to see more apps." : "Packages from WinGet, Chocolatey and Scoop appear here. Check Overview if a manager needs attention.";
     private string errors = "";
@@ -121,6 +125,19 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     {
         if (e.PropertyName is nameof(WorkspaceViewModel.Busy) or nameof(WorkspaceViewModel.CanRefresh) or nameof(WorkspaceViewModel.CanQueue)) NotifyState();
         if (e.PropertyName == nameof(WorkspaceViewModel.Busy) && !workspace.Busy) NeedsRefresh = true;
+        if (waiting && e.PropertyName is nameof(WorkspaceViewModel.CanRefresh) or nameof(WorkspaceViewModel.Busy)) _ = ResumeAsync();
+    }
+    // The managers report "free" a moment before they start checking what is installed, so let that settle before looking again.
+    private async Task ResumeAsync()
+    {
+        await Task.Yield();
+        if (waiting && !lifetime.IsCancellationRequested && workspace.CanRefresh) await RefreshAsync();
+    }
+    private void SetWaiting(bool value)
+    {
+        if (waiting == value) return;
+        waiting = value;
+        NotifyState();
     }
     private void NotifyState()
     {
@@ -138,7 +155,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         }
         finally { selecting = false; }
         NotifySelection();
-        foreach (var name in new[] { nameof(CanRefresh), nameof(ProgressVisibility), nameof(UpdatingVisibility), nameof(ProgressText), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(CanRefresh), nameof(ShowLoading), nameof(ProgressVisibility), nameof(UpdatingVisibility), nameof(ProgressText), nameof(EmptyVisibility) }) Changed(name);
     }
     internal void ApplyLayout(AdaptiveLayout layout) { compact = layout.CompactResults; foreach (var row in all) row.Compact = compact; Changed(nameof(TableHeaderVisibility)); }
     // While true, selection changes are batched: one notification at the end instead of one per row.
@@ -165,7 +182,8 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     {
         // Something finished while a read was already going, so what that read saw may be out of date: read once more when it ends.
         if (Refreshing || Updating) { if (workspace.CanRefresh) refreshAgain = true; return; }
-        if (!CanRefresh) return;
+        if (!CanRefresh) { SetWaiting(true); return; }
+        SetWaiting(false);
         do { refreshAgain = false; await ReadAsync(); }
         while (refreshAgain && workspace.CanRefresh);
     }

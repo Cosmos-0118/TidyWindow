@@ -310,7 +310,7 @@
        <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
-      <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding Refreshing}" Text="{Binding ProgressText}" />
+      <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding ShowLoading}" Text="{Binding ProgressText}" />
      </Grid>
     </Grid>
     <Grid x:Name="ScoutPage" Visibility="Collapsed" RowSpacing="16">
