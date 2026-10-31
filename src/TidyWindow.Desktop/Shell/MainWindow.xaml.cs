@@ -182,7 +182,7 @@ public sealed partial class MainWindow : Window
         var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Brand");
         try { AppWindow.SetIcon(Path.Combine(folder, "tidywindow.ico")); } catch (Exception ex) when (ex is IOException or ArgumentException or System.Runtime.InteropServices.COMException) { }
         var logo = Path.Combine(folder, "logo-64.png");
-        if (File.Exists(logo)) TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(logo));
+        if (File.Exists(logo)) TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(logo)) { DecodePixelWidth = 18, DecodePixelType = Microsoft.UI.Xaml.Media.Imaging.DecodePixelType.Logical };
     }
 
     private void FitInitialWindow()

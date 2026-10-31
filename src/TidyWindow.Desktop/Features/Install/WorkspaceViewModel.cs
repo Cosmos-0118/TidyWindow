@@ -18,7 +18,7 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
         get
         {
             var uri = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Managers", Definition.Kind switch { ManagerKind.Winget => "winget.png", ManagerKind.Chocolatey => "chocolatey.svg", _ => "scoop.png" }));
-            return Definition.Kind == ManagerKind.Chocolatey ? new SvgImageSource(uri) : new BitmapImage(uri);
+            return Definition.Kind == ManagerKind.Chocolatey ? new SvgImageSource(uri) : new BitmapImage(uri) { DecodePixelWidth = 32, DecodePixelType = DecodePixelType.Logical };
         }
     }
     public string Version => Status?.Version ?? "";
