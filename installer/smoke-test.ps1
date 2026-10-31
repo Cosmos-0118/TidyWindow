@@ -9,7 +9,7 @@ $quiet = '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'
 $p = Start-Process -FilePath (Resolve-Path $Setup).Path -ArgumentList ($quiet + "/DIR=`"$dir`"") -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw "Setup exited with $($p.ExitCode)." }
 
-foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'MainWindow.xbf', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe', 'unins000.exe') {
+foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'Shell\MainWindow.xbf', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe', 'unins000.exe') {
     if (-not (Test-Path (Join-Path $dir $path))) { throw "Not installed: $path" }
 }
 Write-Host "Installed to $dir"
