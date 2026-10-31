@@ -69,6 +69,16 @@ public sealed class DebloatGuardTests
     [InlineData("Microsoft.SecHealthUI")]
     [InlineData("Windows.PrintDialog")]
     [InlineData("1527c705-839a-4832-9118-54d4Bd6a0c89")]
+    [InlineData("Microsoft.Xbox.TCUI")]
+    [InlineData("Microsoft.GamingServices")]
+    [InlineData("MicrosoftWindows.Client.WebExperience")]
+    [InlineData("Microsoft.WindowsCalculator")]
+    [InlineData("Microsoft.WindowsNotepad")]
+    [InlineData("Microsoft.Paint")]
+    [InlineData("Microsoft.ScreenSketch")]
+    [InlineData("Microsoft.Windows.Photos")]
+    [InlineData("Microsoft.WindowsTerminal")]
+    [InlineData("Microsoft.WindowsCamera")]
     public void WhatWindowsNeedsIsNeverRemoved(string name) => Assert.True(DebloatGuard.IsProtected(name));
 
     [Theory]
@@ -76,7 +86,113 @@ public sealed class DebloatGuardTests
     [InlineData("Clipchamp.Clipchamp")]
     [InlineData("MicrosoftWindows.CrossDevice")]
     [InlineData("Microsoft.GamingApp")]
+    [InlineData("Microsoft.XboxApp")]
+    [InlineData("Microsoft.PCManager")]
+    [InlineData("Microsoft.StartExperiencesApp")]
+    [InlineData("Microsoft.WidgetsPlatformRuntime")]
+    [InlineData("Microsoft.Windows.AIHub")]
+    [InlineData("Microsoft.Edge.GameAssist")]
+    [InlineData("Microsoft.MSPaint")]
     public void OrdinaryAppsAreNotProtected(string name) => Assert.False(DebloatGuard.IsProtected(name));
+
+    [Theory]
+    [InlineData("MicrosoftWindows.Client.WebExperience")]
+    [InlineData("Microsoft.XboxIdentityProvider")]
+    [InlineData("Microsoft.Xbox.TCUI")]
+    [InlineData("Microsoft.GamingServices")]
+    [InlineData("Microsoft.WindowsCalculator")]
+    [InlineData("Microsoft.WindowsNotepad")]
+    [InlineData("Microsoft.Paint")]
+    [InlineData("Microsoft.ScreenSketch")]
+    [InlineData("Microsoft.Windows.Photos")]
+    [InlineData("Microsoft.WindowsTerminal")]
+    [InlineData("Microsoft.WindowsCamera")]
+    [InlineData("Microsoft.WindowsStore")]
+    public void NoItemInTheCatalogEverCoversThem(string name) =>
+        Assert.DoesNotContain(DebloatCatalog.Load(), item => DebloatGuard.Covers(item, name, false) || item.Packages.Any(p => DebloatGuard.Matches(p, name)));
+
+    [Theory]
+    [InlineData("pc-manager", "Microsoft.PCManager")]
+    [InlineData("pc-manager", "Microsoft.MicrosoftPCManager")]
+    [InlineData("widgets-experiences", "Microsoft.StartExperiencesApp")]
+    [InlineData("widgets-experiences", "Microsoft.WidgetsPlatformRuntime")]
+    [InlineData("m365-companions", "Microsoft.M365Companions")]
+    [InlineData("whiteboard-journal", "Microsoft.Whiteboard")]
+    [InlineData("whiteboard-journal", "Microsoft.Office.Sway")]
+    [InlineData("whiteboard-journal", "Microsoft.MicrosoftJournal")]
+    [InlineData("whiteboard-journal", "Microsoft.MicrosoftPowerBIForWindows")]
+    [InlineData("mobile-plans", "Microsoft.OneConnect")]
+    [InlineData("mobile-plans", "Microsoft.Messaging")]
+    [InlineData("remote-desktop-apps", "MicrosoftCorporationII.Windows365")]
+    [InlineData("remote-desktop-apps", "Microsoft.RemoteDesktop")]
+    [InlineData("bing-news-weather", "Microsoft.News")]
+    [InlineData("mixed-reality-3d", "Microsoft.3DBuilder")]
+    [InlineData("mixed-reality-3d", "Microsoft.3DScan")]
+    [InlineData("xbox-app", "Microsoft.XboxApp")]
+    [InlineData("ai-hub", "Microsoft.Windows.AIHub")]
+    [InlineData("edge-game-assist", "Microsoft.Edge.GameAssist")]
+    [InlineData("copilot-app", "Microsoft.Office.ActionsServer")]
+    [InlineData("copilot-app", "Microsoft.WritingAssistant")]
+    [InlineData("preinstalled-trials", "5A894077.McAfeeSecurity")]
+    [InlineData("preinstalled-trials", "McAfeeWPSSparsePackage")]
+    [InlineData("preinstalled-trials", "C27EB4BA.DropboxOEM")]
+    [InlineData("preinstalled-trials", "4AE8B7C2.Booking.comPartnerEdition")]
+    [InlineData("promoted-media-tools", "CyberLinkMediaSuiteEssentials")]
+    [InlineData("promoted-media-tools", "DB6EA5DB.PowerDirector")]
+    [InlineData("promoted-media-tools", "AdobeSystemsIncorporated.AdobePhotoshopExpress")]
+    [InlineData("promoted-media-tools", "2FE3CB00.PicsArt-PhotoStudio")]
+    [InlineData("promoted-media-tools", "WinZipUniversal")]
+    [InlineData("candy-crush", "DisneyMagicKingdoms")]
+    [InlineData("candy-crush", "NYTCrossword")]
+    [InlineData("streaming-social", "HULULLC.HULUPLUS")]
+    [InlineData("streaming-social", "SlingTV")]
+    [InlineData("streaming-social", "Facebook.Instagram")]
+    [InlineData("streaming-social", "LinkedInforWindows")]
+    [InlineData("streaming-social", "CAF9E577.Plex")]
+    [InlineData("oem-network-throttling", "RivetNetworks.SmartByte")]
+    [InlineData("oem-network-throttling", "RivetNetworks.KillerControlCenter")]
+    [InlineData("oem-dell", "ScreenovateTechnologies.DellMobileConnect")]
+    [InlineData("oem-dell", "STMicroelectronicsMEMS.DellFreeFallDataProtection")]
+    [InlineData("oem-lenovo", "MirametrixInc.GlancebyMirametrix")]
+    [InlineData("oem-surface", "Microsoft.SurfaceHub")]
+    [InlineData("oem-audio", "DolbyLaboratories.DolbyAccess")]
+    [InlineData("oem-audio", "WavesAudio.MaxxAudioPro")]
+    [InlineData("oem-audio", "A-Volute.NahimicCompanion")]
+    public void TheNewCatalogItemsCoverTheirPackages(string id, string package)
+    {
+        var item = DebloatCatalog.Load().Single(x => x.Id == id);
+        Assert.True(DebloatGuard.Covers(item, package, false), $"{id} should cover {package}");
+    }
+
+    [Theory]
+    [InlineData("preinstalled-trials")]
+    [InlineData("widgets-experiences")]
+    [InlineData("remote-desktop-apps")]
+    [InlineData("oem-network-throttling")]
+    [InlineData("oem-surface")]
+    [InlineData("oem-audio")]
+    public void ItemsWithATradeOffAreMarkedCarefulAndNeverSuggested(string id)
+    {
+        var item = DebloatCatalog.Load().Single(x => x.Id == id);
+        Assert.Equal(DebloatRisk.Careful, item.Risk);
+        Assert.False(item.Recommended);
+    }
+
+    [Theory]
+    [InlineData("pc-manager", DebloatGroup.Microsoft)]
+    [InlineData("ai-hub", DebloatGroup.Ai)]
+    [InlineData("edge-game-assist", DebloatGroup.Ai)]
+    [InlineData("preinstalled-trials", DebloatGroup.Promoted)]
+    [InlineData("promoted-media-tools", DebloatGroup.Promoted)]
+    [InlineData("oem-network-throttling", DebloatGroup.Manufacturer)]
+    public void NewItemsSitInTheTabsPeopleLookIn(string id, DebloatGroup group) => Assert.Equal(group, DebloatCatalog.Load().Single(x => x.Id == id).Group);
+
+    [Fact]
+    public void EveryStoreIdInTheCatalogCanBeUsedToInstallItAgain()
+    {
+        foreach (var item in DebloatCatalog.Load().Where(x => x.StoreId.Length > 0))
+            Assert.True(DebloatGuard.IsToken(item.StoreId), item.Id);
+    }
 
     [Fact]
     public void TheShippedCatalogIsValidAndNothingInItOverlapsTheGuard()
@@ -668,6 +784,225 @@ public sealed class DebloatHostTests
         using var session = new DebloatSession(_ => throw new OperationCanceledException("declined"));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.OpenAsync());
         Assert.False(session.IsOpen);
+    }
+}
+
+public sealed class AppxStoreRecordsTests
+{
+    private static readonly IReadOnlyList<DebloatItem> Catalog = DebloatCatalog.Load();
+
+    [Fact]
+    public void AnAppIsReadFromItsFullNameAndManifestPath()
+    {
+        var package = AppxStoreRecords.Package("Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", @"C:\Program Files\WindowsApps\Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt\AppxManifest.xml")!;
+
+        Assert.Equal("Clipchamp.Clipchamp", package.Name);
+        Assert.Equal("Clipchamp.Clipchamp_yxz26nhyzhsrt", package.FamilyName);
+        Assert.Equal(@"C:\Program Files\WindowsApps\Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", package.InstallLocation);
+        Assert.False(package.NonRemovable);
+        Assert.Empty(package.Users);
+    }
+
+    [Fact]
+    public void ABundlesManifestIsOneFolderDeeperAndTheAppIsItsParent() =>
+        Assert.Equal(@"C:\Program Files\WindowsApps\Acme.Tool_1.0_neutral_~_abc", AppxStoreRecords.FolderOf(@"C:\Program Files\WindowsApps\Acme.Tool_1.0_neutral_~_abc\AppxMetadata\AppxBundleManifest.xml"));
+
+    [Theory]
+    [InlineData("Acme.Tool_1.0.0.0_x64__abc", true)]
+    [InlineData("Acme.Tool_1.0.0.0_neutral_~_abc", true)]
+    [InlineData("Acme.Tool_1.0.0.0_neutral_split.language-de_abc", false)]
+    [InlineData("Acme.Tool_1.0.0.0_neutral_split.scale-100_abc", false)]
+    [InlineData("not-a-package", false)]
+    [InlineData(@"Acme.Tool_1\..\Run_x64__abc", false)]
+    public void OnlyTheAppItselfIsReadNotItsLanguageAndScalePacks(string fullName, bool expected)
+    {
+        Assert.Equal(expected, AppxStoreRecords.Package(fullName, "") is not null);
+        Assert.Equal(expected, AppxStoreRecords.Staged(fullName, "") is not null);
+    }
+
+    [Fact]
+    public void PackagesFromTheStoreAreAddedOnceToWhatWindowsListed()
+    {
+        var listed = new[] { FakeDebloatPc.Package("Microsoft.BingNews") };
+        var store = new[]
+        {
+            // The store names the bundle where Windows lists the package inside it: the same app, so it must not be counted twice.
+            AppxStoreRecords.Package("Microsoft.BingNews_1.0.0.0_neutral_~_8wekyb3d8bbwe", "")!,
+            AppxStoreRecords.Package("Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", "")!
+        };
+
+        var merged = AppxStoreRecords.Merge(listed, store);
+
+        Assert.Equal(["Microsoft.BingNews", "Clipchamp.Clipchamp"], merged.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void AnAppSeenOnlyInTheStoreIsFoundByTheScanWithoutAdministratorRights()
+    {
+        // What was left after someone right-clicked Clipchamp and chose Uninstall: gone for them, still staged for every new account.
+        var pc = new FakeDebloatPc { Staged = [AppxStoreRecords.Staged("Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", @"C:\Program Files\WindowsApps\Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt\AppxManifest.xml")!] };
+
+        var entry = Assert.Single(DebloatScan.Run(pc, Catalog).Entries);
+
+        Assert.Equal("clipchamp", entry.Id);
+        Assert.Empty(entry.Packages);
+        Assert.Equal(@"C:\Program Files\WindowsApps\Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", Assert.Single(entry.Provisioned).InstallLocation);
+    }
+
+    [Fact]
+    public void ARemovedAppThatWasOnlyStagedIsDeprovisionedAndGone()
+    {
+        var staged = AppxStoreRecords.Staged("Clipchamp.Clipchamp_4.0.0.0_neutral_~_yxz26nhyzhsrt", "")!;
+        var pc = new FakeDebloatPc { Staged = [staged] };
+
+        var outcome = new AppxRemover(pc, pc, pc).Remove(DebloatScan.Find(pc, Catalog, "clipchamp")!);
+
+        Assert.True(outcome.Ok, outcome.Error);
+        Assert.Empty(pc.Staged);
+        Assert.Contains("Clipchamp.Clipchamp_yxz26nhyzhsrt", pc.Deprovisioned);
+    }
+}
+
+public sealed class DebloatCleanupTests
+{
+    [Theory]
+    [InlineData("OneDrive", true)]
+    [InlineData("onedrive", true)]
+    [InlineData("OneDriveSetup", true)]
+    [InlineData("OneDriveBackupTool", false)]
+    [InlineData("Dropbox", false)]
+    public void OnlyOneDrivesOwnStartupEntriesAreRemoved(string name, bool expected) => Assert.Equal(expected, DebloatCleanup.IsOneDriveRunValue(name));
+
+    [Theory]
+    [InlineData("MicrosoftEdgeAutoLaunch_3F1A9C0D4B6E", true)]
+    [InlineData("MicrosoftEdgeAutoLaunch_", true)]
+    [InlineData("Microsoft Edge Update", true)]
+    [InlineData("Microsoft Teams", false)]
+    [InlineData("GoogleChromeAutoLaunch_1", false)]
+    public void OnlyEdgesOwnStartupEntriesAreRemoved(string name, bool expected) => Assert.Equal(expected, DebloatCleanup.IsEdgeRunValue(name));
+
+    [Theory]
+    [InlineData("OneDrive Standalone Update Task-S-1-5-21-2263392280-518463016-1748006429-1001", true)]
+    [InlineData("OneDrive Reporting Task-S-1-5-21-2263392280-518463016-1748006429-1001", true)]
+    [InlineData("OneDrive Per-Machine Standalone Update Task", true)]
+    [InlineData("OneDrive Standalone Update Task'; calc; '", false)]
+    [InlineData("OneDrive Backup Helper", false)]
+    [InlineData("MicrosoftEdgeUpdateTaskMachineCore", false)]
+    public void OnlyOneDrivesUpdateAndReportingTasksAreRemoved(string name, bool expected) => Assert.Equal(expected, DebloatCleanup.IsOneDriveTask(name));
+
+    [Theory]
+    [InlineData("S-1-5-21-2263392280-518463016-1748006429-1001", true)]
+    [InlineData("S-1-12-1-1234-5678-9012-3456", true)]
+    [InlineData("S-1-5-18", false)]
+    [InlineData("S-1-5-19", false)]
+    [InlineData("S-1-5-21-1-2-3-1001_Classes", false)]
+    [InlineData("S-1-5-21-1'; calc; '", false)]
+    [InlineData(null, false)]
+    public void OnlyPeoplesAccountsAreVisited(string? sid, bool expected) => Assert.Equal(expected, DebloatCleanup.IsAccountSid(sid));
+
+    [Fact]
+    public void EdgesShortcutsAreFoundInsideEachProfileAndNowhereElse()
+    {
+        var links = DebloatCleanup.EdgeShortcuts(@"C:\Users\sam").ToList();
+
+        Assert.Equal(3, links.Count);
+        Assert.All(links, x => { Assert.StartsWith(@"C:\Users\sam\", x); Assert.EndsWith("Microsoft Edge.lnk", x); });
+        Assert.Contains(links, x => x.Contains("User Pinned", StringComparison.Ordinal) && x.Contains("TaskBar", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheSideBarEntryIsOneDrivesWellKnownId() => Assert.Equal("{018D5C66-4533-4307-9B53-224DE2ED1FE6}", DebloatCleanup.OneDriveNavigationPane);
+}
+
+public sealed class DebloatRestoreAllTests
+{
+    private static readonly IReadOnlyList<DebloatItem> Catalog = DebloatCatalog.Load();
+
+    private sealed class Changer(Func<DebloatRequest, DebloatOutcome> answer) : IDebloatChanger
+    {
+        public List<DebloatRequest> Seen = [];
+        public DebloatOutcome Change(DebloatRequest request) { Seen.Add(request); return answer(request); }
+    }
+
+    private static string Folder() => Path.Combine(Path.GetTempPath(), "tidywindow-debloat-" + Guid.NewGuid().ToString("N"));
+
+    private static DebloatManager Manager(Changer changer, DebloatHistory history, Func<Task>? unlock = null) => new(changer, unlock ?? (() => Task.CompletedTask), history);
+
+    private static DebloatHistory Removed(params string[] ids)
+    {
+        var history = new DebloatHistory(Folder());
+        foreach (var id in ids) history.Add(new(id, id, DateTimeOffset.Now, [id + "_fam"]));
+        return history;
+    }
+
+    [Fact]
+    public async Task EveryItemIsPutBackAndTheHelperIsAskedForOnlyOnce()
+    {
+        var unlocked = 0;
+        var history = Removed("clipchamp", "maps", "todo");
+        var changer = new Changer(_ => new(true));
+        var manager = Manager(changer, history, () => { unlocked++; return Task.CompletedTask; });
+        var shown = new List<string>();
+
+        var batch = await manager.RestoreAllAsync(Catalog.Where(x => x.Id is "clipchamp" or "maps" or "todo").ToList(), (item, outcome) => shown.Add($"{item.Id}:{(outcome is null ? "start" : outcome.Ok ? "ok" : "failed")}"));
+
+        Assert.False(batch.Declined);
+        Assert.Equal(3, batch.Results.Count(x => x.Outcome.Ok));
+        Assert.Equal(3, changer.Seen.Count(x => x.Restore));
+        Assert.Empty(history.All());
+        Assert.Equal(["clipchamp:start", "clipchamp:ok", "maps:start", "maps:ok", "todo:start", "todo:ok"], shown);
+    }
+
+    [Fact]
+    public async Task OneItemThatFailsDoesNotStopTheOthersAndStaysListed()
+    {
+        var history = Removed("clipchamp", "maps");
+        var manager = Manager(new Changer(r => r.Id == "clipchamp" ? new(false, "no") : new(true)), history);
+
+        var batch = await manager.RestoreAllAsync(Catalog.Where(x => x.Id is "clipchamp" or "maps").ToList());
+
+        Assert.Equal(["maps"], batch.Results.Where(x => x.Outcome.Ok).Select(x => x.Item.Id));
+        Assert.Equal(["clipchamp"], history.All().Select(x => x.Id));
+    }
+
+    [Fact]
+    public async Task DecliningThePermissionPromptStopsTheWholeBatch()
+    {
+        var history = Removed("clipchamp", "maps");
+        var asked = 0;
+        var manager = Manager(new Changer(_ => new(true)), history, () => { asked++; throw new OperationCanceledException("declined"); });
+
+        var batch = await manager.RestoreAllAsync(Catalog.Where(x => x.Id is "clipchamp" or "maps").ToList());
+
+        Assert.True(batch.Declined);
+        Assert.Empty(batch.Results);
+        Assert.Equal(1, asked);
+        Assert.Equal(2, history.All().Count);
+    }
+
+    [Fact]
+    public async Task AHelperThatKeepsFailingEndsTheBatchInsteadOfAskingForEveryItem()
+    {
+        var history = Removed("clipchamp", "maps", "todo");
+        var changer = new Changer(_ => throw new IOException("gone"));
+        var manager = Manager(changer, history);
+
+        var batch = await manager.RestoreAllAsync(Catalog.Where(x => x.Id is "clipchamp" or "maps" or "todo").ToList());
+
+        Assert.False(batch.Declined);
+        var failed = Assert.Single(batch.Results);
+        Assert.False(failed.Outcome.Ok);
+        Assert.Equal(3, history.All().Count);
+    }
+
+    [Fact]
+    public async Task ClosingThePageStopsTheBatchWithoutBlamingThePerson()
+    {
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        var manager = Manager(new Changer(_ => new(true)), Removed("clipchamp"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => manager.RestoreAllAsync(Catalog.Where(x => x.Id == "clipchamp").ToList(), cancellationToken: cancel.Token));
     }
 }
 

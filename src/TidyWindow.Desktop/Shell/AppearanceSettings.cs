@@ -1,12 +1,11 @@
 using System.Text.Json;
-using Microsoft.UI.Xaml;
-using Windows.UI.ViewManagement;
 
 namespace TidyWindow.Next.Desktop;
 
 internal enum Appearance { System, Light, Dark }
 
-internal sealed class AppearanceSettings(string path)
+/// <summary>Which theme the person picked, kept on disk. This file is also compiled into the tests, so it uses nothing from WinUI; the part that does is in AppearanceTheme.cs.</summary>
+internal sealed partial class AppearanceSettings(string path)
 {
     public static readonly string DefaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "appearance.json");
 
@@ -26,13 +25,5 @@ internal sealed class AppearanceSettings(string path)
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(appearance));
         File.Move(temporary, path, true);
-    }
-
-    /// <summary>The theme a window should wear: the one picked here, or the one Windows is using when none was picked.</summary>
-    public static ElementTheme ThemeFor(Appearance appearance, UISettings systemColors)
-    {
-        var background = systemColors.GetColorValue(UIColorType.Background);
-        var systemLight = background.R * 0.299 + background.G * 0.587 + background.B * 0.114 > 128;
-        return appearance == Appearance.Light || appearance == Appearance.System && systemLight ? ElementTheme.Light : ElementTheme.Dark;
     }
 }

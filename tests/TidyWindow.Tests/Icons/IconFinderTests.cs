@@ -270,6 +270,17 @@ public sealed class IconFinderTests
         Assert.Equal(IconSource.Program, Find(pc, new("Tool", exe, exe))[0].Source);
     }
 
+    [Fact]
+    public void APackageFolderAloneIsEnoughToFindAStoreAppsLogo()
+    {
+        // The Debloat page knows an app only by its folder, which may belong to an app that has no executable of its own to look at.
+        var package = @"C:\Program Files\WindowsApps\Acme.Tool_1.0_x64__abc";
+        var pc = new FakeIconPc().Has($@"{package}\Assets\Square44x44Logo.scale-200.png");
+        pc.Texts[$@"{package}\AppxManifest.xml"] = Manifest("""Square44x44Logo="Assets\Square44x44Logo.png" """);
+
+        Assert.Equal(new IconRef($@"{package}\Assets\Square44x44Logo.scale-200.png", 0, IconSource.Package), Find(pc, new("Acme.Tool", InstallLocation: package))[0]);
+    }
+
     // ---- Update.exe launchers, installers and Start menu ----
 
     [Fact]
