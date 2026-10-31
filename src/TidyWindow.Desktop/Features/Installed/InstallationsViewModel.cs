@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
@@ -11,6 +12,31 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     // Registry programs and Store apps have no package name to show; their WinGet id is a registry path.
     public string Detail => Package.Origin == AppOrigin.Package ? $"{Package.ManagerName}{(Package.Global ? " · all users" : "")} · {Package.Id}" : Source;
     public string Id => Package.Id;
+
+    private ImageSource? icon;
+    public ImageSource? Icon => icon;
+    public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
+    /// <summary>Shown while the real icon loads, and kept when the app has none: what kind of app it is.</summary>
+    public string Glyph => Package.Origin switch { AppOrigin.StoreApp => "", AppOrigin.WindowsProgram => AppIcon.DefaultGlyph, _ => "" };
+    public IconQuery IconQuery => InstalledHints.IconFor(Package);
+
+    private FoundPublisher publisher = FoundPublisher.None;
+    public string Publisher => publisher.Name;
+    public void SetPublisher(FoundPublisher found)
+    {
+        if (found == publisher) return;
+        publisher = found;
+        foreach (var name in new[] { nameof(Publisher), nameof(Subtitle), nameof(CompactDetail) }) Changed(name);
+    }
+    /// <summary>The line under the name: who made it, then what the package manager calls it. Windows programs and Store apps have no package name worth showing.</summary>
+    public string Subtitle => (Publisher.Length > 0, Package.Origin == AppOrigin.Package) switch
+    {
+        (true, true) => $"{Publisher} · {Id}",
+        (true, false) => Publisher,
+        (false, true) => Id,
+        _ => Source
+    };
+
     public string Source => Package.Origin switch
     {
         AppOrigin.WindowsProgram => "Installed on this PC",
@@ -21,7 +47,7 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     public string UpdateDetail => Package.Held ? "Pinned in package manager" : Package.AvailableVersion is { Length: > 0 } latest ? $"Update to {latest}" : Package.Note;
     private string queueStatus = "";
     public string Available => queueStatus.Length > 0 ? queueStatus : Package.Held ? "Pinned" : Package.AvailableVersion ?? (Package.Note.Length > 0 ? "Needs attention" : "—");
-    public string CompactDetail => $"{Source} · {Version}" + (queueStatus.Length > 0 ? $" · {queueStatus}" : Package.Held ? " · Pinned" : Package.AvailableVersion is { } latest ? $" → {latest}" : Package.Note.Length > 0 ? $" · {Package.Note}" : "");
+    public string CompactDetail => $"{(Publisher.Length > 0 ? Publisher + " · " : "")}{Source} · {Version}" + (queueStatus.Length > 0 ? $" · {queueStatus}" : Package.Held ? " · Pinned" : Package.AvailableVersion is { } latest ? $" → {latest}" : Package.Note.Length > 0 ? $" · {Package.Note}" : "");
     public bool CanUpdate => CanAct && Package.AvailableVersion is not null && !Package.Held;
     public void SetQueueEntry(QueueEntry? entry)
     {
@@ -82,9 +108,13 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     private string errors = "";
     public string Errors { get => errors; private set { Set(ref errors, value); Changed(nameof(ErrorVisibility)); } }
     public Visibility ErrorVisibility => Errors.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-    public InstallationsViewModel(InstallationService service, WorkspaceViewModel workspace, ActivityLog log, OperationQueueViewModel queue)
+    private readonly IconService icons;
+    private readonly PublisherService publishers;
+    private bool listening;
+    public InstallationsViewModel(InstallationService service, WorkspaceViewModel workspace, ActivityLog log, OperationQueueViewModel queue, IconService? iconService = null, PublisherService? publisherService = null)
     {
         this.service = service; this.workspace = workspace; this.log = log; this.queue = queue; queue.StateChanged += NotifyState;
+        icons = iconService ?? IconService.Shared; publishers = publisherService ?? PublisherService.Shared;
         workspace.PropertyChanged += WorkspaceChanged;
     }
     private void WorkspaceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -124,7 +154,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     private void ApplyFilter(bool keepPosition = false)
     {
         var shown = all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
-            (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray();
         // A new filter starts the list over (one reset instead of clearing and re-adding every row, which would re-measure on each step).
         if (keepPosition) Rows.Sync(shown, x => x.Package.Key); else Rows.Reset(shown);
@@ -162,6 +192,9 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 {
                     if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { current.Add(old); continue; }
                     var row = new InstalledRow(package) { Compact = compact };
+                    // What was found before comes back with the list, so a refresh does not blank it.
+                    if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
+                    if (publishers.TryGet(package, out var named)) row.SetPublisher(named);
                     row.PropertyChanged += SelectionChanged;
                     current.Add(row);
                 }
@@ -171,6 +204,8 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 Errors = string.Join("\n", inventories.Values.Where(x => x.Error is not null || x.UpdateError is not null)
                     .Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error ?? "Updates could not be checked. " + x.UpdateError}"));
                 ApplyFilter(keepPosition: true);
+                if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+                _ = LoadDetailsAsync(current);
             }
             loaded = true; NeedsRefresh = false;
             await LogCoverageAsync();
@@ -179,6 +214,26 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         catch (Exception ex) { Errors = ex.Message; log.Write(ActivityLevel.Warning, ActivityArea.Install, "Installed packages could not be checked", ex.ToString()); }
         finally { Refreshing = false; Updating = false; NotifyState(); }
     }
+    // Icons and publishers arrive a moment after the list, a few at a time, and a row without them keeps its glyph and its package line.
+    private void ReloadIcons() => _ = LoadDetailsAsync(all, everyRow: true);
+
+    private async Task LoadDetailsAsync(IReadOnlyList<InstalledRow> rows, bool everyRow = false)
+    {
+        // What is on screen first.
+        var shown = Rows.ToHashSet();
+        var queued = rows.Where(x => everyRow || x.Icon is null || x.Publisher.Length == 0).OrderBy(x => shown.Contains(x) ? 0 : 1).ToList();
+        try { await Task.WhenAll(queued.Select(LoadRowAsync)); }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadRowAsync(InstalledRow row)
+    {
+        var icon = icons.LoadAsync(row.IconQuery, lifetime.Token);
+        var publisher = publishers.FindAsync(row.Package);
+        if (await icon is { } image) row.SetIcon(image);
+        row.SetPublisher(await publisher);
+    }
+
     // Records how much of Windows' own installed-apps list this page shows, so a gap in detection is visible in Logs instead of silent.
     private async Task LogCoverageAsync()
     {
@@ -233,5 +288,5 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     { if (!selecting && e.PropertyName == nameof(InstalledRow.IsSelected)) NotifySelection(); }
     private void NotifySelection()
     { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectionLabel) }) Changed(name); }
-    public void Dispose() { queue.StateChanged -= NotifyState; workspace.PropertyChanged -= WorkspaceChanged; lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { IconService.DarkChanged -= ReloadIcons; queue.StateChanged -= NotifyState; workspace.PropertyChanged -= WorkspaceChanged; lifetime.Cancel(); lifetime.Dispose(); }
 }

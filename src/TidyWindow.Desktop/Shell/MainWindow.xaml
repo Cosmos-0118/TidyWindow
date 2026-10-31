@@ -285,11 +285,15 @@
          <Grid ColumnSpacing="{Binding ColumnGap}">
           <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="{Binding NameWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="{Binding MetadataWidth}" /><ColumnDefinition Width="156" /></Grid.ColumnDefinitions>
           <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanAct}" MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Name}" />
-          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-           <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding Id}" Visibility="{Binding WideVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
-           <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
-          </StackPanel>
+          <Grid Grid.Column="1" ColumnSpacing="12" VerticalAlignment="Center">
+           <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+           <local:AppIcon Source="{Binding Icon}" Glyph="{Binding Glyph}" />
+           <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+            <TextBlock Text="{Binding Subtitle}" Visibility="{Binding WideVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+            <TextBlock Text="{Binding CompactDetail}" Visibility="{Binding CompactVisibility}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+           </StackPanel>
+          </Grid>
           <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           <TextBlock Grid.Column="3" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           <TextBlock Grid.Column="4" Text="{Binding Available}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
