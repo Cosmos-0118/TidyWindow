@@ -5,7 +5,7 @@
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
   <ResourceDictionary>
-   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
 
    <!-- One row for each tweak. The line says what you will notice and has the switch; the small print opens underneath. -->
    <DataTemplate x:Key="TuneRowTemplate">

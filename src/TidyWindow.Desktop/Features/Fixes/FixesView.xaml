@@ -5,7 +5,7 @@
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
   <ResourceDictionary>
-   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /><ResourceDictionary Source="ms-appx:///PageStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /><ResourceDictionary Source="ms-appx:///Styles/PageStyles.xaml" /></ResourceDictionary.MergedDictionaries>
 
    <!-- One row for each fix. It says what the fix is for and has the Run button; the options and the steps open underneath. -->
    <DataTemplate x:Key="FixRowTemplate">

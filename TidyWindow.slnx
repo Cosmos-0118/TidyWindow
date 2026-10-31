@@ -1,7 +1,7 @@
 <Solution>
-  <Project Path="core/TidyWindow.Core.csproj" />
-  <Project Path="search-host/TidyWindow.SearchHost.csproj" />
-  <Project Path="clean-host/TidyWindow.CleanHost.csproj" />
-  <Project Path="app/TidyWindow.Desktop.csproj" />
+  <Project Path="src/TidyWindow.Core/TidyWindow.Core.csproj" />
+  <Project Path="src/TidyWindow.SearchHost/TidyWindow.SearchHost.csproj" />
+  <Project Path="src/TidyWindow.CleanHost/TidyWindow.CleanHost.csproj" />
+  <Project Path="src/TidyWindow.Desktop/TidyWindow.Desktop.csproj" />
   <Project Path="tests/TidyWindow.Tests/TidyWindow.Tests.csproj" />
 </Solution>

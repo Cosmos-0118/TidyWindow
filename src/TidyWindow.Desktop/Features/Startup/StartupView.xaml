@@ -5,7 +5,7 @@
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
   <ResourceDictionary>
-   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
 
 
    <!-- One row for every kind of startup item. The line shows what it is and the switch; everything else opens underneath. -->

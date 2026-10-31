@@ -4,7 +4,7 @@ Research and implementation decision, 30 October 2026. This replaces the old Ess
 
 ## Decision
 
-A fix is a short list of steps in data (`core/fix-catalog.json`): a standard Windows program with exact arguments, or one of four file and Explorer steps. Each step says which exit codes mean success, a warning, or "restart needed", and whether the fix may carry on after it fails. A runner executes them one at a time and reports as it goes. Nothing is a script.
+A fix is a short list of steps in data (`src/TidyWindow.Core/Fixes/fix-catalog.json`): a standard Windows program with exact arguments, or one of four file and Explorer steps. Each step says which exit codes mean success, a warning, or "restart needed", and whether the fix may carry on after it fails. A runner executes them one at a time and reports as it goes. Nothing is a script.
 
 This keeps the useful part of the old page (a shelf of repairs, options, restart hints) without 17,000 lines of wrapper code, and makes every fix readable on the page before it runs.
 

@@ -40,6 +40,9 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
     public string Chevron => expanded ? "\uE70E" : "\uE70D";
     public string ExpandName => $"{Name}, {Status}. {(expanded ? "Hide" : "Show")} command output";
     public Visibility CancelVisibility => Entry.State == QueueItemState.Waiting ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Fixes run through a helper that is not ended by stopping, so only package work offers it.</summary>
+    public Visibility StopVisibility => Entry.State == QueueItemState.Running && Entry.Operation.Fix is null ? Visibility.Visible : Visibility.Collapsed;
+    public string StopName => $"Stop {Name}";
     public string CancelName => $"Remove {Name} from queue";
     public double OutputHeight { get; private set; } = 240;
     public void SetOutputHeight(double value) { if (OutputHeight == value) return; OutputHeight = value; Changed(nameof(OutputHeight)); }
@@ -51,7 +54,7 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
         { formatted = null; Changed(nameof(Output)); if (expanded) Changed(nameof(OutputDocument)); }
         if (old.Notice != value.Notice || old.State != value.State || old.Result != value.Result) { Changed(nameof(Notice)); Changed(nameof(NoticeVisibility)); }
         if (old.State != value.State || old.Operation != value.Operation || old.Result != value.Result)
-            foreach (var name in new[] { nameof(Name), nameof(Detail), nameof(Status), nameof(StatusBrush), nameof(NoticeBrush), nameof(OutputTitle), nameof(ExpandName), nameof(CancelVisibility) }) Changed(name);
+            foreach (var name in new[] { nameof(Name), nameof(Detail), nameof(Status), nameof(StatusBrush), nameof(NoticeBrush), nameof(OutputTitle), nameof(ExpandName), nameof(CancelVisibility), nameof(StopVisibility), nameof(StopName) }) Changed(name);
     }
     public override string ToString() => $"{Name}. {Detail}. {Status}";
 }
@@ -96,6 +99,11 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     }
     public void Cancel(QueueRow row) { queue.Cancel(row.Entry.Id); Apply(); }
     public void CancelWaiting() { queue.CancelWaiting(); Apply(); }
+    public void Stop(QueueRow row) { queue.StopRunning(row.Entry.Id); Apply(); }
+    /// <summary>For closing the app: drops everything waiting and ends the running operation. Completes once the queue is idle.</summary>
+    public Task StopAllAsync() { queue.CancelWaiting(); queue.StopRunning(); Apply(); return queue.WhenIdleAsync(); }
+    public QueueEntry? Running => Snapshot.Entries.FirstOrDefault(x => x.State == QueueItemState.Running);
+    public int Waiting => Snapshot.Entries.Count(x => x.State == QueueItemState.Waiting);
     public void ClearFinished() { queue.ClearFinished(); Apply(); }
     public void SetOutputHeight(double value) { outputHeight = value; foreach (var row in Rows) row.SetOutputHeight(value); }
     private void QueueChanged()

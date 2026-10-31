@@ -38,6 +38,9 @@ public sealed partial class MainWindow : Window
     private long reconciledCompletions;
     private bool initialized;
     private bool closingDialog;
+    private volatile bool closeConfirmed;
+    private readonly InterruptedWork interrupted;
+    private InterruptedOperation? previousRun;
     private Page page;
     private readonly Windows.UI.ViewManagement.UISettings systemColors = new();
     private readonly AppearanceSettings appearanceSettings = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "appearance.json"));
@@ -54,7 +57,14 @@ public sealed partial class MainWindow : Window
         fixSession = FixSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var fixStore = new FixRunStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Fixes"));
         var fixService = new FixService(FixCatalog.Load(), new FixStepExecutor(), fixSession, FixService.IsAdministrator, () => fixSession.OpenAsync(), fixStore, helperOpen: () => fixSession.IsOpen);
-        operationQueue = new(PackageOperationQueue.WithLiveOutput((operation, progress, token) => operation.Fix is { } run ? fixService.RunAsync(run, progress, token) : executor.ExecuteAsync(operation, progress, token)), log, action => DispatcherQueue.TryEnqueue(() => action()));
+        var packageQueue = PackageOperationQueue.WithLiveOutput((operation, progress, token) => operation.Fix is { } run ? fixService.RunAsync(run, progress, token) : executor.ExecuteAsync(operation, progress, token));
+        // A note is kept while an operation runs, so a run that ended partway (closed, killed, crashed) is reported at the next launch.
+        interrupted = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "interrupted-operation.json"));
+        previousRun = interrupted.Take();
+        packageQueue.Started += entry => interrupted.Begin(entry.Operation);
+        // Closing from the warning stops the work on purpose but keeps the note, because the work was still cut short.
+        packageQueue.Finished += _ => { if (!closeConfirmed) interrupted.End(); };
+        operationQueue = new(packageQueue, log, action => DispatcherQueue.TryEnqueue(() => action()));
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
         installations = new(management, model, log, operationQueue);
@@ -145,6 +155,7 @@ public sealed partial class MainWindow : Window
         AppearanceMenu.Closed += (_, _) => { sidebarMenu = false; UpdateSidebar(); };
         Root.Loaded += async (_, _) =>
         {
+            ReportInterruptedRun();
             FitInitialWindow();
             ApplyResponsiveLayout();
             await Refresh();
@@ -152,6 +163,17 @@ public sealed partial class MainWindow : Window
         };
         AppWindow.Closing += OnClosing;
         Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+    }
+
+    private void ReportInterruptedRun()
+    {
+        if (previousRun is not { } last) return;
+        previousRun = null;
+        var title = $"Last session ended while {last.Kind} {last.Name}";
+        var detail = $"{last.Source} was {last.Kind} {last.Name} when TidyWindow last stopped (started {last.Started:g}). It may be incomplete or damaged. Check it under Installed apps, and run it again if needed.";
+        log.Write(ActivityLevel.Warning, ActivityArea.Install, title, detail);
+        toasts.Show("interrupted-run", ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Installed apps",
+            async () => { ShowPage(Page.Installed); if (installations.NeedsRefresh) await installations.RefreshAsync(); }, 0);
     }
 
     private void ApplyBranding()
@@ -604,6 +626,14 @@ public sealed partial class MainWindow : Window
             operationQueue.Enqueue(rows.Where(x => x.CanAct).Select(x => PackageOperation.Manage(x.Package, PackageAction.Uninstall)));
     }
     private void RemoveQueuedClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) operationQueue.Cancel(row); }
+    private async void StopRunningClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: QueueRow row } || row.Entry.State != QueueItemState.Running) return;
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Stop {row.Name}?",
+            Content = new TextBlock { Text = "TidyWindow will end the running installer. An install or update that is stopped partway can leave the app incomplete or broken, so do this only if it has stopped responding.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+            PrimaryButtonText = "Stop it", CloseButtonText = "Keep running", DefaultButton = ContentDialogButton.Close };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) operationQueue.Stop(row);
+    }
     private void ClearWaitingClick(object sender, RoutedEventArgs e) => operationQueue.CancelWaiting();
     private void ClearFinishedQueueClick(object sender, RoutedEventArgs e) => operationQueue.ClearFinished();
     private void QueueClick(object sender, RoutedEventArgs e) => ShowPage(Page.Queue);
@@ -760,15 +790,35 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Install {row.Name}?", Content = content, PrimaryButtonText = "Install package", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.QueueInstall(row);
     }
+    private static string Doing(PackageOperation operation) => operation.Fix is not null ? "being applied"
+        : operation.Kind switch { PackageOperationKind.Install => "being installed", PackageOperationKind.Update => "being updated", _ => "being uninstalled" };
+
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (!model.Busy) return;
+        if (closeConfirmed || !model.Busy) return;
         args.Cancel = true;
         if (closingDialog) return;
         closingDialog = true;
         try
         {
-            await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Package work is still queued", Content = "Let the current operation finish before closing TidyWindow. You can remove waiting items using Queue in the sidebar.", CloseButtonText = "Keep open" }.ShowAsync();
+            var running = operationQueue.Running; var waiting = operationQueue.Waiting;
+            var what = new List<string>();
+            if (running is not null) what.Add($"{running.Operation.Name} is {Doing(running.Operation)} right now.");
+            if (waiting > 0) what.Add($"{waiting} more {(waiting == 1 ? "item is" : "items are")} waiting in the queue.");
+            if (what.Count == 0) what.Add("A package manager task is in progress.");
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Work is still running",
+                Content = new TextBlock { Text = string.Join(" ", what) + "\n\nIf you close TidyWindow now, this work is stopped. An install or update that is cut off partway can leave an app broken or incomplete, and anything waiting in the queue is dropped. Closing now is not recommended.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+                CloseButtonText = "Keep open", SecondaryButtonText = "Close anyway", DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Secondary) return;
+            closeConfirmed = true;
+            toasts.Show("closing", ToastKind.Info, "Stopping work before closing…", "", "", null, 10);
+            // Ending the running command takes a moment; it is given a short time, and a command that will not end cannot keep the window open.
+            try { await operationQueue.StopAllAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (TimeoutException) { }
+            Close();
         }
         finally { closingDialog = false; }
     }

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="280" viewBox="0 0 1440 280" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">TidyWindow</title>
+  <desc id="desc">TidyWindow. Windows application management and maintenance.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E1B4B"/><stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="pane" x1="22" y1="22" x2="60" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4"/><stop offset="1" stop-color="#7DD3FC"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="1439" height="279" rx="12" fill="#15151B" stroke="#2B2B35"/>
+  <g transform="translate(88 80)">
+    <rect width="120" height="120" rx="27" fill="url(#tile)"/>
+    <rect x="22" y="22" width="34" height="76" rx="10" fill="url(#pane)"/>
+    <rect x="62" y="22" width="36" height="31" rx="10" fill="#FFD08A"/>
+    <rect x="62" y="59" width="36" height="39" rx="10" fill="#F5F3FF"/>
+    <g fill="#39316B"><circle cx="31" cy="32" r="2"/><circle cx="39" cy="32" r="2"/><circle cx="47" cy="32" r="2"/></g>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="248" y="139" fill="#F5F5F7" font-size="56" font-weight="600" letter-spacing="-1">TidyWindow</text>
+    <text x="250" y="183" fill="#ABABB7" font-size="24">Windows application management and maintenance</text>
+  </g>
+</svg>

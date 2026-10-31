@@ -5,7 +5,7 @@
  HorizontalContentAlignment="Stretch">
  <UserControl.Resources>
   <ResourceDictionary>
-  <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+  <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
   <Style x:Key="Chip" TargetType="Border">
    <Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="8,2" /><Setter Property="VerticalAlignment" Value="Center" />
   </Style>

@@ -400,6 +400,7 @@
              </StackPanel>
             </Grid>
            </Button>
+           <Button Grid.Column="1" Click="StopRunningClick" Visibility="{Binding StopVisibility}" Background="Transparent" BorderThickness="0" Padding="8" Margin="0,0,6,0" VerticalAlignment="Center" ToolTipService.ToolTip="Stop" AutomationProperties.Name="{Binding StopName}"><FontIcon Glyph="&#xE71A;" FontSize="12" /></Button>
            <Button Grid.Column="1" Click="RemoveQueuedClick" Visibility="{Binding CancelVisibility}" Background="Transparent" BorderThickness="0" Padding="8" Margin="0,0,6,0" VerticalAlignment="Center" ToolTipService.ToolTip="Remove from queue" AutomationProperties.Name="{Binding CancelName}"><FontIcon Glyph="&#xE711;" FontSize="12" /></Button>
           </Grid>
           <Border Visibility="{Binding OutputVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,12">

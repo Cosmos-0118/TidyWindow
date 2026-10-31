@@ -1,7 +1,7 @@
 # Renders the TidyWindow mark (three window panes snapped into a tidy layout) to PNGs and ICOs.
 # Run from anywhere: pwsh tools/Brand/build-icons.ps1
 Add-Type -AssemblyName System.Drawing
-$out = Join-Path $PSScriptRoot '../../app/Assets/Brand'
+$out = Join-Path $PSScriptRoot '../../src/TidyWindow.Desktop/Assets/Brand'
 New-Item -ItemType Directory -Force $out | Out-Null
 $out = (Resolve-Path $out).Path
 

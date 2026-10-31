@@ -23,7 +23,7 @@ public sealed record QueueSnapshot(long Revision, IReadOnlyList<QueueEntry> Entr
     public QueueEntry? Find(string resource) => Entries.LastOrDefault(x => x.Operation.ResourceKey.Equals(resource, StringComparison.OrdinalIgnoreCase));
 }
 
-/// <summary>One FIFO worker across all managers and pages. Only waiting work can be cancelled.</summary>
+/// <summary>One FIFO worker across all managers and pages. Waiting work can be removed; the running operation is only stopped on request, and a stop that is ignored cannot hold the queue.</summary>
 public sealed class PackageOperationQueue
 {
     private readonly Func<PackageOperation, IProgress<CommandOutput>, CancellationToken, Task<PackageActionResult>> execute;
@@ -38,7 +38,13 @@ public sealed class PackageOperationQueue
     private long completions;
     private long stateVersion;
     private TaskCompletionSource idle = Completed();
+    private CancellationTokenSource? stopSource;
+    private Guid runningId;
+    /// <summary>How long a stopped operation gets to wind down before the queue moves on without it.</summary>
+    public TimeSpan StopGrace { get; init; } = TimeSpan.FromSeconds(15);
     public event Action? Changed;
+    /// <summary>Raised on the worker just before an operation runs.</summary>
+    public event Action<QueueEntry>? Started;
     public event Action<QueueEntry>? Finished;
     public QueueSnapshot Snapshot() { lock (gate) return new(revision, entries.ToArray(), completions, stateVersion); }
     public Task WhenIdleAsync() { lock (gate) return idle.Task; }
@@ -87,6 +93,16 @@ public sealed class PackageOperationQueue
         }
         Notify(Changed);
     }
+    /// <summary>Asks the running operation to stop (its command is ended). With an id, only if that operation is still the one running.</summary>
+    public bool StopRunning(Guid? id = null)
+    {
+        CancellationTokenSource? source; Guid target;
+        lock (gate) { source = id is null || id == runningId ? stopSource : null; target = runningId; }
+        if (source is null) return false;
+        try { source.Cancel(); } catch (ObjectDisposedException) { return false; }
+        AppendOutput(target, new("Stopping…", CommandOutputKind.Notice));
+        return true;
+    }
     public void ClearFinished()
     {
         lock (gate) { entries.RemoveAll(x => x.State is QueueItemState.Finished or QueueItemState.Cancelled); revision++; stateVersion++; }
@@ -122,23 +138,57 @@ public sealed class PackageOperationQueue
     }
     private async Task DrainAsync()
     {
+        try { await DrainLoopAsync().ConfigureAwait(false); }
+        catch (Exception ex)
+        {
+            // Whatever went wrong, the queue must be able to run again: close out the operation it was on and carry on with what is waiting.
+            bool again;
+            lock (gate)
+            {
+                var closed = false;
+                for (var i = 0; i < entries.Count; i++)
+                    if (entries[i].State == QueueItemState.Running)
+                    {
+                        entries[i] = entries[i] with { State = QueueItemState.Finished, Result = new(ActionOutcome.Failed, $"Couldn’t finish {entries[i].Operation.Name}", "The queue hit an unexpected error: " + ex.Message) };
+                        completions++; closed = true;
+                    }
+                // With nothing to blame, waiting work is dropped rather than retried in a loop.
+                if (!closed)
+                    for (var i = 0; i < entries.Count; i++)
+                        if (entries[i].State == QueueItemState.Waiting) entries[i] = entries[i] with { State = QueueItemState.Cancelled };
+                stopSource = null; runningId = default;
+                again = entries.Any(x => x.State == QueueItemState.Waiting);
+                if (!again) { draining = false; idle.TrySetResult(); }
+                revision++; stateVersion++;
+            }
+            Notify(Changed);
+            if (again) _ = Task.Run(DrainAsync);
+        }
+    }
+    private async Task DrainLoopAsync()
+    {
         while (true)
         {
             QueueEntry? current;
+            CancellationTokenSource? stop = null;
             lock (gate)
             {
                 current = entries.FirstOrDefault(x => x.State == QueueItemState.Waiting);
                 if (current is null) { draining = false; idle.TrySetResult(); revision++; stateVersion++; }
-                else { current = current with { State = QueueItemState.Running }; entries[entries.FindIndex(x => x.Id == current.Id)] = current; revision++; stateVersion++; }
+                else
+                {
+                    current = current with { State = QueueItemState.Running }; entries[entries.FindIndex(x => x.Id == current.Id)] = current;
+                    stopSource = stop = new(); runningId = current.Id; revision++; stateVersion++;
+                }
             }
             Notify(Changed);
             if (current is null) return;
-            PackageActionResult result;
-            try { result = await execute(current.Operation, new OutputProgress(output => AppendOutput(current.Id, output)), CancellationToken.None).ConfigureAwait(false); }
-            catch (Exception ex) { result = new(ActionOutcome.Failed, $"Couldn’t {current.Operation.Kind.ToString().ToLowerInvariant()} {current.Operation.Name}", ex.Message); }
+            Notify(Started, current);
+            var result = await RunOneAsync(current, stop!).ConfigureAwait(false);
             QueueEntry finished;
             lock (gate)
             {
+                stopSource = null; runningId = default;
                 var index = entries.FindIndex(x => x.Id == current.Id);
                 finished = entries[index] with { State = QueueItemState.Finished, Result = result };
                 entries[index] = finished;
@@ -148,11 +198,33 @@ public sealed class PackageOperationQueue
                     entries.RemoveAt(entries.FindIndex(x => x.State is QueueItemState.Finished or QueueItemState.Cancelled));
                 revision++; stateVersion++;
             }
-            if (Finished is { } handlers)
-                foreach (Action<QueueEntry> handler in handlers.GetInvocationList()) { try { handler(finished); } catch { /* Observers cannot stall the queue. */ } }
+            stop!.Dispose();
+            Notify(Finished, finished);
             Notify(Changed);
         }
     }
+    /// <summary>Runs one operation and always comes back with a result: a failure, a stop, or an operation that ignored the stop is an outcome, never a hang.</summary>
+    private async Task<PackageActionResult> RunOneAsync(QueueEntry entry, CancellationTokenSource stop)
+    {
+        Task<PackageActionResult> work;
+        try { work = execute(entry.Operation, new OutputProgress(output => AppendOutput(entry.Id, output)), stop.Token); }
+        catch (Exception ex) { return Failure(entry.Operation, ex, stop); }
+        var gaveUp = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watch = stop.Token.Register(() => _ = Task.Delay(StopGrace).ContinueWith(_ => gaveUp.TrySetResult(), TaskScheduler.Default));
+        if (await Task.WhenAny(work, gaveUp.Task).ConfigureAwait(false) != work)
+        {
+            _ = work.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            return new(ActionOutcome.Failed, $"Stopped {entry.Operation.Name}", "It did not respond to being stopped, so the queue moved on without it. It may still be running; check its window or Task Manager, and check the app before trying again.");
+        }
+        try { return await work.ConfigureAwait(false); }
+        catch (Exception ex) { return Failure(entry.Operation, ex, stop); }
+    }
+    private static PackageActionResult Failure(PackageOperation operation, Exception ex, CancellationTokenSource stop) =>
+        ex is OperationCanceledException && stop.IsCancellationRequested
+            ? new(ActionOutcome.Failed, $"Stopped {operation.Name}", operation.Fix is not null ? "This fix was stopped before it finished." : "It was stopped before it finished. An install or update that is stopped partway can leave the app incomplete; check Installed apps before trying again.")
+            : new(ActionOutcome.Failed, $"Couldn’t {operation.Kind.ToString().ToLowerInvariant()} {operation.Name}", ex.Message);
+    private static void Notify(Action<QueueEntry>? handlers, QueueEntry entry)
+    { if (handlers is not null) foreach (Action<QueueEntry> handler in handlers.GetInvocationList()) { try { handler(entry); } catch { /* Observers cannot stall the queue. */ } } }
     private static void Notify(Action? handlers)
     { if (handlers is not null) foreach (Action handler in handlers.GetInvocationList()) { try { handler(); } catch { /* Keep the worker independent of UI observers. */ } } }
     private static TaskCompletionSource Completed() { var value = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); value.SetResult(); return value; }
