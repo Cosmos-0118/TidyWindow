@@ -45,7 +45,7 @@ public sealed partial class MainWindow : Window
     private InterruptedOperation? previousRun;
     private Page page;
     private readonly Windows.UI.ViewManagement.UISettings systemColors = new();
-    private readonly AppearanceSettings appearanceSettings = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "appearance.json"));
+    private readonly AppearanceSettings appearanceSettings = new(AppearanceSettings.DefaultPath);
     private Appearance appearance;
     public MainWindow(ActivityLog log)
     {
@@ -156,6 +156,8 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumWidth = 480;
             presenter.PreferredMinimumHeight = 420;
         }
+        // Placed before the window is first shown, so it opens where it will stay instead of moving once it is on screen.
+        FitInitialWindow();
         initialized = true;
         PrepareSidebar();
         ShowPage(Page.Overview);
@@ -165,8 +167,8 @@ public sealed partial class MainWindow : Window
         AppearanceMenu.Closed += (_, _) => { sidebarMenu = false; UpdateSidebar(); };
         Root.Loaded += async (_, _) =>
         {
+            WatchFirstFrames();
             ReportInterruptedRun();
-            FitInitialWindow();
             ApplyResponsiveLayout();
             await Refresh();
             if (page == Page.Installed) await installations.RefreshAsync();
@@ -176,6 +178,23 @@ public sealed partial class MainWindow : Window
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
         Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+    }
+
+    private readonly TaskCompletionSource firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    /// <summary>Completes once the window has laid out and drawn its first frames, which is when it is ready to be seen.</summary>
+    internal Task FirstFrame => firstFrame.Task;
+
+    /// <summary>Waits for a few frames to be drawn after the content loads, so the first one that is seen is not the half-built one.</summary>
+    private void WatchFirstFrames()
+    {
+        var frames = 0;
+        void Rendered(object? sender, object e)
+        {
+            if (++frames < 3) return;
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendered -= Rendered;
+            firstFrame.TrySetResult();
+        }
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendered += Rendered;
     }
 
     private void ReportInterruptedRun()
@@ -200,15 +219,14 @@ public sealed partial class MainWindow : Window
 
     private void FitInitialWindow()
     {
-        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
-        var scale = Root.XamlRoot.RasterizationScale;
+        // The same rectangle the splash already covers, worked out once for both.
+        var area = StartupFrame.WorkArea;
+        var scale = StartupFrame.Scale;
         if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
         presenter.PreferredMinimumWidth = Math.Min(area.Width, (int)(480 * scale));
         presenter.PreferredMinimumHeight = Math.Min(area.Height, (int)(420 * scale));
         if (presenter.State == OverlappedPresenterState.Maximized) return;
-        var width = Math.Min((int)(1100 * scale), Math.Max(1, area.Width - (int)(32 * scale)));
-        var height = Math.Min((int)(740 * scale), Math.Max(1, area.Height - (int)(32 * scale)));
-        AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(area.X + (area.Width - width) / 2, area.Y + (area.Height - height) / 2, width, height));
+        AppWindow.MoveAndResize(StartupFrame.Rect);
     }
 
     private void ApplyResponsiveLayout()
@@ -371,9 +389,7 @@ public sealed partial class MainWindow : Window
     });
     private void ApplyAppearance()
     {
-        var background = systemColors.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background);
-        var systemLight = background.R * 0.299 + background.G * 0.587 + background.B * 0.114 > 128;
-        Root.RequestedTheme = appearance == Appearance.Light || appearance == Appearance.System && systemLight ? ElementTheme.Light : ElementTheme.Dark;
+        Root.RequestedTheme = AppearanceSettings.ThemeFor(appearance, systemColors);
         SystemThemeItem.IsChecked = appearance == Appearance.System;
         LightThemeItem.IsChecked = appearance == Appearance.Light;
         DarkThemeItem.IsChecked = appearance == Appearance.Dark;

@@ -26,11 +26,20 @@ public partial class App : Application
                 log.Write(ActivityLevel.Error, ActivityArea.App, "A background task failed", e.Exception.ToString());
         };
     }
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // The splash has been up since the process began. The window opens underneath it, already in its final place.
         window = new MainWindow(log);
         interfaceQueue = window.DispatcherQueue;
         window.Activate();
+        Program.Splash?.KeepAbove(WinRT.Interop.WindowNative.GetWindowHandle(window));
+        try
+        {
+            // The splash fades out only once the window has drawn its first frames, so what it reveals is finished, not still arriving.
+            await ((MainWindow)window).FirstFrame.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (TimeoutException) { }
+        finally { Program.Splash?.Dismiss(); }
     }
 
     private static DispatcherQueue? interfaceQueue;

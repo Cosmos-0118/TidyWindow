@@ -28,26 +28,24 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
     public string SetupAction => Busy ? (Status?.Health == ManagerHealth.Missing ? "Installing…" : "Repairing…")
         : Status?.Health switch { ManagerHealth.Missing => "Install", ManagerHealth.ConnectionIssue => "Retry", ManagerHealth.Restricted => "Details", _ => "Repair" };
     private bool busy;
-    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(StatusText)); Changed(nameof(SetupAction)); Changed(nameof(BusyVisibility)); } } }
+    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(StatusText)); Changed(nameof(StatusTextVisibility)); Changed(nameof(SetupAction)); Changed(nameof(BusyVisibility)); } } }
     private string progress = "";
     /// <summary>What the running setup is doing right now, shown on the manager's own row so the click visibly did something.</summary>
     public string Progress { get => progress; set => Set(ref progress, value); }
     public Visibility BusyVisibility => Busy ? Visibility.Visible : Visibility.Collapsed;
     private bool canRecover;
     public bool CanRecover { get => canRecover; set => Set(ref canRecover, value); }
-    public bool Compact { get; set; }
-    public GridLength StatusColumnWidth => new(Compact ? 0 : 145);
-    public GridLength SetupColumnWidth => Compact ? GridLength.Auto : new(104);
-    public int StatusColumn => Compact ? 1 : 2;
-    public int StatusRow => Compact ? 1 : 0;
-    public void SetCompact(bool value)
+    public string Summary => Definition.Kind switch
     {
-        if (Compact == value) return;
-        Compact = value;
-        foreach (var name in new[] { nameof(StatusColumnWidth), nameof(SetupColumnWidth), nameof(StatusColumn), nameof(StatusRow) }) Changed(name);
-    }
+        ManagerKind.Winget => "Microsoft's package manager, built into Windows",
+        ManagerKind.Chocolatey => "Community packages for Windows, installed from the command line",
+        _ => "Portable apps that install without administrator rights"
+    };
+    public Visibility VersionVisibility => Version.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     private bool lightTheme;
     public void SetLightTheme(bool value) { lightTheme = value; Changed(nameof(StatusBrush)); }
+    /// <summary>A healthy manager is shown by its dot alone; anything else, or a manager mid-setup, also says what is going on.</summary>
+    public Visibility StatusTextVisibility => Status?.Health == ManagerHealth.Ready && !Busy ? Visibility.Collapsed : Visibility.Visible;
     public Brush StatusBrush => BrushCache.Rgb(Status?.Health switch
     {
         ManagerHealth.Ready => lightTheme ? 0x1C703F : 0xA4E8C1,
@@ -55,7 +53,7 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
         _ => lightTheme ? 0x626262 : 0xA4A4AD
     });
     public void Update(ManagerStatus status)
-    { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush), nameof(BucketsToggleVisibility), nameof(BucketsVisibility) }) Changed(name); }
+    { Status = status; foreach (var name in new[] { nameof(Version), nameof(VersionVisibility), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush), nameof(StatusTextVisibility), nameof(BucketsToggleVisibility), nameof(BucketsVisibility) }) Changed(name); }
 
     /// <summary>Only Scoop has buckets: lists of apps it can install, which a search covers only once they are added.</summary>
     public BucketsViewModel? Buckets { get; } = definition.Kind == ManagerKind.Scoop ? new() : null;
@@ -124,7 +122,6 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     internal void ApplyLayout(AdaptiveLayout layout)
     {
         compactResults = layout.CompactResults;
-        foreach (var manager in Managers) manager.SetCompact(layout.CompactManagers);
         foreach (var package in Packages) package.Compact = compactResults;
         Changed(nameof(ResultsHeaderVisibility));
     }

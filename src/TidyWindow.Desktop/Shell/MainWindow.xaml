@@ -82,96 +82,122 @@
    <Rectangle x:Name="SidebarEdge" Grid.ColumnSpan="2" Canvas.ZIndex="2" Width="1" HorizontalAlignment="Left" Fill="{ThemeResource LineBrush}" IsHitTestVisible="False" />
    <Grid x:Name="ContentArea" Grid.Column="1" Padding="36,24,36,28">
     <ScrollViewer x:Name="OverviewPage" HorizontalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
-     <StackPanel HorizontalAlignment="Stretch" Spacing="24" Padding="0,0,12,12">
-      <Grid>
-       <StackPanel Spacing="4" VerticalAlignment="Center">
-        <TextBlock Text="Package managers" Style="{StaticResource PageTitle}" />
-        <TextBlock Text="The tools TidyWindow uses to install and update apps." Style="{StaticResource Muted}" />
-       </StackPanel>
-       <Button HorizontalAlignment="Right" Click="RefreshClick" IsEnabled="{Binding CanRefresh}" Padding="12,7">
-        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Refresh" FontSize="12" /></StackPanel>
-       </Button>
-      </Grid>
-      <Grid>
-       <Border Style="{StaticResource Card}" Padding="0">
-        <ItemsControl ItemsSource="{Binding Managers}" AutomationProperties.Name="Package managers">
+     <!-- Fills the page the way the other views do. -->
+     <Grid HorizontalAlignment="Stretch">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <StackPanel Spacing="24" Padding="0,0,12,12">
+       <Grid ColumnSpacing="12">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel Spacing="4" VerticalAlignment="Center">
+         <TextBlock Text="Package managers" Style="{StaticResource PageTitle}" />
+         <TextBlock Text="The tools TidyWindow uses to install and update apps." Style="{StaticResource Muted}" />
+        </StackPanel>
+        <Button Grid.Column="1" Click="RefreshClick" IsEnabled="{Binding CanRefresh}" Padding="12,7" VerticalAlignment="Center">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Refresh" FontSize="12" /></StackPanel>
+        </Button>
+       </Grid>
+       <Grid>
+        <!-- One card per manager: who it is and how it is doing on the first line, anything it is busy with or can expand into underneath. -->
+        <ItemsControl ItemsSource="{Binding Managers}" IsTabStop="False" AutomationProperties.Name="Package managers">
+         <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
          <ItemsControl.ItemTemplate><DataTemplate>
-          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,18">
-           <StackPanel Spacing="16">
-           <Grid ColumnSpacing="14">
-            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="{Binding StatusColumnWidth}" /><ColumnDefinition Width="{Binding SetupColumnWidth}" /></Grid.ColumnDefinitions>
-            <Image Grid.RowSpan="2" Source="{Binding Icon}" Width="32" Height="32" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-             <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" />
-             <TextBlock Text="{Binding Version}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-             <Button Visibility="{Binding BucketsToggleVisibility}" Click="BucketsToggleClick" Background="Transparent" BorderThickness="0" Padding="0,2" HorizontalAlignment="Left" AutomationProperties.Name="{Binding BucketsName}" ToolTipService.ToolTip="Choose which app lists Scoop searches">
-              <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Buckets" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" /><FontIcon Glyph="{Binding BucketsChevron}" FontSize="9" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" /></StackPanel>
+          <Border Style="{StaticResource Card}" Padding="0">
+           <StackPanel>
+            <Grid Padding="20,16">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+             <!-- Health is the dot on the logo's corner, the way a presence dot sits on an avatar. Only a state that needs attention gets words beside the buttons. The dot sits outside the bordered tile so the tile does not clip it. -->
+             <Grid Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center">
+              <Border CornerRadius="10" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}">
+               <Image Source="{Binding Icon}" Width="28" Height="28" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
+              </Border>
+              <Ellipse Width="12" Height="12" Margin="0,0,-4,-4" HorizontalAlignment="Right" VerticalAlignment="Bottom" Fill="{Binding StatusBrush}" Stroke="{ThemeResource PanelBrush}" StrokeThickness="2" ToolTipService.ToolTip="{Binding StatusText}" AutomationProperties.Name="{Binding StatusText}" />
+             </Grid>
+             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+               <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+               <Border Visibility="{Binding VersionVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Version}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
+               </Border>
+              </StackPanel>
+              <TextBlock Text="{Binding Summary}" Style="{StaticResource RowSub}" TextWrapping="Wrap" TextTrimming="None" />
+             </StackPanel>
+             <Button Grid.Column="2" Margin="16,0,0,0" Visibility="{Binding StatusTextVisibility}" Background="Transparent" Padding="0,4" MinWidth="0" MinHeight="0" VerticalAlignment="Center" HorizontalAlignment="Left" UseSystemFocusVisuals="True" ToolTipService.ToolTip="Status details"><Button.Template><ControlTemplate TargetType="Button"><Grid x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"><ContentPresenter x:Name="Content" Padding="{TemplateBinding Padding}" Content="{TemplateBinding Content}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" AutomationProperties.AccessibilityView="Raw" /><VisualStateManager.VisualStateGroups><VisualStateGroup x:Name="CommonStates"><VisualState x:Name="Normal" /><VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="Root.Opacity" Value="0.8" /></VisualState.Setters></VisualState><VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Root.Opacity" Value="0.65" /></VisualState.Setters></VisualState><VisualState x:Name="Disabled" /></VisualStateGroup></VisualStateManager.VisualStateGroups></Grid></ControlTemplate></Button.Template>
+              <TextBlock Text="{Binding StatusText}" FontSize="12" FontWeight="Medium" Foreground="{Binding StatusBrush}" VerticalAlignment="Center" />
+              <Button.Flyout><Flyout><ScrollViewer MaxHeight="220" MaxWidth="420"><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12" /></ScrollViewer></Flyout></Button.Flyout>
              </Button>
-            </StackPanel>
-            <Button Grid.Column="{Binding StatusColumn}" Grid.Row="{Binding StatusRow}" Background="Transparent" BorderThickness="0" Padding="0,4" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTipService.ToolTip="Status details">
-             <StackPanel Orientation="Horizontal" Spacing="7"><Ellipse Width="5" Height="5" Fill="{Binding StatusBrush}" /><TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{Binding StatusBrush}" /></StackPanel>
-             <Button.Flyout><Flyout><ScrollViewer MaxHeight="220" MaxWidth="420"><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12" /></ScrollViewer></Flyout></Button.Flyout>
-            </Button>
-            <Button Grid.Column="3" Grid.RowSpan="2" Content="{Binding SetupAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding SetupVisibility}" Click="ManagerRecoveryClick" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Padding="10,6" />
-           </Grid>
-           <StackPanel Spacing="8" Margin="46,0,0,0" Visibility="{Binding BusyVisibility}">
-            <ProgressBar IsIndeterminate="True" />
-            <TextBlock Text="{Binding Progress}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-           </StackPanel>
-           <Grid Visibility="{Binding BucketsVisibility}" Margin="46,0,0,0">
-            <!-- The panel's own bindings read the buckets model; the visibility above must still read the manager row, so the context changes here, not on the grid. -->
-            <StackPanel Spacing="14" DataContext="{Binding Buckets}">
-             <TextBlock Text="Buckets are lists of apps Scoop can install. Searching Install apps only covers the buckets you have added." Style="{StaticResource Muted}" TextWrapping="Wrap" />
-             <StackPanel Orientation="Horizontal" Spacing="10" Visibility="{Binding LoadingVisibility}"><ProgressRing Width="14" Height="14" IsActive="True" /><TextBlock Text="Reading your buckets…" FontSize="12" Style="{StaticResource Muted}" /></StackPanel>
-             <StackPanel Spacing="6">
-              <TextBlock Text="{Binding AddedTitle}" FontSize="12" FontWeight="SemiBold" />
-              <ItemsControl ItemsSource="{Binding Added}" AutomationProperties.Name="Added Scoop buckets">
-               <ItemsControl.ItemTemplate><DataTemplate>
-                <Grid ColumnSpacing="12" Padding="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                 <TextBlock Text="{Binding Name}" FontSize="12" />
-                 <TextBlock Grid.Column="1" Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-                </Grid>
-               </DataTemplate></ItemsControl.ItemTemplate>
-              </ItemsControl>
+             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0" VerticalAlignment="Center">
+              <Button Visibility="{Binding BucketsToggleVisibility}" Click="BucketsToggleClick" Padding="12,6" AutomationProperties.Name="{Binding BucketsName}" ToolTipService.ToolTip="Choose which app lists Scoop searches">
+               <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Buckets" FontSize="12" /><FontIcon Glyph="{Binding BucketsChevron}" FontSize="9" /></StackPanel>
+              </Button>
+              <Button Content="{Binding SetupAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding SetupVisibility}" Click="ManagerRecoveryClick" FontSize="12" Padding="12,6" />
              </StackPanel>
-             <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{Binding GitNote}" Visibility="{Binding GitVisibility}" />
-             <StackPanel Spacing="6">
-              <TextBlock Text="{Binding AvailableTitle}" FontSize="12" FontWeight="SemiBold" />
-              <TextBlock Text="Every bucket in the list is already added." FontSize="12" Style="{StaticResource Muted}" Visibility="{Binding NothingToAddVisibility}" />
-              <ItemsControl ItemsSource="{Binding Available}" AutomationProperties.Name="Scoop buckets you can add">
-               <ItemsControl.ItemTemplate><DataTemplate>
-                <Grid ColumnSpacing="14" Padding="0,8" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                 <StackPanel Spacing="3">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                   <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                   <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1"><TextBlock Text="{Binding Badge}" FontSize="10" Foreground="{ThemeResource MutedBrush}" /></Border>
-                  </StackPanel>
-                  <TextBlock Text="{Binding Description}" FontSize="12" Style="{StaticResource Muted}" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding Repository}" FontSize="11" Style="{StaticResource Muted}" IsTextSelectionEnabled="True" />
-                 </StackPanel>
-                 <Button Grid.Column="1" Content="{Binding Action}" IsEnabled="{Binding CanAdd}" Click="AddBucketClick" VerticalAlignment="Center" FontSize="12" Padding="12,6" AutomationProperties.Name="{Binding InstallLabel}" />
-                </Grid>
-               </DataTemplate></ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <TextBlock Text="Community buckets are run by volunteers, not by Scoop. Apps installed from a bucket follow that bucket's instructions, so add only ones you trust." FontSize="11" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+            </Grid>
+            <Border Visibility="{Binding BusyVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,14,20,16">
+             <StackPanel Spacing="8">
+              <ProgressBar IsIndeterminate="True" />
+              <TextBlock Text="{Binding Progress}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
              </StackPanel>
-             <InfoBar IsOpen="True" IsClosable="False" Severity="{Binding MessageSeverity}" Message="{Binding Message}" Visibility="{Binding MessageVisibility}" />
-             <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{Binding DetailVisibility}"><ScrollViewer MaxHeight="160"><TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
-            </StackPanel>
-           </Grid>
+            </Border>
+            <Border Visibility="{Binding BucketsVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,20,20,22">
+             <!-- The panel's own bindings read the buckets model; the visibility above must still read the manager row, so the context changes here, not on the border. -->
+             <StackPanel Spacing="24" DataContext="{Binding Buckets}">
+              <StackPanel Spacing="4">
+               <TextBlock Text="Scoop buckets" Style="{StaticResource SectionTitle}" />
+               <TextBlock Text="Buckets are lists of apps Scoop can install. Searching Install apps only covers the buckets you have added." Style="{StaticResource Muted}" FontSize="12" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="10" Visibility="{Binding LoadingVisibility}"><ProgressRing Width="14" Height="14" IsActive="True" /><TextBlock Text="Reading your buckets…" FontSize="12" Style="{StaticResource Muted}" /></StackPanel>
+              <StackPanel Spacing="10" Visibility="{Binding AddedVisibility}">
+               <TextBlock Text="{Binding AddedTitle}" Style="{StaticResource GroupLabel}" />
+               <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8">
+                <ItemsControl ItemsSource="{Binding Added}" IsTabStop="False" Margin="0,0,0,-1" AutomationProperties.Name="Added Scoop buckets">
+                 <ItemsControl.ItemTemplate><DataTemplate>
+                  <Grid ColumnSpacing="16" Padding="16,12" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                   <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" FontSize="13" />
+                   <TextBlock Grid.Column="1" Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+                  </Grid>
+                 </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+               </Border>
+              </StackPanel>
+              <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{Binding GitNote}" Visibility="{Binding GitVisibility}" />
+              <StackPanel Spacing="10">
+               <TextBlock Text="{Binding AvailableTitle}" Style="{StaticResource GroupLabel}" />
+               <TextBlock Text="Every bucket in the list is already added." FontSize="12" Style="{StaticResource Muted}" Visibility="{Binding NothingToAddVisibility}" />
+               <Border Visibility="{Binding AvailableVisibility}" Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8">
+                <ItemsControl ItemsSource="{Binding Available}" IsTabStop="False" Margin="0,0,0,-1" AutomationProperties.Name="Scoop buckets you can add">
+                 <ItemsControl.ItemTemplate><DataTemplate>
+                  <Grid ColumnSpacing="16" Padding="16,14" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                   <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                     <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" FontSize="13" VerticalAlignment="Center" />
+                     <Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,1" VerticalAlignment="Center"><TextBlock Text="{Binding Badge}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Description}" FontSize="12" Style="{StaticResource Muted}" />
+                    <TextBlock Text="{Binding Repository}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Style="{StaticResource Muted}" TextWrapping="NoWrap" IsTextSelectionEnabled="True" />
+                   </StackPanel>
+                   <Button Grid.Column="1" Content="{Binding Action}" IsEnabled="{Binding CanAdd}" Click="AddBucketClick" VerticalAlignment="Center" FontSize="12" Padding="14,6" MinWidth="64" AutomationProperties.Name="{Binding InstallLabel}" />
+                  </Grid>
+                 </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+               </Border>
+               <TextBlock Text="Community buckets are run by volunteers, not by Scoop. Apps installed from a bucket follow that bucket's instructions, so add only ones you trust." FontSize="12" Style="{StaticResource Muted}" />
+              </StackPanel>
+              <InfoBar IsOpen="True" IsClosable="False" Severity="{Binding MessageSeverity}" Message="{Binding Message}" Visibility="{Binding MessageVisibility}" />
+              <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{Binding DetailVisibility}"><ScrollViewer MaxHeight="160"><TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
+             </StackPanel>
+            </Border>
            </StackPanel>
           </Border>
          </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
-       </Border>
-       <local:LoadingOverlay IsActive="{Binding Detecting}" Text="Checking package managers…" />
-      </Grid>
-      <StackPanel Spacing="10" Visibility="{Binding RecoveryVisibility}">
-       <StackPanel Orientation="Horizontal" Spacing="10"><ProgressRing Width="14" Height="14" IsActive="{Binding Recovering}" Visibility="{Binding RecoveryProgressVisibility}" /><TextBlock Text="{Binding RecoveryMessage}" FontSize="13" TextWrapping="Wrap" /></StackPanel>
-       <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"><ScrollViewer MaxHeight="180"><TextBlock Text="{Binding RecoveryDetail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
+        <local:LoadingOverlay IsActive="{Binding Detecting}" Text="Checking package managers…" />
+       </Grid>
+       <StackPanel Spacing="10" Visibility="{Binding RecoveryVisibility}">
+        <StackPanel Orientation="Horizontal" Spacing="10"><ProgressRing Width="14" Height="14" IsActive="{Binding Recovering}" Visibility="{Binding RecoveryProgressVisibility}" /><TextBlock Text="{Binding RecoveryMessage}" FontSize="13" TextWrapping="Wrap" /></StackPanel>
+        <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"><ScrollViewer MaxHeight="180"><TextBlock Text="{Binding RecoveryDetail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
+       </StackPanel>
       </StackPanel>
-     </StackPanel>
+     </Grid>
     </ScrollViewer>
     <Grid x:Name="InstallPage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
@@ -310,7 +336,7 @@
        <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
-      <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding Refreshing}" Text="{Binding ProgressText}" />
+      <local:LoadingOverlay Grid.RowSpan="2" IsActive="{Binding ShowLoading}" Text="{Binding ProgressText}" />
      </Grid>
     </Grid>
     <Grid x:Name="ScoutPage" Visibility="Collapsed" RowSpacing="16">

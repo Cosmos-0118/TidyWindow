@@ -43,6 +43,8 @@ public sealed class BucketsViewModel : ObservableState
     public Visibility LoadingVisibility => Loading ? Visibility.Visible : Visibility.Collapsed;
     public string AddedTitle => Added.Count == 0 ? "Added buckets" : $"Added buckets ({Added.Count})";
     public string AvailableTitle => "Add more";
+    public Visibility AddedVisibility => Added.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AvailableVisibility => Available.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NothingToAddVisibility => loaded && Available.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility GitVisibility => gitMissing ? Visibility.Visible : Visibility.Collapsed;
     public string GitNote => ScoopBuckets.GitNeeded;
@@ -73,7 +75,7 @@ public sealed class BucketsViewModel : ObservableState
         Available.Clear(); foreach (var offer in overview.Available) Available.Add(new(offer) { Adding = adding.Contains(offer.Name) });
         loaded = true;
         RefreshEnabled();
-        foreach (var name in new[] { nameof(AddedTitle), nameof(NothingToAddVisibility), nameof(GitVisibility), nameof(Loaded) }) Changed(name);
+        foreach (var name in new[] { nameof(AddedTitle), nameof(AddedVisibility), nameof(AvailableVisibility), nameof(NothingToAddVisibility), nameof(GitVisibility), nameof(Loaded) }) Changed(name);
     }
 
     private void RefreshEnabled() { foreach (var row in Available) row.Enabled = !locked && !gitMissing; }
