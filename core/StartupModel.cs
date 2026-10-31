@@ -11,7 +11,7 @@ public sealed record StartupEntry(
     string Id, StartupKind Kind, StartupScope Scope, string Name, string Publisher, string Description,
     string Command, string ExePath, string Location, string Source, string Key,
     bool Enabled, StartupRisk Risk, string Reason, StartupTrust Trust, bool Running, bool FileMissing,
-    int ServiceStart = 0, bool ServiceDelayed = false)
+    int ServiceStart = 0, bool ServiceDelayed = false, PublisherSource PublisherFrom = PublisherSource.None)
 {
     public bool CanChange => Risk != StartupRisk.Protected;
 }
@@ -23,7 +23,8 @@ public sealed record ScheduledStartup(string Path, string Name, string Descripti
 public sealed record ServiceFacts(string Name, string DisplayName, string Description, string ImagePath, int Type, int Start, bool Delayed, string Account, IReadOnlyList<string> DependsOn);
 public sealed record StoreStartup(string Family, string TaskId, int State, string PackageFullName, string DisplayName, string Publisher, string Executable);
 public sealed record WindowsSetting(string Id, string Name, string Value, string Expected, string Location);
-public sealed record FileFacts(bool Exists, string Company, string Description, string Product, StartupTrust Trust);
+/// <summary><see cref="Signer"/> is the company named by the file's digital signature, and is only filled in when that signature checks out.</summary>
+public sealed record FileFacts(bool Exists, string Company, string Description, string Product, StartupTrust Trust, string Signer = "");
 
 public sealed record StartupPlaces(string Windows, string UserProfile, IReadOnlyList<string> Scratch)
 {
@@ -51,6 +52,10 @@ public interface IStartupSystem
     IReadOnlyList<StoreStartup> StoreTasks();
     IReadOnlyList<WindowsSetting> WindowsSettings();
     FileFacts Describe(string path);
+    /// <summary>The programs listed under "Installed apps", used to name the company behind a file that does not say.</summary>
+    IReadOnlyList<UninstallEntry> InstalledPrograms();
+    /// <summary>The publisher a Store package names in its manifest, for a file inside that package, or "" if it is not in one.</summary>
+    string PackagePublisher(string exePath);
     string Expand(string text);
     bool FileExists(string path);
     string? FindOnPath(string name);

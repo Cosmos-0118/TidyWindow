@@ -42,6 +42,9 @@ public sealed class CleanupScanner(CleanupContext context)
                         Report(index, new CleanupFinding(rule, [], bytes, (int)Math.Min(items, int.MaxValue), 0, false, NeedsAdmin: needsAdmin));
                         return;
                     case CleanupAction.ComponentStore:
+                    case CleanupAction.DiskCleanup:
+                        // Windows' own handlers do the work and report no sizes up front; a handler this Windows lacks means nothing to offer.
+                        if (rule.Action == CleanupAction.DiskCleanup && !rule.Handlers.Any(handler => context.HandlerFolders(handler) is not null)) { Report(index, new CleanupFinding(rule, [], 0, 0, 0, false, NeedsAdmin: needsAdmin)); return; }
                         Report(index, new CleanupFinding(rule, [], 0, 0, 0, false, NeedsAdmin: needsAdmin, Unmeasured: true));
                         return;
                     case CleanupAction.Hibernation:

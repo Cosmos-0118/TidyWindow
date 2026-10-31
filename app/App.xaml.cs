@@ -1,3 +1,6 @@
+using System.Runtime.InteropServices;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using TidyWindow.Next.Core;
 
@@ -23,6 +26,23 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         window = new MainWindow(log);
+        interfaceQueue = window.DispatcherQueue;
         window.Activate();
     }
+
+    private static DispatcherQueue? interfaceQueue;
+
+    /// <summary>Brings the open window forward, restoring it first if it was minimized. Safe to call from any thread, and does nothing before the window exists.</summary>
+    internal static void ShowRunningWindow() => interfaceQueue?.TryEnqueue(() =>
+    {
+        if (Current is not App { window: { } open }) return;
+        if (open.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter) presenter.Restore();
+        open.AppWindow.Show();
+        open.Activate();
+        SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(open));
+    });
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr window);
 }

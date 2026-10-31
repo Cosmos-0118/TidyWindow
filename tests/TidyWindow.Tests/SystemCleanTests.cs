@@ -15,7 +15,8 @@ public sealed class SystemCleanTests : IDisposable
     private CleanupContext Context(bool admin = true) => new()
     {
         Variable = name => name switch { "WINDIR" => Path.Combine(root, "Windows"), "SYSTEMDRIVE" => root, "USERPROFILE" => Path.Combine(root, "Users", "me"), "LOCALAPPDATA" => Path.Combine(root, "Users", "me", "AppData", "Local"), _ => null },
-        IsAdministrator = admin, Now = () => Now, RunningProcesses = () => new HashSet<string>(), Parallelism = 4
+        IsAdministrator = admin, Now = () => Now, RunningProcesses = () => new HashSet<string>(), Parallelism = 4,
+        HandlerFolders = name => name == "Missing" ? null : []
     };
 
     private static CleanupRule Rule(string id, CleanupAction action, string[]? paths = null, bool admin = true) =>
@@ -39,14 +40,47 @@ public sealed class SystemCleanTests : IDisposable
         public long FreeAfter = 1_000;
         public Action? OnRun;
         private bool ran;
+        public string Output = "";
         public Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken)
         {
             Commands.Add(Path.GetFileName(fileName) + " " + string.Join(' ', arguments));
             ran = true; OnRun?.Invoke();
             return Task.FromResult(ExitCode);
         }
+        public async Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken) => (await RunAsync(fileName, arguments, timeout, cancellationToken), Output);
         public void SetCleanupHandler(string handler, int slot, bool enabled) => Handlers.Add((handler, enabled));
         public long FreeBytes(string drive) => ran ? FreeAfter : Free;
+    }
+
+    [Fact]
+    public async Task DiskCleanupHandlersAreSwitchedOnRunTogetherAndAlwaysSwitchedBackOff()
+    {
+        tools.Free = 1_000; tools.FreeAfter = 6_000;
+        var rule = new CleanupRule { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages", "Missing", "Language Pack"] };
+        var report = await new SystemCleanJob(Context(), tools).RunAsync([rule], ["drivers"]);
+        Assert.Equal(["cleanmgr.exe /sagerun:5099"], tools.Commands);
+        Assert.Equal([("Device Driver Packages", true), ("Language Pack", true), ("Device Driver Packages", false), ("Language Pack", false)], tools.Handlers);
+        Assert.Equal(5_000, report.Result.FreedBytes);
+    }
+
+    [Fact]
+    public async Task ADiskCleanupFailureStillSwitchesTheHandlersOffAndIsReported()
+    {
+        tools.ExitCode = 7;
+        var rule = new CleanupRule { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"] };
+        var report = await new SystemCleanJob(Context(), tools).RunAsync([rule], ["drivers"]);
+        Assert.Equal(1, report.Result.Failed);
+        Assert.Equal(("Device Driver Packages", false), tools.Handlers.Last());
+        Assert.Contains(report.Notes, x => x.Contains("error code 7"));
+    }
+
+    [Fact]
+    public async Task OnlyRulesMarkedForAdministratorsCanRunInTheHelper()
+    {
+        var rule = new CleanupRule { Id = "drivers", Group = "Windows", Name = "d", Admin = false, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"] };
+        var report = await new SystemCleanJob(Context(), tools).RunAsync([rule], ["drivers"]);
+        Assert.Empty(tools.Commands);
+        Assert.Equal(0, report.Result.FreedBytes);
     }
 
     [Fact]
@@ -221,6 +255,115 @@ public sealed class SystemCleanTests : IDisposable
     {
         Assert.Equal(64, await SystemCleanHost.RunAsync(["--format-disk", "x", "y"], [], Context(), tools));
         Assert.Equal(64, await SystemCleanHost.RunAsync([], [], Context(), tools));
+    }
+
+    private const string Analysis = """
+        Deployment Image Servicing and Management tool
+        Component Store (WinSxS) information:
+
+        Windows Explorer Reported Size of Component Store : 12.37 GB
+
+        Actual Size of Component Store : 11.89 GB
+
+            Shared with Windows : 8.52 GB
+            Backups and Disabled Features : 3.05 GB
+            Cache and Temporary Data : 322.50 MB
+
+        Date of Last Cleanup : 2026-10-01 10:00:00
+
+        Number of Reclaimable Packages : 3
+        Component Store Cleanup Recommended : Yes
+
+        The operation completed successfully.
+        """;
+
+    [Fact]
+    public void TheComponentStoreReportIsReadByPositionSoTranslatedLabelsStillWork()
+    {
+        Assert.Equal((long)(3.05 * 1073741824) + (long)(322.5 * 1048576), ComponentStoreAnalysis.Reclaimable(Analysis));
+        Assert.Equal((long)(1.5 * 1073741824) + (long)(0.5 * 1073741824), ComponentStoreAnalysis.Reclaimable("a : 4 GB\nb : 3 GB\nc : 2 GB\nd : 1,5 GB\ne : 512 MB\n"));
+        Assert.Null(ComponentStoreAnalysis.Reclaimable("The operation completed successfully."));
+        Assert.Null(ComponentStoreAnalysis.Reclaimable(""));
+    }
+
+    private SystemCleanLauncher Helper(CleanupRule[] catalog, bool admin = true) => new((pipe, ids) => Task.Run(async () =>
+        Assert.Equal(0, await SystemCleanHost.RunAsync([SystemCleanHost.Command, pipe, string.Join(",", ids)], catalog, Context(admin), tools))));
+
+    [Fact]
+    public async Task MeasuringReportsExactSizesAndCleansNothing()
+    {
+        var a = Make("Windows/SoftwareDistribution/Download/a.cab", 300);
+        Make("Windows/SoftwareDistribution/Download/b.cab", 200);
+        Make("hiberfil.sys", 800);
+        tools.Output = Analysis;
+        CleanupRule[] catalog =
+        [
+            new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] },
+            new() { Id = "hibernation", Group = "Windows", Name = "h", Admin = true, Action = CleanupAction.Hibernation },
+            new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore },
+            new() { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"] }
+        ];
+        var report = await Helper(catalog).MeasureAsync(["update-downloads", "hibernation", "component-store", "drivers"]);
+        Assert.Null(report.Error);
+        Assert.Equal(500, report.Items.Single(x => x.Id == "update-downloads").Bytes);
+        Assert.Equal(800, report.Items.Single(x => x.Id == "hibernation").Bytes);
+        var store = report.Items.Single(x => x.Id == "component-store");
+        Assert.False(store.Unmeasured);
+        Assert.True(store.Bytes > 3L * 1073741824);
+        Assert.True(report.Items.Single(x => x.Id == "drivers").Unmeasured);
+        // Looking is not cleaning: nothing was deleted, no handler was armed, and only the read-only analysis ran.
+        Assert.True(File.Exists(a));
+        Assert.Equal(["Dism.exe /Online /Cleanup-Image /AnalyzeComponentStore"], tools.Commands);
+        Assert.Empty(tools.Handlers);
+    }
+
+    [Fact]
+    public async Task MeasuringOnlyLooksAtRulesMarkedForAdministrators()
+    {
+        Make("Users/me/AppData/Local/Temp/a.tmp", 100);
+        CleanupRule[] catalog = [new() { Id = "user-temp", Group = "Windows", Name = "t", Admin = false, Paths = ["%LOCALAPPDATA%\\Temp"] }];
+        var report = await Helper(catalog).MeasureAsync(["user-temp", "not-a-rule"]);
+        Assert.Empty(report.Items);
+        Assert.Null(report.Error);
+    }
+
+    [Fact]
+    public async Task AComponentStoreThatCannotBeAnalysedIsLeftUnmeasuredNotZero()
+    {
+        tools.ExitCode = 740;
+        CleanupRule[] catalog = [new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore }];
+        var item = (await Helper(catalog).MeasureAsync(["component-store"])).Items.Single();
+        Assert.True(item.Unmeasured);
+        Assert.Contains("740", item.Note);
+    }
+
+    [Fact]
+    public async Task MeasuringWithoutAdministratorRightsFailsInsteadOfGuessing()
+    {
+        CleanupRule[] catalog = [new() { Id = "hibernation", Group = "Windows", Name = "h", Admin = true, Action = CleanupAction.Hibernation }];
+        var report = await Helper(catalog, admin: false).MeasureAsync(["hibernation"]);
+        Assert.Empty(report.Items);
+        Assert.Contains("Administrator rights", report.Error);
+    }
+
+    [Fact]
+    public async Task ADeclinedPromptWhileMeasuringIsReportedAsDeclined()
+    {
+        var report = await new SystemCleanLauncher((_, _) => throw new OperationCanceledException()).MeasureAsync(["hibernation"]);
+        Assert.True(report.Declined);
+        Assert.Empty(report.Items);
+    }
+
+    [Fact]
+    public async Task TheMeasureMarkerCanNeverSelectAnythingToClean()
+    {
+        var a = Make("Windows/SoftwareDistribution/Download/a.cab", 300);
+        CleanupRule[] catalog = [new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] }];
+        // Cleaning asks for the rule by id; the marker only ever switches the helper into its read-only mode.
+        var report = await Helper(catalog).MeasureAsync(["update-downloads"]);
+        Assert.Single(report.Items);
+        Assert.True(File.Exists(a));
+        Assert.DoesNotContain(catalog, rule => rule.Id == SystemCleanHost.MeasureMarker);
     }
 
     private sealed class Collect(List<CleanupProgress> list) : IProgress<CleanupProgress> { public void Report(CleanupProgress value) { lock (list) list.Add(value); } }
