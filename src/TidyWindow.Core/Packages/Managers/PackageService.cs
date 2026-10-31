@@ -157,7 +157,7 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
     {
         var command = InstallCommand(manager, package, interactive) with { Progress = progress };
         if (!await installGate.WaitAsync(0, token).ConfigureAwait(false)) throw new InvalidOperationException("An installation is already running.");
-        try { return await runner.RunAsync(command, token).ConfigureAwait(false); }
+        try { return package.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, package.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false); }
         finally { installGate.Release(); }
     }
 

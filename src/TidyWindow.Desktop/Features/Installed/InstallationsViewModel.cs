@@ -65,11 +65,17 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public BulkObservableCollection<InstalledRow> Rows { get; } = [];
     public Visibility TableHeaderVisibility => !compact && Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public bool NeedsRefresh { get; set; } = true;
+    /// <summary>The first read, with nothing to show yet: this is the only time the page is covered and its buttons are off.</summary>
     public bool Refreshing { get => refreshing; private set { Set(ref refreshing, value); NotifyState(); } }
+    private bool updating;
+    /// <summary>A later read, with the list already on screen. The list stays usable, so apps can still be queued while it catches up.</summary>
+    public bool Updating { get => updating; private set { Set(ref updating, value); NotifyState(); } }
+    private bool refreshAgain;
 
-    public bool CanRefresh => !Refreshing && workspace.CanRefresh;
+    public bool CanRefresh => !Refreshing && !Updating && workspace.CanRefresh;
     public string ProgressText => "Checking installed apps and updates…";
     public Visibility ProgressVisibility => Refreshing ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility UpdatingVisibility => Updating ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EmptyVisibility => Rows.Count == 0 && !Refreshing ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyTitle => query.Length > 0 ? "No matching apps" : Errors.Length > 0 ? "The list could not be fully checked" : updatesOnly ? "No available updates" : "No packages to manage";
     public string EmptyDetail => Errors.Length > 0 ? "Open Logs for details, then refresh to try again." : query.Length > 0 || updatesOnly ? "Change your search or filter to see more apps." : "Packages from WinGet, Chocolatey and Scoop appear here. Check Overview if a manager needs attention.";
@@ -102,7 +108,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         }
         finally { selecting = false; }
         NotifySelection();
-        foreach (var name in new[] { nameof(CanRefresh), nameof(ProgressVisibility), nameof(ProgressText), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(CanRefresh), nameof(ProgressVisibility), nameof(UpdatingVisibility), nameof(ProgressText), nameof(EmptyVisibility) }) Changed(name);
     }
     internal void ApplyLayout(AdaptiveLayout layout) { compact = layout.CompactResults; foreach (var row in all) row.Compact = compact; Changed(nameof(TableHeaderVisibility)); }
     // While true, selection changes are batched: one notification at the end instead of one per row.
@@ -114,20 +120,30 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         try { foreach (var row in all) row.IsSelected = false; }
         finally { selecting = false; }
     }
-    private void ApplyFilter()
+    /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
+    private void ApplyFilter(bool keepPosition = false)
     {
-        // One reset instead of clearing and re-adding every row: a list of hundreds of apps would re-measure on each step.
-        Rows.Reset(all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
+        var shown = all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
             (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray());
+            .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray();
+        // A new filter starts the list over (one reset instead of clearing and re-adding every row, which would re-measure on each step).
+        if (keepPosition) Rows.Sync(shown, x => x.Package.Key); else Rows.Reset(shown);
         foreach (var name in new[] { nameof(EmptyVisibility), nameof(EmptyTitle), nameof(EmptyDetail), nameof(TableHeaderVisibility) }) Changed(name);
         NotifySelection();
     }
     public async Task RefreshAsync()
     {
+        // Something finished while a read was already going, so what that read saw may be out of date: read once more when it ends.
+        if (Refreshing || Updating) { if (workspace.CanRefresh) refreshAgain = true; return; }
         if (!CanRefresh) return;
-        Refreshing = true; Errors = "";
-        if (!loaded) { all.Clear(); ApplyFilter(); }
+        do { refreshAgain = false; await ReadAsync(); }
+        while (refreshAgain && workspace.CanRefresh);
+    }
+
+    private async Task ReadAsync()
+    {
+        Errors = "";
+        if (loaded) Updating = true; else { Refreshing = true; all.Clear(); ApplyFilter(); }
         try
         {
             var managers = workspace.Managers.Select(x => x.Status).Where(x => x is not null).Cast<ManagerStatus>().ToArray();
@@ -137,24 +153,31 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 var completed = await Task.WhenAny(pending); pending.Remove(completed);
                 var inventory = await completed;
                 inventories[inventory.Manager] = inventory;
-                foreach (var row in all.Where(x => x.Package.Manager == inventory.Manager)) row.PropertyChanged -= SelectionChanged;
-                all.RemoveAll(x => x.Package.Manager == inventory.Manager);
+                // An app that did not change keeps its row, with its selection, so only what really changed is touched on screen.
+                var previous = new Dictionary<string, InstalledRow>();
+                foreach (var old in all.Where(x => x.Package.Manager == inventory.Manager)) previous.TryAdd(old.Package.Key, old);
+                var reused = new HashSet<InstalledRow>();
+                var current = new List<InstalledRow>(inventory.Packages.Count);
                 foreach (var package in inventory.Packages)
                 {
+                    if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { current.Add(old); continue; }
                     var row = new InstalledRow(package) { Compact = compact };
                     row.PropertyChanged += SelectionChanged;
-                    all.Add(row);
+                    current.Add(row);
                 }
+                foreach (var old in all.Where(x => x.Package.Manager == inventory.Manager && !reused.Contains(x))) old.PropertyChanged -= SelectionChanged;
+                all.RemoveAll(x => x.Package.Manager == inventory.Manager);
+                all.AddRange(current);
                 Errors = string.Join("\n", inventories.Values.Where(x => x.Error is not null || x.UpdateError is not null)
                     .Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error ?? "Updates could not be checked. " + x.UpdateError}"));
-                ApplyFilter();
+                ApplyFilter(keepPosition: true);
             }
             loaded = true; NeedsRefresh = false;
             await LogCoverageAsync();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Errors = ex.Message; log.Write(ActivityLevel.Warning, ActivityArea.Install, "Installed packages could not be checked", ex.ToString()); }
-        finally { Refreshing = false; NotifyState(); }
+        finally { Refreshing = false; Updating = false; NotifyState(); }
     }
     // Records how much of Windows' own installed-apps list this page shows, so a gap in detection is visible in Logs instead of silent.
     private async Task LogCoverageAsync()

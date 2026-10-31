@@ -270,7 +270,8 @@ public sealed class LabViewModel : ObservableState, IDisposable
     private void ShowApps(IReadOnlyList<AppProcess> apps)
     {
         var rows = apps.Select(a => { var row = new AppRow(a); row.Update(a.Priority, boost.IsChanged(a)); return row; }).ToList();
-        Apps.Reset(rows);
+        // A refresh of the running apps, not a new list: keep the person's place in it.
+        Apps.Sync(rows, x => (x.App.Id, x.App.StartTicks));
     }
 
     public void Dispose() { checking?.Cancel(); checking?.Dispose(); }

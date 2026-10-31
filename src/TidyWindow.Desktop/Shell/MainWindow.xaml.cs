@@ -162,6 +162,9 @@ public sealed partial class MainWindow : Window
             if (page == Page.Installed) await installations.RefreshAsync();
         };
         AppWindow.Closing += OnClosing;
+        // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
+        Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
+        Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
         Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
@@ -661,7 +664,8 @@ public sealed partial class MainWindow : Window
             && (x.Operation.Id.Equals("voidtools.Everything", StringComparison.OrdinalIgnoreCase) || x.Operation.Manager == ManagerKind.Chocolatey && x.Operation.Id.Equals("everything", StringComparison.OrdinalIgnoreCase))));
         if (operationQueue.HasWork || operationQueue.Snapshot.Completions <= reconciledCompletions) return;
         reconciledCompletions = operationQueue.Snapshot.Completions;
-        try { await RefreshScoutBackendAsync(); await Refresh(); if (page == Page.Installed) await installations.RefreshAsync(); }
+        // Quietly: the person may already be queueing the next job, so nothing is covered or locked while this catches up.
+        try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); if (page == Page.Installed) await installations.RefreshAsync(); }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
     }
     private async void UninstallInstalledClick(object sender, RoutedEventArgs e)
@@ -680,20 +684,6 @@ public sealed partial class MainWindow : Window
     private void ReportProblem(string key, string title, string detail) =>
         toasts.Show(key, ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
 
-    private async void ToastActionClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) await toast.RunAsync(); }
-    private void ToastDismissClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is ToastItem toast) toast.Dismiss(); }
-
-    // The bar shrinks over exactly as long as the toast has left.
-    private void TimerLoaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Border bar || bar.DataContext is not ToastItem { Seconds: > 0 } toast || bar.RenderTransform is not Microsoft.UI.Xaml.Media.ScaleTransform scale) return;
-        var animation = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { From = 1, To = 0, Duration = new Duration(TimeSpan.FromSeconds(toast.Seconds)), EasingFunction = null };
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, scale);
-        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "ScaleX");
-        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
-        storyboard.Children.Add(animation);
-        storyboard.Begin();
-    }
     private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(Page.Install); args.Handled = true; }
 
     private void ApplyLogFilter()
@@ -753,9 +743,9 @@ public sealed partial class MainWindow : Window
     { if (e.Key == VirtualKey.Enter) { e.Handled = true; await model.SearchAsync(SearchBox.Text, Filter, false); } }
     private void CancelSearchClick(object sender, RoutedEventArgs e) => model.CancelSearch();
     private async void RefreshClick(object sender, RoutedEventArgs e) => await Refresh();
-    private async Task Refresh()
+    private async Task Refresh(bool quiet = false)
     {
-        await model.RefreshAsync();
+        await model.RefreshAsync(quiet);
         installations.NeedsRefresh = true;
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);

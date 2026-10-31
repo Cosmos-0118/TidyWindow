@@ -279,6 +279,24 @@ public sealed class FixStepExecutor : IFixStepExecutor
         }
     }
 
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetOEMCP();
+
+    /// <summary>
+    /// What console programs such as DISM write in. A culture's own OEM code page can be 1 ("none", as for Hindi, Tamil, Kannada and other Indian languages),
+    /// which is not an encoding at all, so Windows is asked which one is really in use and anything unusable falls back to UTF-8.
+    /// </summary>
+    internal static Encoding OemEncoding()
+    {
+        foreach (var page in new[] { (int)GetOEMCP(), CultureInfo.CurrentCulture.TextInfo.OEMCodePage })
+        {
+            if (page <= 1) continue;
+            try { return Encoding.GetEncoding(page); }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
+        }
+        return new UTF8Encoding(false);
+    }
+
     private static async Task<int> RunProgramAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
         var step = context.Step;
@@ -290,7 +308,7 @@ public sealed class FixStepExecutor : IFixStepExecutor
         {
             FixEncoding.Utf16 => Encoding.Unicode,
             FixEncoding.Utf8 => new UTF8Encoding(false),
-            _ => Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)
+            _ => OemEncoding()
         };
         var start = new ProcessStartInfo(path)
         {
@@ -460,6 +478,8 @@ public static class FixHost
                         catch (TimeoutException) { Send(new("timeout")); }
                         catch (OperationCanceledException) { Send(new("fail", Error: "The step was cancelled.")); }
                         catch (Exception ex) when (ex is IOException or Win32Exception or InvalidOperationException or UnauthorizedAccessException) { Send(new("fail", Error: ex.Message)); }
+                        // Whatever else goes wrong in a step must be reported, not end the helper: a helper that just vanishes tells the person nothing.
+                        catch (Exception ex) { Send(new("fail", Error: "The step could not be run: " + ex.Message)); }
                     }
                     break;
                 default: Send(new("fail", Error: "That request was not understood.")); break;

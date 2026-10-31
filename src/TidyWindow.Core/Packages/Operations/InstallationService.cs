@@ -147,7 +147,8 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             if (current is null) return new(ActionOutcome.Unverified, "This app is no longer listed", "Refresh the list before trying again. No command was started.");
             if (action == PackageAction.Update && app.AvailableVersion is { Length: > 0 } target && current.Version == target)
                 return new(ActionOutcome.Completed, $"{app.Name} is already up to date", "The queued target version is already installed. No update was started.");
-            var result = await runner.RunAsync(ActionCommand(manager, current, action, interactive) with { Progress = progress }, token).ConfigureAwait(false);
+            var command = ActionCommand(manager, current, action, interactive) with { Progress = progress };
+            var result = app.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, app.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
             var reason = InstallFailure.Explain(result);
             var detail = $"{current.ManagerName} · {current.Id}\nExit code: {result.ExitCode}\n" + (reason is null ? "" : reason + "\n") + PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
             if (result.ExitCode is not (0 or 1641 or 3010))

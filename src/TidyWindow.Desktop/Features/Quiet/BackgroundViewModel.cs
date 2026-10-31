@@ -207,7 +207,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
                 else row.Reverted = row.Entry.FullyOn;
             }
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
-            ApplyFilter();
+            ApplyFilter(keepPosition: true);
             RefreshChanges();
             foreach (var name in new[] { nameof(FooterNote), nameof(CheckedText), nameof(Summary) }) Changed(name);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Background scan finished", $"{all.Count} items on this PC; {all.Count(x => x.Entry.Running)} running.");
@@ -223,7 +223,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         finally { scanning = false; Notify(); }
     }
 
-    private void ApplyFilter()
+    /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
+    private void ApplyFilter(bool keepPosition = false)
     {
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Matches(BackgroundRow row) => words.All(w =>
@@ -234,7 +235,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         var group = tab switch { BackgroundTab.Telemetry => BackgroundGroup.Telemetry, BackgroundTab.Ai => BackgroundGroup.Ai, _ => BackgroundGroup.Optional };
         var inTab = tab == BackgroundTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What is still active comes first, running before idle, then A to Z.
-        Rows.Reset(inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenByDescending(x => x.Entry.Running).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList());
+        var shown = inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenByDescending(x => x.Entry.Running).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {
             nameof(TelemetryCount), nameof(AiCount), nameof(OptionalCount), nameof(TabNote), nameof(Summary),
@@ -327,8 +329,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         {
             row.Busy = false; working = false;
             RefreshChanges(); Notify();
-            // A rescan is not needed for one switch; the filtered lists only need the new order.
-            ApplyFilter();
+            // A rescan is not needed for one switch; the filtered lists only need the new order, and the person keeps their place in them.
+            ApplyFilter(keepPosition: true);
         }
         return changed;
     }

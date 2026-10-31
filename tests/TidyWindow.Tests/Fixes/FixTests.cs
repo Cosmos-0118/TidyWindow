@@ -453,6 +453,37 @@ public sealed class FixHostTests
     }
 
     [Fact]
+    public async Task AnUnexpectedErrorInAStepIsReportedAndTheHelperKeepsRunning()
+    {
+        var crash = true;
+        var helper = new LiveExecutor((_, _, _) => crash ? throw new ArgumentException("1 is not a supported code page.") : Task.FromResult(0));
+        using var session = Session(helper);
+        await session.OpenAsync();
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => session.ExecuteAsync(Context(Machine()), new Collector(), CancellationToken.None));
+        Assert.Contains("code page", failure.Message);
+
+        // The same helper is still there for the next step instead of having vanished.
+        crash = false;
+        Assert.Equal(0, await session.ExecuteAsync(Context(Machine()), new Collector(), CancellationToken.None));
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public void ProgramOutputIsAlwaysReadWithARealEncoding_EvenWhenTheCultureHasNoOemCodePage()
+    {
+        // Hindi, Tamil, Kannada and other Indian cultures report OEM code page 1, which is not an encoding.
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new("hi-IN");
+            Assert.Equal(1, System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
+            Assert.True(FixStepExecutor.OemEncoding().CodePage > 1);
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = before; }
+    }
+
+    [Fact]
     public async Task AStepThatIsNotInThePlanIsRefused()
     {
         var helper = new LiveExecutor((_, _, _) => Task.FromResult(0));

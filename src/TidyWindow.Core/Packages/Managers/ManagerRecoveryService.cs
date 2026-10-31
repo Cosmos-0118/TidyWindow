@@ -44,7 +44,9 @@ public sealed class ManagerRecoveryService
             progress?.Report("Saving package records and configuration…");
             await Task.Run(() => BackupRecords(manager, location, job), token).ConfigureAwait(false);
             progress?.Report(before.Health == ManagerHealth.Missing ? "Installing from the official source…" : "Repairing the package manager…");
-            var command = CreateCommand(before, location, job);
+            // The runner's notices (the Windows permission prompt, the separate administrator window) are what a person needs to see while this runs.
+            var command = CreateCommand(before, location, job) with
+            { Progress = progress is null ? null : new Progress<CommandOutput>(output => { if (output.Kind == CommandOutputKind.Notice) progress.Report(output.Text); }) };
             var result = await runner.RunAsync(command, token).ConfigureAwait(false);
             progress?.Report("Verifying the installation and source…");
             var after = await health.CheckAsync(manager, true, token).ConfigureAwait(false);

@@ -8,5 +8,6 @@
     <Compile Include="../../src/TidyWindow.Desktop/Shell/AdaptiveLayout.cs" Link="Desktop/AdaptiveLayout.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Shell/AppearanceSettings.cs" Link="Desktop/AppearanceSettings.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Common/BulkObservableCollection.cs" Link="Desktop/BulkObservableCollection.cs" />
+    <Compile Include="../../src/TidyWindow.Desktop/Shell/ToastPolicy.cs" Link="Desktop/ToastPolicy.cs" />
   </ItemGroup>
 </Project>

@@ -11,8 +11,9 @@
     if (!(Test-Path -LiteralPath $root) -or !(Get-ChildItem -LiteralPath $root -Force | Select-Object -First 1)) {
         $installer = Join-Path $job 'install-chocolatey.ps1'
         Download-Official 'https://community.chocolatey.org/install.ps1' $installer
+        # Running a .ps1 never sets $LASTEXITCODE; a failure inside it throws, which ErrorActionPreference turns into a recovery failure.
         & $installer
-        Assert-Native 'Installing Chocolatey'
+        if (!(Test-Path -LiteralPath (Join-Path $root 'bin\choco.exe'))) { throw 'The Chocolatey installer finished, but choco.exe was not created.' }
     } else {
         # The official bootstrap refuses an existing directory. Its documented package installer
         # repairs binaries in place, leaving lib/, config/ and installed applications intact.
@@ -23,5 +24,5 @@
         $installer = Join-Path $unpacked 'tools\chocolateyInstall.ps1'
         if (!(Test-Path -LiteralPath $installer)) { throw 'The Chocolatey package did not contain its installation script.' }
         & $installer
-        Assert-Native 'Repairing Chocolatey'
+        if (!(Test-Path -LiteralPath (Join-Path $root 'bin\choco.exe'))) { throw 'The Chocolatey repair finished, but choco.exe was not created.' }
     }
