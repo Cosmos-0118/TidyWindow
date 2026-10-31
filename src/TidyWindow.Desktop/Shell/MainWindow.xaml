@@ -112,6 +112,10 @@
             </Button>
             <Button Grid.Column="3" Grid.RowSpan="2" Content="{Binding SetupAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding SetupVisibility}" Click="ManagerRecoveryClick" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Padding="10,6" />
            </Grid>
+           <StackPanel Spacing="8" Margin="46,0,0,0" Visibility="{Binding BusyVisibility}">
+            <ProgressBar IsIndeterminate="True" />
+            <TextBlock Text="{Binding Progress}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+           </StackPanel>
            <Grid Visibility="{Binding BucketsVisibility}" Margin="46,0,0,0">
             <!-- The panel's own bindings read the buckets model; the visibility above must still read the manager row, so the context changes here, not on the grid. -->
             <StackPanel Spacing="14" DataContext="{Binding Buckets}">
@@ -243,6 +247,10 @@
       </ComboBox>
      </Grid>
      <StackPanel Grid.Row="2" Spacing="10">
+      <StackPanel Spacing="6" Visibility="{Binding UpdatingVisibility}">
+       <ProgressBar IsIndeterminate="True" />
+       <TextBlock Text="Checking for changes. You can keep updating and uninstalling meanwhile." FontSize="12" Foreground="{ThemeResource MutedBrush}" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
       <Grid ColumnSpacing="12" RowSpacing="8">
        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -498,35 +506,13 @@
      </Grid>
     </Grid>
     <!-- Toasts: every page reports here, so messages never push the page around -->
-    <ItemsControl x:Name="ToastStack" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="380" IsTabStop="False" AutomationProperties.Name="Notifications">
-     <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><AddDeleteThemeTransition /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-     <ItemsControl.ItemTemplate><DataTemplate>
-      <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10">
-       <Grid>
-        <Grid ColumnSpacing="12" Padding="16,14,10,16">
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-         <Grid VerticalAlignment="Top" Margin="0,2,0,0">
-          <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource GoodBrush}" Visibility="{Binding SuccessVisibility}" />
-          <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" Visibility="{Binding WarningVisibility}" />
-          <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding InfoVisibility}" />
-         </Grid>
-         <StackPanel Grid.Column="1" Spacing="3">
-          <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-          <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-          <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ToastActionClick" FontSize="12" Padding="12,5" Margin="0,8,0,0" />
-         </StackPanel>
-         <Button Grid.Column="2" Click="ToastDismissClick" Background="Transparent" BorderThickness="0" CornerRadius="6" VerticalAlignment="Top" Padding="6" AutomationProperties.Name="Dismiss" ToolTipService.ToolTip="Dismiss"><FontIcon Glyph="&#xE711;" FontSize="11" /></Button>
-        </Grid>
-        <!-- Runs down to nothing so the person can see the toast is about to go. -->
-        <Border Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Visibility="{Binding TimerVisibility}" Background="{ThemeResource BadgeBrush}">
-         <Border Loaded="TimerLoaded" Background="{ThemeResource MutedBrush}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-          <Border.RenderTransform><ScaleTransform ScaleX="1" /></Border.RenderTransform>
-         </Border>
-        </Border>
-       </Grid>
-      </Border>
-     </DataTemplate></ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <ScrollViewer x:Name="ToastScroll" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="380" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
+     <ItemsControl x:Name="ToastStack" IsTabStop="False" AutomationProperties.Name="Notifications">
+      <!-- Only moving the others when one goes. Coming and going is played by each card itself, so nothing waits for anything else. -->
+      <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><RepositionThemeTransition IsStaggeringEnabled="False" /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate><DataTemplate><local:ToastCard /></DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </ScrollViewer>
    </Grid>
   </Grid>
  </Grid>

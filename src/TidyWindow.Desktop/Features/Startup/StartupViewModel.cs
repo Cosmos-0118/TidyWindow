@@ -215,7 +215,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             foreach (var change in remembered)
                 if (scan.Entries.FirstOrDefault(x => x.Id == change.Id) is not { Enabled: false }) service.History.Remove(change.Id);
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
-            ApplyFilter();
+            ApplyFilter(keepPosition: true);
             RefreshChanges();
             foreach (var name in new[] { nameof(HiddenNote), nameof(CheckedText) }) Changed(name);
             if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
@@ -231,14 +231,16 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         finally { scanning = false; Notify(); }
     }
 
-    private void ApplyFilter()
+    /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
+    private void ApplyFilter(bool keepPosition = false)
     {
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Matches(StartupRow row) => words.All(w => row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Command.Contains(w, StringComparison.CurrentCultureIgnoreCase));
         bool Wanted(StartupRow row) => filter switch { StartupFilter.On => row.Enabled, StartupFilter.Off => !row.Enabled, _ => true };
         var inTab = tab switch { StartupTab.Apps => Apps(), StartupTab.Background => Background(), StartupTab.Protected => Locked(), _ => [] };
         // What still starts comes first, then A to Z.
-        Rows.Reset(inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList());
+        var shown = inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {
             nameof(AppsCount), nameof(BackgroundCount), nameof(ProtectedCount),
@@ -317,8 +319,8 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         {
             row.Busy = false; working = false;
             RefreshChanges(); Notify();
-            // A rescan is not needed for one switch; the filtered lists only need the new order.
-            ApplyFilter();
+            // A rescan is not needed for one switch; the filtered lists only need the new order, and the person keeps their place in them.
+            ApplyFilter(keepPosition: true);
         }
         return changed;
     }

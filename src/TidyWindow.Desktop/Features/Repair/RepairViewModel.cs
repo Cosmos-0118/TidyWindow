@@ -222,7 +222,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(x => new ProgramRow(x, InstallRepair.RemovalKeys(x, scan.Products))).ToList();
         foreach (var row in allPrograms) if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
-        ApplyFilter();
+        ApplyFilter(keepPosition: true);
         Changed(nameof(ProgramCount));
         if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
         _ = LoadIconsAsync(allPrograms);
@@ -239,10 +239,12 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         catch (OperationCanceledException) { }
     }
 
-    private void ApplyFilter()
+    /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
+    private void ApplyFilter(bool keepPosition = false)
     {
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        Programs.Reset(words.Length == 0 ? allPrograms : allPrograms.Where(x => words.All(w => x.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || x.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase))).ToList());
+        var shown = words.Length == 0 ? allPrograms : allPrograms.Where(x => words.All(w => x.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || x.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase))).ToList();
+        if (keepPosition) Programs.Sync(shown, x => x.Entry.Key); else Programs.Reset(shown);
         Changed(nameof(NoProgramsVisibility)); Changed(nameof(NoProgramsText));
     }
 

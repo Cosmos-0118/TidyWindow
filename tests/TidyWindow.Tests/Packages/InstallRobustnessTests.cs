@@ -45,6 +45,50 @@ public sealed class InstallRobustnessTests
     public void DocumentedWinGetCodesGetAReason(int code, string expected) =>
         Assert.Contains(expected, InstallFailure.Explain(new(code, "", "")));
 
+    private const string StoreAdminOutput = "Found Claude [Anthropic.Claude] Version 2.42304.2\nStarting package install...\nInstaller failed with exit code: 0x80073d28 : The package installation failed because administrator privileges are required.";
+
+    [Fact]
+    public void AStorePackageNeedingAdministratorRightsIsExplainedInHex()
+    {
+        var result = new CommandResult(-1978335226, StoreAdminOutput, "");
+        Assert.True(InstallFailure.NeedsAdministrator(result));
+        Assert.Contains("0x80073d28", InstallFailure.Explain(result));
+        Assert.Contains("administrator rights are required", InstallFailure.Explain(result));
+    }
+
+    [Fact]
+    public void OrdinaryFailuresAndSuccessDoNotNeedAdministrator()
+    {
+        Assert.False(InstallFailure.NeedsAdministrator(new(-1978335226, "Installer failed with exit code: 1603", "")));
+        Assert.False(InstallFailure.NeedsAdministrator(new(0, StoreAdminOutput, "")));
+    }
+
+    [Fact]
+    public async Task AdministratorRightsAreAskedForOnceAndTheAttemptIsRepeatedElevated()
+    {
+        var runs = new List<CommandSpec>();
+        var runner = new ScriptedRunner(command => { runs.Add(command); return command.Elevate ? new(0, "", "") : new(-1978335226, StoreAdminOutput, ""); });
+        var notices = new List<CommandOutput>();
+        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)) { Progress = new Progress<CommandOutput>(notices.Add) }, "Claude", CancellationToken.None);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal([false, true], runs.Select(x => x.Elevate));
+    }
+
+    [Fact]
+    public async Task AnElevatedAttemptThatFailsAgainIsNotRepeated()
+    {
+        var runs = 0;
+        var runner = new ScriptedRunner(_ => { runs++; return new(-1978335226, StoreAdminOutput, ""); });
+        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)), "Claude", CancellationToken.None);
+        Assert.Equal(2, runs);
+        Assert.NotEqual(0, result.ExitCode);
+    }
+
+    private sealed class ScriptedRunner(Func<CommandSpec, CommandResult> handler) : ICommandRunner
+    {
+        public Task<CommandResult> RunAsync(CommandSpec command, CancellationToken cancellationToken = default) => Task.FromResult(handler(command));
+    }
+
     [Fact]
     public void UnknownCodesAreNotInvented() => Assert.Null(InstallFailure.Explain(new(12345, "some output", "")));
 

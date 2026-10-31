@@ -136,7 +136,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     public bool Busy => busy;
     public bool CanChange => !busy;
     /// <summary>True on the first visit and on every "Check again", so the loading animation always covers a scan.</summary>
-    public bool ScanOverlay => scanning;
+    // Only the first read covers the page; a re-read after an edit leaves the list on screen.
+    public bool ScanOverlay => scanning && !loaded;
     public string UndoText { get => undoText; private set { Set(ref undoText, value); Changed(nameof(UndoVisibility)); } }
     public Visibility UndoVisibility => undoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string MissingCommands { get => missingCommands; private set { Set(ref missingCommands, value); Changed(nameof(MissingVisibility)); } }

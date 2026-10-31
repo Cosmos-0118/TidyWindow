@@ -209,7 +209,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
                 else row.Reverted = !row.Entry.Applied && !row.Entry.Partly;
             }
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
-            ApplyFilter();
+            ApplyFilter(keepPosition: true);
             RefreshChanges();
             foreach (var name in new[] { nameof(FooterNote), nameof(CheckedText), nameof(Summary) }) Changed(name);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Tune scan finished", $"{all.Count} tweaks on this PC; {all.Count(x => x.Entry.Applied)} on.");
@@ -225,7 +225,8 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         finally { scanning = false; Notify(); }
     }
 
-    private void ApplyFilter()
+    /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
+    private void ApplyFilter(bool keepPosition = false)
     {
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Matches(TuneRow row) => words.All(w =>
@@ -235,7 +236,8 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         var group = tab switch { TuneTab.Speed => TuneGroup.Speed, TuneTab.Cleaner => TuneGroup.Cleaner, _ => TuneGroup.Comfort };
         var inTab = tab == TuneTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What can still be switched on comes first, so there is something to do at the top; what is already on follows, A to Z.
-        Rows.Reset(inTab.Where(Matches).Where(Wanted).OrderBy(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList());
+        var shown = inTab.Where(Matches).Where(Wanted).OrderBy(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {
             nameof(SpeedCount), nameof(CleanerCount), nameof(ComfortCount), nameof(TabNote), nameof(Summary),
@@ -301,8 +303,8 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         {
             row.Busy = false; working = false;
             RefreshChanges(); Notify();
-            // A rescan is not needed for one switch; the filtered lists only need the new order.
-            ApplyFilter();
+            // A rescan is not needed for one switch; the filtered lists only need the new order, and the person keeps their place in them.
+            ApplyFilter(keepPosition: true);
         }
         return changed;
     }

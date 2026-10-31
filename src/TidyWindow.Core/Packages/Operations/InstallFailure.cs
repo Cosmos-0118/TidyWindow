@@ -38,7 +38,8 @@ public static partial class InstallFailure
         [1603] = "a fatal error during installation",
         [1618] = "another installation is already in progress",
         [1638] = "another version of this app is already installed",
-        [1925] = "administrator rights are required"
+        [1925] = "administrator rights are required",
+        [unchecked((int)0x80073D28)] = "administrator rights are required"
     };
 
     /// <summary>A short reason for a failed command, or null when the code is not recognized.</summary>
@@ -46,13 +47,22 @@ public static partial class InstallFailure
     {
         var known = WinGet.GetValueOrDefault(unchecked((uint)result.ExitCode));
         var inner = InnerCode().Match(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
-        if (inner.Success && int.TryParse(inner.Groups[1].Value, out var code))
+        if (inner.Success && TryParseCode(inner.Groups[1].Value, out var code))
         {
             var meaning = Installer.TryGetValue(code, out var text) ? text : null;
-            var reason = $"The installer started but reported error {code}" + (meaning is null ? "." : $" ({meaning}).");
+            var shown = inner.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? inner.Groups[1].Value : code.ToString();
+            var reason = $"The installer started but reported error {shown}" +(meaning is null ? "." : $" ({meaning}).");
             return known is null ? reason : known + " " + reason;
         }
         return known;
+    }
+
+    private static bool TryParseCode(string value, out int code)
+    {
+        if (!value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) return int.TryParse(value, out code);
+        var parsed = uint.TryParse(value.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out var bits);
+        code = unchecked((int)bits);
+        return parsed;
     }
 
     /// <summary>Codes that mean the app is present or will be after a restart, so they are not errors.</summary>
@@ -66,6 +76,32 @@ public static partial class InstallFailure
     /// <summary>WinGet lists the update but can never apply it, so retrying or re-listing it is pointless.</summary>
     public static bool UpdateCannotBeApplied(int exitCode) => unchecked((uint)exitCode) == 0x8A15008E;
 
-    [GeneratedRegex(@"(?:installer|install) failed with exit code:?\s*(-?\d+)", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// The installer reported that it needs administrator rights (Store packages that register a service do this, and so do some MSI installers).
+    /// WinGet runs unelevated, so it can only report this; asking Windows for permission and trying once more is up to the caller.
+    /// </summary>
+    public static bool NeedsAdministrator(CommandResult result)
+    {
+        if (result.ExitCode == 0) return false;
+        return AdministratorRequired().IsMatch(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
+    }
+
+    /// <summary>Runs a WinGet command. If the installer says it needs administrator rights, tells the person and runs it once more through the Windows permission prompt.</summary>
+    public static async Task<CommandResult> RunAsync(ICommandRunner runner, CommandSpec command, string name, CancellationToken token)
+    {
+        var result = await runner.RunAsync(command, token).ConfigureAwait(false);
+        if (command.Elevate || !NeedsAdministrator(result)) return result;
+        try { command.Progress?.Report(new($"{name} needs administrator permission. Asking Windows for it…", CommandOutputKind.Notice)); }
+        catch { /* A display failure must not stop the retry. */ }
+        var elevated = await runner.RunAsync(command with { Elevate = true }, token).ConfigureAwait(false);
+        // The elevated window's output cannot be captured, so keep what the first attempt said alongside the new exit code.
+        return elevated with { Output = result.Output + "\n" + elevated.Output };
+    }
+
+    [GeneratedRegex(@"0x80073d28|administrator privileges (?:are )?required", RegexOptions.IgnoreCase)]
+    private static partial Regex AdministratorRequired();
+
+    // Installers report the code in decimal ("exit code: 1603") or, for Store packages, in hex ("exit code: 0x80073d28").
+    [GeneratedRegex(@"(?:installer|install) failed with exit code:?\s*(0x[0-9a-f]+|-?\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex InnerCode();
 }

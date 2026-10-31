@@ -25,14 +25,19 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
     public string StatusText => Busy ? "Working…" : Status?.Health switch { ManagerHealth.Ready => "Ready", ManagerHealth.Missing => "Not installed", ManagerHealth.ConnectionIssue => "Connection issue", ManagerHealth.Restricted => "Restricted", ManagerHealth.Unavailable => "Needs repair", _ => "Checking…" };
     public string Detail => Status?.Detail ?? "Checking this device";
     public Visibility SetupVisibility => Status is not null && Status.Health != ManagerHealth.Ready ? Visibility.Visible : Visibility.Collapsed;
-    public string SetupAction => Status?.Health switch { ManagerHealth.Missing => "Install", ManagerHealth.ConnectionIssue => "Retry", ManagerHealth.Restricted => "Details", _ => "Repair" };
+    public string SetupAction => Busy ? (Status?.Health == ManagerHealth.Missing ? "Installing…" : "Repairing…")
+        : Status?.Health switch { ManagerHealth.Missing => "Install", ManagerHealth.ConnectionIssue => "Retry", ManagerHealth.Restricted => "Details", _ => "Repair" };
     private bool busy;
-    public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(StatusText)); } }
+    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(StatusText)); Changed(nameof(SetupAction)); Changed(nameof(BusyVisibility)); } } }
+    private string progress = "";
+    /// <summary>What the running setup is doing right now, shown on the manager's own row so the click visibly did something.</summary>
+    public string Progress { get => progress; set => Set(ref progress, value); }
+    public Visibility BusyVisibility => Busy ? Visibility.Visible : Visibility.Collapsed;
     private bool canRecover;
     public bool CanRecover { get => canRecover; set => Set(ref canRecover, value); }
     public bool Compact { get; set; }
     public GridLength StatusColumnWidth => new(Compact ? 0 : 145);
-    public GridLength SetupColumnWidth => Compact ? GridLength.Auto : new(86);
+    public GridLength SetupColumnWidth => Compact ? GridLength.Auto : new(104);
     public int StatusColumn => Compact ? 1 : 2;
     public int StatusRow => Compact ? 1 : 0;
     public void SetCompact(bool value)
@@ -177,9 +182,14 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         scoopBuckets = new(service, runner);
     }
 
-    public async Task RefreshAsync()
+    private bool quietRefreshing;
+
+    /// <param name="quiet">Re-reads the managers and what is installed without locking anything: no "checking" overlay, and installing and queueing stay available.
+    /// Used to catch up after the queue finishes a job, when the person is already looking at a list and may want to queue the next thing.</param>
+    public async Task RefreshAsync(bool quiet = false)
     {
-        if (Detecting || Busy) return;
+        if (Detecting || Busy || quietRefreshing) return;
+        if (quiet) { await QuietRefreshAsync(); return; }
         foreach (var manager in Managers) manager.CanRecover = false;
         service.ClearSearchCache();
         Detecting = true;
@@ -212,6 +222,27 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         finally { Detecting = false; foreach (var manager in Managers) manager.CanRecover = !Busy && !inventoryChecking; }
         // A bucket list that is open should reflect the Scoop that was just checked.
         foreach (var manager in Managers.Where(x => x.BucketsOpen)) await LoadBucketsAsync(manager);
+    }
+
+    private async Task QuietRefreshAsync()
+    {
+        quietRefreshing = true;
+        try
+        {
+            service.ClearSearchCache();
+            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => health.CheckAsync(x.Kind, token: lifetime.Token))));
+            foreach (var status in statuses)
+            {
+                var row = Managers.Single(x => x.Definition.Kind == status.Definition.Kind);
+                ManagerStatusLog.Record(log, row.Status, status);
+                row.Update(status);
+            }
+            SetInventory(await service.GetInstalledAsync(statuses, lifetime.Token));
+            foreach (var package in Packages) UpdateInstalledState(package);
+            UpdateErrors();
+        }
+        catch (OperationCanceledException) { }
+        finally { quietRefreshing = false; }
     }
 
     private readonly ScoopBuckets scoopBuckets;
@@ -267,11 +298,11 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         Recovering = true; row.Busy = true;
         foreach (var manager in Managers) manager.CanRecover = false;
         foreach (var package in Packages) package.CanInstall = false;
-        RecoveryMessage = $"Checking {row.Name}…"; RecoveryDetail = "";
+        RecoveryMessage = row.Progress = $"Checking {row.Name}…"; RecoveryDetail = "";
         log.Write(ActivityLevel.Info, ActivityArea.Managers, $"{row.Name} setup started");
         try
         {
-            var progress = new Progress<string>(message => { if (Recovering) RecoveryMessage = message; });
+            var progress = new Progress<string>(message => { if (Recovering) RecoveryMessage = row.Progress = message; });
             var result = await recovery.RecoverAsync(row.Definition.Kind, progress, lifetime.Token);
             row.Update(result.Status);
             RecoveryDetail = result.Status.Detail + (result.LogDirectory is null ? "" : "\n\nDetails and backups: " + result.LogDirectory);
@@ -290,7 +321,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         catch (Exception ex) { RecoveryMessage = "Setup could not be completed."; RecoveryDetail = ex.Message; log.Write(ActivityLevel.Error, ActivityArea.Managers, $"{row.Name} setup failed", ex.ToString()); }
         finally
         {
-            Recovering = false; row.Busy = false;
+            Recovering = false; row.Busy = false; row.Progress = "";
             foreach (var manager in Managers) manager.CanRecover = true;
             foreach (var package in Packages) UpdateInstalledState(package);
         }
