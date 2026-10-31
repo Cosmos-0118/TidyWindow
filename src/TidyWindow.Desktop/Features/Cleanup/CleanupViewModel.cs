@@ -22,7 +22,7 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     // ticking it is what asks for permission, so the prompt is always the person's own doing.
     private bool selected = finding.Rule.Level == CleanupLevel.Recommended && !finding.Unmeasured && !finding.NeedsAdmin && !finding.Rule.IsSystemAction;
     private MeasuredItem? exact;
-    private bool measuring, declined;
+    private bool measuring, declined, allowed;
     public CleanupFinding Finding { get; } = finding;
     public bool IsSelected { get => selected; set { if (Set(ref selected, value)) changed(this); } }
     public string Name => Finding.Rule.Name;
@@ -30,6 +30,8 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     /// <summary>What the elevated helper found, once the person has allowed it to look.</summary>
     public MeasuredItem? Exact { get => exact; set { exact = value; NotifySize(); } }
     public bool Measuring { get => measuring; set { if (measuring != value) { measuring = value; NotifySize(); } } }
+    /// <summary>Permission has been given, so what is left is the measuring itself.</summary>
+    public bool Allowed { get => allowed; set { if (allowed != value) { allowed = value; NotifySize(); } } }
     public bool Declined { get => declined; set { if (declined != value) { declined = value; NotifySize(); } } }
     public bool NeedsMeasuring => NeedsAdmin && exact is null;
     public long Bytes => exact?.Bytes ?? Finding.Bytes;
@@ -48,7 +50,7 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     {
         get
         {
-            if (measuring) return "asking for permission";
+            if (measuring) return !allowed ? "asking for permission" : Finding.Rule.Action == CleanupAction.ComponentStore ? "Windows is working it out, a few minutes" : "measuring";
             if (exact is { } found) return found.Unmeasured ? "cleaning" : found.Files == 1 ? "1 file" : $"{found.Files:N0} files";
             if (NeedsAdmin) return declined ? "permission declined" : "needs admin to measure";
             return Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
@@ -169,13 +171,29 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         work?.Dispose(); work = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = work.Token;
         measuringAdmin = true;
-        foreach (var row in rows) { row.Declined = false; row.Measuring = true; }
+        foreach (var row in rows) { row.Declined = false; row.Allowed = false; row.Measuring = true; }
         Status = "Waiting for administrator permission to measure…";
         Notify();
         string? problem = null;
+        var byId = rows.ToDictionary(x => x.Finding.Rule.Id);
         try
         {
-            var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(), token);
+            // Sizes arrive one at a time: Windows can take minutes over its update files, and the other rows should not wait for them.
+            var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(),
+                onItem: item => post(() =>
+                {
+                    if (current != generation || !byId.TryGetValue(item.Id, out var row)) return;
+                    row.Exact = item; row.Measuring = false;
+                    Recount();
+                }),
+                onAllowed: () => post(() =>
+                {
+                    if (current != generation) return;
+                    foreach (var row in rows.Where(x => x.Exact is null)) row.Allowed = true;
+                    Status = "Measuring… Windows can take a few minutes over its update files.";
+                    Notify();
+                }),
+                cancellationToken: token);
             if (current != generation) return;
             if (report.Declined) problem = "Administrator permission was declined, so the size of system areas is not shown. Tick the item again to retry.";
             else if (report.Error is not null) problem = "The sizes could not be measured: " + ToastCenter.Brief(report.Error);

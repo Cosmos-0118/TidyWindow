@@ -107,24 +107,31 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
 
     /// <summary>
     /// Measures what the given administrator rules could free, without cleaning anything. Files areas are scanned with full access, so
-    /// nothing is left unreadable; the component store is sized by Windows' own analysis.
+    /// nothing is left unreadable; the component store is sized by Windows' own analysis, which can take minutes, so it goes last
+    /// and every other size is reported through <paramref name="progress"/> as soon as it is known.
     /// </summary>
-    public async Task<IReadOnlyList<MeasuredItem>> MeasureAsync(IReadOnlyList<CleanupRule> catalog, IReadOnlyCollection<string> ruleIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MeasuredItem>> MeasureAsync(IReadOnlyList<CleanupRule> catalog, IReadOnlyCollection<string> ruleIds, IProgress<MeasuredItem>? progress = null, CancellationToken cancellationToken = default)
     {
         // Same guard as cleaning: only rules marked for administrators are ever looked at here.
         var rules = catalog.Where(rule => rule.Admin && ruleIds.Contains(rule.Id)).ToList();
         if (!context.IsAdministrator) throw new InvalidOperationException("Administrator rights were not available, so nothing was measured.");
         var findings = await new CleanupScanner(context).ScanAsync(rules, null, cancellationToken).ConfigureAwait(false);
-        var items = new List<MeasuredItem>();
-        foreach (var finding in findings)
+        var measured = new Dictionary<string, MeasuredItem>();
+        foreach (var finding in findings.OrderBy(x => x.Rule.Action == CleanupAction.ComponentStore))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var rule = finding.Rule;
-            if (rule.Action == CleanupAction.ComponentStore) { items.Add(await AnalyzeComponentStoreAsync(rule, cancellationToken).ConfigureAwait(false)); continue; }
-            var note = finding.Unmeasured ? "Windows reports the size only after it has cleaned." : null;
-            items.Add(new MeasuredItem(rule.Id, finding.Bytes, finding.Files, finding.Unreadable, finding.Unmeasured, note));
+            MeasuredItem item;
+            if (rule.Action == CleanupAction.ComponentStore) item = await AnalyzeComponentStoreAsync(rule, cancellationToken).ConfigureAwait(false);
+            else
+            {
+                var note = finding.Unmeasured ? "Windows reports the size only after it has cleaned." : null;
+                item = new MeasuredItem(rule.Id, finding.Bytes, finding.Files, finding.Unreadable, finding.Unmeasured, note);
+            }
+            measured[rule.Id] = item;
+            progress?.Report(item);
         }
-        return items;
+        return findings.Select(x => measured[x.Rule.Id]).ToList();
     }
 
     private async Task<MeasuredItem> AnalyzeComponentStoreAsync(CleanupRule rule, CancellationToken token)
