@@ -17,6 +17,8 @@ public sealed class TuneRow(TuneEntry entry) : ObservableState
     public string Name => current.Item.Name;
     // Two-way only so the switch stays attached to this value after the person flips it; the change itself is made by the page, and the switch snaps to the real state when this is raised.
     public bool Enabled { get => current.Applied; set { } }
+    /// <summary>Rows that are off step back, so what is on stands out at a glance.</summary>
+    public double Dim => current.Applied || current.Partly ? 1 : 0.55;
     public bool CanToggle => current.CanChange && !busy;
     public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanToggle)); } }
 
@@ -107,7 +109,7 @@ public sealed class TuneRow(TuneEntry entry) : ObservableState
         current = updated; facts = null;
         foreach (var name in new[]
         {
-            nameof(Enabled), nameof(Entry), nameof(CanToggle), nameof(Facts), nameof(Note), nameof(NoteVisibility), nameof(LockVisibility), nameof(ToggleVisibility), nameof(PartlyVisibility), nameof(RevertedVisibility)
+            nameof(Enabled), nameof(Entry), nameof(Dim), nameof(CanToggle), nameof(Facts), nameof(Note), nameof(NoteVisibility), nameof(LockVisibility), nameof(ToggleVisibility), nameof(PartlyVisibility), nameof(RevertedVisibility)
         }) Changed(name);
     }
 }
@@ -130,6 +132,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     private TuneFilter filter = TuneFilter.All;
     private IReadOnlyList<TuneRow> all = [];
     private int notOnThisPc;
+    private bool explorerStale;
 
     /// <summary>The rows of the open tab, already narrowed by the search and the On/Off filter.</summary>
     public BulkObservableCollection<TuneRow> Rows { get; } = new();
@@ -183,13 +186,29 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
 
     public string FooterNote => $"Only settings with a clear, noticeable effect are listed. Popular “registry boosters” with no proof behind them are left out on purpose. Every change keeps the original value so it can be put back exactly.{(notOnThisPc > 0 ? $" {notOnThisPc:N0} more are for other versions of Windows." : "")}";
 
+    // Turned on by TidyWindow earlier and put back since, such as by a Windows update. Only those that can be changed again are offered.
+    private IReadOnlyList<TuneRow> RevertedRows => all.Where(x => x.Reverted && !x.Entry.Applied && !x.Entry.Partly && x.Entry.CanChange).ToList();
+    public int RevertedCount => RevertedRows.Count;
+    public Visibility RevertedVisibility => RevertedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string RevertedTitle => RevertedCount == 1 ? "Something turned 1 tweak back off" : $"Something turned {RevertedCount:N0} tweaks back off";
+    public bool CanTurnOnAgain => !Busy && RevertedCount > 0;
+
+    // A tweak that is read by File Explorer was changed since Explorer last restarted, so the person can change several and restart once.
+    public bool NeedsExplorerRestart => explorerStale && restartExplorer is not null;
+    public Visibility ExplorerVisibility => NeedsExplorerRestart ? Visibility.Visible : Visibility.Collapsed;
+    public bool CanRestartExplorer => !Busy && NeedsExplorerRestart;
+
     public string Query { get => query; set { if (Set(ref query, value)) ApplyFilter(); } }
     public TuneTab Tab { get => tab; set { if (Set(ref tab, value)) ApplyFilter(); } }
     public TuneFilter Filter { get => filter; set { if (Set(ref filter, value)) ApplyFilter(); } }
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[]
+        {
+            nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(CanTurnOnAgain), nameof(CanRestartExplorer), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility),
+            nameof(RevertedCount), nameof(RevertedVisibility), nameof(RevertedTitle), nameof(NeedsExplorerRestart), nameof(ExplorerVisibility)
+        }) Changed(name);
     }
 
     public async Task ScanAsync()
@@ -214,7 +233,13 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
             foreach (var name in new[] { nameof(FooterNote), nameof(CheckedText), nameof(Summary) }) Changed(name);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Tune scan finished", $"{all.Count} tweaks on this PC; {all.Count(x => x.Entry.Applied)} on.");
             var back = all.Where(x => x.Reverted).ToList();
-            if (back.Count > 0) toasts.Show("tune-reverted", ToastKind.Info, back.Count == 1 ? $"{back[0].Name} was changed back" : $"{back.Count} tweaks were changed back", "Something, such as a Windows update, put them back. You can turn them on again here.", seconds: 10);
+            if (back.Count > 0)
+            {
+                var title = back.Count == 1 ? $"{back[0].Name} was changed back" : $"{back.Count} tweaks were changed back";
+                const string why = "Something, such as a Windows update, put them back.";
+                if (RevertedRows.Count > 0) toasts.Show("tune-reverted", ToastKind.Info, title, why, "Turn on again", TurnOnAgainAsync, 12);
+                else toasts.Show("tune-reverted", ToastKind.Info, title, why + " You can turn them on again here.", seconds: 10);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -229,9 +254,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     private void ApplyFilter(bool keepPosition = false)
     {
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(TuneRow row) => words.All(w =>
-            row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) ||
-            row.Entry.Item.Summary.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Targets.Any(t => t.Target.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase)));
+        bool Matches(TuneRow row) => TuneSearch.Matches(row.Entry, words);
         bool Wanted(TuneRow row) => filter switch { TuneFilter.On => row.Enabled, TuneFilter.Off => !row.Enabled, _ => true };
         var group = tab switch { TuneTab.Speed => TuneGroup.Speed, TuneTab.Cleaner => TuneGroup.Cleaner, _ => TuneGroup.Comfort };
         var inTab = tab == TuneTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
@@ -266,53 +289,97 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     public async Task<bool> SetAsync(TuneRow row, bool enable)
     {
         if (Busy || !row.Entry.CanChange || row.Enabled == enable) return false;
-        working = true; row.Busy = true; Notify();
-        var changed = false;
+        working = true; Notify();
+        try { return await ChangeAsync(row, enable, announce: true) == Attempt.Done; }
+        finally { Finish(); }
+    }
+
+    private enum Attempt { Done, Failed, Declined }
+
+    private void Finish()
+    {
+        working = false;
+        RefreshChanges(); Notify();
+        // A rescan is not needed for a switch; the filtered lists only need the new order, and the person keeps their place in them.
+        ApplyFilter(keepPosition: true);
+    }
+
+    /// <param name="announce">Say so in a toast. Off when many are changed together, which then say it once.</param>
+    private async Task<Attempt> ChangeAsync(TuneRow row, bool enable, bool announce)
+    {
+        row.Busy = true;
         try
         {
             var outcome = await manager.SetAsync(row.Entry, enable);
             if (outcome.Ok)
             {
-                changed = true;
                 var item = row.Entry.Item;
                 if (await Task.Run(() => TuneScan.Find(system, catalog, row.Id)) is { } after) row.Update(after);
                 row.Reverted = false;
+                // Kept until Explorer is restarted, so changing several tweaks needs one restart at the end, not one per toast.
+                if (item.Takes == TuneEffect.Explorer) explorerStale = true;
                 var restart = item.Takes == TuneEffect.Explorer && restartExplorer is not null;
-                if (enable) toasts.Show("tune", ToastKind.Success, $"{row.Name} is on", outcome.Note ?? "You can turn it off any time.", restart ? "Restart Explorer" : "Turn off", restart ? RestartExplorerAsync : () => SetAsync(row, false), 12);
-                else toasts.Show("tune", ToastKind.Success, $"{row.Name} is off", outcome.Note ?? "Put back the way it was.", restart ? "Restart Explorer" : "", restart ? RestartExplorerAsync : null, 12);
+                if (announce)
+                {
+                    if (enable) toasts.Show("tune", ToastKind.Success, $"{row.Name} is on", outcome.Note ?? "You can turn it off any time.", restart ? "Restart Explorer" : "Turn off", restart ? RestartExplorerAsync : () => SetAsync(row, false), 12);
+                    else toasts.Show("tune", ToastKind.Success, $"{row.Name} is off", outcome.Note ?? "Put back the way it was.", restart ? "Restart Explorer" : "", restart ? RestartExplorerAsync : null, 12);
+                }
                 log.Write(ActivityLevel.Success, ActivityArea.App, enable ? "Tweak turned on" : "Tweak turned off", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
+                return Attempt.Done;
             }
-            else
-            {
-                toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
-                log.Write(ActivityLevel.Warning, ActivityArea.App, "Tweak could not be changed", $"{row.Name}: {outcome.Error}");
-                if (await Task.Run(() => TuneScan.Find(system, catalog, row.Id)) is { } current) row.Update(current);
-            }
+            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Tweak could not be changed", $"{row.Name}: {outcome.Error}");
+            if (await Task.Run(() => TuneScan.Find(system, catalog, row.Id)) is { } current) row.Update(current);
+            return Attempt.Failed;
         }
         catch (OperationCanceledException)
         {
             toasts.Show("tune", ToastKind.Info, "Administrator permission was declined", "Nothing was changed.");
             log.Write(ActivityLevel.Info, ActivityArea.App, "Tweak change stopped", "Administrator permission was declined.");
+            return Attempt.Declined;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Tweak could not be changed", ex.Message);
+            return Attempt.Failed;
         }
-        finally
-        {
-            row.Busy = false; working = false;
-            RefreshChanges(); Notify();
-            // A rescan is not needed for one switch; the filtered lists only need the new order, and the person keeps their place in them.
-            ApplyFilter(keepPosition: true);
-        }
-        return changed;
+        finally { row.Busy = false; }
     }
 
-    private async Task RestartExplorerAsync()
+    /// <summary>Turns on again everything TidyWindow turned on that something else has since put back.</summary>
+    public async Task TurnOnAgainAsync()
+    {
+        var rows = RevertedRows;
+        if (Busy || rows.Count == 0) return;
+        working = true; Notify();
+        var done = 0;
+        try
+        {
+            foreach (var row in rows)
+            {
+                var result = await ChangeAsync(row, true, announce: false);
+                if (result == Attempt.Done) done++;
+                // Declining the permission prompt once means the rest would only ask again.
+                else if (result == Attempt.Declined) break;
+            }
+            if (done == rows.Count) toasts.Show("tune", ToastKind.Success, done == 1 ? "1 tweak turned on again" : $"{done} tweaks turned on again", "You can turn any of them off here.", seconds: 12);
+            else if (done > 0) toasts.Show("tune", ToastKind.Warning, $"{done} of {rows.Count} turned on again", "The rest could not be changed. They are still marked on this page.", seconds: 12);
+            log.Write(ActivityLevel.Info, ActivityArea.App, "Tweaks turned on again", $"{done} of {rows.Count}.");
+        }
+        finally { Finish(); }
+    }
+
+    /// <summary>Restarts File Explorer so the changes that need it show up.</summary>
+    public async Task RestartExplorerAsync()
     {
         if (restartExplorer is null) return;
-        try { await restartExplorer(); }
+        try
+        {
+            await restartExplorer();
+            explorerStale = false;
+            Notify();
+        }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
         {
             toasts.Show("tune-explorer", ToastKind.Warning, "File Explorer could not be restarted", ToastCenter.Brief(ex.Message));
@@ -332,6 +399,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         {
             var results = await manager.RestoreAllAsync(system, catalog);
             var done = results.Count(x => x.Outcome.Ok);
+            if (results.Any(x => x.Outcome.Ok && catalog.FirstOrDefault(c => string.Equals(c.Id, x.Change.Id, StringComparison.OrdinalIgnoreCase)) is { Takes: TuneEffect.Explorer })) explorerStale = true;
             if (results.Count == 0) toasts.Show("tune", ToastKind.Info, "Nothing to put back");
             else if (done == results.Count) toasts.Show("tune", ToastKind.Success, done == 1 ? "1 tweak put back" : $"{done} tweaks put back");
             else toasts.Show("tune", ToastKind.Warning, $"{done} of {results.Count} put back", ToastCenter.Brief(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);

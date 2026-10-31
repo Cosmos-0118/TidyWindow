@@ -128,10 +128,16 @@ public static partial class TuneGuard
     private static readonly Place[] Allowed =
     [
         new(TuneScope.User, @"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell", ["FolderType"]),
-        new(TuneScope.User, @"Control Panel\Desktop", ["AutoEndTasks", "WaitToKillAppTimeout", "MenuShowDelay"]),
+        new(TuneScope.User, @"Control Panel\Desktop", ["AutoEndTasks", "WaitToKillAppTimeout", "MenuShowDelay", "JPEGImportQuality"]),
         new(TuneScope.User, @"Control Panel\Desktop\WindowMetrics", ["MinAnimate"]),
-        new(TuneScope.User, Explorer, ["TaskbarAnimations", "HideFileExt"]),
+        new(TuneScope.User, Explorer, ["TaskbarAnimations", "HideFileExt", "LastActiveClick", "LaunchTo", "ShowSyncProviderNotifications", "Start_TrackDocs", "Start_IrisRecommendations"]),
         new(TuneScope.User, Explorer + @"\TaskbarDeveloperSettings", ["TaskbarEndTask"]),
+        new(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\Explorer\OperationStatusManager", ["EnthusiastMode"]),
+        new(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement", ["ScoobeSystemSettingEnabled"]),
+        new(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\Start", ["ShowRecentList", "ShowFrequentList"]),
+        new(TuneScope.User, @"Software\Microsoft\GameBar", ["UseNexusForGameBarEnabled"]),
+        new(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\GameDVR", ["AppCaptureEnabled"]),
+        new(TuneScope.User, @"System\GameConfigStore", ["GameDVR_Enabled"]),
         new(TuneScope.User, Delivery, ["ContentDeliveryAllowed", "OemPreinstalledAppsEnabled", "PreInstalledAppsEnabled", "PreInstalledAppsEverEnabled", "SilentInstalledAppsEnabled", "SoftLandingEnabled", "SystemPaneSuggestionsEnabled",
             "SubscribedContent-310093Enabled", "SubscribedContent-338387Enabled", "SubscribedContent-338388Enabled", "SubscribedContent-338389Enabled", "SubscribedContent-338393Enabled", "SubscribedContent-353694Enabled", "SubscribedContent-353696Enabled"]),
         new(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo", ["Enabled"]),
@@ -146,6 +152,8 @@ public static partial class TuneGuard
         new(TuneScope.Machine, @"SOFTWARE\Policies\Microsoft\Windows\System", ["PublishUserActivities", "UploadUserActivities", "EnableActivityFeed"]),
         new(TuneScope.Machine, @"SOFTWARE\Policies\Microsoft\Windows\CloudContent", ["DisableWindowsConsumerFeatures"]),
         new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\FileSystem", ["LongPathsEnabled"]),
+        new(TuneScope.Machine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata", ["PreventDeviceMetadataFromNetwork"]),
+        new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\Session Manager\Power", ["HiberbootEnabled"]),
         new(TuneScope.Machine, @"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", ["Enabled"])
     ];
 
@@ -236,6 +244,19 @@ public sealed record TuneEntry(TuneItem Item, bool Present, bool Applied, bool P
 }
 
 public sealed record TuneScanResult(IReadOnlyList<TuneEntry> Entries, int NotOnThisPc);
+
+/// <summary>The search box: every word must be found somewhere in what a person could reasonably look for, including the registry key and value names.</summary>
+public static class TuneSearch
+{
+    public static bool Matches(TuneEntry entry, IReadOnlyList<string> words) => words.All(word => Has(entry, word));
+
+    private static bool Has(TuneEntry entry, string word)
+    {
+        bool In(string text) => text.Contains(word, StringComparison.CurrentCultureIgnoreCase);
+        var item = entry.Item;
+        return In(item.Name) || In(item.Topic) || In(item.Summary) || In(item.Effect) || entry.Targets.Any(t => In(t.Target.Name) || In(t.Target.Key));
+    }
+}
 
 /// <summary>Reads what is on this PC and works out, for each catalog item, whether it applies here and whether it is already applied.</summary>
 public static class TuneScan

@@ -60,7 +60,7 @@ public sealed class TuneCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = TuneCatalog.Load();
-        Assert.Equal(16, catalog.Count);
+        Assert.Equal(25, catalog.Count);
         Assert.Empty(TuneGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<TuneGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); });
@@ -93,9 +93,105 @@ public sealed class TuneCatalogTests
             Assert.DoesNotContain(@"\Services\", target.Key, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Defender", target.Key, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("DataCollection", target.Key, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("GameDVR", target.Key, StringComparison.OrdinalIgnoreCase);
+            // Quiet owns the machine-wide game recording policy; Tune only touches the per-user Game Bar switches.
+            Assert.DoesNotContain(@"Policies\Microsoft\Windows\GameDVR", target.Key, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("WindowsAI", target.Key, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Fact]
+    public void SettingsThatNothingProvesDoAnythingAreNotOffered()
+    {
+        // Left out on purpose; docs/tune-research.md says why for each.
+        var names = TuneCatalog.Load().SelectMany(x => x.Targets).Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var left in new[] { "DragTrayEnabled", "ShortcutNameTemplate", "DisplayParameters", "RestartApps", "DisableConsumerAccountStateContent", "SettingsPageVisibility", "HideRecommendedSection", "EnableSnapAssistFlyout" })
+            Assert.DoesNotContain(left, names);
+    }
+
+    [Fact]
+    public void EveryItemIsWhollyUserOrWhollyMachineAndTheAdministratorHelperNeverSeesAUserValue()
+    {
+        var catalog = TuneCatalog.Load();
+        foreach (var item in catalog)
+            foreach (var target in item.Targets)
+                Assert.False(TuneGuard.AllowsValue(item.Scope == TuneScope.User ? TuneScope.Machine : TuneScope.User, target.Key, target.Name), $"{item.Id}: {target.Key}\\{target.Name}");
+        Assert.All(catalog.Where(x => x.Scope == TuneScope.Machine), x => Assert.All(x.Targets, t => Assert.False(t.Key.StartsWith("Software\\", StringComparison.Ordinal) && !t.Key.StartsWith("SOFTWARE\\", StringComparison.Ordinal))));
+    }
+
+    [Theory]
+    [InlineData("last-active-click", "LastActiveClick", "1", TuneScope.User, TuneEffect.Explorer)]
+    [InlineData("explorer-this-pc", "LaunchTo", "1", TuneScope.User, TuneEffect.Now)]
+    [InlineData("detailed-file-transfer", "EnthusiastMode", "1", TuneScope.User, TuneEffect.Now)]
+    [InlineData("wallpaper-quality", "JPEGImportQuality", "100", TuneScope.User, TuneEffect.SignOut)]
+    [InlineData("no-device-companion-apps", "PreventDeviceMetadataFromNetwork", "1", TuneScope.Machine, TuneEffect.Now)]
+    [InlineData("fast-startup-off", "HiberbootEnabled", "0", TuneScope.Machine, TuneEffect.Restart)]
+    public void TheNewSingleValueItemsWriteWhatTheyPromise(string id, string name, string value, TuneScope scope, TuneEffect takes)
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == id);
+        var target = Assert.Single(item.Targets);
+        Assert.Equal(name, target.Name); Assert.Equal(value, target.Value);
+        Assert.Equal(scope, item.Scope); Assert.Equal(takes, item.Takes);
+        Assert.Equal(TuneKind.Dword, target.Kind);
+    }
+
+    [Fact]
+    public void TheGameBarItemTurnsOffTheThreePerUserSwitchesAndLeavesQuietsPolicyAlone()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "no-gamebar-popup");
+        Assert.Equal(TuneScope.User, item.Scope);
+        Assert.Equal(["UseNexusForGameBarEnabled", "AppCaptureEnabled", "GameDVR_Enabled"], item.Targets.Select(x => x.Name).ToArray());
+        Assert.All(item.Targets, x => { Assert.Equal("0", x.Value); Assert.Equal("1", x.Normal); });
+    }
+
+    [Fact]
+    public void FastStartupOffAsksFirstBecauseBootCanBeSlower()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "fast-startup-off");
+        Assert.Equal(TuneRisk.Careful, item.Risk);
+        Assert.Equal(TuneGroup.Comfort, item.Group);
+    }
+
+    [Fact]
+    public void TheNewStartItemNeedsWindows11AndLeavesTheUntouchedSettingsToBeDeleted()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "clean-start");
+        Assert.Equal(22000, item.MinBuild);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 19045 }, [item]).Entries);
+        // ShowRecentList and ShowFrequentList have no known Windows default, so putting back without a record removes them.
+        Assert.All(item.Targets.Where(x => x.Name.StartsWith("Show", StringComparison.Ordinal)), x => Assert.Null(x.Normal));
+    }
+
+    [Fact]
+    public void TheSetupNagsItemCreatesItsMissingKeyAndRemovesTheValueAgain()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "no-setup-nags");
+        var pc = new FakeTunePc();
+        var changer = new LocalTuneChanger(pc, pc, [item]);
+
+        var before = changer.Change(new(item.Id, true)).Before!;
+        Assert.True(Assert.Single(TuneScan.Run(pc, [item]).Entries).Applied);
+
+        Assert.True(changer.Change(new(item.Id, false, before)).Ok);
+        Assert.Null(pc.Read(TuneScope.User, @"Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement", "ScoobeSystemSettingEnabled"));
+    }
+
+    [Fact]
+    public void SearchFindsATweakByTheRegistryKeyTheValueOrWhatItDoes()
+    {
+        var catalog = TuneCatalog.Load();
+        var entries = TuneScan.Run(new FakeTunePc(), catalog).Entries;
+        IEnumerable<string> Find(params string[] words) => entries.Where(x => TuneSearch.Matches(x, words)).Select(x => x.Id);
+
+        Assert.Contains("suggestions", Find("ContentDeliveryManager"));
+        Assert.Contains("classic-menu", Find("CLSID"));
+        Assert.Contains("memory-integrity", Find("DeviceGuard"));
+        Assert.Contains("memory-integrity", Find("HVCI"));
+        Assert.Contains("fast-startup-off", Find("Hiberboot"));
+        // The effect text is searched too, and every word has to match somewhere.
+        Assert.Contains("sticky-keys-prompt", Find("accessibility", "Flags"));
+        Assert.DoesNotContain("sticky-keys-prompt", Find("accessibility", "Hiberboot"));
+        Assert.Empty(Find("nothing-called-this"));
+        Assert.Equal(entries.Count, Find().Count());
     }
 
     [Theory]
