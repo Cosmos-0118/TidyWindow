@@ -77,6 +77,7 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
         void Add(string label, string value, bool mono = false) { if (value.Length > 0) list.Add(new(label, value, mono)); }
         if (!string.Equals(current.Description, Name, StringComparison.OrdinalIgnoreCase)) Add("About", current.Description);
         Add("Safety", current.Reason);
+        Add("Publisher", PublisherFact());
         Add("Runs", current.Command, true);
         Add("Where", current.Location);
         if (current.Kind != StartupKind.StoreApp) Add("Applies to", current.Scope == StartupScope.User ? "Just you" : "Everyone who uses this PC");
@@ -89,6 +90,17 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
         });
         return list;
     }
+
+    // Says where the name came from, so a person can tell a signed company from a guess, and admits it when nothing could name the publisher.
+    private string PublisherFact() => current.Kind == StartupKind.WindowsSetting ? "" : current.PublisherFrom switch
+    {
+        PublisherSource.FileProperties => $"{current.Publisher}, as the program's own file details say",
+        PublisherSource.Package => $"{current.Publisher}, as its Store package says",
+        PublisherSource.Signature => $"{current.Publisher}, who signed the program",
+        PublisherSource.InstalledApp => $"{current.Publisher}, as listed in Installed apps",
+        PublisherSource.TaskAuthor => $"{current.Publisher}, as named by the scheduled task",
+        _ => "Not named by the program, its signature, its Store package or the Installed apps list"
+    };
 
     public void Update(StartupEntry updated)
     {

@@ -27,6 +27,10 @@ internal sealed class FakeStartupPc : IStartupSystem, IStartupWriter
     public IReadOnlyList<StoreStartup> StoreTasks() => Store;
     public IReadOnlyList<WindowsSetting> WindowsSettings() => Settings;
     public FileFacts Describe(string path) => Files.GetValueOrDefault(path) ?? new(false, "", "", "", StartupTrust.Unknown);
+    public List<UninstallEntry> Installed = [];
+    public Dictionary<string, string> Packages = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<UninstallEntry> InstalledPrograms() => Installed;
+    public string PackagePublisher(string exePath) => Packages.FirstOrDefault(x => exePath.Contains(x.Key, StringComparison.OrdinalIgnoreCase)).Value ?? "";
     public string Expand(string text) => text.Replace("%SystemRoot%", @"C:\Windows", StringComparison.OrdinalIgnoreCase);
     public bool FileExists(string path) => Files.TryGetValue(path, out var facts) && facts.Exists;
     public string? FindOnPath(string name) => Files.Keys.FirstOrDefault(x => x.EndsWith("\\" + name, StringComparison.OrdinalIgnoreCase));

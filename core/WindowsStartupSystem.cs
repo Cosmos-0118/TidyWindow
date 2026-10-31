@@ -275,12 +275,31 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         {
             if (!File.Exists(path)) return new(false, "", "", "", StartupTrust.Unknown);
             var info = FileVersionInfo.GetVersionInfo(path);
-            return new(true, Clean(info.CompanyName), Clean(info.FileDescription), Clean(info.ProductName), Trust(path));
+            var (trust, signer) = Verify(path);
+            return new(true, Clean(info.CompanyName), Clean(info.FileDescription), Clean(info.ProductName), trust, signer);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return new(File.Exists(path), "", "", "", StartupTrust.Unknown); }
     }
 
     private static string Clean(string? text) => text?.Trim() ?? "";
+
+    public IReadOnlyList<UninstallEntry> InstalledPrograms() => new WindowsInstallSystem().Entries();
+
+    private readonly Dictionary<string, string> packagePublishers = new(StringComparer.OrdinalIgnoreCase);
+
+    [GeneratedRegex(@"\\WindowsApps\\([^\\]+)\\", RegexOptions.IgnoreCase)]
+    private static partial Regex PackageFolder();
+
+    public string PackagePublisher(string exePath)
+    {
+        if (PackageFolder().Match(exePath) is not { Success: true } match) return "";
+        var package = match.Groups[1].Value;
+        lock (packagePublishers)
+        {
+            if (!packagePublishers.TryGetValue(package, out var publisher)) packagePublishers[package] = publisher = ReadManifest(package).Publisher;
+            return publisher;
+        }
+    }
 
     public string Expand(string text) => Environment.ExpandEnvironmentVariables(text);
     public bool FileExists(string path) { try { return File.Exists(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; } }
@@ -325,31 +344,35 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         return images;
     }
 
-    // ---- Authenticode: is the file signed, and does the signature check out? ----
+    // ---- Authenticode: is the file signed, does the signature check out, and who signed it? ----
 
-    private static StartupTrust Trust(string path)
+    private static (StartupTrust Trust, string Signer) Verify(string path)
     {
         var file = IntPtr.Zero; var data = IntPtr.Zero; var name = IntPtr.Zero;
+        var opened = false;
         try
         {
             name = Marshal.StringToHGlobalUni(path);
             var info = new WinTrustFileInfo { Size = (uint)Marshal.SizeOf<WinTrustFileInfo>(), FilePath = name };
             file = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
             Marshal.StructureToPtr(info, file, false);
-            var trust = new WinTrustData { Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2, RevocationChecks = 0, UnionChoice = 1, File = file, ProviderFlags = 0x1000 | 0x10 };
+            // Keeping the verification state open lets the same check hand back the certificate that signed the file.
+            var trust = new WinTrustData { Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2, RevocationChecks = 0, UnionChoice = 1, File = file, StateAction = StateVerify, ProviderFlags = 0x1000 | 0x10 };
             data = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustData>());
             Marshal.StructureToPtr(trust, data, false);
             var result = WinVerifyTrust(new IntPtr(-1), WintrustActionGenericVerifyV2, data);
+            opened = true;
             return result switch
             {
-                0 => StartupTrust.Verified,
-                unchecked((int)0x800B0100) or unchecked((int)0x800B0001) or unchecked((int)0x800B0003) => StartupTrust.Unsigned,
-                _ => StartupTrust.Invalid
+                0 => (StartupTrust.Verified, SignerOf(data)),
+                unchecked((int)0x800B0100) or unchecked((int)0x800B0001) or unchecked((int)0x800B0003) => (StartupTrust.Unsigned, ""),
+                _ => (StartupTrust.Invalid, "")
             };
         }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException) { return StartupTrust.Unknown; }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException) { return (StartupTrust.Unknown, ""); }
         finally
         {
+            if (opened) CloseState(data);
             if (data != IntPtr.Zero) Marshal.FreeHGlobal(data);
             if (file != IntPtr.Zero) Marshal.FreeHGlobal(file);
             if (name != IntPtr.Zero) Marshal.FreeHGlobal(name);
@@ -357,6 +380,50 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
     }
 
     private static readonly Guid WintrustActionGenericVerifyV2 = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+    private const uint StateVerify = 1, StateClose = 2;
+
+    /// <summary>The company on the certificate that signed the file, read from the open verification state. Empty if it cannot be read.</summary>
+    private static string SignerOf(IntPtr data)
+    {
+        try
+        {
+            var state = Marshal.PtrToStructure<WinTrustData>(data).StateData;
+            if (state == IntPtr.Zero) return "";
+            var provider = WTHelperProvDataFromStateData(state);
+            if (provider == IntPtr.Zero) return "";
+            var signer = WTHelperGetProvSignerFromChain(provider, 0, false, 0);
+            if (signer == IntPtr.Zero) return "";
+            var link = WTHelperGetProvCertFromChain(signer, 0);
+            if (link == IntPtr.Zero) return "";
+            // CRYPT_PROVIDER_CERT is a size field followed by the certificate context pointer.
+            var context = Marshal.ReadIntPtr(link, IntPtr.Size);
+            if (context == IntPtr.Zero) return "";
+            using var certificate = new System.Security.Cryptography.X509Certificates.X509Certificate2(context);
+            return PublisherNames.FromSubject(certificate.Subject);
+        }
+        catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or ArgumentException or AccessViolationException or SEHException or EntryPointNotFoundException) { return ""; }
+    }
+
+    private static void CloseState(IntPtr data)
+    {
+        try
+        {
+            var trust = Marshal.PtrToStructure<WinTrustData>(data);
+            trust.StateAction = StateClose;
+            Marshal.StructureToPtr(trust, data, false);
+            WinVerifyTrust(new IntPtr(-1), WintrustActionGenericVerifyV2, data);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException) { }
+    }
+
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperProvDataFromStateData(IntPtr state);
+
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperGetProvSignerFromChain(IntPtr provider, uint signer, [MarshalAs(UnmanagedType.Bool)] bool counterSigner, uint counterIndex);
+
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperGetProvCertFromChain(IntPtr signer, uint certificate);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WinTrustFileInfo { public uint Size; public IntPtr FilePath; public IntPtr FileHandle; public IntPtr KnownSubject; }

@@ -10,6 +10,8 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Program.cs is the entry point, so a second launch can hand over to the open window. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <AssemblyName>TidyWindow.Next</AssemblyName>
     <ApplicationIcon>Assets/Brand/tidywindow.ico</ApplicationIcon>
     <ScoutRuntimeMode Condition="'$(SelfContained)' == 'true'">self-contained</ScoutRuntimeMode>

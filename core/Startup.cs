@@ -107,17 +107,18 @@ public static partial class StartupScan
         }
 
         var entries = new List<StartupEntry>();
+        var finder = new PublisherFinder(system);
 
         StartupEntry Build(StartupKind kind, StartupScope scope, string id, string name, string description, string command, string exe, string location, string source, string key,
             bool enabled, string publisherHint = "", ServiceFacts? service = null, bool dependents = false, bool policy = false, bool bootAsSystem = false, int start = 0, bool delayed = false, bool checkFile = true)
         {
             var file = Describe(exe);
             var missing = checkFile && exe.Length > 0 && !file.Exists;
-            var publisher = file.Company.Length > 0 ? file.Company : publisherHint;
+            var (publisher, from) = finder.Find(name, exe, file, publisherHint, hintIsPackage: kind == StartupKind.StoreApp);
             var (risk, reason) = StartupGuard.Judge(kind, name, exe, command, publisher, file.Trust, missing, system.Places, service, dependents, policy, bootAsSystem);
             var about = description.Length > 0 ? description : file.Description;
             var isRunning = exe.Length > 0 && running.Contains(exe);
-            return new(id, kind, scope, name, publisher, about, command, exe, location, source, key, enabled, risk, reason, file.Trust, isRunning, missing, start, delayed);
+            return new(id, kind, scope, name, publisher, about, command, exe, location, source, key, enabled, risk, reason, file.Trust, isRunning, missing, start, delayed, from);
         }
 
         foreach (var run in system.RunValues())
