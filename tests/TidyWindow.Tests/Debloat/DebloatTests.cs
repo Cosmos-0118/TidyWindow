@@ -19,6 +19,8 @@ internal sealed class FakeDebloatPc : IDebloatSystem, IAppxStore, IAppxOps
     /// <summary>Packages that refuse to go, as a locked or damaged app does.</summary>
     public HashSet<string> Stubborn = new(StringComparer.OrdinalIgnoreCase);
     public bool ThrowDuringRemoval;
+    /// <summary>When set, a removed package stays listed with no account and this folder, as when Windows refuses the last step and keeps the files.</summary>
+    public string? KeptFolder;
 
     public IReadOnlyList<AppxFact> Packages() => Installed.ToList();
     public IReadOnlyList<ProvisionedFact> Provisioned() => Staged.ToList();
@@ -39,7 +41,8 @@ internal sealed class FakeDebloatPc : IDebloatSystem, IAppxStore, IAppxOps
         Log.Add("remove " + fullName);
         if (ThrowDuringRemoval) throw new InvalidOperationException("boom");
         if (Stubborn.Contains(fullName)) return "0x80073CFA";
-        Installed.RemoveAll(x => x.FullName == fullName);
+        if (KeptFolder is not null) Installed = Installed.Select(x => x.FullName == fullName ? x with { Users = [], InstallLocation = KeptFolder } : x).ToList();
+        else Installed.RemoveAll(x => x.FullName == fullName);
         return null;
     }
 
@@ -409,6 +412,50 @@ public sealed class AppxRemoverTests
         Assert.Empty(pc.Staged);
         Assert.Contains("provisioned- " + staged.PackageName, pc.Log);
         Assert.Empty(pc.EndOfLife);
+    }
+
+    [Fact]
+    public void TheBlockIsMadeOnlyAfterTheRemovalBecauseWindowsRefusesToRemoveAnAppThatIsAlreadyBlocked()
+    {
+        var full = "Clipchamp.Clipchamp_1.0.0.0_x64__yxz26nhyzhsrt";
+        var pc = new FakeDebloatPc { Installed = [FakeDebloatPc.Package("Clipchamp.Clipchamp", "yxz26nhyzhsrt")] };
+        var (remover, entry) = Setup(pc, "clipchamp");
+
+        Assert.True(remover.Remove(entry).Ok);
+
+        var block = pc.Log.IndexOf("deprov+ Clipchamp.Clipchamp_yxz26nhyzhsrt");
+        Assert.True(block > pc.Log.IndexOf("remove " + full));
+    }
+
+    [Fact]
+    public void AnAppWindowsAlreadyBlockedIsNotBlockedAgain()
+    {
+        var pc = new FakeDebloatPc { Installed = [FakeDebloatPc.Package("Clipchamp.Clipchamp", "yxz26nhyzhsrt")], Deprovisioned = ["Clipchamp.Clipchamp_yxz26nhyzhsrt"] };
+        var (remover, entry) = Setup(pc, "clipchamp");
+
+        Assert.True(remover.Remove(entry).Ok);
+
+        Assert.DoesNotContain("deprov+ Clipchamp.Clipchamp_yxz26nhyzhsrt", pc.Log);
+    }
+
+    [Fact]
+    public void FilesThatWindowsKeptForAnAppNoAccountHasAreReportedAndTheAppCountsAsRemoved()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "tidywindow-kept-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        File.WriteAllBytes(Path.Combine(folder, "app.dll"), new byte[3_000_000]);
+        try
+        {
+            var pc = new FakeDebloatPc { Installed = [FakeDebloatPc.Package("Clipchamp.Clipchamp", "yxz26nhyzhsrt")], KeptFolder = folder };
+            var (remover, entry) = Setup(pc, "clipchamp");
+
+            var outcome = remover.Remove(entry);
+
+            Assert.True(outcome.Ok, outcome.Error);
+            Assert.Contains("Windows kept the app's files (3 MB) on disk", outcome.Note);
+            Assert.Contains("Clipchamp.Clipchamp_yxz26nhyzhsrt", pc.Deprovisioned);
+        }
+        finally { Directory.Delete(folder, true); }
     }
 
     [Fact]
