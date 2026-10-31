@@ -18,6 +18,9 @@ public static class Program
     private const string InstanceKey = "TidyWindow.Next";
 #endif
 
+    /// <summary>The splash covering the window that is opening, or null when there is none. The app dismisses it once its first frame is drawn.</summary>
+    internal static NativeSplash? Splash { get; private set; }
+
     // How long a new launch waits for the open window to take over. If that window is stuck, the new one starts instead of doing nothing.
     private static readonly TimeSpan HandOverWait = TimeSpan.FromSeconds(8);
 
@@ -28,6 +31,8 @@ public static class Program
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
         if (HandedOverToRunningInstance()) return;
+        // Before anything slow: the splash is on screen while the interface framework and the main window are still being set up.
+        Splash = NativeSplash.Start();
 
         Application.Start(_ =>
         {
