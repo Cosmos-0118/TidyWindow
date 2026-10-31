@@ -27,14 +27,15 @@ Each item says what it is, what removing it changes, and how risky it is. Items 
 
 For each package family the helper does the following, in order:
 
-1. Create the `Deprovisioned\<family>` registry key, so Windows does not install the app again for new accounts or after an upgrade.
-2. If Windows marks the package non-removable, clear that with `dism /Online /Set-NonRemovableAppPolicy`.
-3. Delete the `InboxApplications` registry key for the package.
-4. Create temporary `EndOfLife` keys for every user and for the system account. Windows refuses to remove some inbox apps unless it sees these.
-5. Run `Remove-AppxPackage -User <sid>` for each user, then `-AllUsers`.
-6. For the staged copy, run `Remove-AppxProvisionedPackage -Online`.
-7. Delete the temporary keys, even if something above failed.
-8. Rescan. If the app is still installed, the `Deprovisioned` key from step 1 is rolled back and the item is reported as failed.
+1. If Windows marks the package non-removable, clear that with `dism /Online /Set-NonRemovableAppPolicy`.
+2. Delete the `InboxApplications` registry key for the package.
+3. Create temporary `EndOfLife` keys for every user and for the system account. Windows refuses to remove some inbox apps unless it sees these.
+4. Run `Remove-AppxPackage -AllUsers`, then `-User <sid>` for each user only if the package is still registered. Removing it for one account first makes Windows keep the files for itself.
+5. For the staged copy, run `Remove-AppxProvisionedPackage -Online`.
+6. Delete the temporary keys, even if something above failed.
+7. Rescan. If the app is still installed for an account, the item is reported as failed.
+8. Create the `Deprovisioned\<family>` registry key unless Windows already did, so Windows does not install the app again for new accounts or after an upgrade. This is done last because Windows makes that key itself while it removes an app, and it fails with `0x80070005` (access denied) if the key is already there.
+9. If Windows kept the files of an app that no account has any more, the item still counts as removed and says how much space is left.
 
 PowerShell 7 cannot load the Appx module (it fails with `0x80131539`), so every step runs in Windows PowerShell 5.1 by its full path with an encoded command. A removed package is recorded only after the rescan confirms it.
 
@@ -43,7 +44,7 @@ PowerShell 7 cannot load the Appx module (it fails with `0x80131539`), so every 
 - **Catalog and guard.** Only catalog entries can be removed. A protected list stays out of reach: .NET and VC runtimes, WebView2, the Store, App Installer (WinGet), Xbox sign-in, shell and start components, `MicrosoftWindows.Client.*` packages and GUID-named packages. The catalog is refused as a whole if it names one of them.
 - **Strict names.** Package patterns must match `^[A-Za-z0-9][A-Za-z0-9._-]*\*?$`. A wildcard needs a prefix of at least six characters. Tokens and SIDs are regex-checked before they reach the registry or a command line.
 - **Checked twice.** The page and the elevated helper both validate. A request that names anything outside the catalog is rejected in the helper whatever the page sent.
-- **Scan without admin.** The page reads Windows' package store in the registry (`HKLM\...\Appx\AppxAllUserStore`), which anyone may read, plus `Get-AppxPackage` for the current user. `InboxApplications` is the list of apps staged for new accounts and `Applications` is every app installed for any account. So an app that someone "uninstalled" from Start, which only removes it for that one account, still shows up while it is staged for new accounts, and reading the store is also faster than DISM. The helper rescans once you approve the Windows prompt.
+- **Scan without admin.** The page reads Windows' package store in the registry (`HKLM\...\Appx\AppxAllUserStore`), which anyone may read, plus `Get-AppxPackage` for the current user. `Applications` lists the apps Windows installs for new accounts and has installed for any account (`InboxApplications` holds only parts of Windows itself). So an app that someone "uninstalled" from Start, which only removes it for that one account, still shows up while it is staged for new accounts, and reading the store is also faster than DISM. The helper rescans once you approve the Windows prompt.
 - **Everyday tools are protected.** Calculator, Notepad, Paint, Snipping Tool, Photos, Windows Terminal and Camera are on the protected list with the Xbox sign-in pieces and `Microsoft.GamingServices`, so no catalog entry can ever offer them.
 - **Nothing in the background.** Nothing is removed or re-applied automatically. The helper exits after five minutes of inactivity.
 

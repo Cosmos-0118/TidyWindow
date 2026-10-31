@@ -346,10 +346,12 @@ public sealed class FastSearchFallbackTests : IDisposable
         public Task<CommandResult> RunAsync(CommandSpec command, CancellationToken cancellationToken = default) { Commands.Add(command); return Task.FromResult(new CommandResult(0, output, "")); }
     }
 
-    private sealed class Feed(Func<Task<IReadOnlyList<Package>>> search) : IChocolateyFeed
+    private sealed class Feed(Func<CancellationToken, Task<IReadOnlyList<Package>>> search) : IChocolateyFeed
     {
+        public Feed(Func<Task<IReadOnlyList<Package>>> search) : this(_ => search()) { }
+
         public int Warmed;
-        public Task<IReadOnlyList<Package>> SearchAsync(string query, int limit, CancellationToken token = default) => search();
+        public Task<IReadOnlyList<Package>> SearchAsync(string query, int limit, CancellationToken token = default) => search(token);
         public Task WarmAsync(CancellationToken token = default) { Warmed++; return Task.CompletedTask; }
     }
 
@@ -382,7 +384,7 @@ public sealed class FastSearchFallbackTests : IDisposable
     {
         var runner = new Runner();
         using var cancel = new CancellationTokenSource();
-        var service = new PackageService(runner, new Locator(), new Feed(async () => { await Task.Delay(Timeout.Infinite, cancel.Token); return []; }));
+        var service = new PackageService(runner, new Locator(), new Feed(async token => { await Task.Delay(Timeout.Infinite, token); return []; }));
         var search = service.SearchAsync(Ready(ManagerKind.Chocolatey), "vlc", cancel.Token);
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search);

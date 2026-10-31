@@ -106,9 +106,10 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
 
     /// <summary>
     /// What Windows installs for new accounts. This is read from the package store in the registry, which needs no administrator rights and no slow DISM call,
-    /// and which still lists an app after "Uninstall" removed it for one account only.
+    /// and which still lists an app after "Uninstall" removed it for one account only. The apps from the Store are under Applications;
+    /// InboxApplications holds only parts of Windows itself.
     /// </summary>
-    public IReadOnlyList<ProvisionedFact> Provisioned() => AppxRegistry.Read("InboxApplications", AppxStoreRecords.Staged);
+    public IReadOnlyList<ProvisionedFact> Provisioned() => AppxRegistry.Read("Applications", AppxStoreRecords.Staged);
 
     public PlaybookFacts Playbooks()
     {
@@ -295,10 +296,16 @@ public sealed class WindowsAppxOps : IAppxOps
     public string? RemovePackage(string fullName, IReadOnlyList<string> sids)
     {
         if (!DebloatGuard.IsToken(fullName) || sids.Any(x => !DebloatGuard.IsSid(x))) return "Not a package name.";
-        // Each account first, then everyone: a package registered for several accounts is otherwise left half removed.
-        var script = new StringBuilder("$e=@();");
-        foreach (var sid in sids) script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -User '{sid}'}}catch{{$e+=$_.Exception.Message}};");
-        script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -AllUsers}}catch{{$e+=$_.Exception.Message}};($e -join ' | ')");
+        // Everyone first: removing it for one account first leaves Windows holding the files for itself, and its "all users" removal then has nothing to finish.
+        // Each account is tried afterwards, for a package that is still registered for some of them.
+        var script = new StringBuilder($"$e=@();try{{Remove-AppxPackage -Package '{fullName}' -AllUsers}}catch{{$e+=$_.Exception.Message}};");
+        if (sids.Count > 0)
+        {
+            script.Append($"if(Get-AppxPackage -AllUsers|Where-Object{{$_.PackageFullName -eq '{fullName}'}}){{");
+            foreach (var sid in sids) script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -User '{sid}'}}catch{{$e+=$_.Exception.Message}};");
+            script.Append('}');
+        }
+        script.Append("($e -join ' | ')");
         var result = DebloatProcess.Script(script.ToString(), TimeSpan.FromMinutes(3));
         if (result.TimedOut) return "Windows took too long to remove the app.";
         return result.Output.Length == 0 ? null : Brief(result.Output);

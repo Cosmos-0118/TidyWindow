@@ -2,7 +2,7 @@ namespace TidyWindow.Next.Core;
 
 /// <summary>
 /// Reads the package records Windows keeps in the registry (HKLM\...\Appx\AppxAllUserStore). Anyone may read them, so the page can see every app on the PC
-/// without administrator rights: InboxApplications lists what Windows installs for new accounts, Applications what is installed for any account.
+/// without administrator rights: Applications lists the apps Windows installs for new accounts and has installed for every account, InboxApplications only parts of Windows itself.
 /// A record is a full package name and the path to its manifest.
 /// </summary>
 public static class AppxStoreRecords

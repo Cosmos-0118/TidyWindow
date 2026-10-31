@@ -50,15 +50,12 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
 
         var families = entry.Packages.Select(x => x.FamilyName).Concat(StagedFamilies(entry)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var userSids = store.UserSids().Where(DebloatGuard.IsSid).ToList();
-        var madeDeprovisioned = new List<string>();
         var madeEndOfLife = new List<(string Sid, string Name)>();
         var errors = new List<string>();
         try
         {
-            // Keep Windows from putting the app back for new accounts or after an update.
-            foreach (var family in families.Where(DebloatGuard.IsToken))
-                if (!store.HasDeprovisioned(family)) { store.CreateDeprovisioned(family); madeDeprovisioned.Add(family); }
-
+            // The "do not install again" mark is not made yet: Windows makes it itself while it removes the app for everyone, and it refuses
+            // (access denied) when the mark is already there. It is added afterwards for whatever Windows did not mark.
             var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var package in entry.Packages)
             {
@@ -82,15 +79,35 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
             foreach (var (sid, name) in madeEndOfLife) store.DeleteEndOfLife(sid, name);
         }
 
-        var left = StillThere(entry);
+        var (left, kept) = StillThere(entry);
         if (left.Count > 0)
         {
-            // Only the marks for apps that are still installed are taken back; the others are gone for good and stay blocked.
-            foreach (var family in madeDeprovisioned.Where(f => left.Contains(f, StringComparer.OrdinalIgnoreCase))) store.DeleteDeprovisioned(family);
             var why = errors.FirstOrDefault(x => x.Length > 0);
             return new(false, $"{left.Count} app{(left.Count == 1 ? "" : "s")} could not be removed.{(why is null ? "" : " " + Trim(why))}");
         }
-        return new(true, null, entry.Provisioned.Count > 0 || entry.Packages.Any(x => x.NonRemovable) ? "Windows will not install it again for new accounts." : null, families);
+
+        // The apps that are gone stay blocked for new accounts and after updates.
+        foreach (var family in families.Where(DebloatGuard.IsToken))
+            if (!store.HasDeprovisioned(family)) store.CreateDeprovisioned(family);
+
+        var notes = new List<string>();
+        if (entry.Provisioned.Count > 0 || entry.Packages.Any(x => x.NonRemovable)) notes.Add("Windows will not install it again for new accounts.");
+        if (kept.Count > 0) notes.Add(KeptNote(kept));
+        return new(true, null, notes.Count == 0 ? null : string.Join(" ", notes), families);
+    }
+
+    /// <summary>The folders Windows kept for apps that no account has any more, such as when it refused the last step of the removal.</summary>
+    private static string KeptNote(IReadOnlyList<string> folders)
+    {
+        var bytes = folders.Sum(FolderSize);
+        var size = bytes >= 1_000_000 ? $" ({bytes / 1_000_000.0:0.#} MB)" : "";
+        return $"Removed, but Windows kept the app's files{size} on disk.";
+    }
+
+    private static long FolderSize(string folder)
+    {
+        try { return new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(x => x.Length); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
     }
 
     /// <summary>A package's family is its name and its publisher id, which is the last part of its full name (Name_Version_Arch_Resource_Publisher).</summary>
@@ -102,14 +119,19 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
 
     private static IEnumerable<string> StagedFamilies(DebloatEntry entry) => entry.Provisioned.Select(x => FamilyOf(x.PackageName));
 
-    /// <summary>The names of what is still installed or staged after the removal.</summary>
-    private List<string> StillThere(DebloatEntry entry)
+    /// <summary>
+    /// What is still installed or staged after the removal, and the folders of packages that no account has any more but that Windows still lists
+    /// (it keeps them for itself when its last step is refused). Those are gone for the person, so they are reported, not failed.
+    /// </summary>
+    private (List<string> Left, List<string> Kept) StillThere(DebloatEntry entry)
     {
         var item = entry.Item;
         var names = entry.Packages.Select(x => x.FullName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var left = system.Packages().Where(x => names.Contains(x.FullName) && x.Users.Count > 0).Select(x => x.FamilyName).ToList();
+        var listed = system.Packages().Where(x => names.Contains(x.FullName)).ToList();
+        var left = listed.Where(x => x.Users.Count > 0).Select(x => x.FamilyName).ToList();
         left.AddRange(system.Provisioned().Where(x => DebloatGuard.Covers(item, x.DisplayName, false) && entry.Provisioned.Any(p => string.Equals(p.PackageName, x.PackageName, StringComparison.OrdinalIgnoreCase))).Select(x => x.DisplayName));
-        return left.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var kept = listed.Where(x => x.Users.Count == 0 && x.InstallLocation.Length > 0 && Directory.Exists(x.InstallLocation)).Select(x => x.InstallLocation).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return (left.Distinct(StringComparer.OrdinalIgnoreCase).ToList(), kept);
     }
 
     private static string Trim(string text) => text.Length <= 220 ? text : text[..220] + "…";
