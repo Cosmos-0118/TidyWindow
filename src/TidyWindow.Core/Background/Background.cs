@@ -2,12 +2,18 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-public sealed record BackgroundTargetState(BackgroundTarget Target, bool Present, bool On, bool Running, string? Lock);
+/// <param name="ProcessId">A running service's process id, else zero.</param>
+/// <param name="WakesPc">A task that is set to wake this PC from sleep.</param>
+public sealed record BackgroundTargetState(BackgroundTarget Target, bool Present, bool On, bool Running, string? Lock, int ProcessId = 0, bool WakesPc = false);
 
 /// <summary>An item as it is on this PC right now. <see cref="On"/> means it is allowed to run; <see cref="Running"/> means something is running this minute.</summary>
 public sealed record BackgroundEntry(BackgroundItem Item, bool Present, bool On, bool FullyOn, bool Running, string? Lock, IReadOnlyList<BackgroundTargetState> Targets)
 {
     public string Id => Item.Id;
+    /// <summary>The processes its running services live in, lowest first.</summary>
+    public IReadOnlyList<int> ProcessIds => Targets.Where(x => x.Present && x.Running && x.ProcessId > 0).Select(x => x.ProcessId).Distinct().Order().ToList();
+    /// <summary>Something that is still allowed to run is set to wake this PC from sleep. Once it is off it can't, so it stops being mentioned.</summary>
+    public bool WakesPc => Targets.Any(x => x.Present && x.On && x.WakesPc);
     /// <summary>It can always be turned back on; it can be turned off unless a rule says to leave it alone.</summary>
     public bool CanChange => Present && (Lock is null || !On);
 }
@@ -39,7 +45,28 @@ public static partial class BackgroundGuard
         @"\Microsoft\Windows\Windows Filtering Platform\", @"\Microsoft\Windows\AppxDeploymentClient\", @"\Microsoft\Windows\Maintenance\", @"\Microsoft\Windows\SoftwareProtectionPlatform\"
     ];
 
-    private static readonly string[] AllowedPolicyKeys = [@"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", @"SOFTWARE\Policies\Microsoft\Dsh", @"SOFTWARE\Policies\Microsoft\Windows\GameDVR"];
+    // Single tasks that live in a folder that is otherwise refused. Each is named in full, so the rest of its folder stays off limits.
+    // WinSAT is the idle-time hardware benchmark; the rest of Maintenance is Windows' own upkeep.
+    private static readonly string[] AllowedTasksInRefusedFolders = [@"\Microsoft\Windows\Maintenance\WinSAT"];
+
+    // The only places a policy may be written, and the values in each. Several of these keys also hold settings this page must not touch
+    // (Search has DisableSearch, WindowsAI has AllowRecallEnablement), so a key alone is not enough.
+    private static readonly Dictionary<string, string[]> AllowedPolicies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [@"SOFTWARE\Policies\Microsoft\Windows\WindowsAI"] = ["DisableAIDataAnalysis", "DisableClickToDo"],
+        [@"SOFTWARE\Policies\Microsoft\Dsh"] = ["AllowNewsAndInterests"],
+        [@"SOFTWARE\Policies\Microsoft\Windows\GameDVR"] = ["AllowGameDVR"],
+        [@"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"] = ["DODownloadMode"],
+        [@"SOFTWARE\Policies\Microsoft\Windows\Windows Search"] = ["EnableDynamicContentInWSB"],
+        [@"SOFTWARE\Policies\Microsoft\Power\PowerSettings\f15576e8-98b7-4186-b944-eafa664402d9"] = ["ACSettingIndex", "DCSettingIndex"],
+        [@"SOFTWARE\Policies\Microsoft\FindMyDevice"] = ["AllowFindMyDevice"],
+        [@"SOFTWARE\Policies\WindowsNotepad"] = ["DisableAIFeatures"],
+        [@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint"] = ["DisableCocreator", "DisableGenerativeFill", "DisableImageCreator"]
+    };
+
+    /// <summary>True when this page may write this policy value. Used when the catalog loads and again when the value is written.</summary>
+    public static bool IsAllowedPolicy(string key, string name) =>
+        AllowedPolicies.TryGetValue(key, out var names) && names.Contains(name, StringComparer.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_.\- ]{0,127}$")]
     private static partial Regex ServiceName();
@@ -79,11 +106,12 @@ public static partial class BackgroundGuard
                         break;
                     case BackgroundTargetKind.Task:
                         if (!target.Name.StartsWith('\\') || target.Name.Count(c => c == '\\') < 2 || target.Name.EndsWith('\\') || target.Name.IndexOfAny(['*', '?']) >= 0) problems.Add($"{who}: “{target.Name}” is not the full path of one task.");
-                        else if (NeverTaskFolders.Any(x => target.Name.StartsWith(x, StringComparison.OrdinalIgnoreCase))) problems.Add($"{who}: {target.Name} must never be switched off.");
+                        else if (NeverTaskFolders.Any(x => target.Name.StartsWith(x, StringComparison.OrdinalIgnoreCase)) && !AllowedTasksInRefusedFolders.Contains(target.Name, StringComparer.OrdinalIgnoreCase)) problems.Add($"{who}: {target.Name} must never be switched off.");
                         break;
                     case BackgroundTargetKind.Policy:
-                        if (!AllowedPolicyKeys.Contains(target.Key, StringComparer.OrdinalIgnoreCase)) problems.Add($"{who}: policy key “{target.Key}” is not one this page may write to.");
                         if (!ValueName().IsMatch(target.Name)) problems.Add($"{who}: “{target.Name}” is not a policy value name.");
+                        else if (!AllowedPolicies.ContainsKey(target.Key)) problems.Add($"{who}: policy key “{target.Key}” is not one this page may write to.");
+                        else if (!IsAllowedPolicy(target.Key, target.Name)) problems.Add($"{who}: “{target.Name}” is not a value this page may write in “{target.Key}”.");
                         break;
                 }
             }
@@ -159,13 +187,13 @@ public static class BackgroundScan
             var needs = system.Dependents(target.Name).Where(x => !sameItem.Contains(x.Name) && (target.Off == "disabled" || x.Running)).ToList();
             if (needs.Count > 0) rule = $"{Name(needs[0])} relies on it, so turning it off could stop that from working.";
         }
-        return new(target, true, on, service.Running, rule);
+        return new(target, true, on, service.Running, rule, service.Running ? service.ProcessId : 0);
     }
 
     private static string Name(ServiceFact service) => service.DisplayName.Length > 0 && !service.DisplayName.StartsWith('@') ? service.DisplayName : service.Name;
 
     private static BackgroundTargetState TaskState(IBackgroundSystem system, BackgroundTarget target) =>
-        system.Task(target.Name) is { } task ? new(target, true, task.Enabled, task.Running, null) : new(target, false, false, false, null);
+        system.Task(target.Name) is { } task ? new(target, true, task.Enabled, task.Running, null, 0, task.WakesPc) : new(target, false, false, false, null);
 
     private static BackgroundTargetState PolicyState(IBackgroundSystem system, BackgroundTarget target)
     {

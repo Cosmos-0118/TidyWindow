@@ -13,6 +13,30 @@ public sealed partial class BackgroundView : UserControl
     private BackgroundViewModel? Model => DataContext as BackgroundViewModel;
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
+    private async void TurnOffAgainClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.TurnOffAgainAsync(); }
+
+    // Shows exactly what will be switched off before anything is, and never includes an item marked Careful.
+    private async void TurnOffSafeClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model) return;
+        var rows = model.SafeRows;
+        if (rows.Count == 0) return;
+        var list = new StackPanel { Spacing = 4 };
+        list.Children.Add(new TextBlock { Text = "These are safe to turn off: nothing you are likely to use depends on them. Items marked Careful are not included, and every change can be undone from the Turned off tab.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        foreach (var row in rows) list.Children.Add(new TextBlock { Text = "•  " + row.Name, TextWrapping = TextWrapping.Wrap });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = rows.Count == 1 ? "Turn off 1 item?" : $"Turn off {rows.Count} items?",
+            Content = new ScrollViewer { Content = list, MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
+            PrimaryButtonText = "Turn off",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ActualTheme
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.TurnOffSafeAsync(rows);
+    }
+
     private async void RestoreAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestoreAllAsync(); }
     private async void TurnBackOnClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is BackgroundChangeRow row) await model.TurnBackOnAsync(row); }
     private void QueryChanged(object sender, TextChangedEventArgs e) { if (Model is { } model) model.Query = ((TextBox)sender).Text; }

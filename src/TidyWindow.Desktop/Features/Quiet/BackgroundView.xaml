@@ -32,6 +32,7 @@
          <Ellipse Width="6" Height="6" Fill="{ThemeResource GoodBrush}" VerticalAlignment="Center" />
          <TextBlock Text="Running" FontSize="12" Foreground="{ThemeResource GoodBrush}" />
         </StackPanel>
+        <Border Visibility="{Binding WakeVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="A scheduled task here can wake this PC from sleep to run"><TextBlock Text="Can wake PC" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding PartlyVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="Some parts of this are off and some are still allowed. Turn it off to switch off all of it."><TextBlock Text="Partly off" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding CarefulVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="Turning this off can affect a feature. You will be asked first."><TextBlock Text="Careful" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
         <FontIcon Glyph="&#xE7EF;" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" ToolTipService.ToolTip="Changing this asks for administrator permission" />
@@ -104,13 +105,17 @@
    </StackPanel>
   </Grid>
 
-  <!-- Search and the On / Off filter -->
+  <!-- Search, turning off the safe items, and the Running / On / Off filter -->
   <Grid Grid.Row="2" ColumnSpacing="12" Visibility="{Binding ListVisibility}">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <TextBox x:Name="SearchBox" PlaceholderText="Search by name or the name in Task Manager" TextChanged="QueryChanged" AutomationProperties.Name="Search background items" VerticalAlignment="Center" />
-   <Border Grid.Column="2" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
+   <Button Grid.Column="2" Click="TurnOffSafeClick" IsEnabled="{Binding CanTurnOffSafe}" Visibility="{Binding SafeVisibility}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Turn off safe items" ToolTipService.ToolTip="Turns off everything in this list that is allowed to run and not marked Careful. You see the list first.">
+    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE73E;" FontSize="12" /><TextBlock Text="{Binding SafeLabel}" FontSize="12" /></StackPanel>
+   </Button>
+   <Border Grid.Column="3" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
     <StackPanel Orientation="Horizontal" Spacing="2">
      <RadioButton GroupName="BackgroundFilter" Tag="All" IsChecked="True" Checked="FilterChecked" Content="All" Style="{StaticResource SegmentStyle}" />
+     <RadioButton GroupName="BackgroundFilter" Tag="Running" Checked="FilterChecked" Content="Running" Style="{StaticResource SegmentStyle}" ToolTipService.ToolTip="Only what is running this minute" />
      <RadioButton GroupName="BackgroundFilter" Tag="On" Checked="FilterChecked" Content="On" Style="{StaticResource SegmentStyle}" ToolTipService.ToolTip="Only what is still allowed to run" />
      <RadioButton GroupName="BackgroundFilter" Tag="Off" Checked="FilterChecked" Content="Off" Style="{StaticResource SegmentStyle}" ToolTipService.ToolTip="Only what is turned off" />
     </StackPanel>
@@ -121,6 +126,20 @@
    <Grid>
     <!-- Telemetry, Windows AI and Optional share one list -->
     <StackPanel Visibility="{Binding ListVisibility}" Spacing="10" Margin="0,0,0,12">
+     <!-- Shown when a Windows update (or anything else) switched back on something that was turned off here -->
+     <Border Visibility="{Binding RevertedVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="8" Padding="16,12">
+      <Grid ColumnSpacing="12">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+       <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="{Binding RevertedTitle}" FontSize="13" FontWeight="SemiBold" />
+        <TextBlock Text="Something, such as a Windows update, switched them back on. The ones marked below can be turned off again together." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+       </StackPanel>
+       <Button Grid.Column="2" Click="TurnOffAgainClick" IsEnabled="{Binding CanTurnOffAgain}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Turn off again">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Turn off again" FontSize="12" /></StackPanel>
+       </Button>
+      </Grid>
+     </Border>
      <Grid ColumnSpacing="12">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <TextBlock Text="{Binding TabNote}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
