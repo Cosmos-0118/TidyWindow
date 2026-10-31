@@ -94,6 +94,7 @@
         <ItemsControl ItemsSource="{Binding Managers}" AutomationProperties.Name="Package managers">
          <ItemsControl.ItemTemplate><DataTemplate>
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,18">
+           <StackPanel Spacing="16">
            <Grid ColumnSpacing="14">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="{Binding StatusColumnWidth}" /><ColumnDefinition Width="{Binding SetupColumnWidth}" /></Grid.ColumnDefinitions>
@@ -101,6 +102,9 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
              <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" />
              <TextBlock Text="{Binding Version}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+             <Button Visibility="{Binding BucketsToggleVisibility}" Click="BucketsToggleClick" Background="Transparent" BorderThickness="0" Padding="0,2" HorizontalAlignment="Left" AutomationProperties.Name="{Binding BucketsName}" ToolTipService.ToolTip="Choose which app lists Scoop searches">
+              <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Buckets" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" /><FontIcon Glyph="{Binding BucketsChevron}" FontSize="9" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" /></StackPanel>
+             </Button>
             </StackPanel>
             <Button Grid.Column="{Binding StatusColumn}" Grid.Row="{Binding StatusRow}" Background="Transparent" BorderThickness="0" Padding="0,4" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTipService.ToolTip="Status details">
              <StackPanel Orientation="Horizontal" Spacing="7"><Ellipse Width="5" Height="5" Fill="{Binding StatusBrush}" /><TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{Binding StatusBrush}" /></StackPanel>
@@ -108,6 +112,48 @@
             </Button>
             <Button Grid.Column="3" Grid.RowSpan="2" Content="{Binding SetupAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding SetupVisibility}" Click="ManagerRecoveryClick" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Padding="10,6" />
            </Grid>
+           <Grid Visibility="{Binding BucketsVisibility}" Margin="46,0,0,0">
+            <!-- The panel's own bindings read the buckets model; the visibility above must still read the manager row, so the context changes here, not on the grid. -->
+            <StackPanel Spacing="14" DataContext="{Binding Buckets}">
+             <TextBlock Text="Buckets are lists of apps Scoop can install. Searching Install apps only covers the buckets you have added." Style="{StaticResource Muted}" TextWrapping="Wrap" />
+             <StackPanel Orientation="Horizontal" Spacing="10" Visibility="{Binding LoadingVisibility}"><ProgressRing Width="14" Height="14" IsActive="True" /><TextBlock Text="Reading your buckets…" FontSize="12" Style="{StaticResource Muted}" /></StackPanel>
+             <StackPanel Spacing="6">
+              <TextBlock Text="{Binding AddedTitle}" FontSize="12" FontWeight="SemiBold" />
+              <ItemsControl ItemsSource="{Binding Added}" AutomationProperties.Name="Added Scoop buckets">
+               <ItemsControl.ItemTemplate><DataTemplate>
+                <Grid ColumnSpacing="12" Padding="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                 <TextBlock Text="{Binding Name}" FontSize="12" />
+                 <TextBlock Grid.Column="1" Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+                </Grid>
+               </DataTemplate></ItemsControl.ItemTemplate>
+              </ItemsControl>
+             </StackPanel>
+             <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{Binding GitNote}" Visibility="{Binding GitVisibility}" />
+             <StackPanel Spacing="6">
+              <TextBlock Text="{Binding AvailableTitle}" FontSize="12" FontWeight="SemiBold" />
+              <TextBlock Text="Every bucket in the list is already added." FontSize="12" Style="{StaticResource Muted}" Visibility="{Binding NothingToAddVisibility}" />
+              <ItemsControl ItemsSource="{Binding Available}" AutomationProperties.Name="Scoop buckets you can add">
+               <ItemsControl.ItemTemplate><DataTemplate>
+                <Grid ColumnSpacing="14" Padding="0,8" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                 <StackPanel Spacing="3">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                   <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                   <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1"><TextBlock Text="{Binding Badge}" FontSize="10" Foreground="{ThemeResource MutedBrush}" /></Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Description}" FontSize="12" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Repository}" FontSize="11" Style="{StaticResource Muted}" IsTextSelectionEnabled="True" />
+                 </StackPanel>
+                 <Button Grid.Column="1" Content="{Binding Action}" IsEnabled="{Binding CanAdd}" Click="AddBucketClick" VerticalAlignment="Center" FontSize="12" Padding="12,6" AutomationProperties.Name="{Binding InstallLabel}" />
+                </Grid>
+               </DataTemplate></ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="Community buckets are run by volunteers, not by Scoop. Apps installed from a bucket follow that bucket's instructions, so add only ones you trust." FontSize="11" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+             </StackPanel>
+             <InfoBar IsOpen="True" IsClosable="False" Severity="{Binding MessageSeverity}" Message="{Binding Message}" Visibility="{Binding MessageVisibility}" />
+             <Expander Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{Binding DetailVisibility}"><ScrollViewer MaxHeight="160"><TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></ScrollViewer></Expander>
+            </StackPanel>
+           </Grid>
+           </StackPanel>
           </Border>
          </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -138,7 +184,11 @@
      <Grid Grid.Row="2">
       <Grid>
        <Grid Visibility="{Binding ResultsVisibility}">
-        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="12,8" Visibility="{Binding SourceStatusVisibility}" AutomationProperties.LiveSetting="Polite">
+         <ProgressRing Width="14" Height="14" IsActive="True" Visibility="{Binding SourceBusyVisibility}" VerticalAlignment="Center" />
+         <TextBlock Text="{Binding SourceStatus}" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
         <Border Visibility="{Binding ResultsHeaderVisibility}" Height="36" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0">
          <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="100" /><ColumnDefinition Width="85" /></Grid.ColumnDefinitions>
           <TextBlock Text="Name" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
@@ -146,7 +196,7 @@
           <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
          </Grid>
         </Border>
-        <ListView Grid.Row="1" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
+        <ListView Grid.Row="2" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Margin="0,0,-12,0" Padding="0,0,12,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
          <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
          <ListView.ItemTemplate><DataTemplate>
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,14">

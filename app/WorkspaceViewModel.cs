@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using TidyWindow.Next.Core;
@@ -49,7 +50,21 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
         _ => lightTheme ? 0x626262 : 0xA4A4AD
     });
     public void Update(ManagerStatus status)
-    { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush) }) Changed(name); }
+    { Status = status; foreach (var name in new[] { nameof(Version), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush), nameof(BucketsToggleVisibility), nameof(BucketsVisibility) }) Changed(name); }
+
+    /// <summary>Only Scoop has buckets: lists of apps it can install, which a search covers only once they are added.</summary>
+    public BucketsViewModel? Buckets { get; } = definition.Kind == ManagerKind.Scoop ? new() : null;
+    private bool bucketsOpen;
+    public bool BucketsOpen => bucketsOpen;
+    public Visibility BucketsToggleVisibility => Buckets is not null && Status?.Health == ManagerHealth.Ready ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility BucketsVisibility => bucketsOpen && BucketsToggleVisibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+    public string BucketsChevron => bucketsOpen ? "" : "";
+    public string BucketsName => bucketsOpen ? "Hide Scoop buckets" : "Show Scoop buckets";
+    public void ToggleBuckets()
+    {
+        bucketsOpen = !bucketsOpen;
+        foreach (var name in new[] { nameof(BucketsOpen), nameof(BucketsVisibility), nameof(BucketsChevron), nameof(BucketsName) }) Changed(name);
+    }
 }
 
 public sealed class PackageRow(Package package) : ObservableState
@@ -109,18 +124,23 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         Changed(nameof(ResultsHeaderVisibility));
     }
     private bool detecting;
-    public bool Detecting { get => detecting; private set { Set(ref detecting, value); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); } }
+    public bool Detecting { get => detecting; private set { Set(ref detecting, value); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); SyncBucketLock(); } }
     public bool CanRefresh => !Detecting && !inventoryChecking && !Busy;
     private bool recovering;
-    public bool Recovering { get => recovering; private set { Set(ref recovering, value); Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); Changed(nameof(RecoveryProgressVisibility)); } }
-    public bool Busy => Recovering || queue.HasWork;
-    public bool CanQueue => !Detecting && !inventoryChecking && !Recovering;
+    public bool Recovering { get => recovering; private set { Set(ref recovering, value); Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue)); Changed(nameof(RecoveryProgressVisibility)); SyncBucketLock(); } }
+    public bool Busy => Recovering || bucketWorking || queue.HasWork;
+    public bool CanQueue => !Detecting && !inventoryChecking && !Recovering && !bucketWorking;
+    private bool bucketWorking;
     private void QueueChanged()
     {
-        Changed(nameof(Busy)); Changed(nameof(CanRefresh));
+        Changed(nameof(Busy)); Changed(nameof(CanRefresh)); Changed(nameof(CanQueue));
         foreach (var manager in Managers) manager.CanRecover = !Busy && CanQueue;
+        SyncBucketLock();
         foreach (var row in Packages) UpdateInstalledState(row);
     }
+
+    /// <summary>Buckets are cloned with git into Scoop's own folder, so adding one waits while anything else is installing, recovering or checking.</summary>
+    private void SyncBucketLock() { foreach (var manager in Managers) if (manager.Buckets is { } buckets) buckets.Locked = Busy || !CanQueue; }
     public Visibility RecoveryProgressVisibility => Recovering ? Visibility.Visible : Visibility.Collapsed;
     private string recoveryMessage = "";
     public string RecoveryMessage { get => recoveryMessage; private set { Set(ref recoveryMessage, value); Changed(nameof(RecoveryVisibility)); } }
@@ -132,6 +152,13 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     /// <summary>True while a search has nothing to show yet; once results arrive they replace the loading state.</summary>
     public bool SearchLoading => Searching && Packages.Count == 0;
     public Visibility CancelVisibility => Searching ? Visibility.Visible : Visibility.Collapsed;
+    private string sourceStatus = "";
+    /// <summary>Which sources are still being waited for, or what a late one added. Empty when the list is complete.</summary>
+    public string SourceStatus { get => sourceStatus; private set { if (Set(ref sourceStatus, value)) Changed(nameof(SourceStatusVisibility)); } }
+    public Visibility SourceStatusVisibility => SourceStatus.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    private bool sourceBusy;
+    public bool SourceBusy { get => sourceBusy; private set { if (Set(ref sourceBusy, value)) Changed(nameof(SourceBusyVisibility)); } }
+    public Visibility SourceBusyVisibility => SourceBusy ? Visibility.Visible : Visibility.Collapsed;
     private string searchSummary = "Search for an app";
     public string SearchSummary { get => searchSummary; private set => Set(ref searchSummary, value); }
     private string emptyDetail = "Enter a name or package ID.";
@@ -147,6 +174,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         health = new(service, runner, locator);
         recovery = new(service, runner, locator);
+        scoopBuckets = new(service, runner);
     }
 
     public async Task RefreshAsync()
@@ -165,6 +193,8 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
                 row.Update(status);
             }
             Detecting = false;
+            // The first search should not be the one that pays for Chocolatey's connection and Scoop's index.
+            _ = service.WarmUpAsync(statuses, lifetime.Token);
             inventoryChecking = true; Changed(nameof(CanRefresh));
             foreach (var package in Packages) UpdateInstalledState(package);
             try
@@ -173,13 +203,61 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             }
             finally
             {
-                inventoryChecking = false; Changed(nameof(CanRefresh));
+                inventoryChecking = false; Changed(nameof(CanRefresh)); SyncBucketLock();
                 foreach (var package in Packages) UpdateInstalledState(package);
                 UpdateErrors();
             }
         }
         catch (OperationCanceledException) { }
         finally { Detecting = false; foreach (var manager in Managers) manager.CanRecover = !Busy && !inventoryChecking; }
+        // A bucket list that is open should reflect the Scoop that was just checked.
+        foreach (var manager in Managers.Where(x => x.BucketsOpen)) await LoadBucketsAsync(manager);
+    }
+
+    private readonly ScoopBuckets scoopBuckets;
+
+    public async Task ToggleBucketsAsync(ManagerRow row)
+    {
+        if (row.Buckets is null) return;
+        row.ToggleBuckets();
+        if (row.BucketsOpen) await LoadBucketsAsync(row);
+    }
+
+    private async Task LoadBucketsAsync(ManagerRow row)
+    {
+        if (row.Buckets is not { } buckets || row.Status is not { Health: ManagerHealth.Ready } status) return;
+        buckets.Loading = !buckets.Loaded;
+        try { buckets.Apply(await Task.Run(() => scoopBuckets.Read(status), lifetime.Token)); }
+        catch (OperationCanceledException) { }
+        finally { buckets.Loading = false; SyncBucketLock(); }
+    }
+
+    public async Task AddBucketAsync(ManagerRow row, BucketRow bucket)
+    {
+        if (row.Buckets is not { } buckets || row.Status is not { } status || !bucket.CanAdd || Busy || !CanQueue) return;
+        bucketWorking = true; bucket.Adding = true; buckets.ClearMessage();
+        Changed(nameof(Busy)); Changed(nameof(CanQueue)); Changed(nameof(CanRefresh));
+        foreach (var manager in Managers) manager.CanRecover = false;
+        SyncBucketLock();
+        buckets.Show($"Adding {bucket.Name}. This downloads its app list and can take a minute…", InfoBarSeverity.Informational);
+        log.Write(ActivityLevel.Info, ActivityArea.Managers, $"Adding the {bucket.Name} Scoop bucket", bucket.Repository);
+        try
+        {
+            var result = await scoopBuckets.AddAsync(status, bucket.Name, lifetime.Token);
+            buckets.Show(result.Message, result.Ok ? InfoBarSeverity.Success : InfoBarSeverity.Error, result.Detail);
+            if (result.Ok) log.Write(ActivityLevel.Success, ActivityArea.Managers, result.Message);
+            else log.Write(ActivityLevel.Warning, ActivityArea.Managers, $"The {bucket.Name} bucket could not be added", result.Message + (result.Detail.Length > 0 ? "\n" + result.Detail : ""));
+        }
+        catch (OperationCanceledException) { buckets.Show("Adding the bucket was interrupted. Check the list before trying again.", InfoBarSeverity.Warning); }
+        catch (Exception ex) { buckets.Show($"{bucket.Name} could not be added.", InfoBarSeverity.Error, ex.Message); log.Write(ActivityLevel.Error, ActivityArea.Managers, $"The {bucket.Name} bucket could not be added", ex.ToString()); }
+        finally
+        {
+            bucketWorking = false; bucket.Adding = false;
+            Changed(nameof(Busy)); Changed(nameof(CanQueue)); Changed(nameof(CanRefresh));
+            foreach (var manager in Managers) manager.CanRecover = !Busy && CanQueue;
+            await LoadBucketsAsync(row);
+            foreach (var package in Packages) UpdateInstalledState(package);
+        }
     }
 
     public async Task RecoverAsync(ManagerRow row)
@@ -226,6 +304,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         searchCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = searchCancellation.Token;
         Packages.Reset([]); Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading)); sourceErrors = ""; UpdateErrors();
+        SourceStatus = ""; SourceBusy = false;
         query = query.Trim();
         if (query.Length < 2)
         {
@@ -236,25 +315,24 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         Searching = true; SearchSummary = $"Searching for “{query}”…"; EmptyDetail = "Checking available sources. You can keep typing to refine your search.";
         try
         {
-            if (debounce) await Task.Delay(250, token);
+            if (debounce) await Task.Delay(200, token);
             if (Detecting) { SearchSummary = "Package managers are still being checked"; EmptyDetail = "Try your search again in a moment."; return; }
             var available = Managers.Where(x => x.Status?.Health == ManagerHealth.Ready && (filter is null || x.Definition.Kind == filter)).Select(x => x.Status!).ToArray();
             if (available.Length == 0) { SearchSummary = "No available sources"; EmptyDetail = "Set up the selected package manager on Overview, then refresh its status."; return; }
-            var pending = available.Select(x => service.SearchAsync(x, query, token)).ToList();
-            var responses = new List<SearchResult>();
-            while (pending.Count > 0)
+            var sources = available.Select(x => (x.Definition.Kind, service.SearchAsync(x, query, token))).ToList();
+            var logged = new HashSet<ManagerKind>();
+            var waitedFor = new List<ManagerKind>();
+            var shown = 0;
+            // One ranked list for everything that answers together. A source that is slow enough to miss it is announced, not slipped in.
+            await foreach (var snapshot in PackageSearchSession.StreamAsync(sources, query, PackageSearchSession.DefaultSettle, token: token))
             {
-                var completed = await Task.WhenAny(pending);
-                pending.Remove(completed);
-                var response = await completed;
-                responses.Add(response);
-                token.ThrowIfCancellationRequested();
                 if (generation != searchGeneration) return;
                 // Searches themselves are routine; only a source failing is worth a line.
-                if (response.Error is not null) log.Write(ActivityLevel.Warning, ActivityArea.Search, $"{ManagerDefinition.All.Single(m => m.Kind == response.Manager).Name} search failed", response.Error);
+                foreach (var failed in snapshot.Answered.Where(x => x.Error is not null && logged.Add(x.Manager)))
+                    log.Write(ActivityLevel.Warning, ActivityArea.Search, $"{SourceName(failed.Manager)} search failed", failed.Error!);
                 var existing = Packages.ToDictionary(x => x.Package.Key);
-                var rows = new List<PackageRow>();
-                foreach (var package in PackageRanker.Rank(responses.SelectMany(x => x.Packages), query))
+                var rows = new List<PackageRow>(snapshot.Packages.Count);
+                foreach (var package in snapshot.Packages)
                 {
                     var row = existing.GetValueOrDefault(package.Key) ?? new PackageRow(package);
                     row.Compact = compactResults;
@@ -262,21 +340,35 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
                     rows.Add(row);
                 }
                 Packages.Reset(rows);
-                sourceErrors = string.Join("\n", responses.Where(x => x.Error is not null).Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error}"));
+                sourceErrors = string.Join("\n", snapshot.Answered.Where(x => x.Error is not null).Select(x => $"{SourceName(x.Manager)}: {x.Error}"));
                 UpdateErrors();
+                if (!snapshot.Complete) { waitedFor = [.. snapshot.Waiting]; SourceStatus = $"Still searching {Join(snapshot.Waiting)}…"; SourceBusy = true; }
+                else
+                {
+                    SourceBusy = false;
+                    // Results that arrive after the list was shown are said out loud, so nobody misses them.
+                    var added = snapshot.Packages.Count - shown;
+                    SourceStatus = waitedFor.Count > 0 && added > 0 ? $"{Join(waitedFor)} answered: {added} more {(added == 1 ? "result was" : "results were")} added." : "";
+                }
+                shown = snapshot.Packages.Count;
                 Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading));
             }
             SearchSummary = Packages.Count == 0 ? Errors.Length > 0 ? "Search could not be completed" : $"No results for “{query}”" : "";
-            EmptyDetail = Errors.Length > 0 ? "Open Logs for details, then try again." : "Try a different name or source.";
+            EmptyDetail = Errors.Length > 0 ? "Open Logs for details, then try again."
+                : available.Any(x => x.Definition.Kind == ManagerKind.Scoop) ? "Try a different name or source. Scoop only searches the buckets you have added; add more under Package managers."
+                : "Try a different name or source.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex) { if (generation == searchGeneration) { log.Write(ActivityLevel.Error, ActivityArea.Search, "Search failed unexpectedly", ex.ToString()); sourceErrors = ex.Message; UpdateErrors(); SearchSummary = "Search needs attention"; EmptyDetail = "Check the details above and try again."; } }
         finally { if (generation == searchGeneration) { Searching = false; Changed(nameof(EmptyVisibility)); Changed(nameof(ResultsVisibility)); Changed(nameof(SearchLoading)); } }
     }
 
+    private static string SourceName(ManagerKind kind) => ManagerDefinition.All.Single(m => m.Kind == kind).Name;
+    private static string Join(IReadOnlyList<ManagerKind> kinds) => kinds.Count == 1 ? SourceName(kinds[0]) : string.Join(", ", kinds.Take(kinds.Count - 1).Select(SourceName)) + " and " + SourceName(kinds[^1]);
+
     public void CancelSearch()
     {
-        ++searchGeneration; searchCancellation?.Cancel(); Searching = false;
+        ++searchGeneration; searchCancellation?.Cancel(); Searching = false; SourceBusy = false; SourceStatus = "";
         SearchSummary = "Search cancelled"; EmptyDetail = "Edit your search or press Enter to try again.";
     }
 

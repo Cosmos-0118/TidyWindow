@@ -3,8 +3,11 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-public sealed class PackageService(ICommandRunner runner, IExecutableLocator locator)
+/// <param name="feed">Searches Chocolatey without starting its command line. When absent, or when it fails, the command line is used.</param>
+/// <param name="scoop">Searches Scoop's buckets on disk without starting Scoop. When absent, or when the buckets cannot be read, Scoop itself is asked.</param>
+public sealed class PackageService(ICommandRunner runner, IExecutableLocator locator, IChocolateyFeed? feed = null, ScoopCatalog? scoop = null)
 {
+    private const int SearchLimit = 60;
     private readonly SemaphoreSlim installGate = new(1, 1);
     internal SemaphoreSlim OperationGate => installGate;
     private readonly PackageSearchCache searchCache = new();
@@ -72,9 +75,42 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             cancellation => SearchSourceAsync(manager, query, cancellation), token).ConfigureAwait(false);
     }
 
+    /// <summary>Gets the slow sources ready before they are searched: Chocolatey's connection and Scoop's index. Never throws and is safe to leave running.</summary>
+    public Task WarmUpAsync(IReadOnlyList<ManagerStatus> managers, CancellationToken token = default) => Task.Run(async () =>
+    {
+        try
+        {
+            var tasks = new List<Task>();
+            foreach (var manager in managers.Where(x => x.Health == ManagerHealth.Ready))
+            {
+                if (manager.Definition.Kind == ManagerKind.Chocolatey && feed is not null) tasks.Add(feed.WarmAsync(token));
+                else if (manager.Definition.Kind == ManagerKind.Scoop && scoop is not null && ScoopCatalog.RootFor(manager.Executable) is { } root) tasks.Add(Task.Run(() => scoop.Warm(root, token), token));
+            }
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { }
+    }, token);
+
+    /// <summary>The answer from a source's own data when that can be had, or null to ask its command line. A fast path that fails is never worse than the slow one.</summary>
+    private async Task<SearchResult?> SearchDirectlyAsync(ManagerStatus manager, string query, CancellationToken token)
+    {
+        var kind = manager.Definition.Kind;
+        try
+        {
+            if (kind == ManagerKind.Chocolatey && feed is not null)
+                return new(kind, await feed.SearchAsync(query, SearchLimit, token).ConfigureAwait(false));
+            if (kind == ManagerKind.Scoop && scoop is not null && ScoopCatalog.RootFor(manager.Executable) is { } root)
+                return await Task.Run(() => scoop.Search(root, query, SearchLimit, token) is { } found ? new SearchResult(kind, found) : null, token).ConfigureAwait(false);
+        }
+        // A timeout or a feed that changed shape is not the person's cancelling, so it falls back instead of failing.
+        catch (Exception) when (!token.IsCancellationRequested) { }
+        return null;
+    }
+
     private async Task<SearchResult> SearchSourceAsync(ManagerStatus manager, string query, CancellationToken token)
     {
         var kind = manager.Definition.Kind;
+        if (await SearchDirectlyAsync(manager, query, token).ConfigureAwait(false) is { } direct) return direct;
         string[] arguments = kind switch
         {
             ManagerKind.Winget => ["search", "--query", query, "--source", "winget", "--count", "60", "--accept-source-agreements", "--disable-interactivity"],

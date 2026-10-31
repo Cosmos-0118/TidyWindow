@@ -47,7 +47,7 @@ public sealed partial class MainWindow : Window
         this.log = log;
         toasts = new(action => DispatcherQueue.TryEnqueue(() => action()));
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
-        var packages = new PackageService(runner, locator);
+        var packages = new PackageService(runner, locator, new ChocolateyFeed(), new ScoopCatalog());
         var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")));
         var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
         // Fixes share the queue, and so its live output. Machine-wide fixes run in a helper that sends its output back as it is produced.
@@ -730,6 +730,15 @@ public sealed partial class MainWindow : Window
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);
     }
+    private async void BucketsToggleClick(object sender, RoutedEventArgs e)
+    { if (sender is FrameworkElement { DataContext: ManagerRow row }) await model.ToggleBucketsAsync(row); }
+
+    private async void AddBucketClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: BucketRow bucket }) return;
+        if (model.Managers.FirstOrDefault(x => x.Buckets?.Available.Contains(bucket) == true) is { } row) await model.AddBucketAsync(row, bucket);
+    }
+
     private async void ManagerRecoveryClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: ManagerRow row })
