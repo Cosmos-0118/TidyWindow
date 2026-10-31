@@ -7,7 +7,7 @@ TidyWindow is a Windows-specific desktop app built with C#, .NET 10 and WinUI 3.
 | Path | Contents |
 | --- | --- |
 | [`src/TidyWindow.Desktop/`](../src/TidyWindow.Desktop/) | WinUI app. `Shell/` is the main window, `Features/` has one folder per page (view and view model together), and `Controls/`, `Common/` and `Styles/` are shared. |
-| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Fixes/`, `Lab/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
+| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Lab/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
 | [`src/TidyWindow.CleanHost/`](../src/TidyWindow.CleanHost/) | The elevated helper for Windows-wide changes. |
 | [`src/TidyWindow.SearchHost/`](../src/TidyWindow.SearchHost/) | The Scout worker that talks to Everything. |
 | [`tests/TidyWindow.Tests/`](../tests/TidyWindow.Tests/) | Unit tests, in folders that mirror `TidyWindow.Core` (and `Desktop/` for the UI code they link). |
@@ -45,7 +45,9 @@ See [Scout research](scout-research.md) for candidate limits, backend requiremen
 
 ## Windows changes
 
-Cleanup, Quiet, Tune, Fixes and Lab act on reviewed catalogs checked when the app starts. A second allowlist refuses actions outside those catalogs. Windows-wide changes use `TidyWindow.CleanHost.exe`, launched only after the person approves elevation.
+Cleanup, Quiet, Tune, Debloat, Fixes and Lab act on reviewed catalogs checked when the app starts. A second allowlist refuses actions outside those catalogs. Windows-wide changes use `TidyWindow.CleanHost.exe`, launched only after the person approves elevation.
+
+Debloat is the one page that removes software. The page scans without administrator rights and sends the helper only catalog item IDs. The helper loads the catalog again, checks each request against a protected list, removes the app for every account, rescans to confirm, and records the result so **Removed** can put it back. See [Debloat research](debloat-research.md).
 
 Reversible changes save original state before writing and read back the result where supported. Cleanup holds old installers and unfinished downloads for 14 days; ordinary cache rules delete their files. Held files, installer repair backups and startup restore data survive app restarts. Windows repair commands and package operations have their own effects and do not have a universal undo mechanism.
 

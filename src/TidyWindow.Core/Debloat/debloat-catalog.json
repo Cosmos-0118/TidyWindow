@@ -1,0 +1,227 @@
+{
+  "items": [
+    {
+      "id": "clipchamp", "name": "Clipchamp", "group": "microsoft", "icon": "E714", "recommended": true, "storeId": "9P1J8S7CCWWT",
+      "summary": "Microsoft's video editor, installed on every new Windows 11 account.",
+      "effect": "You lose the built-in video editor. Videos you already made stay where they are.",
+      "packages": ["Clipchamp.Clipchamp"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "bing-news-weather", "name": "News, Weather and Bing apps", "group": "microsoft", "topic": "Bing", "icon": "E774", "recommended": true, "storeId": "9WZDNCRFHVFW",
+      "summary": "News, Weather, Finance, Sports, Travel, Health and Food apps that open as web feeds full of ads and suggestions.",
+      "effect": "The News and Weather apps go. The Weather and News tiles of the Widgets board are separate and stay.",
+      "packages": ["Microsoft.BingNews", "Microsoft.BingWeather", "Microsoft.BingFinance", "Microsoft.BingSports", "Microsoft.BingTravel", "Microsoft.BingHealthAndFitness", "Microsoft.BingFoodAndDrink", "Microsoft.BingTranslator"],
+      "sources": ["Win11Debloat Apps.json", "AtlasOS appx.yml"]
+    },
+    {
+      "id": "bing-search", "name": "Bing Search app", "group": "microsoft", "topic": "Bing", "icon": "E721", "recommended": true,
+      "summary": "A background helper that sends what you type in Start to Bing.",
+      "effect": "Typing in Start still finds your apps and files. Web results from Bing no longer appear.",
+      "packages": ["Microsoft.BingSearch"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "get-help-tips", "name": "Get Help and Tips", "group": "microsoft", "icon": "E897", "recommended": true, "storeId": "9PKDZBMV1H3T",
+      "summary": "Two apps that open Microsoft support pages and show first-run tips.",
+      "effect": "Nothing you use stops working. Windows Settings still has its own links to help.",
+      "packages": ["Microsoft.GetHelp", "Microsoft.Getstarted"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "feedback-hub", "name": "Feedback Hub", "group": "microsoft", "icon": "E939", "recommended": true, "storeId": "9NBLGGH4R32N",
+      "summary": "Sends problem reports and suggestions to Microsoft.",
+      "effect": "You can no longer file feedback from this PC, and Windows Insider builds cannot be reported on.",
+      "packages": ["Microsoft.WindowsFeedbackHub"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "solitaire", "name": "Microsoft Solitaire Collection", "group": "microsoft", "icon": "E7FC", "recommended": true, "storeId": "9WZDNCRFHWD2",
+      "summary": "A card-game bundle that shows video ads unless you pay.",
+      "effect": "The games go, along with their saved progress on this PC.",
+      "packages": ["Microsoft.MicrosoftSolitaireCollection"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "maps", "name": "Windows Maps", "group": "microsoft", "icon": "E707", "storeId": "9WZDNCRDTBVB",
+      "summary": "An offline maps app that few people open.",
+      "effect": "You lose the Maps app and any offline maps downloaded for it.",
+      "packages": ["Microsoft.WindowsMaps"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "office-hub", "name": "Microsoft 365 (Office) hub", "group": "microsoft", "icon": "E8A5", "recommended": true, "storeId": "9WZDNCRD29V9",
+      "summary": "A launcher and advert for Microsoft 365 and Copilot. It is not Word or Excel.",
+      "effect": "The launcher goes. Word, Excel and the rest keep working and can still be started from Start.",
+      "packages": ["Microsoft.MicrosoftOfficeHub"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "onenote-store", "name": "OneNote for Windows 10", "group": "microsoft", "icon": "E70B", "storeId": "9WZDNCRFHVJL",
+      "summary": "The older Store version of OneNote.",
+      "effect": "Notes kept in your Microsoft account stay online and can be opened with another OneNote.",
+      "packages": ["Microsoft.Office.OneNote"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "mail-calendar", "name": "Mail and Calendar (old)", "group": "microsoft", "icon": "E715", "risk": "careful", "storeId": "9WZDNCRFHVQM",
+      "summary": "The older Mail and Calendar apps. Microsoft ended support for them in favour of the new Outlook.",
+      "effect": "Mail and Calendar stop working. Make sure you use another mail app first. Your mail itself stays with your mail provider.",
+      "packages": ["microsoft.windowscommunicationsapps"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "outlook-new", "name": "Outlook (new)", "group": "microsoft", "icon": "E715", "storeId": "9NRX63209R7B",
+      "summary": "Microsoft's web-based Outlook, installed for you and set to take over from Mail.",
+      "effect": "You lose this mail app. Classic Outlook that comes with Microsoft 365 is not touched.",
+      "packages": ["Microsoft.OutlookForWindows"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "people-skype", "name": "People and Skype", "group": "microsoft", "icon": "E77B", "recommended": true, "storeId": "9WZDNCRFJ364",
+      "summary": "Old contact and calling apps that Microsoft no longer develops.",
+      "effect": "Nothing current stops working. Skype itself shut down in 2025.",
+      "packages": ["Microsoft.People", "Microsoft.SkypeApp"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "teams-consumer", "name": "Microsoft Teams (personal)", "group": "microsoft", "icon": "E8F2", "storeId": "XP8BT8DW290MPQ",
+      "summary": "The chat app pinned to the taskbar for personal accounts.",
+      "effect": "You lose Teams chat for personal accounts. Teams for work or school, installed from your organisation, is a different app and is not touched.",
+      "packages": ["MicrosoftTeams", "MSTeams"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "todo", "name": "Microsoft To Do", "group": "microsoft", "icon": "E73A", "storeId": "9NBLGGH5R558",
+      "summary": "A task list app that syncs with your Microsoft account.",
+      "effect": "Your tasks stay in your account and can be opened on the web.",
+      "packages": ["Microsoft.Todos"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "sticky-notes", "name": "Sticky Notes", "group": "microsoft", "icon": "E70B", "risk": "careful", "storeId": "9NBLGGH4QGHW",
+      "summary": "Notes pinned to the desktop.",
+      "effect": "Notes that only exist on this PC are lost with the app. Sign in to Sticky Notes and let it sync first if you use it.",
+      "packages": ["Microsoft.MicrosoftStickyNotes"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "power-automate", "name": "Power Automate", "group": "microsoft", "icon": "E945", "storeId": "9NFTCH6J7FHV",
+      "summary": "A workflow tool most people never open.",
+      "effect": "Flows you built in it on this PC stop running.",
+      "packages": ["Microsoft.PowerAutomateDesktop"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "mixed-reality-3d", "name": "3D Viewer, Paint 3D and Mixed Reality", "group": "microsoft", "icon": "E7BE", "recommended": true, "storeId": "9NBLGGH42THS",
+      "summary": "Older 3D and headset apps. Microsoft has retired them.",
+      "effect": "You lose the 3D viewer and headset portal. Regular Paint is a different app and stays.",
+      "packages": ["Microsoft.Microsoft3DViewer", "Microsoft.Print3D", "Microsoft.MixedReality.Portal", "Microsoft.MSPaint"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "cortana-wallet", "name": "Cortana and Microsoft Wallet", "group": "microsoft", "icon": "E720", "recommended": true,
+      "summary": "A retired assistant and a payments app that no longer works.",
+      "effect": "Nothing that works today.",
+      "packages": ["Microsoft.549981C3F5F10", "Microsoft.Wallet"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "media-player-old", "name": "Groove Music and Movies & TV", "group": "microsoft", "icon": "E8B2", "storeId": "9WZDNCRFJ3PT",
+      "summary": "The older music and video players. Windows 11 uses Media Player.",
+      "effect": "Media Player and your files are not touched. Movies you bought from the Microsoft Store can still be played in the Store app.",
+      "packages": ["Microsoft.ZuneMusic", "Microsoft.ZuneVideo"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "phone-link", "name": "Phone Link", "group": "microsoft", "icon": "E8EA", "storeId": "9NMPJ99VJBWV",
+      "summary": "Mirrors your phone's calls, texts and photos onto this PC.",
+      "effect": "You lose the connection to your phone. Nothing on the phone changes.",
+      "packages": ["Microsoft.YourPhone", "MicrosoftWindows.CrossDevice"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "dev-home", "name": "Dev Home", "group": "microsoft", "icon": "E943", "recommended": true,
+      "summary": "A developer dashboard Microsoft has discontinued.",
+      "effect": "Nothing that works today.",
+      "packages": ["Microsoft.Windows.DevHome"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "quick-assist-family", "name": "Quick Assist and Microsoft Family", "group": "microsoft", "icon": "E902", "storeId": "9P7BP5VNWKX5",
+      "summary": "Remote-help and parental-controls apps.",
+      "effect": "You can no longer give or receive remote help with Quick Assist from this PC, and family settings are managed on the web only.",
+      "packages": ["MicrosoftCorporationII.QuickAssist", "MicrosoftCorporationII.MicrosoftFamily"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "xbox-app", "name": "Xbox app and Game Bar", "group": "microsoft", "topic": "Gaming", "icon": "E7FC", "risk": "careful", "storeId": "9MV0B5HZVK9Z",
+      "summary": "The Xbox app, the Game Bar overlay (Win+G) and its helpers.",
+      "effect": "Win+G, game captures and the Xbox app stop working. Games from the Store and Steam still run. The sign-in components that games need are kept.",
+      "packages": ["Microsoft.GamingApp", "Microsoft.XboxGamingOverlay", "Microsoft.XboxGameOverlay", "Microsoft.XboxSpeechToTextOverlay"], "sources": ["Win11Debloat Apps.json"]
+    },
+
+    {
+      "id": "candy-crush", "name": "Candy Crush and promoted games", "group": "promoted", "topic": "Games", "icon": "E7FC", "recommended": true,
+      "summary": "Games Windows installs and pins to Start for you after setup or a feature update.",
+      "effect": "The games go, along with their progress on this PC.",
+      "packages": ["king.com.*", "A278AB0D.*", "828B5831.HiddenCityMysteryofShadows", "flaregamesGmbH.RoyalRevolt2", "Playtika.CaesarsSlotsFreeCasino", "NORDCURRENT.COOKINGFEVER", "GAMELOFTSA.Asphalt8Airborne"],
+      "sources": ["Win11Debloat Apps.json", "Revision APPX-REMOVER.ps1"]
+    },
+    {
+      "id": "streaming-social", "name": "Streaming and social apps", "group": "promoted", "topic": "Sponsored", "icon": "E8B2", "recommended": true,
+      "summary": "Spotify, Netflix, Disney+, Prime Video, TikTok, Facebook, Instagram, X and similar apps that come pinned to Start.",
+      "effect": "The pinned app goes. The same service still works in your browser, and you can install the real app again whenever you want.",
+      "packages": ["SpotifyAB.SpotifyMusic", "4DF9E0F8.Netflix", "Disney.37853FC22B2CE", "AmazonVideo.PrimeVideo", "BytedancePte.Ltd.TikTok", "Facebook.Facebook", "Facebook.InstagramBeta", "9E2F88E3.Twitter", "Twitter.Twitter", "PandoraMediaInc.*", "ShazamEntertainmentLtd.Shazam", "Duolingo-LearnLanguagesforFree", "7EE7776C.LinkedInforWindows", "57540AMZNMobileLLC.AmazonAlexa", "AdobeSystemsIncorporated.AdobeCreativeCloudExpress"],
+      "sources": ["Win11Debloat Apps.json", "Revision APPX-REMOVER.ps1"]
+    },
+
+    {
+      "id": "copilot-app", "name": "Copilot app", "group": "ai", "icon": "E99A", "recommended": true, "storeId": "9NHT9RB2F4HD",
+      "summary": "The Copilot assistant app and the pieces that put it on the taskbar.",
+      "effect": "The Copilot button and app go. Copilot on the web in your browser keeps working.",
+      "packages": ["Microsoft.Copilot", "Microsoft.Windows.Ai.Copilot.Provider", "Microsoft.WindowsCopilot"], "sources": ["Win11Debloat Apps.json", "RemoveWindowsAI"]
+    },
+    {
+      "id": "recall", "name": "Recall", "group": "ai", "kind": "recall", "icon": "E7B3", "risk": "careful",
+      "summary": "Takes screenshots of what you do so you can search them later. Needs a Copilot+ PC.",
+      "effect": "Recall is switched off as a Windows feature, so it cannot take snapshots or be turned back on from Settings. Snapshots it already took are not deleted by this. You can put it back from the Removed tab.",
+      "sources": ["Microsoft Learn: Manage Recall", "RemoveWindowsAI"]
+    },
+
+    {
+      "id": "oem-hp", "name": "HP pre-installed apps", "group": "manufacturer", "topic": "HP", "icon": "E7F8", "risk": "careful",
+      "summary": "HP Support Assistant, myHP, Smart, Jump Starts, Privacy Settings and other HP extras.",
+      "effect": "HP's support and update tools go. Drivers are not part of these apps and stay. HP Smart is the printer app: keep it if you print from this PC.",
+      "packages": ["AD2F1837.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-dell", "name": "Dell pre-installed apps", "group": "manufacturer", "topic": "Dell", "icon": "E7F8", "risk": "careful",
+      "summary": "Dell Update, SupportAssist, Digital Delivery, Optimizer and other Dell extras.",
+      "effect": "Dell's update and support tools go. Keep them if you want Dell to deliver BIOS and driver updates for you.",
+      "packages": ["DellInc.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-lenovo", "name": "Lenovo pre-installed apps", "group": "manufacturer", "topic": "Lenovo", "icon": "E7F8", "risk": "careful",
+      "summary": "Lenovo Vantage, Smart Experience, Welcome and other Lenovo extras.",
+      "effect": "Vantage's hardware settings (battery limit, performance mode) and Lenovo's update tool go. Keep them if you use those.",
+      "packages": ["E046963F.*", "E0469640.*", "LenovoCompanyLimited.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-asus", "name": "ASUS pre-installed apps", "group": "manufacturer", "topic": "ASUS", "icon": "E7F8", "risk": "careful",
+      "summary": "MyASUS and other ASUS extras.",
+      "effect": "MyASUS settings such as battery care and fan modes go. Keep it if you use them.",
+      "packages": ["B9ECED6F.*", "AsusTeKCOMPUTERINC.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-acer", "name": "Acer pre-installed apps", "group": "manufacturer", "topic": "Acer", "icon": "E7F8", "risk": "careful",
+      "summary": "Acer Care Center, Quick Access and other Acer extras.",
+      "effect": "Acer's care and update tools go.",
+      "packages": ["AcerIncorporated.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-msi", "name": "MSI pre-installed apps", "group": "manufacturer", "topic": "MSI", "icon": "E7F8", "risk": "careful",
+      "summary": "MSI Center and its helpers.",
+      "effect": "MSI Center's fan, performance and RGB controls go. Keep it if you use them.",
+      "packages": ["9426MICRO-STAR*"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "oem-samsung", "name": "Samsung and LG pre-installed apps", "group": "manufacturer", "topic": "Samsung, LG", "icon": "E7F8", "risk": "careful",
+      "summary": "Samsung Settings, Galaxy apps, LG Smart Share and other extras.",
+      "effect": "The manufacturer's settings and update apps go.",
+      "packages": ["SAMSUNGELECTRONICSCO.LTD.*", "SamsungElectronicsCoLtd.*", "LGElectronics.*"], "sources": ["Win11Debloat Apps.json"]
+    },
+
+    {
+      "id": "onedrive", "name": "OneDrive", "group": "components", "kind": "onedrive", "icon": "E753", "risk": "careful", "storeId": "Microsoft.OneDrive",
+      "summary": "Cloud storage that is built into Windows and starts with every new account.",
+      "effect": "Files stop syncing with the cloud. Your files are never deleted from this PC, and the app refuses to go while Desktop, Documents or Pictures are backed up to OneDrive.",
+      "sources": ["AtlasOS ONED.cmd", "Win11Debloat Remove-SelectedApps.ps1"]
+    },
+    {
+      "id": "edge", "name": "Microsoft Edge", "group": "components", "kind": "edge", "icon": "E774", "risk": "careful", "storeId": "Microsoft.Edge",
+      "summary": "The browser built into Windows. Removing it is blocked by default in some regions.",
+      "effect": "Edge is removed for every user. It only goes if another browser is installed, and the web components (WebView2) that many apps need are always kept. Windows Update may bring Edge back; TidyWindow tells the updater not to.",
+      "sources": ["Win11Debloat Invoke-ForceRemoveEdge.ps1", "WinUtil edgeremoval.ps1"]
+    }
+  ]
+}

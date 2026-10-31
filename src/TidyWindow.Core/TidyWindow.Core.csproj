@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><EmbeddedResource Include="Packages/Managers/Recovery/*.ps1" LogicalName="$(AssemblyName).Recovery.%(Filename)%(Extension)" /></ItemGroup>
-  <ItemGroup><EmbeddedResource Include="Cleanup/cleanup-catalog.json" LogicalName="cleanup-catalog.json" /><EmbeddedResource Include="Background/background-catalog.json" LogicalName="background-catalog.json" /><EmbeddedResource Include="Tune/tune-catalog.json" LogicalName="tune-catalog.json" /><EmbeddedResource Include="Fixes/fix-catalog.json" LogicalName="fix-catalog.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Cleanup/cleanup-catalog.json" LogicalName="cleanup-catalog.json" /><EmbeddedResource Include="Background/background-catalog.json" LogicalName="background-catalog.json" /><EmbeddedResource Include="Tune/tune-catalog.json" LogicalName="tune-catalog.json" /><EmbeddedResource Include="Fixes/fix-catalog.json" LogicalName="fix-catalog.json" /><EmbeddedResource Include="Debloat/debloat-catalog.json" LogicalName="debloat-catalog.json" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="TidyWindow.Tests" /></ItemGroup>
 </Project>

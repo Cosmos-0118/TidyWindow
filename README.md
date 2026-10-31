@@ -31,7 +31,7 @@ Finding an app, fixing a broken install and clearing old caches usually means sw
 
 - **Three package managers, one search.** Find software across WinGet, Chocolatey and Scoop, review the install, then follow its progress in a shared queue.
 - **Changes you can inspect.** Windows settings come from small, reviewed catalogs. You can see the change, its permissions and any restart requirement before running it.
-- **A way back where it matters.** Startup, Quiet and Tune save original states. Cleanup holds selected file categories for undo, and repairs explain their commands and limits before they run.
+- **A way back where it matters.** Startup, Quiet and Tune save original states, and Debloat keeps a list of what it removed so you can put it back. Cleanup holds selected file categories for undo, and repairs explain their commands and limits before they run.
 - **Made for Windows.** Native WinUI 3 controls, light and dark themes, and desktop integration, built with C# and .NET 10.
 
 <p align="center">
@@ -71,6 +71,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 | **Startup** | Choose what opens with Windows and restore an entry to its original state. |
 | **Quiet** | Turn reviewed Windows background items off and back on, including telemetry, Recall and optional services. |
 | **Tune** | Apply a focused set of registry settings, inspect current values and restore saved originals. |
+| **Debloat** | Remove Windows default apps, promoted apps, manufacturer software, Recall, OneDrive and Edge for every account, then put them back from the Removed tab. |
 | **Fixes** | Run standard Windows repairs for system files, Windows Update, networking, audio and more. Inspect the commands first and follow their live output. |
 | **Lab** | Compare a 15-second performance check with the previous one, switch power plans or temporarily change one app's priority. |
 | **Queue** | Follow installs, updates and uninstalls from every page, one operation at a time. |
@@ -95,7 +96,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 
 TidyWindow keeps the action and its consequences visible:
 
-- **Reviewed actions.** Cleanup, Quiet, Tune, Fixes and Lab use catalogs validated at startup, with a second allowlist that rejects actions outside them.
+- **Reviewed actions.** Cleanup, Quiet, Tune, Debloat, Fixes and Lab use catalogs validated at startup, with a second allowlist that rejects actions outside them.
 - **Permissions when needed.** The app runs without administrator rights. Windows-wide changes use a separate helper, `TidyWindow.CleanHost.exe`, after you approve the Windows prompt.
 - **Saved originals.** Reversible changes save their original state before writing. Held cleanup files, installer repair backups and startup restore data survive app restarts.
 - **Checked results.** Changes are read back where supported. An unverified outcome is reported as unverified rather than claimed as a success.
@@ -168,6 +169,7 @@ The research notes explain what each tool changes, the evidence behind it, and w
 | [Installer repair](docs/repair-research.md) · [Validation](docs/repair-validation.md) | Recovery strategy, backups and the checks behind Repair. |
 | [Quiet](docs/quiet-research.md) | Background services, tasks and policies, with exclusions and dependency checks. |
 | [Tune](docs/tune-research.md) | Registry settings, their effects and the tweaks left out for lack of evidence. |
+| [Debloat](docs/debloat-research.md) | How apps are removed for every account, the protected list, OneDrive and Edge checks, and put back. |
 | [Fixes](docs/fixes-research.md) | Standard Windows repair commands, scope and limitations. |
 | [Lab](docs/lab-research.md) | What the performance check measures and how comparisons work. |
 

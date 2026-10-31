@@ -26,6 +26,7 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
         @"\Packages\*\LocalCache",   // Store apps keep real data here as well as cache
         @"\Package Cache",           // installer sources Windows needs for repair and uninstall
         @"\.cache",                  // tool runtimes and downloaded models
+        @"\plugins\cache",           // installed plugin bundles (for example Codex's): deleting them uninstalls the plugins until they are fetched again
         @"\Documents\",              // the user's projects
         @"\node_modules\",
         @"\Downloads",
@@ -140,7 +141,8 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
             var result = await new CleanupCleaner(context).CleanAsync(findings);
             var after = (await new CleanupScanner(context).ScanAsync(rules)).Sum(x => x.Bytes);
             output.WriteLine($"Scan promised {promised:N0}; clean freed {result.FreedBytes:N0} ({result.Removed} files, {result.InUse} in use, {result.Denied} denied, {result.Failed} failed); rescan finds {after:N0}");
-            Assert.True(promised > 0);
+            // What was copied depends on this PC. If none of it is a cache these two rules clean, there is nothing to measure here, as when nothing was copied.
+            if (promised == 0) { output.WriteLine("None of the copied folders hold anything these rules clean on this PC, so there is nothing to check."); return; }
             Assert.Equal(promised, result.FreedBytes);
             Assert.Equal(0, after);
             Assert.All(keepers, file => Assert.True(File.Exists(file), $"{file} was removed"));

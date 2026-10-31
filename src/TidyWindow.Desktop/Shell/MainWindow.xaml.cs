@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Fixes, Lab, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Lab, Queue, Logs }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -29,6 +29,8 @@ public sealed partial class MainWindow : Window
     private readonly BackgroundSession quietSession;
     private readonly TuneViewModel tune;
     private readonly TuneSession tuneSession;
+    private readonly DebloatViewModel debloat;
+    private readonly DebloatSession debloatSession;
     private readonly FixesViewModel fixes;
     private readonly FixSession fixSession;
     private readonly LabViewModel lab;
@@ -107,6 +109,13 @@ public sealed partial class MainWindow : Window
         var tuneCatalog = TuneCatalog.Load();
         tuneSession = TuneSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var tuneHistory = new TuneHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Tune"));
+        // Removing apps needs administrator rights, so the page never removes anything itself: it asks the helper, after the permission prompt.
+        // The page reads the PC without them. The helper reads it again for every account and checks the same rules.
+        var debloatCatalog = DebloatCatalog.Load();
+        var debloatSystem = new WindowsDebloatSystem(elevated: false);
+        debloatSession = DebloatSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var debloatHistory = new DebloatHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Debloat"));
+        debloat = new(debloatSystem, debloatCatalog, new DebloatManager(debloatSession, () => debloatSession.OpenAsync(), debloatHistory, new DebloatReinstaller(runner, locator)), log, toasts);
         var labStore = new LabStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Lab"));
         lab = new(new PowerMode(new PowerCfgProcess(), labStore), labStore, new ProcessBoost(new LiveProcesses()), tuneSystem, log, toasts, OpenTune, PowerSource.HasBattery());
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
@@ -115,6 +124,7 @@ public sealed partial class MainWindow : Window
         StartupPage.DataContext = startup;
         QuietPage.DataContext = quiet;
         TunePage.DataContext = tune;
+        DebloatPage.DataContext = debloat;
         FixesPage.DataContext = fixes;
         LabPage.DataContext = lab;
         PathsPage.DataContext = paths;
@@ -165,7 +175,7 @@ public sealed partial class MainWindow : Window
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private void ReportInterruptedRun()
@@ -319,7 +329,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Fixes => FixesPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -373,7 +383,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (FixesNav, Page.Fixes), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -465,6 +475,14 @@ public sealed partial class MainWindow : Window
         tune.RefreshChanges();
         // Reading a few dozen registry values is instant, so the first visit scans at once.
         if (!tune.Scanned && !tune.Busy) _ = tune.ScanAsync();
+    }
+
+    private void DebloatClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Debloat);
+        debloat.RefreshRemoved();
+        // Reading the installed apps takes a moment, so it happens on the first visit and then only when asked.
+        if (!debloat.Scanned && !debloat.Busy) _ = debloat.ScanAsync();
     }
 
     private async Task<string?> PickFolderAsync()

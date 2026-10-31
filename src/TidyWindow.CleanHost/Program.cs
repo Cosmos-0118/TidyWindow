@@ -9,6 +9,8 @@ return args.Length > 0 && args[0] == TidyWindow.Next.Core.RepairHost.Command
     ? await TidyWindow.Next.Core.FixHost.RunAsync(args)
     : args.Length > 0 && args[0] == TidyWindow.Next.Core.TuneHost.Command
     ? await TidyWindow.Next.Core.TuneHost.RunAsync(args)
+    : args.Length > 0 && args[0] == TidyWindow.Next.Core.DebloatHost.Command
+    ? await TidyWindow.Next.Core.DebloatHost.RunAsync(args)
     : args.Length > 0 && args[0] == TidyWindow.Next.Core.MachinePathHost.Command
     ? await TidyWindow.Next.Core.MachinePathHost.RunAsync(args)
     : await TidyWindow.Next.Core.SystemCleanHost.RunAsync(args);
