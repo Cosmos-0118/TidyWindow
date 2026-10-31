@@ -177,6 +177,9 @@ public sealed class BackgroundHistory(string folder)
     }
 }
 
+/// <param name="Declined">The person said no to the administrator prompt part-way, so the items after the last result were not tried.</param>
+public sealed record BackgroundBatch(IReadOnlyList<(BackgroundEntry Entry, BackgroundOutcome Outcome)> Results, bool Declined);
+
 /// <summary>Chooses who makes a change: this process when it can, the administrator helper (after one permission prompt) when it must.</summary>
 public sealed class BackgroundManager(IBackgroundChanger user, IBackgroundChanger machine, Func<Task> unlock, BackgroundHistory history, Func<DateTimeOffset>? clock = null)
 {
@@ -208,6 +211,22 @@ public sealed class BackgroundManager(IBackgroundChanger user, IBackgroundChange
             else if (outcome.Before is { Count: > 0 } before) history.Add(new(entry.Id, entry.Item.Name, now(), before));
         }
         return outcome;
+    }
+
+    /// <summary>
+    /// Changes several items one after another. The administrator prompt comes at most once, because the helper stays open for the rest.
+    /// An item that cannot be changed is reported and skipped; if the person declines the prompt, the rest are not attempted.
+    /// </summary>
+    public async Task<BackgroundBatch> SetManyAsync(IEnumerable<BackgroundEntry> entries, bool enable)
+    {
+        var results = new List<(BackgroundEntry, BackgroundOutcome)>();
+        foreach (var entry in entries)
+        {
+            try { results.Add((entry, await SetAsync(entry, enable).ConfigureAwait(false))); }
+            catch (OperationCanceledException) { return new(results, true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { results.Add((entry, new(false, ex.Message))); }
+        }
+        return new(results, false);
     }
 
     /// <summary>Turns back on everything TidyWindow turned off. Items that are gone from this PC, or that something else already turned back on, are forgotten.</summary>

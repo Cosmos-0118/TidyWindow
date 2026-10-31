@@ -68,7 +68,8 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
                     if (key is null || key.GetValue("Type") is not int type || (type & 0x30) == 0) continue;
                     var depends = (key.GetValue("DependOnService") as string[] ?? []).Where(x => x.Length > 0 && x[0] != '+').ToArray();
                     var trigger = key.GetSubKeyNames().Contains("TriggerInfo", StringComparer.OrdinalIgnoreCase);
-                    found[name] = new(name, Text(key, "DisplayName"), key.GetValue("Start") as int? ?? 3, key.GetValue("DelayedAutostart") as int? == 1, running.Contains(name), trigger, Text(key, "ImagePath"), type, depends);
+                    var isRunning = running.TryGetValue(name, out var processId);
+                    found[name] = new(name, Text(key, "DisplayName"), key.GetValue("Start") as int? ?? 3, key.GetValue("DelayedAutostart") as int? == 1, isRunning, trigger, Text(key, "ImagePath"), type, depends, (int)processId);
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
             }
@@ -79,9 +80,10 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
 
     private static string Text(RegistryKey key, string name) => key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";
 
-    private static HashSet<string> RunningServices()
+    /// <summary>The services that are running or starting, each with the process it lives in. The list already carries the process id, so it costs nothing extra to keep.</summary>
+    private static Dictionary<string, uint> RunningServices()
     {
-        var running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var running = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
         var manager = OpenSCManager(null, null, 0x0004);
         if (manager == IntPtr.Zero) return running;
         var size = 1 << 18;
@@ -97,7 +99,7 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
                 for (var i = 0; i < count; i++)
                 {
                     var item = Marshal.PtrToStructure<EnumServiceStatusProcess>(buffer + i * stride);
-                    if (item.Status.CurrentState is 4 or 2 && Marshal.PtrToStringUni(item.ServiceName) is { } name) running.Add(name);
+                    if (item.Status.CurrentState is 4 or 2 && Marshal.PtrToStringUni(item.ServiceName) is { } name) running[name] = item.Status.ProcessId;
                 }
                 if (ok) break;
             }
@@ -117,9 +119,16 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
             var split = path.LastIndexOf('\\');
             dynamic folder = Scheduler().GetFolder(split == 0 ? "\\" : path[..split]);
             dynamic task = folder.GetTask(path[(split + 1)..]);
-            return new(path, (bool)task.Enabled, (int)task.State == 4);
+            return new(path, (bool)task.Enabled, (int)task.State == 4, WakesPc((object)task));
         }
         catch (Exception ex) when (ex is IOException or COMException or UnauthorizedAccessException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { return null; }
+    }
+
+    // Reading the definition parses the task's XML, which a task with a locked-down ACL can refuse. That must not hide the task, so it just reads as "does not wake the PC".
+    private static bool WakesPc(object task)
+    {
+        try { return (bool)((dynamic)task).Definition.Settings.WakeToRun; }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { return false; }
     }
 
     private dynamic Scheduler()
@@ -271,7 +280,8 @@ public sealed partial class WindowsBackgroundWriter : IBackgroundWriter
 
     public void SetPolicy(string key, string name, int? value)
     {
-        if (!key.StartsWith(@"SOFTWARE\Policies\Microsoft\", StringComparison.OrdinalIgnoreCase) || key.Contains("..") || name.Length == 0 || name.IndexOfAny(['\\', '/']) >= 0) throw new InvalidOperationException("That setting cannot be changed.");
+        // The same list the catalog is checked against, so the helper cannot be talked into any other key or value.
+        if (!BackgroundGuard.IsAllowedPolicy(key, name)) throw new InvalidOperationException("That setting cannot be changed.");
         try
         {
             using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);

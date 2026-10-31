@@ -9,7 +9,8 @@
       "summary": "Collects diagnostic and usage data about this PC and sends it to Microsoft.",
       "effect": "Microsoft receives less data about how this PC is used. Nothing you use stops working, though Feedback Hub and Windows Insider builds may not be able to report problems.",
       "processes": [
-        "Connected User Experiences and Telemetry"
+        "Connected User Experiences and Telemetry",
+        "AggregatorHost.exe"
       ],
       "targets": [
         {
@@ -286,6 +287,10 @@
         {
           "kind": "task",
           "name": "\\Microsoft\\XblGameSave\\XblGameSaveTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\XblGameSave\\XblGameSaveTaskLogon"
         }
       ]
     },
@@ -553,6 +558,14 @@
         {
           "kind": "task",
           "name": "\\Microsoft\\Windows\\Application Experience\\SdbinstMergeDbTask"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\PcaWallpaperAppDetect"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Application Experience\\AitAgent"
         }
       ]
     },
@@ -845,6 +858,282 @@
         }
       ],
       "risk": "safe"
+    },
+    {
+      "id": "recommended-troubleshooting",
+      "name": "Recommended troubleshooting",
+      "group": "telemetry",
+      "topic": "Diagnostics",
+      "icon": "E7BA",
+      "summary": "Scans this PC in the background and quietly applies fixes that Microsoft recommends for problems it finds.",
+      "effect": "Windows stops scanning for problems and applying fixes by itself. Troubleshooters you start from Settings still work.",
+      "processes": [
+        "Recommended Troubleshooting Service"
+      ],
+      "targets": [
+        {
+          "kind": "service",
+          "name": "TroubleshootingSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Diagnosis\\RecommendedTroubleshootingScanner"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Diagnosis\\UnexpectedCodepath"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "notepad-ai",
+      "name": "Notepad AI",
+      "group": "ai",
+      "topic": "Notepad",
+      "icon": "E70F",
+      "summary": "The AI rewrite, summarize and write features built into Notepad.",
+      "effect": "The AI buttons and menus disappear from Notepad. Notepad opens, edits and saves files exactly as before.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\WindowsNotepad",
+          "name": "DisableAIFeatures",
+          "block": 1
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "paint-ai",
+      "name": "Paint AI",
+      "group": "ai",
+      "topic": "Paint",
+      "icon": "E790",
+      "summary": "Cocreator, Generative Fill and Image Creator in Paint.",
+      "effect": "Paint no longer offers Cocreator, Generative Fill or Image Creator. Drawing and editing in Paint are not affected.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableCocreator",
+          "block": 1,
+          "needsPro": true
+        },
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableGenerativeFill",
+          "block": 1,
+          "needsPro": true
+        },
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableImageCreator",
+          "block": 1,
+          "needsPro": true
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "delivery-optimization-sharing",
+      "name": "Sharing updates with other PCs",
+      "group": "optional",
+      "topic": "Updates",
+      "icon": "E896",
+      "summary": "Lets Windows use your internet connection and disk to send pieces of updates and Store apps to other PCs (Delivery Optimization peer-to-peer).",
+      "effect": "Windows Update and the Store still download as normal, straight from Microsoft. Updates may arrive a little slower on a network where several PCs would have shared them. Settings shows this as managed.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+          "name": "DODownloadMode",
+          "block": 0,
+          "needsPro": true
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "standby-network",
+      "name": "Network while the PC sleeps",
+      "group": "optional",
+      "topic": "Power",
+      "icon": "E7E8",
+      "risk": "careful",
+      "summary": "On laptops and other PCs with Modern Standby, Windows keeps Wi-Fi connected while the PC sleeps, which wakes it for background traffic and drains the battery.",
+      "effect": "Wi-Fi may disconnect while the PC sleeps, so email, messages and downloads wait until you wake it. Sleep itself is not affected. This only changes PCs that use Modern Standby.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\f15576e8-98b7-4186-b944-eafa664402d9",
+          "name": "ACSettingIndex",
+          "block": 0,
+          "needsPro": true
+        },
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\f15576e8-98b7-4186-b944-eafa664402d9",
+          "name": "DCSettingIndex",
+          "block": 0,
+          "needsPro": true
+        }
+      ]
+    },
+    {
+      "id": "search-highlights",
+      "name": "Search highlights",
+      "group": "optional",
+      "topic": "Search",
+      "icon": "E721",
+      "summary": "Downloads the daily pictures, holidays and trending topics shown in the search box and Start menu search.",
+      "effect": "Search stops showing daily pictures and trending topics. Searching for your files and apps works as before.",
+      "processes": [
+        "SearchHost.exe"
+      ],
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+          "name": "EnableDynamicContentInWSB",
+          "block": 0,
+          "needsPro": true
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "winsat-benchmark",
+      "name": "Windows hardware benchmark",
+      "group": "optional",
+      "topic": "Performance",
+      "icon": "E945",
+      "summary": "Runs the Windows System Assessment Tool, a benchmark that stresses the processor, graphics, memory and disk while the PC is idle.",
+      "effect": "Windows stops running its hardware benchmark by itself. A few programs that read its scores may show out-of-date ones.",
+      "processes": [
+        "WinSAT.exe"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Maintenance\\WinSAT"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "speech-model-download",
+      "name": "Speech model downloads",
+      "group": "optional",
+      "topic": "Speech",
+      "icon": "E720",
+      "summary": "Checks for and downloads speech recognition models in the background, even if you never use voice typing.",
+      "effect": "Speech models are no longer downloaded or updated by themselves. Voice typing and speech recognition may need a manual download the next time you use them.",
+      "processes": [
+        "SpeechModelDownload.exe"
+      ],
+      "targets": [
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Speech\\SpeechModelDownloadTask"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "push-to-install",
+      "name": "Remote install from the Store",
+      "group": "optional",
+      "topic": "Microsoft Store",
+      "icon": "E896",
+      "summary": "Lets the Microsoft Store website install apps on this PC when you choose “Install on my devices”.",
+      "effect": "“Install on my devices” on the Store website can no longer install apps on this PC. Installing from the Store app on this PC is not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "PushToInstall",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\PushToInstall\\LoginCheck"
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\PushToInstall\\Registration"
+        }
+      ],
+      "risk": "safe"
+    },
+    {
+      "id": "find-my-device",
+      "name": "Find My Device",
+      "group": "optional",
+      "topic": "Location",
+      "icon": "E707",
+      "risk": "careful",
+      "summary": "Registers this PC and its location with your Microsoft account so you can find it if it is lost or stolen.",
+      "effect": "You can't locate this PC from your Microsoft account, and it stops sending its location there. Apps that use location on this PC are not affected.",
+      "targets": [
+        {
+          "kind": "policy",
+          "key": "SOFTWARE\\Policies\\Microsoft\\FindMyDevice",
+          "name": "AllowFindMyDevice",
+          "block": 0,
+          "needsPro": true
+        }
+      ]
+    },
+    {
+      "id": "fax-print-notifications",
+      "name": "Fax and printer notifications",
+      "group": "optional",
+      "topic": "Printing",
+      "icon": "E749",
+      "risk": "careful",
+      "summary": "Fax, and the service that lets printer apps show notices such as low ink or a paper jam, plus a task for school print setup.",
+      "effect": "Fax stops working, and printer apps may not show ink or paper notices. Printing itself is not affected.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "Fax",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "service",
+          "name": "PrintNotify",
+          "off": "disabled",
+          "defaultStart": 3
+        },
+        {
+          "kind": "task",
+          "name": "\\Microsoft\\Windows\\Printing\\EduPrintProv"
+        }
+      ]
+    },
+    {
+      "id": "game-input",
+      "name": "GameInput service",
+      "group": "optional",
+      "topic": "Gaming",
+      "icon": "E7FC",
+      "risk": "careful",
+      "summary": "Supports the GameInput interface that some games and apps use to read controllers and other game devices.",
+      "effect": "Games and apps that use GameInput may not see your controller or other game devices until you turn this back on. Most games use other ways to read controllers.",
+      "targets": [
+        {
+          "kind": "service",
+          "name": "GameInputSvc",
+          "off": "disabled",
+          "defaultStart": 3
+        }
+      ]
     }
   ]
 }

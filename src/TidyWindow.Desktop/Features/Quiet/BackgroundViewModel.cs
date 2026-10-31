@@ -5,7 +5,7 @@ using TidyWindow.Next.Core;
 namespace TidyWindow.Next.Desktop;
 
 public enum BackgroundTab { Telemetry, Ai, Optional, Changes }
-public enum BackgroundFilter { All, On, Off }
+public enum BackgroundFilter { All, Running, On, Off }
 
 public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
 {
@@ -54,6 +54,7 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
     public Visibility LockVisibility => NoteVisibility;
     public Visibility ToggleVisibility => current.On && current.Lock is not null ? Visibility.Collapsed : Visibility.Visible;
     public Visibility RunningVisibility => current.Running ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility WakeVisibility => current.WakesPc ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CarefulVisibility => current.Item.Risk == BackgroundRisk.Careful ? Visibility.Visible : Visibility.Collapsed;
     public Visibility PartlyVisibility => current.On && !current.FullyOn ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RevertedVisibility => reverted && current.FullyOn ? Visibility.Visible : Visibility.Collapsed;
@@ -78,12 +79,21 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
         var item = current.Item;
         Add("What it does", item.Summary);
         Add("If you turn it off", item.Effect);
-        Add("Right now", current.Running ? "Running" : current.On ? (current.FullyOn ? "Allowed, but not running" : "Partly turned off") : "Turned off");
+        Add("Right now", current.Running ? RunningText() : current.On ? (current.FullyOn ? "Allowed, but not running" : "Partly turned off") : "Turned off");
+        if (current.WakesPc) Add("Wakes the PC", "A scheduled task here is set to wake this PC from sleep to run.");
         Add("Seen as", string.Join(", ", item.Processes));
         Add("Includes", string.Join("\n", current.Targets.Where(x => x.Present).Select(Describe)), true);
         if (current.Lock is { } rule && current.On) Add("Why it is locked", rule);
         return list;
     }
+
+    // The process id is what Task Manager's Details tab shows, so a person can find exactly what is running. Services often share one process.
+    private string RunningText() => current.ProcessIds switch
+    {
+        [] => "Running",
+        [var one] => $"Running (PID {one})",
+        var many => $"Running (PID {string.Join(", ", many)})"
+    };
 
     private static string Describe(BackgroundTargetState state) => state.Target.Kind switch
     {
@@ -97,7 +107,7 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
         current = updated; facts = null;
         foreach (var name in new[]
         {
-            nameof(Enabled), nameof(Entry), nameof(Sub), nameof(RunningVisibility), nameof(CanToggle), nameof(Dim), nameof(Facts), nameof(Note), nameof(NoteVisibility),
+            nameof(Enabled), nameof(Entry), nameof(Sub), nameof(RunningVisibility), nameof(WakeVisibility), nameof(CanToggle), nameof(Dim), nameof(Facts), nameof(Note), nameof(NoteVisibility),
             nameof(LockVisibility), nameof(ToggleVisibility), nameof(PartlyVisibility), nameof(RevertedVisibility)
         }) Changed(name);
     }
@@ -171,9 +181,10 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
     public Visibility EmptyVisibility => scanned && tab != BackgroundTab.Changes && Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NoChangesVisibility => Changes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyGlyph => query.Length > 0 ? "" : "";
-    public string EmptyTitle => query.Length > 0 ? "No matches" : filter switch { BackgroundFilter.On => "Nothing is allowed", BackgroundFilter.Off => "Nothing is turned off", _ => "Nothing here on this PC" };
+    public string EmptyTitle => query.Length > 0 ? "No matches" : filter switch { BackgroundFilter.Running => "Nothing is running", BackgroundFilter.On => "Nothing is allowed", BackgroundFilter.Off => "Nothing is turned off", _ => "Nothing here on this PC" };
     public string EmptyText => query.Length > 0 ? "Try a different name or the name you saw in Task Manager." : filter switch
     {
+        BackgroundFilter.Running => "None of the items in this list is running right now.",
         BackgroundFilter.On => "Everything in this list is already turned off.",
         BackgroundFilter.Off => "Everything in this list is still allowed to run.",
         _ => "None of these features exist on this PC."
@@ -181,13 +192,35 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
 
     public string FooterNote => $"Some things are never offered here because other apps depend on them: Windows Update, Windows Search, notifications, audio, printing, Microsoft Edge updates and security services. Other companies' background apps are on the Startup page.{(notOnThisPc > 0 ? $" {notOnThisPc:N0} more known items are not on this PC." : "")}";
 
+    // Turned off by TidyWindow earlier and switched back on since, such as by a Windows update. Only those that can be changed again are offered.
+    private IReadOnlyList<BackgroundRow> RevertedRows => all.Where(x => x.Reverted && x.Entry.FullyOn && x.Entry.CanChange).ToList();
+    public int RevertedCount => RevertedRows.Count;
+    public Visibility RevertedVisibility => RevertedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string RevertedTitle => RevertedCount == 1 ? "Windows turned 1 item back on" : $"Windows turned {RevertedCount:N0} items back on";
+    public bool CanTurnOffAgain => !Busy && RevertedCount > 0;
+
+    /// <summary>What "Turn off safe items" would switch off in the open tab: allowed to run, can be changed, and not marked Careful. The search and filter do not narrow it, so the person always sees the whole set.</summary>
+    public IReadOnlyList<BackgroundRow> SafeRows
+    {
+        get
+        {
+            if (tab == BackgroundTab.Changes) return [];
+            var group = tab switch { BackgroundTab.Telemetry => BackgroundGroup.Telemetry, BackgroundTab.Ai => BackgroundGroup.Ai, _ => BackgroundGroup.Optional };
+            return all.Where(x => x.Entry.Item.Group == group && x.Entry.Item.Risk == BackgroundRisk.Safe && x.Entry.On && x.Entry.CanChange).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+    }
+
+    public string SafeLabel => SafeRows.Count > 0 ? $"Turn off safe items ({SafeRows.Count:N0})" : "Turn off safe items";
+    public bool CanTurnOffSafe => !Busy && SafeRows.Count > 0;
+    public Visibility SafeVisibility => tab == BackgroundTab.Changes ? Visibility.Collapsed : Visibility.Visible;
+
     public string Query { get => query; set { if (Set(ref query, value)) ApplyFilter(); } }
     public BackgroundTab Tab { get => tab; set { if (Set(ref tab, value)) ApplyFilter(); } }
     public BackgroundFilter Filter { get => filter; set { if (Set(ref filter, value)) ApplyFilter(); } }
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(CanTurnOffAgain), nameof(CanTurnOffSafe), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
     }
 
     public async Task ScanAsync()
@@ -212,7 +245,13 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             foreach (var name in new[] { nameof(FooterNote), nameof(CheckedText), nameof(Summary) }) Changed(name);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Background scan finished", $"{all.Count} items on this PC; {all.Count(x => x.Entry.Running)} running.");
             var back = all.Where(x => x.Reverted).ToList();
-            if (back.Count > 0) toasts.Show("background-reverted", ToastKind.Info, back.Count == 1 ? $"{back[0].Name} was turned back on" : $"{back.Count} items were turned back on", "Something, such as a Windows update, switched them back on. You can turn them off again here.", seconds: 10);
+            if (back.Count > 0)
+            {
+                var title = back.Count == 1 ? $"{back[0].Name} was turned back on" : $"{back.Count} items were turned back on";
+                const string why = "Something, such as a Windows update, switched them back on.";
+                if (RevertedRows.Count > 0) toasts.Show("background-reverted", ToastKind.Info, title, why, "Turn off again", TurnOffAgainAsync, 12);
+                else toasts.Show("background-reverted", ToastKind.Info, title, why, seconds: 12);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -231,7 +270,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) ||
             row.Entry.Item.Summary.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Item.Processes.Any(p => p.Contains(w, StringComparison.CurrentCultureIgnoreCase)) ||
             row.Entry.Targets.Any(t => t.Target.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase)));
-        bool Wanted(BackgroundRow row) => filter switch { BackgroundFilter.On => row.Enabled, BackgroundFilter.Off => !row.Enabled, _ => true };
+        bool Wanted(BackgroundRow row) => filter switch { BackgroundFilter.Running => row.Entry.Running, BackgroundFilter.On => row.Enabled, BackgroundFilter.Off => !row.Enabled, _ => true };
         var group = tab switch { BackgroundTab.Telemetry => BackgroundGroup.Telemetry, BackgroundTab.Ai => BackgroundGroup.Ai, _ => BackgroundGroup.Optional };
         var inTab = tab == BackgroundTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What is still active comes first, running before idle, then A to Z.
@@ -240,7 +279,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         foreach (var name in new[]
         {
             nameof(TelemetryCount), nameof(AiCount), nameof(OptionalCount), nameof(TabNote), nameof(Summary),
-            nameof(ListVisibility), nameof(ChangesVisibility), nameof(EmptyVisibility), nameof(EmptyGlyph), nameof(EmptyTitle), nameof(EmptyText)
+            nameof(ListVisibility), nameof(ChangesVisibility), nameof(EmptyVisibility), nameof(EmptyGlyph), nameof(EmptyTitle), nameof(EmptyText),
+            nameof(RevertedCount), nameof(RevertedVisibility), nameof(RevertedTitle), nameof(CanTurnOffAgain), nameof(SafeLabel), nameof(CanTurnOffSafe), nameof(SafeVisibility)
         }) Changed(name);
     }
 
@@ -333,6 +373,46 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             ApplyFilter(keepPosition: true);
         }
         return changed;
+    }
+
+    /// <summary>Turns off again everything that Windows switched back on, in one go. They were turned off by the person before, so they are not asked about one by one.</summary>
+    public Task TurnOffAgainAsync() => TurnOffManyAsync(RevertedRows, "turned off again");
+
+    /// <summary>Turns off the safe items of the open tab. The page has already shown the person exactly which ones (<see cref="SafeRows"/>).</summary>
+    public Task TurnOffSafeAsync(IReadOnlyList<BackgroundRow> rows) => TurnOffManyAsync(rows, "turned off");
+
+    private async Task TurnOffManyAsync(IReadOnlyList<BackgroundRow> rows, string what)
+    {
+        var todo = rows.Where(x => x.Entry.CanChange).ToList();
+        if (Busy || todo.Count == 0) return;
+        working = true; foreach (var row in todo) row.Busy = true; Notify();
+        BackgroundBatch? batch = null;
+        try { batch = await manager.SetManyAsync(todo.Select(x => x.Entry), false); }
+        finally
+        {
+            // Read each item again, so the rows show what Windows really did even if the batch stopped part-way.
+            foreach (var row in todo)
+            {
+                if (await Task.Run(() => BackgroundScan.Find(system, catalog, row.Id)) is { } now) row.Update(now);
+                row.Busy = false;
+                if (batch?.Results.Any(x => x.Entry.Id == row.Id && x.Outcome.Ok) == true) row.Reverted = false;
+            }
+            working = false;
+            RefreshChanges(); Notify(); ApplyFilter(keepPosition: true);
+        }
+        Report(batch!, todo.Count, what);
+    }
+
+    private void Report(BackgroundBatch batch, int asked, string what)
+    {
+        var done = batch.Results.Count(x => x.Outcome.Ok);
+        var failed = batch.Results.Where(x => !x.Outcome.Ok).ToList();
+        var notes = string.Join(" ", batch.Results.Select(x => x.Outcome.Note).Where(x => !string.IsNullOrEmpty(x)).Distinct());
+        var title = done == 1 ? $"1 item {what}" : $"{done} items {what}";
+        if (batch.Declined) toasts.Show("background", ToastKind.Info, "Administrator permission was declined", done > 0 ? $"{title} before that. The rest were not changed." : "Nothing was changed.", seconds: 12);
+        else if (failed.Count == 0) toasts.Show("background", ToastKind.Success, title, notes.Length > 0 ? ToastCenter.Brief(notes) : "Find them under Turned off to undo.", seconds: 12);
+        else toasts.Show("background", ToastKind.Warning, $"{done} of {asked} {what}", ToastCenter.Brief(string.Join(" ", failed.Select(x => $"{x.Entry.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
+        log.Write(failed.Count == 0 && !batch.Declined ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, $"Background items {what}", $"{done} of {asked}.{(batch.Declined ? " Administrator permission was declined." : "")}{(failed.Count > 0 ? " Not changed: " + string.Join(", ", failed.Select(x => x.Entry.Item.Name)) + "." : "")}");
     }
 
     public Task<bool> TurnBackOnAsync(BackgroundChangeRow change) =>

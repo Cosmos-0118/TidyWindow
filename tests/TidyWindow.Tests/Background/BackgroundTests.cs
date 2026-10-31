@@ -23,15 +23,15 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public TaskFact? Task(string path) => TaskList.GetValueOrDefault(path);
     public int? Policy(string key, string name) => Policies.TryGetValue(key + "|" + name, out var value) ? value : null;
 
-    public FakeBackgroundPc Svc(string name, int start = 3, bool running = false, bool delayed = false, string[]? depends = null, string image = @"%SystemRoot%\System32\svchost.exe -k netsvcs -p", int type = 32, string display = "")
+    public FakeBackgroundPc Svc(string name, int start = 3, bool running = false, bool delayed = false, string[]? depends = null, string image = @"%SystemRoot%\System32\svchost.exe -k netsvcs -p", int type = 32, string display = "", int pid = 0)
     {
-        ServiceList[name] = new(name, display.Length > 0 ? display : name, start, delayed, running, false, image, type, depends ?? []);
+        ServiceList[name] = new(name, display.Length > 0 ? display : name, start, delayed, running, false, image, type, depends ?? [], pid);
         return this;
     }
 
-    public FakeBackgroundPc Job(string path, bool enabled = true, bool running = false)
+    public FakeBackgroundPc Job(string path, bool enabled = true, bool running = false, bool wakes = false)
     {
-        TaskList[path] = new(path, enabled, running);
+        TaskList[path] = new(path, enabled, running, wakes);
         return this;
     }
 
@@ -140,7 +140,37 @@ public sealed class BackgroundCatalogTests
     public void TheCatalogThatShipsNeverNamesAnythingOutsideItsAllowedPlaces()
     {
         foreach (var target in BackgroundCatalog.Load().SelectMany(x => x.Targets).Where(x => x.Kind == BackgroundTargetKind.Policy))
-            Assert.Matches(@"^SOFTWARE\\Policies\\Microsoft\\(Windows\\WindowsAI|Dsh|Windows\\GameDVR)$", target.Key);
+            Assert.True(BackgroundGuard.IsAllowedPolicy(target.Key, target.Name), $"{target.Key}|{target.Name}");
+    }
+
+    [Fact]
+    public void OnlyTheOneBenchmarkTaskIsAllowedInTheMaintenanceFolder()
+    {
+        Assert.Empty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Task, Name = @"\Microsoft\Windows\Maintenance\WinSAT" })]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Task, Name = @"\Microsoft\Windows\Maintenance\MaintenanceConfigurator" })]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Task, Name = @"\Microsoft\Windows\Maintenance\WinSAT\Other" })]));
+    }
+
+    [Theory]
+    [InlineData(@"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", "AllowRecallEnablement")]
+    [InlineData(@"SOFTWARE\Policies\Microsoft\Windows\Windows Search", "DisableSearch")]
+    [InlineData(@"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DOMaxCacheSize")]
+    [InlineData(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoDriveTypeAutoRun")]
+    [InlineData(@"SOFTWARE\Policies\Microsoft\Windows Defender", "DisableAntiSpyware")]
+    public void ASettingBesideTheOnesThePageOwnsIsRefused(string key, string name)
+    {
+        Assert.False(BackgroundGuard.IsAllowedPolicy(key, name));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Policy, Key = key, Name = name })]));
+    }
+
+    [Fact]
+    public void TheItemsThatCanCostAFeatureAreMarkedCarefulSoTheyAreNeverSwitchedInABatch()
+    {
+        var catalog = BackgroundCatalog.Load().ToDictionary(x => x.Id);
+        foreach (var id in new[] { "find-my-device", "standby-network", "game-input", "fax-print-notifications" })
+            Assert.Equal(BackgroundRisk.Careful, catalog[id].Risk);
+        Assert.Equal(BackgroundGroup.Ai, catalog["notepad-ai"].Group);
+        Assert.Equal(BackgroundGroup.Ai, catalog["paint-ai"].Group);
     }
 }
 
@@ -278,6 +308,20 @@ public sealed class BackgroundScanTests
         Assert.Contains("Home", entry.Lock);
         pc.Edition = "Professional";
         Assert.True(One(pc, Policy(pro: true)).CanChange);
+    }
+
+    [Fact]
+    public void ARunningServiceReportsItsProcessAndATaskReportsWhetherItWakesThePc()
+    {
+        var pc = new FakeBackgroundPc().Svc("A", start: 2, running: true, pid: 4120).Svc("B", start: 2, running: true, pid: 4120).Svc("C", start: 2, running: false, pid: 77).Job(@"\Microsoft\a\b", wakes: true);
+        var entry = One(pc, Svc("A"), Svc("B"), Svc("C"), Job(@"\Microsoft\a\b"));
+        Assert.Equal([4120], entry.ProcessIds);
+        Assert.True(entry.WakesPc);
+
+        // Once the task is off it can no longer wake the PC.
+        pc.Job(@"\Microsoft\a\b", enabled: false, wakes: true);
+        Assert.False(One(pc, Job(@"\Microsoft\a\b")).WakesPc);
+        Assert.Empty(One(pc, Svc("C")).ProcessIds);
     }
 
     [Fact]
@@ -535,6 +579,59 @@ public sealed class BackgroundChangeTests : IDisposable
         Assert.True(Assert.Single(results).Outcome.Ok);
         Assert.Empty(manager.History.All());
         Assert.Equal(2, pc.ServiceList["Diag"].Start); Assert.True(pc.ServiceList["Diag"].Delayed); Assert.True(pc.ServiceList["Diag"].Running);
+    }
+
+    private static BackgroundItem Named(string id, params BackgroundTarget[] targets) => new() { Id = id, Name = id, Group = BackgroundGroup.Optional, Summary = "s", Effect = "e", Targets = targets };
+
+    [Fact]
+    public async Task SeveralItemsAreTurnedOffTogetherAndOneThatIsLockedIsReportedNotForced()
+    {
+        var pc = new FakeBackgroundPc().Svc("A", start: 2).Svc("Base").Svc("Needy", depends: ["Base"]).Job(@"\Microsoft\a\b");
+        BackgroundItem[] items = [Named("one", Svc("A", start: 2)), Named("two", Svc("Base")), Named("three", Job(@"\Microsoft\a\b"))];
+        var entries = BackgroundScan.Run(pc, items).Entries;
+        var unlocks = 0;
+        var manager = new BackgroundManager(new LocalBackgroundChanger(pc, pc, items), new Counter(), () => { unlocks++; return Task.CompletedTask; }, new(folder));
+
+        var batch = await manager.SetManyAsync(entries, false);
+
+        Assert.False(batch.Declined); Assert.Equal(0, unlocks);
+        Assert.Equal([true, false, true], batch.Results.Select(x => x.Outcome.Ok));
+        Assert.Contains("relies on it", batch.Results[1].Outcome.Error);
+        Assert.Equal(["one", "three"], manager.History.All().Select(x => x.Id).Order());
+        Assert.Equal(4, pc.ServiceList["A"].Start); Assert.Equal(3, pc.ServiceList["Base"].Start);
+    }
+
+    [Fact]
+    public async Task DecliningTheAdministratorPromptStopsTheWholeBatch()
+    {
+        var pc = new FakeBackgroundPc { DenyWrites = true }.Svc("A", start: 2).Svc("B", start: 2);
+        BackgroundItem[] items = [Named("one", Svc("A", start: 2)), Named("two", Svc("B", start: 2))];
+        var manager = new BackgroundManager(new LocalBackgroundChanger(pc, pc, items), new Counter(), () => throw new OperationCanceledException(), new(folder));
+
+        var batch = await manager.SetManyAsync(BackgroundScan.Run(pc, items).Entries, false);
+
+        Assert.True(batch.Declined); Assert.Empty(batch.Results);
+        Assert.Empty(pc.Writes); Assert.Empty(manager.History.All());
+    }
+
+    [Fact]
+    public async Task AnItemWindowsTurnedBackOnCanBeTurnedOffAgainAndStillComesBackTheSameWay()
+    {
+        var (pc, item, entry) = Machine();
+        var manager = new BackgroundManager(Changer(pc, item), new Counter(), () => Task.CompletedTask, new(folder));
+        await manager.SetAsync(entry, false);
+
+        // A Windows update puts it back the way it was.
+        pc.Svc("Diag", start: 2, running: true, delayed: true);
+        var back = Assert.Single(BackgroundScan.Run(pc, [item]).Entries);
+        Assert.True(back.FullyOn);
+
+        Assert.True(Assert.Single((await manager.SetManyAsync([back], false)).Results).Outcome.Ok);
+        Assert.Equal(4, pc.ServiceList["Diag"].Start);
+        Assert.Single(manager.History.All());
+
+        Assert.True(Assert.Single(await manager.RestoreAllAsync(pc, [item])).Outcome.Ok);
+        Assert.Equal(2, pc.ServiceList["Diag"].Start); Assert.True(pc.ServiceList["Diag"].Delayed);
     }
 
     [Fact]

@@ -47,8 +47,10 @@ public sealed class BackgroundItem
 }
 
 // What the scanner reads from the PC. Each record is one fact, so tests can describe a PC without touching the registry.
-public sealed record ServiceFact(string Name, string DisplayName, int Start, bool Delayed, bool Running, bool HasTrigger, string ImagePath, int Type, IReadOnlyList<string> DependsOn);
-public sealed record TaskFact(string Path, bool Enabled, bool Running);
+/// <param name="ProcessId">The process a running service lives in (zero when it is not running). Several services can share one.</param>
+public sealed record ServiceFact(string Name, string DisplayName, int Start, bool Delayed, bool Running, bool HasTrigger, string ImagePath, int Type, IReadOnlyList<string> DependsOn, int ProcessId = 0);
+/// <param name="WakesPc">The task is set to wake this PC from sleep to run.</param>
+public sealed record TaskFact(string Path, bool Enabled, bool Running, bool WakesPc = false);
 
 public interface IBackgroundSystem
 {
