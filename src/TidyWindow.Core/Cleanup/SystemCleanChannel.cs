@@ -16,6 +16,7 @@ public static class SystemCleanHost
 {
     public const string Command = "--system-clean";
     public const string MeasureMarker = "@measure";
+    public const string EstimateMarker = "@estimate";
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
     public static async Task<int> RunAsync(string[] args, IReadOnlyList<CleanupRule>? catalog = null, CleanupContext? context = null, ISystemTools? tools = null)
@@ -46,11 +47,12 @@ public static class SystemCleanHost
             var ids = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var job = new SystemCleanJob(context, tools ?? new WindowsSystemTools());
             // A leading marker asks for sizes only; it is not a rule id, so it can never select anything to clean.
-            if (ids.Length > 0 && ids[0] == MeasureMarker)
+            // The estimate marker also asks Windows to size its update files, which takes minutes.
+            if (ids.Length > 0 && ids[0] is MeasureMarker or EstimateMarker)
             {
                 // Each size goes to the app the moment it is known: sizing Windows' update files can take minutes, and the rest should not wait for it.
                 var sent = new System.Collections.Concurrent.ConcurrentBag<Task>();
-                var items = await job.MeasureAsync(catalog ?? CleanupCatalog.Load(), ids[1..], new MeasureRelay(item => sent.Add(Send(new HostMessage("item", Measured: [item])))), cancel.Token).ConfigureAwait(false);
+                var items = await job.MeasureAsync(catalog ?? CleanupCatalog.Load(), ids[1..], new MeasureRelay(item => sent.Add(Send(new HostMessage("item", Measured: [item])))), ids[0] == EstimateMarker, cancel.Token).ConfigureAwait(false);
                 await Task.WhenAll(sent).ConfigureAwait(false);
                 await Send(new HostMessage("measured", Measured: items.ToList())).ConfigureAwait(false);
                 return 0;
@@ -93,12 +95,13 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
     }
 
     /// <summary>Asks the elevated helper how much each administrator rule could free. Nothing is cleaned.</summary>
+    /// <param name="estimate">Also have Windows work out what its component store could give back. That takes minutes, so it is only on request.</param>
     /// <param name="onAllowed">Called once the helper is running, which is after the person has accepted the permission prompt.</param>
     /// <param name="onItem">Called with each size as soon as the helper knows it, ahead of the full report. Runs on a background thread.</param>
-    public async Task<SystemMeasureReport> MeasureAsync(IReadOnlyList<string> ruleIds, Action<MeasuredItem>? onItem = null, Action? onAllowed = null, CancellationToken cancellationToken = default)
+    public async Task<SystemMeasureReport> MeasureAsync(IReadOnlyList<string> ruleIds, Action<MeasuredItem>? onItem = null, Action? onAllowed = null, bool estimate = false, CancellationToken cancellationToken = default)
     {
         List<MeasuredItem>? items = null;
-        var (error, declined) = await ConverseAsync([SystemCleanHost.MeasureMarker, .. ruleIds], message =>
+        var (error, declined) = await ConverseAsync([estimate ? SystemCleanHost.EstimateMarker : SystemCleanHost.MeasureMarker, .. ruleIds], message =>
         {
             switch (message.Kind)
             {

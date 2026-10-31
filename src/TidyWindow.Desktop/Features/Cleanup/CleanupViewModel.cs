@@ -33,7 +33,10 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     /// <summary>Permission has been given, so what is left is the measuring itself.</summary>
     public bool Allowed { get => allowed; set { if (allowed != value) { allowed = value; NotifySize(); } } }
     public bool Declined { get => declined; set { if (declined != value) { declined = value; NotifySize(); } } }
-    public bool NeedsMeasuring => NeedsAdmin && exact is null;
+    // A row Windows can only size after cleaning has nothing to measure, so ticking it never asks for permission early.
+    public bool NeedsMeasuring => NeedsAdmin && exact is null && !Finding.Unmeasured;
+    /// <summary>Windows still has to be asked about this one: it has no size yet, or it is the component store, which only an estimate can size.</summary>
+    public bool NeedsEstimate => NeedsAdmin && (exact is null || (Finding.Rule.Action == CleanupAction.ComponentStore && !exact.Estimated));
     public long Bytes => exact?.Bytes ?? Finding.Bytes;
     private void NotifySize() { Changed(nameof(SizeText)); Changed(nameof(FilesText)); Changed(nameof(AutomationName)); }
     public string SizeText
@@ -41,8 +44,8 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
         get
         {
             if (measuring) return "Measuring…";
-            if (exact is { } found) return found.Unmeasured ? "Size shown after" : found.Bytes > 0 ? ByteSize.Format(found.Bytes) : "Empty";
-            if (NeedsAdmin) return declined ? "Needs permission" : !Finding.Unmeasured && Finding.Bytes > 0 ? "At least " + ByteSize.Format(Finding.Bytes) : "Tick to measure";
+            if (exact is { } found) return found.Unmeasured ? "Size shown after" : found.Bytes > 0 ? (found.Estimated ? "About " : "") + ByteSize.Format(found.Bytes) : "Empty";
+            if (NeedsAdmin && !Finding.Unmeasured) return declined ? "Needs permission" : Finding.Bytes > 0 ? "At least " + ByteSize.Format(Finding.Bytes) : "Tick to measure";
             return Finding.Unmeasured ? "Size shown after" : Finding.Bytes > 0 || Finding.Rule.Action == CleanupAction.RecycleBin ? (Finding.Unreadable > 0 ? "At least " : "") + ByteSize.Format(Finding.Bytes) : "Empty";
         }
     }
@@ -51,8 +54,8 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
         get
         {
             if (measuring) return !allowed ? "asking for permission" : Finding.Rule.Action == CleanupAction.ComponentStore ? "Windows is working it out, a few minutes" : "measuring";
-            if (exact is { } found) return found.Unmeasured ? "cleaning" : found.Files == 1 ? "1 file" : $"{found.Files:N0} files";
-            if (NeedsAdmin) return declined ? "permission declined" : "needs admin to measure";
+            if (exact is { } found) return found.Unmeasured ? "cleaning" : found.Estimated ? "estimated by Windows" : found.Files == 1 ? "1 file" : $"{found.Files:N0} files";
+            if (NeedsAdmin && !Finding.Unmeasured) return declined ? "permission declined" : "needs admin to measure";
             return Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
         }
     }
@@ -86,8 +89,10 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private readonly ToastCenter toasts;
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? work;
+    private CancellationTokenSource? estimateWork;
+    private Task? estimateTask;
     private long generation;
-    private bool scanning, cleaning, scanned, measuringAdmin;
+    private bool scanning, cleaning, scanned, measuringAdmin, estimating;
     private long selectedBytes;
     private int selectedCount, selectedAdmin;
     private string status = "Scan to see what can be cleaned";
@@ -115,6 +120,9 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public bool Busy => scanning || cleaning || measuringAdmin;
     public bool CanScan => !Busy;
     public bool CanClean => !Busy && selectedCount > 0;
+    /// <summary>The estimate runs in the background and never blocks the page; the same button stops it.</summary>
+    public bool CanEstimate => estimating || (scanned && !Busy && Groups.Any(x => x.Rows.Any(row => row.NeedsEstimate)));
+    public string EstimateLabel => estimating ? "Stop estimating" : "Estimate";
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
     public string CleanLabel => cleaning ? "Cleaning…" : selectedBytes > 0 ? $"Clean {ByteSize.Format(selectedBytes)}" : "Clean";
     public string Status { get => status; private set => Set(ref status, value); }
@@ -139,14 +147,14 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanClean), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(CleaningVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanClean), nameof(CanEstimate), nameof(EstimateLabel), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(CleaningVisibility) }) Changed(name);
     }
 
     private void RowChanged(CleanupRow row)
     {
         Recount();
         // Ticking something that needs administrator permission is the person asking to see its size.
-        if (row.IsSelected && row.NeedsMeasuring && !row.Measuring && !Busy) _ = MeasureAdminAsync();
+        if (row.IsSelected && row.NeedsMeasuring && !row.Measuring && !Busy && !estimating) _ = MeasureAdminAsync();
     }
 
     private void Recount()
@@ -162,7 +170,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     /// </summary>
     private async Task MeasureAdminAsync()
     {
-        if (Busy || lifetime.IsCancellationRequested) return;
+        if (Busy || estimating || lifetime.IsCancellationRequested) return;
         var rows = Groups.SelectMany(x => x.Rows).Where(x => x.NeedsMeasuring).ToList();
         if (rows.Count == 0) return;
         var asked = rows.Where(x => x.IsSelected).ToList();
@@ -178,7 +186,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var byId = rows.ToDictionary(x => x.Finding.Rule.Id);
         try
         {
-            // Sizes arrive one at a time: Windows can take minutes over its update files, and the other rows should not wait for them.
+            // Sizes are shown as the helper reports them rather than all at the end.
             var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(),
                 onItem: item => post(() =>
                 {
@@ -190,7 +198,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
                 {
                     if (current != generation) return;
                     foreach (var row in rows.Where(x => x.Exact is null)) row.Allowed = true;
-                    Status = "Measuring… Windows can take a few minutes over its update files.";
+                    Status = "Measuring…";
                     Notify();
                 }),
                 cancellationToken: token);
@@ -222,8 +230,84 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         if (problem is not null) toasts.Show("clean", ToastKind.Info, "Sizes not measured", problem);
     }
 
+    /// <summary>
+    /// Asks Windows how much its component store could give back, and sizes every administrator row on the way. Windows can take minutes
+    /// over this, so the page stays usable meanwhile; scanning or cleaning stops it first, and the same button stops it too.
+    /// </summary>
+    public Task EstimateAsync()
+    {
+        if (estimating) { estimateWork?.Cancel(); return Task.CompletedTask; }
+        if (Busy || !scanned || lifetime.IsCancellationRequested) return Task.CompletedTask;
+        return estimateTask = RunEstimateAsync();
+    }
+
+    private async Task StopEstimateAsync()
+    {
+        estimateWork?.Cancel();
+        if (estimateTask is { } running) await running.ConfigureAwait(true);
+    }
+
+    private async Task RunEstimateAsync()
+    {
+        var rows = Groups.SelectMany(x => x.Rows).Where(x => x.NeedsEstimate).ToList();
+        if (rows.Count == 0) return;
+        var current = generation;
+        var before = Status;
+        estimateWork?.Dispose(); estimateWork = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        var token = estimateWork.Token;
+        estimating = true;
+        foreach (var row in rows) { row.Declined = false; row.Allowed = false; row.Measuring = true; }
+        Status = "Waiting for administrator permission to estimate…";
+        Notify();
+        string? problem = null;
+        var byId = rows.ToDictionary(x => x.Finding.Rule.Id);
+        try
+        {
+            var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(),
+                onItem: item => post(() =>
+                {
+                    if (current != generation || !byId.TryGetValue(item.Id, out var row)) return;
+                    row.Exact = item; row.Measuring = false;
+                    Recount(); Changed(nameof(CanEstimate));
+                }),
+                onAllowed: () => post(() =>
+                {
+                    if (current != generation) return;
+                    foreach (var row in rows.Where(x => x.Measuring)) row.Allowed = true;
+                    Status = "Estimating… Windows can take a few minutes over its update files. You can keep working; Scan or Clean stops it.";
+                }),
+                estimate: true,
+                cancellationToken: token);
+            if (current != generation || token.IsCancellationRequested) return;
+            if (report.Declined) problem = "Administrator permission was declined, so the estimate was not made. Press Estimate to try again.";
+            else if (report.Error is not null) problem = "The estimate could not be made: " + ToastCenter.Brief(report.Error);
+            else
+            {
+                foreach (var row in rows) row.Exact = report.Items.FirstOrDefault(x => x.Id == row.Finding.Rule.Id) ?? row.Exact;
+                var total = report.Items.Where(x => !x.Unmeasured).Sum(x => x.Bytes);
+                log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup estimated administrator areas", $"{ByteSize.Format(total)} found in {report.Items.Count(x => x.Bytes > 0)} of {rows.Count} areas.");
+                toasts.Show("clean", ToastKind.Info, "Estimate ready", $"About {ByteSize.Format(total)} can be freed from Windows system areas. Tick the ones to include.");
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            problem = "The estimate could not be made: " + ToastCenter.Brief(ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup could not estimate administrator areas", ex.Message);
+        }
+        finally
+        {
+            foreach (var row in rows) { row.Measuring = false; if (problem is not null && row.Exact is null) row.Declined = true; }
+            estimating = false;
+            if (current == generation) Status = before;
+            Notify(); Recount();
+        }
+        if (problem is not null) toasts.Show("clean", ToastKind.Info, "Estimate not made", problem);
+    }
+
     public async Task ScanAsync()
     {
+        if (estimating) await StopEstimateAsync();
         if (Busy || lifetime.IsCancellationRequested) return;
         var current = ++generation;
         work?.Dispose(); work = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
@@ -284,6 +368,8 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     public async Task CleanAsync()
     {
+        // Only one elevated helper at a time, and Windows cannot run two servicing jobs at once, so an estimate in progress is stopped first.
+        if (estimating) await StopEstimateAsync();
         if (Busy || selectedCount == 0 || lifetime.IsCancellationRequested) return;
         var chosen = SelectedRows().Select(x => x.Finding).ToList();
         // Anything that needs administrator rights goes to the elevated helper in one go; everything else stays in this process.

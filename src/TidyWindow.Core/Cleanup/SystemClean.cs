@@ -5,8 +5,8 @@ namespace TidyWindow.Next.Core;
 /// <summary>What an elevated clean did: the totals, plus plain-language notes about anything unusual.</summary>
 public sealed record SystemCleanReport(CleanupResult Result, string[] Notes);
 
-/// <summary>The size the elevated helper found for one rule. <see cref="Unmeasured"/> means Windows reports the size only after it has cleaned.</summary>
-public sealed record MeasuredItem(string Id, long Bytes, int Files, int Unreadable, bool Unmeasured, string? Note = null);
+/// <summary>The size the elevated helper found for one rule. <see cref="Unmeasured"/> means Windows reports the size only after it has cleaned; <see cref="Estimated"/> means Windows' own guess, not a count.</summary>
+public sealed record MeasuredItem(string Id, long Bytes, int Files, int Unreadable, bool Unmeasured, string? Note = null, bool Estimated = false);
 
 /// <summary>The few machine operations system cleanup needs, replaceable in tests.</summary>
 public interface ISystemTools
@@ -107,22 +107,23 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
 
     /// <summary>
     /// Measures what the given administrator rules could free, without cleaning anything. Files areas are scanned with full access, so
-    /// nothing is left unreadable; the component store is sized by Windows' own analysis, which can take minutes, so it goes last
-    /// and every other size is reported through <paramref name="progress"/> as soon as it is known.
+    /// nothing is left unreadable. Areas only Windows can size (the component store, driver packages) are reported as sized-after-cleaning,
+    /// which keeps the measure a plain folder walk. With <paramref name="estimate"/> the component store is also sized by Windows' own
+    /// analysis, which can take minutes, so it goes last and every other size is reported through <paramref name="progress"/> as soon as it is known.
     /// </summary>
-    public async Task<IReadOnlyList<MeasuredItem>> MeasureAsync(IReadOnlyList<CleanupRule> catalog, IReadOnlyCollection<string> ruleIds, IProgress<MeasuredItem>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MeasuredItem>> MeasureAsync(IReadOnlyList<CleanupRule> catalog, IReadOnlyCollection<string> ruleIds, IProgress<MeasuredItem>? progress = null, bool estimate = false, CancellationToken cancellationToken = default)
     {
         // Same guard as cleaning: only rules marked for administrators are ever looked at here.
         var rules = catalog.Where(rule => rule.Admin && ruleIds.Contains(rule.Id)).ToList();
         if (!context.IsAdministrator) throw new InvalidOperationException("Administrator rights were not available, so nothing was measured.");
         var findings = await new CleanupScanner(context).ScanAsync(rules, null, cancellationToken).ConfigureAwait(false);
         var measured = new Dictionary<string, MeasuredItem>();
-        foreach (var finding in findings.OrderBy(x => x.Rule.Action == CleanupAction.ComponentStore))
+        foreach (var finding in findings.OrderBy(x => estimate && x.Rule.Action == CleanupAction.ComponentStore))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var rule = finding.Rule;
             MeasuredItem item;
-            if (rule.Action == CleanupAction.ComponentStore) item = await AnalyzeComponentStoreAsync(rule, cancellationToken).ConfigureAwait(false);
+            if (estimate && rule.Action == CleanupAction.ComponentStore) item = await AnalyzeComponentStoreAsync(rule, cancellationToken).ConfigureAwait(false);
             else
             {
                 var note = finding.Unmeasured ? "Windows reports the size only after it has cleaned." : null;
@@ -144,7 +145,7 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
             var (exit, output) = await tools.RunForOutputAsync(Path.Combine(windows, "System32", "Dism.exe"), ["/Online", "/Cleanup-Image", "/AnalyzeComponentStore"], ComponentStoreAnalysisLimit, token).ConfigureAwait(false);
             if (exit != 0) return Unknown($"Windows could not estimate this (error code {exit}).");
             return ComponentStoreAnalysis.Reclaimable(output) is { } bytes
-                ? new MeasuredItem(rule.Id, bytes, bytes > 0 ? 1 : 0, 0, false, "Estimated by Windows; the space actually freed is shown afterwards.")
+                ? new MeasuredItem(rule.Id, bytes, bytes > 0 ? 1 : 0, 0, false, "Estimated by Windows; the space actually freed is shown afterwards.", Estimated: true)
                 : Unknown("Windows did not give a size for this.");
         }
         catch (Exception ex) when (ex is TimeoutException or InvalidOperationException or System.ComponentModel.Win32Exception) { return Unknown(ex.Message); }

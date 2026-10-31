@@ -301,7 +301,6 @@ public sealed class SystemCleanTests : IDisposable
         var a = Make("Windows/SoftwareDistribution/Download/a.cab", 300);
         Make("Windows/SoftwareDistribution/Download/b.cab", 200);
         Make("hiberfil.sys", 800);
-        tools.Output = Analysis;
         CleanupRule[] catalog =
         [
             new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] },
@@ -313,18 +312,57 @@ public sealed class SystemCleanTests : IDisposable
         Assert.Null(report.Error);
         Assert.Equal(500, report.Items.Single(x => x.Id == "update-downloads").Bytes);
         Assert.Equal(800, report.Items.Single(x => x.Id == "hibernation").Bytes);
+        // Windows reports these two only after it has cleaned, so measuring does not ask it (its analysis takes minutes).
+        Assert.True(report.Items.Single(x => x.Id == "component-store").Unmeasured);
+        Assert.True(report.Items.Single(x => x.Id == "drivers").Unmeasured);
+        // Looking is not cleaning: nothing was deleted, no handler was armed, and no program ran at all.
+        Assert.True(File.Exists(a));
+        Assert.Empty(tools.Commands);
+        Assert.Empty(tools.Handlers);
+    }
+
+    [Fact]
+    public async Task SizesArriveAsTheyAreKnownAndTheAppIsToldWhenPermissionWasGiven()
+    {
+        Make("Windows/SoftwareDistribution/Download/a.cab", 300);
+        CleanupRule[] catalog =
+        [
+            new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore },
+            new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] }
+        ];
+        var arrived = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var allowed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var report = await Helper(catalog).MeasureAsync(["component-store", "update-downloads"],
+            onItem: item => arrived.Enqueue(item.Id),
+            onAllowed: () => allowed.TrySetResult()).WaitAsync(TimeSpan.FromSeconds(10));
+        await allowed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(["component-store", "update-downloads"], arrived.Order());
+        Assert.Equal(["component-store", "update-downloads"], report.Items.Select(x => x.Id));
+    }
+
+    [Fact]
+    public async Task AnEstimateAsksWindowsForTheComponentStoreAndMarksItAsAnEstimate()
+    {
+        tools.Output = Analysis;
+        CleanupRule[] catalog =
+        [
+            new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore },
+            new() { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"] }
+        ];
+        var report = await Helper(catalog).MeasureAsync(["component-store", "drivers"], estimate: true);
+        Assert.Null(report.Error);
         var store = report.Items.Single(x => x.Id == "component-store");
         Assert.False(store.Unmeasured);
-        Assert.True(store.Bytes > 3L * 1073741824);
+        Assert.True(store.Estimated);
+        Assert.Equal((long)(3.05 * 1073741824) + (long)(322.5 * 1048576), store.Bytes);
         Assert.True(report.Items.Single(x => x.Id == "drivers").Unmeasured);
-        // Looking is not cleaning: nothing was deleted, no handler was armed, and only the read-only analysis ran.
-        Assert.True(File.Exists(a));
+        // Only the read-only analysis ran; nothing was cleaned and no handler was armed.
         Assert.Equal(["Dism.exe /Online /Cleanup-Image /AnalyzeComponentStore"], tools.Commands);
         Assert.Empty(tools.Handlers);
     }
 
     [Fact]
-    public async Task SizesArriveOneByOneSoTheSlowWindowsAnalysisCannotHoldBackTheRest()
+    public async Task TheSlowWindowsAnalysisCannotHoldBackTheOtherSizes()
     {
         Make("Windows/SoftwareDistribution/Download/a.cab", 300);
         tools.Output = Analysis; tools.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -338,7 +376,7 @@ public sealed class SystemCleanTests : IDisposable
         var allowed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var running = Helper(catalog).MeasureAsync(["component-store", "update-downloads"],
             onItem: item => { arrived.Enqueue(item.Id); if (item.Id == "update-downloads") fast.TrySetResult(); },
-            onAllowed: () => allowed.TrySetResult());
+            onAllowed: () => allowed.TrySetResult(), estimate: true);
         // The quick size is shown while Windows is still analysing its update files, and the app is told the permission was given.
         await fast.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await allowed.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -351,6 +389,37 @@ public sealed class SystemCleanTests : IDisposable
     }
 
     [Fact]
+    public async Task AComponentStoreThatCannotBeAnalysedIsLeftUnmeasuredNotZero()
+    {
+        tools.ExitCode = 740;
+        CleanupRule[] catalog = [new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore }];
+        var item = (await Helper(catalog).MeasureAsync(["component-store"], estimate: true)).Items.Single();
+        Assert.True(item.Unmeasured);
+        Assert.False(item.Estimated);
+        Assert.Contains("740", item.Note);
+    }
+
+    [Fact]
+    public async Task TheEstimateMarkerCanNeverSelectAnythingToClean()
+    {
+        var a = Make("Windows/SoftwareDistribution/Download/a.cab", 300);
+        CleanupRule[] catalog = [new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] }];
+        var report = await Helper(catalog).MeasureAsync(["update-downloads"], estimate: true);
+        Assert.Single(report.Items);
+        Assert.True(File.Exists(a));
+        Assert.DoesNotContain(catalog, rule => rule.Id == SystemCleanHost.EstimateMarker);
+    }
+
+    [Fact]
+    public async Task MeasuringTheComponentStoreNeverStartsDism()
+    {
+        CleanupRule[] catalog = [new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore }];
+        var item = (await Helper(catalog).MeasureAsync(["component-store"])).Items.Single();
+        Assert.True(item.Unmeasured);
+        Assert.Empty(tools.Commands);
+    }
+
+    [Fact]
     public async Task MeasuringOnlyLooksAtRulesMarkedForAdministrators()
     {
         Make("Users/me/AppData/Local/Temp/a.tmp", 100);
@@ -358,16 +427,6 @@ public sealed class SystemCleanTests : IDisposable
         var report = await Helper(catalog).MeasureAsync(["user-temp", "not-a-rule"]);
         Assert.Empty(report.Items);
         Assert.Null(report.Error);
-    }
-
-    [Fact]
-    public async Task AComponentStoreThatCannotBeAnalysedIsLeftUnmeasuredNotZero()
-    {
-        tools.ExitCode = 740;
-        CleanupRule[] catalog = [new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore }];
-        var item = (await Helper(catalog).MeasureAsync(["component-store"])).Items.Single();
-        Assert.True(item.Unmeasured);
-        Assert.Contains("740", item.Note);
     }
 
     [Fact]
