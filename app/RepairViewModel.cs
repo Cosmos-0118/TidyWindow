@@ -21,6 +21,18 @@ public sealed class RepairRow(RepairFinding finding, Action changed) : Observabl
     public string AutomationName => $"{Title}. {Detail}";
 }
 
+/// <summary>What happened to one thing in the last repair, with every step that was tried on the way.</summary>
+public sealed class ResultRow(RepairResult result)
+{
+    public string Title => result.Title;
+    public string Summary => result.Summary;
+    public string Status => result.Status switch { RepairStatus.Fixed => "Fixed", RepairStatus.FixedAfterRestart => "Fixed after restart", _ => "Could not fix" };
+    public string Glyph => result.Status == RepairStatus.NotFixed ? "\uE7BA" : result.Status == RepairStatus.FixedAfterRestart ? "\uE777" : "\uE73E";
+    public string Steps => string.Join("\n", result.Steps);
+    public Visibility StepsVisibility => result.Steps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string AutomationName => $"{Title}: {Status}. {Summary}";
+}
+
 public sealed class RepairGroup(string name) : ObservableState
 {
     public string Name { get; } = name;
@@ -58,17 +70,29 @@ public sealed class HistoryRow(RepairBatch batch)
             return names.Count <= 2 ? string.Join(", ", names) : $"{names[0]}, {names[1]} and {names.Count - 2} more";
         }
     }
-    public string Count => Batch.Keys.Count == 1 ? "1 registry key" : $"{Batch.Keys.Count} registry keys";
+    public string Count => Describe(Batch.Keys.Count, Batch.PutBack.Count);
+
+    /// <summary>"3 registry keys", "1 setup program" or both: what a repair changed, or what an undo put back.</summary>
+    public static string Describe(int keys, int files)
+    {
+        var parts = new List<string>();
+        if (keys > 0) parts.Add(keys == 1 ? "1 registry key" : $"{keys} registry keys");
+        if (files > 0) parts.Add(files == 1 ? "1 setup program" : $"{files} setup programs");
+        return parts.Count == 0 ? "nothing" : string.Join(" and ", parts);
+    }
     public Visibility AdminVisibility => Batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)) ? Visibility.Visible : Visibility.Collapsed;
     public string AutomationName => $"Undo {Title}, {When}";
 }
 
-public sealed class RepairViewModel(IInstallSystem system, RepairService service, RepairHistory history, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
+public sealed class RepairViewModel(IInstallSystem system, RepairService service, RepairHistory history, ActivityLog log, ToastCenter toasts, IconService? iconService = null, Func<Task<string?>>? chooseFolder = null) : ObservableState, IDisposable
 {
     private readonly IconService icons = iconService ?? IconService.Shared;
     private static readonly string[] GroupOrder = ["Programs Windows still lists but cannot remove", "Windows Installer records", "Installs that got stuck", "Waiting on Windows"];
     private readonly CancellationTokenSource lifetime = new();
     private IReadOnlyList<ProgramRow> allPrograms = [];
+    private IReadOnlyList<MsiProduct> scanProducts = [];
+    private bool restartNeeded, allowDownload = true;
+    private readonly List<string> installerFolders = [];
     private bool scanning, fixing, scanned, listening;
     private int selectedCount;
     private string query = "";
@@ -76,6 +100,22 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public ObservableCollection<RepairGroup> Groups { get; } = [];
     public BulkObservableCollection<ProgramRow> Programs { get; } = new();
     public BulkObservableCollection<HistoryRow> History { get; } = new();
+    public BulkObservableCollection<ResultRow> Results { get; } = new();
+    /// <summary>Whether a program's original installer may be fetched from WinGet when its own copy is gone.</summary>
+    public bool AllowDownload { get => allowDownload; set => Set(ref allowDownload, value); }
+    public string InstallerFolderText => installerFolders.Count == 0 ? "No folder chosen" : installerFolders.Count == 1 ? installerFolders[0] : $"{installerFolders.Count} folders chosen";
+    public Visibility LocateVisibility => chooseFolder is null ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Lets the person point at a folder that holds the program's installer, such as Downloads; the repair checks each file there against the program before using it.</summary>
+    public async Task LocateInstallerAsync()
+    {
+        if (chooseFolder is null || Busy) return;
+        if (await chooseFolder() is { Length: > 0 } folder && !installerFolders.Contains(folder, StringComparer.OrdinalIgnoreCase)) installerFolders.Add(folder);
+        Changed(nameof(InstallerFolderText));
+    }
+
+    public Visibility ResultsVisibility => Results.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RestartVisibility => restartNeeded ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Scanned => scanned;
     public bool Busy => scanning || fixing;
@@ -87,6 +127,29 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public Visibility NoHistoryVisibility => History.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     public bool ScanOverlay => scanning && Groups.Count == 0 && allPrograms.Count == 0;
+
+    // While a repair or undo runs: the page is blurred and says which item, what is happening now, and what already finished.
+    private string progressHeading = "", progressCounter = "", progressText = "Getting started…";
+    public bool FixOverlay => fixing;
+    public string ProgressHeading => progressHeading;
+    public string ProgressCounter => progressCounter;
+    public string ProgressText => progressText;
+    public BulkObservableCollection<string> ProgressSteps { get; } = new();
+
+    private void ResetProgress()
+    {
+        progressHeading = ""; progressCounter = ""; progressText = "Getting started…"; ProgressSteps.Reset([]);
+        Changed(nameof(ProgressHeading)); Changed(nameof(ProgressCounter)); Changed(nameof(ProgressText));
+    }
+
+    private void OnProgress(RepairProgress progress)
+    {
+        progressHeading = progress.Title;
+        progressCounter = progress.Total > 1 && progress.Index > 0 ? $"{progress.Index} of {progress.Total}" : "";
+        if (progress.Doing.Length > 0) progressText = progress.Doing;
+        ProgressSteps.Reset(progress.Done);
+        Changed(nameof(ProgressHeading)); Changed(nameof(ProgressCounter)); Changed(nameof(ProgressText));
+    }
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public string ProgramCount => allPrograms.Count == 1 ? "1 program" : $"{allPrograms.Count:N0} programs";
     public Visibility NoProgramsVisibility => scanned && Programs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -96,7 +159,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanFix), nameof(ScanLabel), nameof(FixLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(NoProgramsVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanFix), nameof(ScanLabel), nameof(FixLabel), nameof(ScanOverlay), nameof(FixOverlay), nameof(EmptyVisibility), nameof(NoProgramsVisibility) }) Changed(name);
     }
 
     private IEnumerable<RepairRow> SelectedRows() => Groups.SelectMany(x => x.Rows).Where(x => x.IsSelected && x.Finding.CanFix);
@@ -140,8 +203,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             var title = GroupOrder[finding.Kind switch
             {
                 RepairKind.BrokenEntry => 0,
-                RepairKind.InstallerRecord => 1,
-                RepairKind.InstallLock or RepairKind.RunningInstaller => 2,
+                RepairKind.InstallerRecord or RepairKind.BundleRecord or RepairKind.DanglingLinks => 1,
+                RepairKind.InstallLock or RepairKind.RunningInstaller or RepairKind.InstallerService => 2,
                 _ => 3
             }];
             var group = Groups.FirstOrDefault(x => x.Name == title);
@@ -153,6 +216,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             }
             group.Rows.Add(new RepairRow(finding, RowChanged));
         }
+        scanProducts = scan.Products;
         allPrograms = scan.Entries
             .Where(x => x.Name.Trim().Length > 0 && !x.SystemComponent && !x.IsUpdate)
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -195,23 +259,31 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public async Task RemoveProgramAsync(ProgramRow row)
     {
         if (Busy) return;
-        var finding = new RepairFinding("manual:" + row.Entry.Key, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys);
+        // A program Windows Installer knows is removed with its whole record, found in every place, not only the few keys the list shows.
+        var code = InstallRepair.ProductCode(row.Entry);
+        var product = code is null ? null : scanProducts.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        var finding = product is null
+            ? new RepairFinding("manual:" + row.Entry.Key, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys)
+            : new RepairFinding("manual:" + row.Entry.Key, RepairKind.InstallerRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("product", product.Code, product.Context, product.Sid, [row.Entry.Key]), Product: product);
         await RunAsync([finding], $"Removed {row.Name} from the list", rescan: true);
     }
 
     private async Task RunAsync(IReadOnlyList<RepairFinding> findings, string title, bool rescan)
     {
+        ResetProgress();
         fixing = true; Notify();
         try
         {
-            var outcome = await service.FixAsync(findings, title, lifetime.Token);
+            var outcome = await service.FixAsync(findings, title, lifetime.Token, new RepairOptions(allowDownload, installerFolders.ToList()), new Progress<RepairProgress>(OnProgress));
             var batch = outcome.Batch;
+            ShowResults(outcome.Results ?? [], outcome.RestartNeeded);
+            var undo = batch is null ? null : (Func<Task>)(() => UndoAsync(batch));
             if (outcome.Problems.Count == 0)
-                toasts.Show("repair", ToastKind.Success, title, batch is null ? "" : "You can undo this any time from the Undo tab.", batch is null ? "" : "Undo", batch is null ? null : () => UndoAsync(batch), 12);
+                toasts.Show("repair", ToastKind.Success, title, outcome.RestartNeeded ? "Restart Windows to finish." : batch is null ? "" : "You can undo this any time from the Undo tab.", batch is null ? "" : "Undo", undo, 12);
             else
-                toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired", ToastCenter.Brief(string.Join(" ", outcome.Problems)), batch is null ? "" : "Undo", batch is null ? null : () => UndoAsync(batch), 15);
+                toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired", ToastCenter.Brief(string.Join(" ", outcome.Problems)), batch is null ? "" : "Undo", undo, 15);
             log.Write(outcome.Problems.Count == 0 ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, title,
-                $"{outcome.Fixed} of {findings.Count} repaired. " + string.Join(" ", outcome.Problems));
+                $"{outcome.Fixed} of {findings.Count} repaired. " + string.Join(" ", outcome.Problems) + string.Concat((outcome.Results ?? []).Select(x => $"\n{x.Title}: {x.Status}. " + string.Join(" ", x.Steps))));
         }
         catch (OperationCanceledException)
         {
@@ -227,16 +299,38 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         if (rescan) await ScanAsync();
     }
 
+    private void ShowResults(IReadOnlyList<RepairResult> results, bool restart)
+    {
+        restartNeeded = restart;
+        Results.Reset(results.OrderByDescending(x => x.Status == RepairStatus.NotFixed).Select(x => new ResultRow(x)).ToList());
+        Changed(nameof(ResultsVisibility)); Changed(nameof(RestartVisibility));
+    }
+
     /// <summary>Puts back everything one earlier repair removed. Works for any repair still in the Undo tab, not only the last.</summary>
     public async Task UndoAsync(RepairBatch batch)
     {
         if (Busy) return;
+        ResetProgress();
         fixing = true; Notify();
         try
         {
-            var restored = await service.UndoAsync(batch, lifetime.Token);
-            toasts.Show("repair", ToastKind.Success, "Undone", $"{batch.Title}. {restored} {(restored == 1 ? "registry key" : "registry keys")} put back.");
-            log.Write(ActivityLevel.Info, ActivityArea.App, "Repair undone", batch.Title);
+            var outcome = await service.UndoAsync(batch, lifetime.Token, new Progress<RepairProgress>(OnProgress));
+            if (outcome.Complete)
+            {
+                ShowResults([], false);
+                var said = new List<string>();
+                if (outcome.Restored > 0) said.Add($"{HistoryRow.Describe(outcome.Restored, 0)} put back");
+                if (outcome.FilesRemoved > 0) said.Add($"{HistoryRow.Describe(0, outcome.FilesRemoved)} removed again");
+                toasts.Show("repair", ToastKind.Success, "Undone", $"{batch.Title}. {string.Join(" and ", said)}.");
+                log.Write(ActivityLevel.Info, ActivityArea.App, "Repair undone", batch.Title);
+            }
+            else
+            {
+                // Nothing was put back, and the page says exactly which keys stopped it.
+                ShowResults([new($"undo:{batch.Id}", batch.Title, RepairStatus.NotFixed, outcome.Problems[0], outcome.Problems.Skip(1).Take(12).ToList())], false);
+                toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Brief(outcome.Problems[0] + " " + (outcome.Problems.Count > 1 ? outcome.Problems[1] : "")));
+                log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", string.Join(" ", outcome.Problems));
+            }
         }
         catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was restored."); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)

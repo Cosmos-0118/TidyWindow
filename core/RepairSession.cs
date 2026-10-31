@@ -6,27 +6,27 @@ using System.Text.Json;
 
 namespace TidyWindow.Next.Core;
 
-public sealed record RepairRequest(string Op, string? Path = null, KeyBackup? Backup = null);
-public sealed record RepairReply(bool Ok, string? Error = null, KeyBackup? Backup = null);
+public sealed record RepairRequest(string Op, string? Path = null, KeyBackup? Backup = null, string? Name = null, FootprintRequest? Footprint = null, string? Sid = null, string? File = null, MsiProduct? Product = null, string? Value = null);
+public sealed record RepairReply(bool Ok, string? Error = null, KeyBackup? Backup = null, bool Flag = false, FootprintPlan? Plan = null, bool Denied = false, RunResult? Run = null);
 
 /// <summary>
 /// The elevated side of repairs. It runs for one repair, asks Windows for permission once, and can only remove or restore the keys on
-/// <see cref="RegistryRepair.Machine"/>'s allow-list, so it cannot run anything or touch any other setting. It leaves by itself when idle.
+/// <see cref="RegistryRepair.Elevated"/>'s allow-list, repair a program from its own installer file or stop the Windows Installer service,
+/// so it cannot run anything else or touch any other setting. It leaves by itself when idle.
 /// </summary>
 public static class RepairHost
 {
     public const string Command = "--repair";
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
-    public static async Task<int> RunAsync(string[] args, Func<string, KeyBackup?>? delete = null, Action<KeyBackup>? restore = null, Func<string, bool>? allowed = null, Func<bool>? isAdministrator = null, TimeSpan? idle = null)
+    public static async Task<int> RunAsync(string[] args, Func<string, IKeyEditor>? editorFor = null, IElevatedOps? ops = null, Func<bool>? isAdministrator = null, TimeSpan? idle = null)
     {
         if (args.Length < 2 || args[0] != Command) return 64;
-        if (delete is null || restore is null || allowed is null)
+        if (editorFor is null || ops is null)
         {
             if (!OperatingSystem.IsWindows()) return 66;
-            delete ??= RegistryRepair.Machine.Delete;
-            restore ??= RegistryRepair.Machine.Restore;
-            allowed ??= RegistryRepair.Machine.IsAllowed;
+            editorFor ??= sid => { if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException(); RegistryNative.EnablePrivileges(); return RegistryRepair.Elevated(sid); };
+            ops ??= new WindowsInstallerOps();
         }
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -41,7 +41,7 @@ public static class RepairHost
             catch (IOException) { }
         }
 
-        var admin = false;
+        IKeyEditor? editor = null;
         while (true)
         {
             string? line;
@@ -56,30 +56,49 @@ public static class RepairHost
             catch (JsonException) { request = null; }
             if (request is null) { await Reply(new(false, "That request was not understood.")).ConfigureAwait(false); continue; }
 
-            switch (request.Op)
+            if (request.Op == "bye") return 0;
+            if (request.Op == "hello")
             {
-                case "bye": return 0;
-                case "hello": admin = isAdministrator(); await Reply(new(admin)).ConfigureAwait(false); break;
-                case "delete" when admin:
-                    await Reply(Run(request.Path, allowed, path => new RepairReply(true, Backup: delete(path)))).ConfigureAwait(false); break;
-                case "restore" when admin && request.Backup is { } backup:
-                    await Reply(Run(backup.Path, allowed, _ => { restore(backup); return new RepairReply(true); })).ConfigureAwait(false); break;
-                default: await Reply(new(false, "That request was not understood.")).ConfigureAwait(false); break;
+                var admin = isAdministrator();
+                // HKCU in the helper means the app user's hive, whoever approved the permission prompt.
+                if (admin) editor = editorFor(request.Sid ?? (OperatingSystem.IsWindows() ? RegistryRepair.CurrentSid() : ""));
+                await Reply(new(admin)).ConfigureAwait(false);
+                continue;
             }
+            if (editor is null) { await Reply(new(false, "That request was not understood.")).ConfigureAwait(false); continue; }
+            await Reply(Handle(request, editor, ops)).ConfigureAwait(false);
         }
     }
 
-    private static RepairReply Run(string? path, Func<string, bool> allowed, Func<string, RepairReply> action)
+    private static RepairReply Handle(RepairRequest request, IKeyEditor editor, IElevatedOps ops)
     {
-        if (string.IsNullOrWhiteSpace(path) || !allowed(path)) return new(false, "TidyWindow does not change that part of the registry.");
-        try { return action(path); }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException or System.Security.SecurityException)
-        { return new(false, ex.Message); }
+        const string Refused = "TidyWindow does not change that part of the registry.";
+        try
+        {
+            switch (request.Op)
+            {
+                case "exists" when Allowed(editor, request.Path): return new(true, Flag: editor.Exists(request.Path!));
+                case "snapshot" when Allowed(editor, request.Path): return new(true, Backup: editor.Snapshot(request.Path!));
+                case "delete" when Allowed(editor, request.Path): return new(true, Backup: editor.Delete(request.Path!));
+                case "deletevalue" when Allowed(editor, request.Path) && !string.IsNullOrEmpty(request.Name): return new(true, Backup: editor.DeleteValue(request.Path!, request.Name));
+                case "settext" when Allowed(editor, request.Path) && !string.IsNullOrEmpty(request.Name) && request.Value is not null: return new(true, Backup: editor.SetText(request.Path!, request.Name, request.Value));
+                case "restore" when request.Backup is { } backup && Allowed(editor, backup.Path): editor.Restore(backup); return new(true);
+                case "footprint" when request.Footprint is { } footprint: return new(true, Plan: editor.Footprint(footprint));
+                case "reinstall" when request.File is { Length: > 0 } file && request.Product is { } product: return new(true, Run: ops.Reinstall(file, product));
+                case "stopservice": return new(true, Flag: ops.StopInstallerService());
+                case "exists" or "snapshot" or "delete" or "deletevalue" or "settext" or "restore": return new(false, Refused);
+                default: return new(false, "That request was not understood.");
+            }
+        }
+        catch (UnauthorizedAccessException ex) { return new(false, ex.Message, Denied: true); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException or ArgumentException) { return new(false, ex.Message); }
     }
+
+    private static bool Allowed(IKeyEditor editor, string? path) => !string.IsNullOrWhiteSpace(path) && editor.IsAllowed(path);
 }
 
 /// <summary>The app side: starts the helper through the Windows permission prompt and sends it each change over a private pipe.</summary>
-public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IDisposable
+public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IElevatedOps, IDisposable
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly object gate = new();
@@ -119,7 +138,7 @@ public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IDisp
             await connecting.ConfigureAwait(false);
             var input = new StreamReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
-            await output.WriteLineAsync(JsonSerializer.Serialize(new RepairRequest("hello"), Json)).ConfigureAwait(false);
+            await output.WriteLineAsync(JsonSerializer.Serialize(new RepairRequest("hello", Sid: OperatingSystem.IsWindows() ? RegistryRepair.CurrentSid() : null), Json)).ConfigureAwait(false);
             var reply = JsonSerializer.Deserialize<RepairReply>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);
             if (reply is not { Ok: true }) throw new UnauthorizedAccessException("The helper did not get administrator permission.");
             lock (gate) { pipe = server; reader = input; writer = output; }
@@ -131,10 +150,24 @@ public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IDisp
         }
     }
 
-    /// <summary>Removes a Windows-wide key and returns a copy of it, or null if it was already gone.</summary>
+    /// <summary>Removes a key and returns a copy of it, or null if it was already gone.</summary>
     public KeyBackup? Delete(string path) => Send(new("delete", path)).Backup;
 
+    public KeyBackup? DeleteValue(string path, string name) => Send(new("deletevalue", path, Name: name)).Backup;
+
+    public KeyBackup? SetText(string path, string name, string value) => Send(new("settext", path, Name: name, Value: value)).Backup;
+
     public void Restore(KeyBackup backup) => Send(new("restore", backup.Path, backup));
+
+    public bool Exists(string path) => Send(new("exists", path)).Flag;
+
+    public KeyBackup? Snapshot(string path) => Send(new("snapshot", path)).Backup;
+
+    public FootprintPlan Footprint(FootprintRequest request) => Send(new("footprint", Footprint: request)).Plan ?? FootprintPlan.Empty;
+
+    public RunResult Reinstall(string msiPath, MsiProduct product) => Send(new("reinstall", File: msiPath, Product: product)).Run ?? new(1, "The helper gave no answer.");
+
+    public bool StopInstallerService() => Send(new("stopservice")).Flag;
 
     private RepairReply Send(RepairRequest request)
     {
@@ -153,7 +186,7 @@ public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IDisp
                 throw new IOException("The administrator helper stopped. Try again.");
             }
             if (reply is null) { CloseCore(); throw new IOException("The administrator helper stopped. Try again."); }
-            if (!reply.Ok) throw new IOException(reply.Error ?? "The change could not be made.");
+            if (!reply.Ok) throw reply.Denied ? new UnauthorizedAccessException(reply.Error) : new IOException(reply.Error ?? "The change could not be made.");
             return reply;
         }
     }

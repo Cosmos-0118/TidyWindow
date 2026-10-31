@@ -11,6 +11,7 @@ public sealed partial class RepairView : UserControl
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
     private async void FixClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.FixAsync(); }
+    private async void LocateClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.LocateInstallerAsync(); }
     private async void UndoRowClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is HistoryRow row) await model.UndoAsync(row); }
     private void QueryChanged(object sender, TextChangedEventArgs e) { if (Model is { } model) model.Query = ((TextBox)sender).Text; }
 
