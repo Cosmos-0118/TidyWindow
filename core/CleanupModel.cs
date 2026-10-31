@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace TidyWindow.Next.Core;
 
 public enum CleanupLevel { Recommended, Review }
-public enum CleanupAction { Files, RecycleBin, ComponentStore, PreviousWindows, Hibernation }
+public enum CleanupAction { Files, RecycleBin, ComponentStore, PreviousWindows, Hibernation, DiskCleanup }
 
 /// <summary>One thing the cleaner knows how to clean. Rules are data (cleanup-catalog.json); nothing outside a rule's paths is ever touched.</summary>
 public sealed class CleanupRule
@@ -18,6 +18,10 @@ public sealed class CleanupRule
     public CleanupAction Action { get; init; } = CleanupAction.Files;
     /// <summary>Folders whose contents are cleaned. %variables% are expanded; a segment may contain * or ? to match several folders (browser profiles).</summary>
     public string[] Paths { get; init; } = [];
+    /// <summary>Windows Disk Cleanup handlers (VolumeCaches in the registry). Files rules add the folders Windows itself lists for them, so the list follows the installed Windows version; DiskCleanup rules hand the work to those handlers.</summary>
+    public string[] Handlers { get; init; } = [];
+    /// <summary>"chromium" adds the cache folders of every Chromium based app found in the profile (Electron, WebView2, CEF), whatever its name.</summary>
+    public string? Discover { get; init; }
     /// <summary>Optional ';'-separated file masks. Without it every file in the folder is cleaned.</summary>
     public string? Files { get; init; }
     public int MinAgeDays { get; init; }
@@ -29,7 +33,7 @@ public sealed class CleanupRule
     public string[] Processes { get; init; } = [];
 
     /// <summary>Handled by Windows' own tools in an elevated helper instead of by deleting files.</summary>
-    public bool IsSystemAction => Action is CleanupAction.ComponentStore or CleanupAction.PreviousWindows or CleanupAction.Hibernation;
+    public bool IsSystemAction => Action is CleanupAction.ComponentStore or CleanupAction.PreviousWindows or CleanupAction.Hibernation or CleanupAction.DiskCleanup;
 
     public string[] Masks => string.IsNullOrWhiteSpace(Files) ? [] : Files.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
@@ -58,6 +62,8 @@ public sealed class CleanupContext
     public Func<DateTime> Now { get; init; } = () => DateTime.UtcNow;
     /// <summary>Names of running processes, read once per scan; asking per app costs far more than listing them all.</summary>
     public Func<IReadOnlySet<string>> RunningProcesses { get; init; } = CleanupNative.RunningProcesses;
+    /// <summary>The folders a Disk Cleanup handler lists in the registry; null when this Windows has no such handler.</summary>
+    public Func<string, string[]?> HandlerFolders { get; init; } = CleanupNative.VolumeCacheFolders;
     /// <summary>Parallel folder operations. Directory work is latency bound, so more than the core count helps.</summary>
     public int Parallelism { get; init; } = Math.Clamp(Environment.ProcessorCount * 2, 4, 32);
 }

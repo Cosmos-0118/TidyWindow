@@ -48,13 +48,14 @@ public sealed class CleanupTests : IDisposable
     public void CatalogLoadsAndEveryRuleIsWellFormed()
     {
         var rules = CleanupCatalog.Load();
-        Assert.True(rules.Count >= 30);
+        Assert.True(rules.Count >= 60);
         Assert.Equal(rules.Count, rules.Select(x => x.Id).Distinct().Count());
         foreach (var rule in rules)
         {
             Assert.False(string.IsNullOrWhiteSpace(rule.Name));
             Assert.False(string.IsNullOrWhiteSpace(rule.Detail));
-            if (rule.Action == CleanupAction.Files) Assert.NotEmpty(rule.Paths);
+            if (rule.Action == CleanupAction.Files && rule.Handlers.Length == 0 && rule.Discover is null) Assert.NotEmpty(rule.Paths);
+            if (rule.Action == CleanupAction.DiskCleanup) { Assert.NotEmpty(rule.Handlers); Assert.True(rule.Admin); Assert.Equal(CleanupLevel.Review, rule.Level); }
             Assert.All(rule.Paths, path => Assert.StartsWith("%", path));
             if (rule.Quarantine) Assert.Equal(CleanupLevel.Review, rule.Level);
         }
@@ -297,6 +298,125 @@ public sealed class CleanupTests : IDisposable
         using var cancel = new CancellationTokenSource();
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new CleanupScanner(Context()).ScanAsync([Rule("temp", ["%TEMP%"])], null, cancel.Token));
+    }
+
+    private string Local(string relative = "") => Path.Combine(root, "Users", "me", "AppData", "Local", relative);
+    private string Roaming(string relative = "") => Path.Combine(root, "Users", "me", "AppData", "Roaming", relative);
+
+    private static CleanupRule Discovering() => new() { Id = "chromium-apps", Group = "Browsers", Name = "x", Paths = [], Discover = "chromium" };
+
+    [Fact]
+    public async Task EveryChromiumAppIsFoundByItsLocalStateAndOnlyItsCachesAreTouched()
+    {
+        // An Electron app, a WebView2 app inside a Store package, and a folder that merely has a cache-like name but no Local State.
+        Make("Users/me/AppData/Roaming/SomeChat/Local State", 5);
+        Make("Users/me/AppData/Roaming/SomeChat/Cache/data_0", 100);
+        Make("Users/me/AppData/Roaming/SomeChat/Code Cache/js/x", 50);
+        Make("Users/me/AppData/Roaming/SomeChat/Cookies", 999);
+        Make("Users/me/AppData/Roaming/SomeChat/Local Storage/leveldb/000003.log", 888);
+        Make("Users/me/AppData/Local/Packages/Vendor.App_abc/LocalState/EBWebView/Local State", 5);
+        Make("Users/me/AppData/Local/Packages/Vendor.App_abc/LocalState/EBWebView/Default/Cache/data_1", 200);
+        Make("Users/me/AppData/Local/Packages/Vendor.App_abc/LocalState/EBWebView/Default/Login Data", 777);
+        Make("Users/me/AppData/Local/Packages/Vendor.App_abc/LocalState/EBWebView/Default/Service Worker/CacheStorage/a", 25);
+        Make("Users/me/AppData/Local/NotChromium/Cache/important.db", 4000);
+        Make("Users/me/AppData/Local/Temp/Fake/Local State", 1);
+        Make("Users/me/AppData/Local/Temp/Fake/Cache/x", 4000);
+        var finding = await ScanOne(Discovering());
+        Assert.Equal(100 + 50 + 200 + 25, finding.Bytes);
+        Assert.All(finding.Roots, folder => Assert.DoesNotContain("NotChromium", folder));
+        var result = await new CleanupCleaner(Context()).CleanAsync([finding]);
+        Assert.Equal(375, result.FreedBytes);
+        Assert.True(File.Exists(Roaming("SomeChat/Cookies")));
+        Assert.True(File.Exists(Roaming("SomeChat/Local State")));
+        Assert.True(File.Exists(Roaming("SomeChat/Local Storage/leveldb/000003.log")));
+        Assert.True(File.Exists(Local("Packages/Vendor.App_abc/LocalState/EBWebView/Default/Login Data")));
+        Assert.True(File.Exists(Local("NotChromium/Cache/important.db")));
+        Assert.True(File.Exists(Local("Temp/Fake/Cache/x")));
+    }
+
+    [Fact]
+    public async Task ADiscoveredCacheThatIsReallyALinkIsNeverFollowed()
+    {
+        var outside = Path.Combine(root, "outside");
+        Make("outside/precious.doc", 777);
+        Make("Users/me/AppData/Roaming/App/Local State", 5);
+        if (!TryLink(Roaming("App/Cache"), outside)) return;
+        var finding = await ScanOne(Discovering());
+        Assert.Empty(finding.Roots);
+        await new CleanupCleaner(Context()).CleanAsync([finding]);
+        Assert.True(File.Exists(Path.Combine(outside, "precious.doc")));
+    }
+
+    [Fact]
+    public async Task DiskCleanupFoldersComeFromTheRegistryButOnlyInsideWindowsOwnDataPlaces()
+    {
+        Make("Windows/SystemTemp/a.tmp", 100, ageDays: 3);
+        Make("ProgramData/Microsoft/WDF/b.tmp", 200, ageDays: 3);
+        Make("Users/me/Documents/thesis.docx", 999, ageDays: 3);
+        Make("Other/data.bin", 888, ageDays: 3);
+        var folders = new Dictionary<string, string[]?>
+        {
+            ["Temporary Files"] = [Path.Combine(root, "Windows", "SystemTemp"), @"%PROGRAMDATA%\Microsoft\WDF", Path.Combine(root, "Users", "me", "Documents"), Path.Combine(root, "Other"), Path.Combine(root, "Windows"), @"?:\FOUND.000"],
+            ["Absent"] = null
+        };
+        var context = new CleanupContext
+        {
+            Variable = name => variables.GetValueOrDefault(name), IsAdministrator = true, Now = () => Now, RunningProcesses = () => new HashSet<string>(), Parallelism = 4,
+            HandlerFolders = handler => folders.GetValueOrDefault(handler)
+        };
+        var rule = new CleanupRule { Id = "h", Group = "Windows", Name = "h", Admin = true, MinAgeDays = 1, Handlers = ["Temporary Files", "Absent", "Unknown"] };
+        var finding = (await new CleanupScanner(context).ScanAsync([rule])).Single();
+        Assert.Equal(300, finding.Bytes);
+        Assert.Equal(2, finding.Roots.Length);
+        await new CleanupCleaner(context).CleanAsync([finding]);
+        Assert.True(File.Exists(Path.Combine(root, "Users", "me", "Documents", "thesis.docx")));
+        Assert.True(File.Exists(Path.Combine(root, "Other", "data.bin")));
+    }
+
+    [Fact]
+    public async Task ADiskCleanupRuleIsOfferedOnlyWhenThisWindowsHasTheHandler()
+    {
+        var rule = new CleanupRule { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"], Level = CleanupLevel.Review };
+        CleanupContext With(bool present) => new() { Variable = name => variables.GetValueOrDefault(name), IsAdministrator = true, Now = () => Now, RunningProcesses = () => new HashSet<string>(), HandlerFolders = _ => present ? [] : null };
+        var offered = (await new CleanupScanner(With(true)).ScanAsync([rule])).Single();
+        Assert.True(offered.HasContent);
+        Assert.True(offered.Unmeasured);
+        Assert.False((await new CleanupScanner(With(false)).ScanAsync([rule])).Single().HasContent);
+    }
+
+    [Fact]
+    public async Task StoreAppTemporaryFoldersAreCleanedButTheRestOfAPackageIsNot()
+    {
+        Make("Users/me/AppData/Local/Packages/A_1/TempState/x", 10, ageDays: 3);
+        Make("Users/me/AppData/Local/Packages/A_1/AC/INetCache/y", 20, ageDays: 3);
+        Make("Users/me/AppData/Local/Packages/A_1/LocalState/save.dat", 999, ageDays: 3);
+        Make("Users/me/AppData/Local/Packages/B_2/TempState/z", 30, ageDays: 3);
+        var rule = Rule("store", [@"%LOCALAPPDATA%\Packages\*\TempState", @"%LOCALAPPDATA%\Packages\*\AC\INetCache"], age: 1);
+        var finding = await ScanOne(rule);
+        Assert.Equal(60, finding.Bytes);
+        await new CleanupCleaner(Context()).CleanAsync([finding]);
+        Assert.True(File.Exists(Local("Packages/A_1/LocalState/save.dat")));
+        Assert.False(File.Exists(Local("Packages/B_2/TempState/z")));
+    }
+
+    [Fact]
+    public void NoCatalogPathCanClimbOutOfItsFolder()
+    {
+        foreach (var rule in CleanupCatalog.Load())
+        {
+            Assert.All(rule.Paths, path => Assert.DoesNotContain("..", path));
+            Assert.All(rule.Handlers, handler => Assert.DoesNotContain('\\', handler));
+            if (rule.Discover is not null) Assert.Equal("chromium", rule.Discover);
+        }
+    }
+
+    [Fact]
+    public void ReviewRulesAreNeverPreselectedForEverythingThatCouldCostTheUserAnything()
+    {
+        var rules = CleanupCatalog.Load().ToDictionary(x => x.Id);
+        foreach (var id in new[] { "nuget-packages", "gradle", "visual-studio-installer", "ai-model-cache", "maven", "go-modules", "pnpm", "driver-packages", "upgrade-leftovers", "prefetch", "ide-caches" })
+            Assert.Equal(CleanupLevel.Review, rules[id].Level);
+        foreach (var rule in rules.Values.Where(x => x.Admin && x.Action == CleanupAction.DiskCleanup)) Assert.Equal(CleanupLevel.Review, rule.Level);
     }
 
     private static bool TryLink(string link, string target)

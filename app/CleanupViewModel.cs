@@ -18,14 +18,42 @@ public static class ByteSize
 
 public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> changed) : ObservableState
 {
-    // A row whose size is unknown until it runs is offered but never ticked for the user.
-    private bool selected = finding.Rule.Level == CleanupLevel.Recommended && !finding.Unmeasured;
+    // A row whose size is unknown until it runs, or that needs administrator permission, is offered but never ticked for the user:
+    // ticking it is what asks for permission, so the prompt is always the person's own doing.
+    private bool selected = finding.Rule.Level == CleanupLevel.Recommended && !finding.Unmeasured && !finding.NeedsAdmin && !finding.Rule.IsSystemAction;
+    private MeasuredItem? exact;
+    private bool measuring, declined;
     public CleanupFinding Finding { get; } = finding;
     public bool IsSelected { get => selected; set { if (Set(ref selected, value)) changed(this); } }
     public string Name => Finding.Rule.Name;
     public string Detail => Finding.AppRunning ? Finding.Rule.Detail + " The app is open, so files it is using will be skipped." : Finding.Rule.Detail;
-    public string SizeText => Finding.Unmeasured ? "Size shown after" : Finding.Bytes > 0 || Finding.Rule.Action == CleanupAction.RecycleBin ? (Finding.Unreadable > 0 ? "At least " : "") + ByteSize.Format(Finding.Bytes) : "Empty";
-    public string FilesText => Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
+    /// <summary>What the elevated helper found, once the person has allowed it to look.</summary>
+    public MeasuredItem? Exact { get => exact; set { exact = value; NotifySize(); } }
+    public bool Measuring { get => measuring; set { if (measuring != value) { measuring = value; NotifySize(); } } }
+    public bool Declined { get => declined; set { if (declined != value) { declined = value; NotifySize(); } } }
+    public bool NeedsMeasuring => NeedsAdmin && exact is null;
+    public long Bytes => exact?.Bytes ?? Finding.Bytes;
+    private void NotifySize() { Changed(nameof(SizeText)); Changed(nameof(FilesText)); Changed(nameof(AutomationName)); }
+    public string SizeText
+    {
+        get
+        {
+            if (measuring) return "Measuring…";
+            if (exact is { } found) return found.Unmeasured ? "Size shown after" : found.Bytes > 0 ? ByteSize.Format(found.Bytes) : "Empty";
+            if (NeedsAdmin) return declined ? "Needs permission" : !Finding.Unmeasured && Finding.Bytes > 0 ? "At least " + ByteSize.Format(Finding.Bytes) : "Tick to measure";
+            return Finding.Unmeasured ? "Size shown after" : Finding.Bytes > 0 || Finding.Rule.Action == CleanupAction.RecycleBin ? (Finding.Unreadable > 0 ? "At least " : "") + ByteSize.Format(Finding.Bytes) : "Empty";
+        }
+    }
+    public string FilesText
+    {
+        get
+        {
+            if (measuring) return "asking for permission";
+            if (exact is { } found) return found.Unmeasured ? "cleaning" : found.Files == 1 ? "1 file" : $"{found.Files:N0} files";
+            if (NeedsAdmin) return declined ? "permission declined" : "needs admin to measure";
+            return Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
+        }
+    }
     public bool NeedsAdmin => Finding.NeedsAdmin || Finding.Rule.IsSystemAction;
     public Visibility AdminVisibility => NeedsAdmin ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ReviewVisibility => Finding.Rule.Level == CleanupLevel.Review ? Visibility.Visible : Visibility.Collapsed;
@@ -57,7 +85,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? work;
     private long generation;
-    private bool scanning, cleaning, scanned;
+    private bool scanning, cleaning, scanned, measuringAdmin;
     private long selectedBytes;
     private int selectedCount, selectedAdmin;
     private string status = "Scan to see what can be cleaned";
@@ -82,7 +110,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public Visibility CleaningVisibility => progressShown ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Scanned => scanned;
-    public bool Busy => scanning || cleaning;
+    public bool Busy => scanning || cleaning || measuringAdmin;
     public bool CanScan => !Busy;
     public bool CanClean => !Busy && selectedCount > 0;
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
@@ -92,7 +120,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UndoVisibility => UndoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string UndoText { get; private set; } = "";
-    public string AdminNote => selectedAdmin == 0 ? "" : $"{selectedAdmin} selected {(selectedAdmin == 1 ? "item needs" : "items need")} administrator permission. Windows will ask once when you clean.";
+    public string AdminNote => selectedAdmin == 0 ? "" : $"{selectedAdmin} selected {(selectedAdmin == 1 ? "item needs" : "items need")} administrator permission. Windows asks when you tick one, to measure it, and once more when you clean.";
     public Visibility AdminVisibility => selectedAdmin > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Names of selected items that cannot be undone and are not plain caches; empty when the clean needs no confirmation.</summary>
@@ -114,9 +142,66 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     private void RowChanged(CleanupRow row)
     {
+        Recount();
+        // Ticking something that needs administrator permission is the person asking to see its size.
+        if (row.IsSelected && row.NeedsMeasuring && !row.Measuring && !Busy) _ = MeasureAdminAsync();
+    }
+
+    private void Recount()
+    {
         var chosen = SelectedRows().ToList();
-        selectedBytes = chosen.Sum(x => x.Finding.Bytes); selectedCount = chosen.Count; selectedAdmin = chosen.Count(x => x.NeedsAdmin);
+        selectedBytes = chosen.Sum(x => x.Bytes); selectedCount = chosen.Count; selectedAdmin = chosen.Count(x => x.NeedsAdmin);
         Changed(nameof(CanClean)); Changed(nameof(CleanLabel)); Changed(nameof(AdminNote)); Changed(nameof(AdminVisibility));
+    }
+
+    /// <summary>
+    /// Asks Windows for administrator permission once, then sizes every administrator row at once, so ticking the next one asks nothing more.
+    /// Declining leaves the rows as they were, unticks what was just ticked, and never blocks the rest of the page.
+    /// </summary>
+    private async Task MeasureAdminAsync()
+    {
+        if (Busy || lifetime.IsCancellationRequested) return;
+        var rows = Groups.SelectMany(x => x.Rows).Where(x => x.NeedsMeasuring).ToList();
+        if (rows.Count == 0) return;
+        var asked = rows.Where(x => x.IsSelected).ToList();
+        var current = generation;
+        var before = Status;
+        work?.Dispose(); work = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        var token = work.Token;
+        measuringAdmin = true;
+        foreach (var row in rows) { row.Declined = false; row.Measuring = true; }
+        Status = "Waiting for administrator permission to measure…";
+        Notify();
+        string? problem = null;
+        try
+        {
+            var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(), token);
+            if (current != generation) return;
+            if (report.Declined) problem = "Administrator permission was declined, so the size of system areas is not shown. Tick the item again to retry.";
+            else if (report.Error is not null) problem = "The sizes could not be measured: " + ToastCenter.Brief(report.Error);
+            else
+            {
+                foreach (var row in rows) row.Exact = report.Items.FirstOrDefault(x => x.Id == row.Finding.Rule.Id);
+                var total = report.Items.Where(x => !x.Unmeasured).Sum(x => x.Bytes);
+                log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup measured administrator areas", $"{ByteSize.Format(total)} found in {report.Items.Count(x => x.Bytes > 0)} of {rows.Count} areas.");
+            }
+        }
+        catch (OperationCanceledException) { problem = "Measuring was stopped."; }
+        catch (Exception ex)
+        {
+            problem = "The sizes could not be measured: " + ToastCenter.Brief(ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup could not measure administrator areas", ex.Message);
+        }
+        finally
+        {
+            foreach (var row in rows) { row.Measuring = false; if (problem is not null && row.Exact is null) row.Declined = true; }
+            // What was ticked only to be measured goes back to unticked when that failed.
+            if (problem is not null) foreach (var row in asked) row.IsSelected = false;
+            measuringAdmin = false;
+            Status = before;
+            Notify(); Recount();
+        }
+        if (problem is not null) toasts.Show("clean", ToastKind.Info, "Sizes not measured", problem);
     }
 
     public async Task ScanAsync()
@@ -142,7 +227,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             if (current != generation) return;
             scanned = true;
             var total = findings.Where(x => x.Skipped is null).Sum(x => x.Bytes);
-            Status = total == 0 ? "Nothing to clean right now" : $"{ByteSize.Format(total)} can be cleaned. Items marked Review are not selected.";
+            Status = total == 0 ? "Nothing to clean right now" : $"{ByteSize.Format(total)} can be cleaned. Items marked Review or Needs admin are not selected until you tick them.";
             log.Write(ActivityLevel.Info, ActivityArea.App, "Cleanup scan finished", $"{ByteSize.Format(total)} found in {findings.Count(x => x.HasContent)} areas; {empty} areas were already clean; {findings.Count(x => x.NeedsAdmin && x.HasContent)} need administrator permission to clean.");
         }
         catch (OperationCanceledException) { Status = "Scan stopped"; }

@@ -13,11 +13,24 @@ public static partial class PackageOutputParser
     [GeneratedRegex(@"\S(?:.*?\S)?(?= {2,}|$)")]
     private static partial Regex Columns();
 
+    [GeneratedRegex(@"\S+")]
+    private static partial Regex Words();
+
     public static string Clean(string text) => Ansi().Replace(text, "").Replace("\b", "");
     // WinGet names what it did not install from a source by where Windows keeps it: the registry's uninstall list (ARP) or a Store package (MSIX).
     // Registry key names are free text, so the characters allowed are a fixed set with no quotes, pipes, percent signs or redirection.
     [GeneratedRegex(@"^(?:ARP\\(?:Machine|User)\\X(?:64|86)|MSIX)\\[A-Za-z0-9 ._+\-{}()&,@~=#!\\]+$")]
     private static partial Regex WindowsIdentifier();
+
+    // WinGet pads a column to its widest cell plus one space, so when every name is short the header reads "Name Id" with a single space.
+    // Splitting on runs of spaces would then merge those two columns; the labels are single words, so fall back to them.
+    internal static int[] HeaderColumns(string header)
+    {
+        var words = Words().Matches(header);
+        var spaced = Columns().Matches(header);
+        var found = words.Count is >= 3 and <= 5 && words.Count > spaced.Count ? words : spaced;
+        return found.Select(m => CellWidth(header[..m.Index])).ToArray();
+    }
     public static bool IsSafeId(string id) => id.Length is > 0 and <= 256 && Identifier().IsMatch(id) && !id.Contains("..");
     public static bool IsWindowsId(string id) => id.Length is > 0 and <= 256 && WindowsIdentifier().IsMatch(id) && !id.Contains("..");
     public static bool IsSafeInstalledId(string id) => IsSafeId(id) || IsWindowsId(id);
@@ -45,7 +58,7 @@ public static partial class PackageOutputParser
                 var dashed = Regex.Matches(lines[i], @"-{2,}");
                 var columns = dashed.Count >= 3
                     ? dashed.Select(m => CellWidth(lines[i][..m.Index])).ToArray()
-                    : Columns().Matches(lines[i - 1]).Select(m => CellWidth(lines[i - 1][..m.Index])).ToArray();
+                    : HeaderColumns(lines[i - 1]);
                 if (columns.Length < 3) continue;
                 foreach (var row in lines.Skip(i + 1))
                 {

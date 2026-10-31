@@ -222,7 +222,7 @@ public static partial class InstallationOutput
         for (var i = 1; i < lines.Length; i++)
         {
             if (!Regex.IsMatch(lines[i], @"^\s*-{2,}[\s-]*$")) continue;
-            var columns = Regex.Matches(lines[i - 1], @"\S(?:.*?\S)?(?= {2,}|$)").Select(m => PackageOutputParser.CellWidth(lines[i - 1][..m.Index])).ToArray();
+            var columns = PackageOutputParser.HeaderColumns(lines[i - 1]);
             if (columns.Length < 4) throw new FormatException("WinGet’s update list could not be read.");
             foreach (var row in lines.Skip(i + 1))
             {

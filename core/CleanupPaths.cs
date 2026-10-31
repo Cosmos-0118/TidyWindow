@@ -16,14 +16,92 @@ public static partial class CleanupPaths
     private static string[] Roots(CleanupRule rule, CleanupContext context, IReadOnlyList<string> protectedPaths)
     {
         var found = new List<string>();
+        void Add(string folder)
+        {
+            if (IsSafeRoot(folder, rule, protectedPaths) && IsPlainFolder(folder)) found.Add(Normalize(folder));
+        }
         foreach (var pattern in rule.Paths)
         {
             var expanded = Expand(pattern, context);
             if (expanded is null) continue;
-            foreach (var folder in Wildcards(expanded))
-                if (IsSafeRoot(folder, rule, protectedPaths) && IsPlainFolder(folder)) found.Add(Normalize(folder));
+            foreach (var folder in Wildcards(expanded)) Add(folder);
         }
+        // Folders Windows lists for its own cleanup handlers. They only count inside the places Windows keeps its temporary data.
+        foreach (var handler in rule.Handlers)
+            foreach (var pattern in context.HandlerFolders(handler) ?? [])
+            {
+                var expanded = Expand(pattern, context);
+                if (expanded is not null && IsWindowsDataFolder(expanded, context)) Add(expanded);
+            }
+        if (string.Equals(rule.Discover, "chromium", StringComparison.OrdinalIgnoreCase))
+            foreach (var folder in DiscoverChromium(context)) Add(folder);
         return found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool IsWindowsDataFolder(string path, CleanupContext context)
+    {
+        string full;
+        try { full = Normalize(path); } catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+        foreach (var name in new[] { "WINDIR", "PROGRAMDATA", "LOCALAPPDATA" })
+            if (context.Variable(name) is { Length: > 0 } baseFolder && Path.IsPathRooted(baseFolder) && IsInside(full, Normalize(baseFolder))) return true;
+        return false;
+    }
+
+    private static readonly string[] ChromiumCaches =
+    [
+        "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache",
+        "component_crx_cache", "extensions_crx_cache", "Crashpad", @"Service Worker\CacheStorage", @"Service Worker\ScriptCache"
+    ];
+    private static readonly HashSet<string> DiscoverSkips = new(StringComparer.OrdinalIgnoreCase) { "Temp", "node_modules", ".git", "Programs", "WinGet", "Windows" };
+    private const int DiscoverDepth = 9;
+
+    /// <summary>
+    /// Finds the cache folders of every Chromium based app in the profile. A folder counts as an app's data folder only when it holds
+    /// a "Local State" file, which Chromium, Electron, WebView2 and CEF all write; only well-known cache folders directly inside it
+    /// or inside one of its profiles are returned, never the profiles themselves, so sign-ins, history and settings are not reachable.
+    /// </summary>
+    internal static IReadOnlyList<string> DiscoverChromium(CleanupContext context)
+    {
+        var found = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var tops = new List<string>();
+        foreach (var name in new[] { "LOCALAPPDATA", "APPDATA" })
+            if (context.Variable(name) is { Length: > 0 } start && Path.IsPathRooted(start) && Directory.Exists(start)) tops.Add(Normalize(start));
+
+        void AddCaches(string folder)
+        {
+            foreach (var cache in ChromiumCaches)
+            {
+                var path = Path.Combine(folder, cache);
+                if (Directory.Exists(path)) found.Add(path);
+            }
+        }
+
+        void Walk(string folder, int depth)
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(folder, "Local State")))
+                {
+                    AddCaches(folder);
+                    foreach (var profile in Directory.EnumerateDirectories(folder, "*", Folders)) AddCaches(profile);
+                    return;
+                }
+                if (depth >= DiscoverDepth) return;
+                foreach (var child in Directory.EnumerateDirectories(folder, "*", Folders))
+                    if (!DiscoverSkips.Contains(Path.GetFileName(child))) Walk(child, depth + 1);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+
+        var work = new List<string>();
+        foreach (var top in tops)
+        {
+            if (File.Exists(Path.Combine(top, "Local State"))) continue;
+            try { work.AddRange(Directory.EnumerateDirectories(top, "*", Folders).Where(x => !DiscoverSkips.Contains(Path.GetFileName(x)))); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        Parallel.ForEach(work, new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism }, folder => Walk(folder, 1));
+        return found.ToArray();
     }
 
     /// <summary>Roots for every rule, in rule order. A folder that another rule already cleans whole, or that sits inside one, is dropped, so no file is counted or removed twice.</summary>
