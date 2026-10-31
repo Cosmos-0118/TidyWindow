@@ -497,8 +497,9 @@ public sealed partial class MainWindow : Window
     {
         ShowPage(Page.Debloat);
         debloat.RefreshRemoved();
-        // Reading the installed apps takes a moment, so it happens on the first visit and then only when asked.
-        if (!debloat.Scanned && !debloat.Busy) _ = debloat.ScanAsync();
+        // An app can be uninstalled from Start or Settings while this page sits in the background, so every visit reads the PC again.
+        // The first visit shows a loading screen; after that the list is updated in place, without losing the person's place or ticks.
+        if (!debloat.Busy) _ = debloat.ScanAsync();
     }
 
     private async Task<string?> PickFolderAsync()
