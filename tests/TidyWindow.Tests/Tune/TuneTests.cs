@@ -60,7 +60,7 @@ public sealed class TuneCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = TuneCatalog.Load();
-        Assert.Equal(25, catalog.Count);
+        Assert.Equal(38, catalog.Count);
         Assert.Empty(TuneGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<TuneGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); });
@@ -104,8 +104,59 @@ public sealed class TuneCatalogTests
     {
         // Left out on purpose; docs/tune-research.md says why for each.
         var names = TuneCatalog.Load().SelectMany(x => x.Targets).Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var left in new[] { "DragTrayEnabled", "ShortcutNameTemplate", "DisplayParameters", "RestartApps", "DisableConsumerAccountStateContent", "SettingsPageVisibility", "HideRecommendedSection", "EnableSnapAssistFlyout" })
+        foreach (var left in new[]
+        {
+            "DragTrayEnabled", "ShortcutNameTemplate", "DisplayParameters", "RestartApps", "DisableConsumerAccountStateContent", "SettingsPageVisibility", "HideRecommendedSection", "EnableSnapAssistFlyout",
+            "NoUseStoreOpenWith", "PreventDeviceEncryption", "WholeFileSystem", "IsExpedited", "NoAutoRebootWithLoggedOnUsers", "Start_AccountNotifications", "EnableAccountNotifications",
+            "DisableSearchBoxSuggestions", "BingSearchEnabled", "Start_TrackProgs"
+        })
             Assert.DoesNotContain(left, names);
+    }
+
+    [Fact]
+    public void TheMoreCautiousSecondRoundItemsAskFirst()
+    {
+        var catalog = TuneCatalog.Load();
+        foreach (var id in new[] { "no-workplace-join", "edge-clean" })
+            Assert.Equal(TuneRisk.Careful, catalog.Single(x => x.Id == id).Risk);
+        Assert.Equal(TuneScope.Machine, catalog.Single(x => x.Id == "no-onedrive-backup-nag").Scope);
+        Assert.Equal(TuneGroup.Speed, catalog.Single(x => x.Id == "startup-delay-off").Group);
+    }
+
+    [Fact]
+    public void StartupDelayIsLeftToWindowsToCleanUpAndItsKeyIsNeverRemoved()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "startup-delay-off");
+        Assert.Equal(["StartupDelayInMSec", "WaitForIdleState"], item.Targets.Select(x => x.Name).ToArray());
+        Assert.All(item.Targets, x => { Assert.Equal("0", x.Value); Assert.Equal("", x.RemoveKey); });
+    }
+
+    [Fact]
+    public void TheF1HelpKeyIsCreatedAndThenRemovedEntirely()
+    {
+        var item = TuneCatalog.Load().Single(x => x.Id == "no-f1-help");
+        var target = Assert.Single(item.Targets);
+        Assert.True(TuneGuard.AllowsRemoval(TuneScope.User, TuneGuard.F1HelpRoot));
+        Assert.Equal(TuneGuard.F1HelpRoot, target.RemoveKey);
+        var pc = new FakeTunePc();
+        var changer = new LocalTuneChanger(pc, pc, [item]);
+
+        var before = changer.Change(new(item.Id, true)).Before!;
+        Assert.Equal("", pc.Read(TuneScope.User, target.Key, "")!.Text);
+
+        Assert.True(changer.Change(new(item.Id, false, before)).Ok);
+        Assert.Null(pc.Read(TuneScope.User, target.Key, ""));
+        Assert.Contains($"remove {TuneGuard.F1HelpRoot}", pc.Writes);
+    }
+
+    [Fact]
+    public void TheNewSettingsPagesTogglesUseTheValuesTheSettingsAppWrites()
+    {
+        var catalog = TuneCatalog.Load();
+        Assert.Equal(["IsDynamicSearchBoxEnabled", "IsMSACloudSearchEnabled", "IsAADCloudSearchEnabled"], catalog.Single(x => x.Id == "search-clean").Targets.Select(x => x.Name).ToArray());
+        Assert.Contains(catalog.Single(x => x.Id == "suggestions").Targets, x => x.Name == "RotatingLockScreenOverlayEnabled");
+        Assert.Equal("3", Assert.Single(catalog.Single(x => x.Id == "alt-tab-windows-only").Targets).Value);
+        Assert.Equal(4, catalog.Single(x => x.Id == "no-typing-profile").Targets.Length);
     }
 
     [Fact]
@@ -135,11 +186,11 @@ public sealed class TuneCatalogTests
     }
 
     [Fact]
-    public void TheGameBarItemTurnsOffTheThreePerUserSwitchesAndLeavesQuietsPolicyAlone()
+    public void TheGameBarItemTurnsOffThePerUserSwitchesAndLeavesQuietsPolicyAlone()
     {
         var item = TuneCatalog.Load().Single(x => x.Id == "no-gamebar-popup");
         Assert.Equal(TuneScope.User, item.Scope);
-        Assert.Equal(["UseNexusForGameBarEnabled", "AppCaptureEnabled", "GameDVR_Enabled"], item.Targets.Select(x => x.Name).ToArray());
+        Assert.Equal(["UseNexusForGameBarEnabled", "ShowStartupPanel", "AppCaptureEnabled", "GameDVR_Enabled"], item.Targets.Select(x => x.Name).ToArray());
         Assert.All(item.Targets, x => { Assert.Equal("0", x.Value); Assert.Equal("1", x.Normal); });
     }
 
@@ -338,7 +389,30 @@ public sealed class TuneScanTests
         Assert.False(Assert.Single(TuneScan.Run(pc, [item]).Entries).Applied);
         pc.Has(TuneScope.User, target.Key, target.Name, "0");
         Assert.True(Assert.Single(TuneScan.Run(pc, [item]).Entries).Applied);
-        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26100, Revision = 9999 }, [item]).Entries);
+        // 24H2 and 25H2 got the switch in their own update, 9278, and not before it.
+        Assert.Single(TuneScan.Run(new FakeTunePc { Build = 26100, Revision = 9278 }, [item]).Entries);
+        Assert.Single(TuneScan.Run(new FakeTunePc { Build = 26200, Revision = 9500 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26100, Revision = 9277 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26200, Revision = 9277 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26300, Revision = 8696 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 22631, Revision = 9999 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 19045, Revision = 9999 }, [item]).Entries);
+    }
+
+    [Fact]
+    public void AnItemCanNameTheOtherBuildsThatGotItEarlier()
+    {
+        var item = new TuneItem
+        {
+            Id = "branchy", Name = "n", Group = TuneGroup.Cleaner, Scope = TuneScope.User, Summary = "s", Effect = "e", MinBuild = 26300, MinRevision = 100,
+            AlsoOn = [new() { Build = 26100, Revision = 50 }], Targets = [Mouse()]
+        };
+        Assert.Single(TuneScan.Run(new FakeTunePc { Build = 26100, Revision = 50 }, [item]).Entries);
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26100, Revision = 49 }, [item]).Entries);
+        // A branch matches its own build only: 26200 never got 26100's update.
+        Assert.Empty(TuneScan.Run(new FakeTunePc { Build = 26200, Revision = 60 }, [item]).Entries);
+        Assert.Empty(TuneGuard.Validate([item]));
+        Assert.NotEmpty(TuneGuard.Validate([new TuneItem { Id = "bad", Name = "n", Group = TuneGroup.Cleaner, Scope = TuneScope.User, Summary = "s", Effect = "e", AlsoOn = [new() { Build = 0 }], Targets = [Mouse()] }]));
     }
 
     [Fact]
