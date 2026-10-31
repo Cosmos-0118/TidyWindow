@@ -35,7 +35,7 @@ public sealed class WindowsInstallSystem : IInstallSystem
                         entries.Add(new($@"{prefix}\{path}\{name}", Text(key, "DisplayName"), Text(key, "DisplayVersion"), Text(key, "Publisher"),
                             Text(key, "UninstallString"), Text(key, "QuietUninstallString"), Text(key, "InstallLocation"), Text(key, "DisplayIcon"),
                             Flag(key, "WindowsInstaller"), Flag(key, "SystemComponent"), Flag(key, "NoRemove"),
-                            parent.Length > 0 || Array.Exists(UpdateTypes, x => string.Equals(x, Text(key, "ReleaseType"), StringComparison.OrdinalIgnoreCase))));
+                            parent.Length > 0 || Array.Exists(UpdateTypes, x => string.Equals(x, Text(key, "ReleaseType"), StringComparison.OrdinalIgnoreCase)), Text(key, "BundleProviderKey")));
                     }
                     catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
                 }
@@ -64,10 +64,8 @@ public sealed class WindowsInstallSystem : IInstallSystem
             var result = MsiEnumProductsEx(null, null, AllContexts, index, code, out var context, sid, ref sidLength);
             if (result == NoMoreItems) break;
             if (result != 0) continue;
-            // Products managed by an administrator's policy are left alone; they are not what a stalled install leaves behind.
-            if (context is not (MachineContext or UserContext)) continue;
             var product = code.ToString();
-            products.Add(new(product, context == MachineContext ? "Machine" : "User", sid.ToString(), Info(product, sid.ToString(), context, "ProductName") ?? "", Info(product, sid.ToString(), context, "LocalPackage")));
+            products.Add(new(product, context == MachineContext ? "Machine" : context == UserContext ? "User" : "Managed", sid.ToString(), Info(product, sid.ToString(), context, "ProductName") ?? "", Info(product, sid.ToString(), context, "LocalPackage")));
         }
         return products;
     }
@@ -82,6 +80,136 @@ public sealed class WindowsInstallSystem : IInstallSystem
     }
 
     public int ProductState(string code) => MsiQueryProductState(code);
+
+    /// <summary>Product keys Windows Installer has, that its own list of products does not include: the half of a record that an interrupted repair leaves.</summary>
+    public IReadOnlyList<MsiProduct> Ghosts()
+    {
+        var known = new HashSet<string>(Products().Select(x => InstallRepair.Pack(x.Code)), StringComparer.OrdinalIgnoreCase);
+        var ghosts = new List<MsiProduct>();
+        foreach (var (hive, path, context, sid) in new[] { (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products", "Machine", ""), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products", "User", CurrentSid()) })
+        {
+            try
+            {
+                using var list = hive.OpenSubKey(path);
+                foreach (var name in list?.GetSubKeyNames() ?? [])
+                {
+                    if (name.Length != 32 || known.Contains(name)) continue;
+                    using var key = list!.OpenSubKey(name);
+                    ghosts.Add(new(InstallRepair.Unpack(name), context, sid, key?.GetValue("ProductName") as string ?? "", null));
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+        return ghosts;
+    }
+
+    public bool ProductFilesPresent(MsiProduct product)
+    {
+        var packed = InstallRepair.Pack(product.Code);
+        var sid = string.Equals(product.Context, "Machine", StringComparison.OrdinalIgnoreCase) || product.Sid.Length == 0 ? "S-1-5-18" : product.Sid;
+        try
+        {
+            using var list = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\{sid}\Components");
+            foreach (var component in list?.GetSubKeyNames() ?? [])
+            {
+                using var key = list!.OpenSubKey(component);
+                // A component's key path is a file or folder, or a registry path ("01:\...") that says nothing about files.
+                if (key?.GetValue(packed) is string path && path.Length > 3 && path[1] == ':' && path[2] == '\\' && (File.Exists(path) || Directory.Exists(path))) return true;
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        return false;
+    }
+
+    public bool BundleHasChildren(string bundleId)
+    {
+        foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            try
+            {
+                using var list = hive.OpenSubKey(@"SOFTWARE\Classes\Installer\Dependencies");
+                foreach (var name in list?.GetSubKeyNames() ?? [])
+                {
+                    if (name.Length != 38 || name[0] != '{') continue;
+                    using var dependent = list!.OpenSubKey($@"{name}\Dependents\{bundleId}");
+                    if (dependent is not null && ProductState(name) != InstallRepair.Unknown) return true;
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+        return false;
+    }
+
+    private static string CurrentSid() => System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? "";
+
+    /// <summary>Upgrade-code links to a product that Windows Installer does not know and that has no record in any place this account can see.</summary>
+    public IReadOnlyList<ValueRef> DanglingLinks()
+    {
+        var links = new List<ValueRef>();
+        foreach (var (hive, name, path) in new[] { (Registry.LocalMachine, "HKLM", @"SOFTWARE\Classes\Installer\UpgradeCodes"), (Registry.CurrentUser, "HKCU", @"SOFTWARE\Microsoft\Installer\UpgradeCodes") })
+        {
+            try
+            {
+                using var list = hive.OpenSubKey(path);
+                foreach (var upgrade in list?.GetSubKeyNames() ?? [])
+                {
+                    using var key = list!.OpenSubKey(upgrade);
+                    foreach (var product in key?.GetValueNames() ?? [])
+                        if (product.Length == 32 && ProductState(InstallRepair.Unpack(product)) == InstallRepair.Unknown && !HasProductKey(product))
+                            links.Add(new($@"{name}\{path}\{upgrade}", product));
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+        return links;
+    }
+
+    private static bool HasProductKey(string packed)
+    {
+        foreach (var (hive, path) in new[] { (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products"), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products") })
+        {
+            try { using var key = hive.OpenSubKey($@"{path}\{packed}"); if (key is not null) return true; }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return true; }
+        }
+        try
+        {
+            using var managed = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed");
+            foreach (var sid in managed?.GetSubKeyNames() ?? [])
+            {
+                using var key = managed!.OpenSubKey($@"{sid}\Installer\Products\{packed}");
+                if (key is not null) return true;
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return true; }
+        return false;
+    }
+
+    /// <summary>Starting or stopping, twice in a row a moment apart, with nothing installing.</summary>
+    public bool InstallerServiceStuck()
+    {
+        static bool Pending(string? state) => state is "START_PENDING" or "STOP_PENDING" or "CONTINUE_PENDING" or "PAUSE_PENDING";
+        if (!Pending(WindowsInstallerOps.ServiceState())) return false;
+        Thread.Sleep(1500);
+        return Pending(WindowsInstallerOps.ServiceState());
+    }
+
+    public IReadOnlyList<string> FilesIn(string folder)
+    {
+        try { return Directory.Exists(folder) ? Directory.EnumerateFiles(folder).ToList() : []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
+    }
+
+    public bool RemoveEmptyFolder(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return true;
+            if (Directory.EnumerateFileSystemEntries(path).Any()) return false;
+            Directory.Delete(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
     public bool FileExists(string path) { try { return File.Exists(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; } }
     public bool FolderExists(string path) { try { return Directory.Exists(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; } }
 

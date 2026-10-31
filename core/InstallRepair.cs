@@ -3,26 +3,28 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart }
+public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart, BundleRecord, DanglingLinks, InstallerService }
 public enum RepairLevel { Recommended, Review, Info }
 
 /// <summary>One program as Windows lists it in "Installed apps", read from the registry.</summary>
 public sealed record UninstallEntry(string Key, string Name, string Version, string Publisher, string UninstallString, string QuietUninstallString,
-    string InstallLocation, string DisplayIcon, bool WindowsInstaller, bool SystemComponent, bool NoRemove, bool IsUpdate)
+    string InstallLocation, string DisplayIcon, bool WindowsInstaller, bool SystemComponent, bool NoRemove, bool IsUpdate, string BundleProvider = "")
 {
     public string KeyName => Key[(Key.LastIndexOf('\\') + 1)..];
 }
 
-/// <summary>A product Windows Installer knows about. <see cref="Context"/> is Machine or User.</summary>
+/// <summary>A product Windows Installer knows about. <see cref="Context"/> is Machine, User or Managed (installed for one user by an administrator).</summary>
 public sealed record MsiProduct(string Code, string Context, string Sid, string Name, string? LocalPackage);
 
 public sealed record RunningInstaller(int Id, string Name, DateTimeOffset? Started);
 
 /// <summary>Something wrong that a repair can fix, with exactly the registry keys that fixing it removes.</summary>
-public sealed record RepairFinding(string Id, RepairKind Kind, string Title, string Detail, string Evidence, RepairLevel Level, IReadOnlyList<string> Keys, int? ProcessId = null)
+public sealed record RepairFinding(string Id, RepairKind Kind, string Title, string Detail, string Evidence, RepairLevel Level, IReadOnlyList<string> Keys, int? ProcessId = null,
+    FootprintRequest? Footprint = null, IReadOnlyList<ValueRef>? Links = null, MsiProduct? Product = null, bool Alive = false, bool ServiceStuck = false, UninstallEntry? Entry = null)
 {
-    public bool NeedsAdmin => Keys.Any(InstallRepair.IsMachine);
-    public bool CanFix => Keys.Count > 0 || ProcessId is not null;
+    // A product's record always reaches Windows-wide keys, even a per-user one, because Windows Installer keeps its bookkeeping under UserData.
+    public bool NeedsAdmin => Footprint is not null || ServiceStuck || Keys.Any(InstallRepair.IsMachine) || (Links?.Any(x => InstallRepair.IsMachine(x.Path)) ?? false);
+    public bool CanFix => Keys.Count > 0 || ProcessId is not null || Footprint is not null || Links is { Count: > 0 } || ServiceStuck;
 }
 
 public sealed record RepairScan(IReadOnlyList<UninstallEntry> Entries, IReadOnlyList<MsiProduct> Products, IReadOnlyList<RepairFinding> Findings);
@@ -44,12 +46,33 @@ public interface IInstallSystem
     IReadOnlyList<RunningInstaller> Installers();
     IReadOnlyList<string> PendingRestart();
     bool EndProcess(int id);
+    /// <summary>Programs Windows Installer holds only part of a record for, which it cannot repair, remove or reinstall.</summary>
+    IReadOnlyList<MsiProduct> Ghosts() => [];
+    /// <summary>Links under upgrade codes that name a program Windows Installer no longer has.</summary>
+    IReadOnlyList<ValueRef> DanglingLinks() => [];
+    /// <summary>Whether any file or folder Windows Installer recorded for the product is still on the PC: a program with no install folder in its list entry can still be installed.</summary>
+    bool ProductFilesPresent(MsiProduct product) => false;
+    /// <summary>A Burn bundle (by its own id) that still has installed Windows Installer products listing it as their dependent: its program is still on the PC.</summary>
+    bool BundleHasChildren(string bundleId) => false;
+    /// <summary>The Windows Installer service is stuck starting or stopping, with nothing installing.</summary>
+    bool InstallerServiceStuck() => false;
+    /// <summary>Removes a folder only if nothing is in it; returns whether it is gone.</summary>
+    bool RemoveEmptyFolder(string path) => true;
+    /// <summary>The files directly in a folder, or none when it cannot be read.</summary>
+    IReadOnlyList<string> FilesIn(string folder) => [];
 }
 
+/// <summary>Whatever changes registry keys: the signed-in user's own, or the elevated helper. Every change hands back a full copy so it can be undone.</summary>
 public interface IKeyEditor
 {
+    bool IsAllowed(string path) => true;
+    bool Exists(string path);
+    KeyBackup? Snapshot(string path);
     KeyBackup? Delete(string path);
+    KeyBackup? DeleteValue(string path, string name);
+    KeyBackup? SetText(string path, string name, string value);
     void Restore(KeyBackup backup);
+    FootprintPlan Footprint(FootprintRequest request);
 }
 
 public static partial class InstallRepair
@@ -68,6 +91,8 @@ public static partial class InstallRepair
         var findings = new List<RepairFinding>();
         findings.AddRange(BrokenEntries(system, entries));
         findings.AddRange(BrokenRecords(system, products, entries));
+        findings.AddRange(Ghosts(system, products));
+        findings.AddRange(DanglingLinks(system));
         findings.AddRange(StuckInstalls(system));
         return new(entries, products, findings);
     }
@@ -105,7 +130,7 @@ public static partial class InstallRepair
                 reason = "Its uninstaller is missing.";
             }
 
-            var alive = StillThere(system, entry);
+            var alive = StillThere(system, entry) || (entry.BundleProvider.Length > 0 && system.BundleHasChildren(entry.KeyName));
             // Only an entry that says where the program lives, with every one of those places gone, is called safe to remove.
             var named = entry.InstallLocation.Trim().Length > 0 || entry.DisplayIcon.Trim().Length > 0;
             var cached = CacheMarker().IsMatch(command ?? "");
@@ -114,7 +139,10 @@ public static partial class InstallRepair
                 : cached ? ($"{reason} Windows keeps it in a cache that has been cleared. Running the program's installer again restores it; remove the entry only if you do not want the program.", RepairLevel.Review)
                 : !named ? ($"{reason} It does not say where the program lives, so TidyWindow cannot tell whether it is still installed.", RepairLevel.Review)
                 : ($"{reason} The program's files are gone too, so this entry only blocks reinstalling.", RepairLevel.Recommended);
-            yield return new($"entry:{entry.Key}", RepairKind.BrokenEntry, entry.Name, detail, entry.Key, level, [entry.Key]);
+            // A Burn bundle (Python, Visual C++ and many more) also keeps dependency records that name it, and they go with it.
+            yield return entry.BundleProvider.Length > 0
+                ? new($"entry:{entry.Key}", RepairKind.BundleRecord, entry.Name, detail, entry.Key, level, [entry.Key], Footprint: new("bundle", Keys: [entry.Key]), Alive: alive, Entry: entry)
+                : new($"entry:{entry.Key}", RepairKind.BrokenEntry, entry.Name, detail, entry.Key, level, [entry.Key], Alive: alive, Entry: entry);
         }
     }
 
@@ -126,6 +154,15 @@ public static partial class InstallRepair
         foreach (var text in new[] { entry.UninstallString, entry.QuietUninstallString })
             if (MsiExec().IsMatch(text) && MsiCode().Match(text) is { Success: true } match) return match.Groups[1].Value.ToUpperInvariant();
         return null;
+    }
+
+    /// <summary>Whether the command a list entry runs to uninstall points at something that is there.</summary>
+    public static bool HasUninstaller(IInstallSystem system, UninstallEntry entry)
+    {
+        var command = string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString;
+        if (string.IsNullOrWhiteSpace(command)) return false;
+        var found = Candidates(command).ToList();
+        return found.Count > 0 && found.Any(x => Exists(system, x) || IsUri(x));
     }
 
     private static bool Exists(IInstallSystem system, string candidate)
@@ -175,14 +212,36 @@ public static partial class InstallRepair
         {
             if (string.IsNullOrWhiteSpace(product.LocalPackage) || system.FileExists(product.LocalPackage)) continue;
             var arp = entries.Where(x => string.Equals(x.KeyName, product.Code, StringComparison.OrdinalIgnoreCase)).ToList();
-            var alive = arp.Any(x => StillThere(system, x));
+            var alive = arp.Any(x => StillThere(system, x)) || system.ProductFilesPresent(product);
             var name = string.IsNullOrWhiteSpace(product.Name) ? arp.FirstOrDefault()?.Name ?? product.Code : product.Name;
             var keys = RecordKeys(product).Concat(arp.Select(x => x.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             yield return new($"record:{product.Code}", RepairKind.InstallerRecord, name,
-                alive ? "Windows Installer lost the saved copy it needs to repair or uninstall this program, and the program is still on this PC. Remove the record only if you want to reinstall it."
+                alive ? "Windows Installer lost the saved copy it needs to repair or uninstall this program, and the program is still on this PC. TidyWindow first tries to restore the copy from the program's own installer files; if it cannot, it removes the record so the program can be installed again."
                       : "Windows Installer lost the saved copy it needs to repair or uninstall this program, and the program is gone. Its leftover record blocks installing it again.",
-                product.Code, alive ? RepairLevel.Review : RepairLevel.Recommended, keys);
+                product.Code, alive ? RepairLevel.Review : RepairLevel.Recommended, keys,
+                Footprint: new("product", product.Code, product.Context, product.Sid, arp.Select(x => x.Key).ToList()), Product: product, Alive: alive);
         }
+    }
+
+    /// <summary>Programs whose record Windows Installer holds only half of, as an interrupted repair or a half-finished undo leaves them.</summary>
+    private static IEnumerable<RepairFinding> Ghosts(IInstallSystem system, IReadOnlyList<MsiProduct> products)
+    {
+        foreach (var ghost in system.Ghosts())
+        {
+            if (products.Any(x => string.Equals(x.Code, ghost.Code, StringComparison.OrdinalIgnoreCase))) continue;
+            yield return new($"ghost:{ghost.Code}", RepairKind.InstallerRecord, string.IsNullOrWhiteSpace(ghost.Name) ? ghost.Code : ghost.Name,
+                "Windows Installer holds part of this program's record but not the rest, so it can neither repair, remove nor reinstall it. This is what an install or repair that was cut short leaves behind. Removing the rest of the record lets the program be installed again.",
+                ghost.Code, RepairLevel.Review, RecordKeys(ghost), Footprint: new("product", ghost.Code, ghost.Context, ghost.Sid), Product: ghost);
+        }
+    }
+
+    private static IEnumerable<RepairFinding> DanglingLinks(IInstallSystem system)
+    {
+        var links = system.DanglingLinks();
+        if (links.Count == 0) yield break;
+        yield return new("links", RepairKind.DanglingLinks, "Leftover links to removed programs",
+            "Windows Installer still has links to older versions of programs that are no longer installed. A new install of the same program can follow one and ask for an installer file that no longer exists.",
+            links.Count == 1 ? "1 link" : $"{links.Count} links", RepairLevel.Recommended, [], Links: links);
     }
 
     /// <summary>The registry keys Windows Installer keeps for one product.</summary>
@@ -190,6 +249,11 @@ public static partial class InstallRepair
     {
         var packed = Pack(product.Code);
         var data = $@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\{(product.Context == "Machine" ? "S-1-5-18" : product.Sid)}\Products\{packed}";
+        if (product.Context == "Managed")
+        {
+            var managed = $@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\{product.Sid}\Installer";
+            return [data, $@"{managed}\Products\{packed}", $@"{managed}\Features\{packed}"];
+        }
         return product.Context == "Machine"
             ? [data, $@"HKLM\SOFTWARE\Classes\Installer\Products\{packed}", $@"HKLM\SOFTWARE\Classes\Installer\Features\{packed}"]
             : [data, $@"HKCU\SOFTWARE\Microsoft\Installer\Products\{packed}", $@"HKCU\SOFTWARE\Microsoft\Installer\Features\{packed}"];
@@ -216,6 +280,14 @@ public static partial class InstallRepair
         return packed.ToString().ToUpperInvariant();
     }
 
+    /// <summary>The reverse of <see cref="Pack"/>: the product code a 32 character key name stands for.</summary>
+    public static string Unpack(string packed)
+    {
+        if (packed.Length != 32) throw new ArgumentException("That is not a packed code.", nameof(packed));
+        var code = Pack("{" + packed.Insert(20, "-").Insert(16, "-").Insert(12, "-").Insert(8, "-") + "}");
+        return "{" + code.Insert(20, "-").Insert(16, "-").Insert(12, "-").Insert(8, "-") + "}";
+    }
+
     private static string Reverse(string text) { var chars = text.ToCharArray(); Array.Reverse(chars); return new string(chars); }
 
     // ---- An interrupted install that is still in the way ----
@@ -228,6 +300,11 @@ public static partial class InstallRepair
             yield return new("lock", RepairKind.InstallLock, "Windows thinks an install is still running",
                 "An install was interrupted and left its marker behind. Every new install fails with “another installation is in progress” until the marker is removed.",
                 InstallLockKey, RepairLevel.Recommended, [InstallLockKey]);
+
+        if (!system.InstallerBusy() && installers.Count == 0 && system.InstallerServiceStuck())
+            yield return new("service", RepairKind.InstallerService, "The Windows Installer service is stuck",
+                "The service that runs installs is stuck starting or stopping, so installs hang or fail. Stopping it makes Windows start a fresh one.",
+                "msiserver", RepairLevel.Recommended, [], ServiceStuck: true);
 
         foreach (var installer in installers)
         {
@@ -257,52 +334,3 @@ public static partial class InstallRepair
     private static partial Regex ExecutablePrefix();
 }
 
-public sealed record RepairOutcome(int Fixed, IReadOnlyList<string> Problems, RepairBatch? Batch);
-
-/// <summary>Applies repairs. Every removed key is copied first and kept, so the whole repair can be undone.</summary>
-public sealed class RepairService(IInstallSystem system, IKeyEditor user, IKeyEditor machine, Func<CancellationToken, Task> unlock, Action relock, RepairHistory history)
-{
-    public async Task<RepairOutcome> FixAsync(IReadOnlyList<RepairFinding> findings, string title, CancellationToken cancellationToken = default)
-    {
-        if (findings.Any(x => x.NeedsAdmin)) await unlock(cancellationToken).ConfigureAwait(false);
-        var backups = new List<KeyBackup>();
-        var problems = new List<string>();
-        var done = 0;
-        try
-        {
-            foreach (var finding in findings)
-            {
-                var ok = true;
-                foreach (var key in finding.Keys)
-                {
-                    try { if ((InstallRepair.IsMachine(key) ? machine : user).Delete(key) is { } copy) backups.Add(copy); }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
-                    { ok = false; problems.Add($"{finding.Title}: {ex.Message}"); }
-                }
-                if (finding.ProcessId is { } id && !system.EndProcess(id)) { ok = false; problems.Add($"{finding.Title}: Windows would not let TidyWindow end it."); }
-                if (ok) done++;
-            }
-        }
-        finally { relock(); }
-        // A repair that changed nothing leaves nothing to undo.
-        var batch = backups.Count > 0 ? history.Save(title, backups) : null;
-        return new(done, problems, batch);
-    }
-
-    public async Task<int> UndoAsync(RepairBatch batch, CancellationToken cancellationToken = default)
-    {
-        if (batch.Keys.Any(x => InstallRepair.IsMachine(x.Path))) await unlock(cancellationToken).ConfigureAwait(false);
-        var restored = 0;
-        try
-        {
-            foreach (var key in batch.Keys.Reverse())
-            {
-                (InstallRepair.IsMachine(key.Path) ? machine : user).Restore(key);
-                restored++;
-            }
-        }
-        finally { relock(); }
-        history.Remove(batch.Id);
-        return restored;
-    }
-}

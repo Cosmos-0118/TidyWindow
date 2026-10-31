@@ -17,7 +17,16 @@ public sealed partial class LoadingOverlay : UserControl
     public static readonly DependencyProperty IsActiveProperty = DependencyProperty.Register(nameof(IsActive), typeof(bool), typeof(LoadingOverlay), new PropertyMetadata(false, (sender, _) => ((LoadingOverlay)sender).ActiveChanged()));
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(nameof(Text), typeof(string), typeof(LoadingOverlay), new PropertyMetadata("Loading…", (sender, _) => ((LoadingOverlay)sender).Message.Text = ((LoadingOverlay)sender).Text));
     public static readonly DependencyProperty CancelTextProperty = DependencyProperty.Register(nameof(CancelText), typeof(string), typeof(LoadingOverlay), new PropertyMetadata("", (sender, _) => ((LoadingOverlay)sender).UpdateCancel()));
+    public static readonly DependencyProperty HeadingProperty = DependencyProperty.Register(nameof(Heading), typeof(string), typeof(LoadingOverlay), new PropertyMetadata("", (sender, _) => ((LoadingOverlay)sender).DetailChanged()));
+    public static readonly DependencyProperty CounterProperty = DependencyProperty.Register(nameof(Counter), typeof(string), typeof(LoadingOverlay), new PropertyMetadata("", (sender, _) => ((LoadingOverlay)sender).DetailChanged()));
+    public static readonly DependencyProperty StepsProperty = DependencyProperty.Register(nameof(Steps), typeof(object), typeof(LoadingOverlay), new PropertyMetadata(null, (sender, _) => ((LoadingOverlay)sender).DetailChanged()));
     public bool IsActive { get => (bool)GetValue(IsActiveProperty); set => SetValue(IsActiveProperty, value); }
+    /// <summary>What is being worked on, in bold above the message. Empty hides it.</summary>
+    public string Heading { get => (string)GetValue(HeadingProperty); set => SetValue(HeadingProperty, value); }
+    /// <summary>A small "1 of 3" above the heading. Empty hides it.</summary>
+    public string Counter { get => (string)GetValue(CounterProperty); set => SetValue(CounterProperty, value); }
+    /// <summary>What has already finished, shown as a checklist under the message. Null or empty hides it.</summary>
+    public object? Steps { get => GetValue(StepsProperty); set => SetValue(StepsProperty, value); }
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
     /// <summary>Label of an optional button that raises <see cref="Cancelled"/>. Empty hides it.</summary>
     public string CancelText { get => (string)GetValue(CancelTextProperty); set => SetValue(CancelTextProperty, value); }
@@ -46,6 +55,26 @@ public sealed partial class LoadingOverlay : UserControl
         timer.IsRepeating = false;
         timer.Tick += (_, _) => Tick();
         Unloaded += (_, _) => { timer.Stop(); StopAnimation(); };
+    }
+
+    private object? watching;
+    private void StepsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => ShowSteps();
+    private void ShowSteps() => StepsCard.Visibility = Steps is System.Collections.ICollection { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+
+    private void DetailChanged()
+    {
+        HeadingText.Text = Heading; HeadingText.Visibility = Heading.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CounterText.Text = Counter; CounterText.Visibility = Counter.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (!ReferenceEquals(watching, Steps))
+        {
+            if (watching is System.Collections.Specialized.INotifyCollectionChanged old) old.CollectionChanged -= StepsChanged;
+            watching = Steps;
+            if (watching is System.Collections.Specialized.INotifyCollectionChanged next) next.CollectionChanged += StepsChanged;
+        }
+        StepList.ItemsSource = Steps;
+        ShowSteps();
+        // A job with details has more to say than a spinner's one line.
+        Panel.MaxWidth = Heading.Length > 0 ? 420 : 320;
     }
 
     private void UpdateCancel()

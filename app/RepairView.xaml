@@ -38,6 +38,40 @@
    <Grid x:Name="ProblemsTab">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0">
      <StackPanel Spacing="18" Padding="0,8,12,12">
+      <Grid ColumnSpacing="12" RowSpacing="4">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="2">
+        <CheckBox IsChecked="{Binding AllowDownload, Mode=TwoWay}" Content="Get a program's original installer from WinGet when its own copy is missing" FontSize="12" MinWidth="0" AutomationProperties.Name="Allow downloading the original installer" />
+        <TextBlock Text="{Binding InstallerFolderText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Margin="32,0,0,0" local:TrimTip.Enabled="True" />
+       </StackPanel>
+       <Button Grid.Column="1" Click="LocateClick" Visibility="{Binding LocateVisibility}" Padding="12,7" VerticalAlignment="Top" FontSize="12" Content="Locate installer folder…" IsEnabled="{Binding CanScan}" ToolTipService.ToolTip="Point at a folder that holds the program's installer, such as Downloads. Every file there is checked against the program before it is used." />
+      </Grid>
+      <StackPanel Spacing="8" Visibility="{Binding ResultsVisibility}">
+       <TextBlock Text="Last repair" Style="{StaticResource GroupLabel}" />
+       <Border Style="{StaticResource Card}" Padding="0">
+        <ItemsControl ItemsSource="{Binding Results}" AutomationProperties.Name="Result of the last repair">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,12">
+           <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <FontIcon Glyph="{Binding Glyph}" FontSize="16" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{ThemeResource MutedBrush}" />
+            <StackPanel Grid.Column="1" Spacing="4" AutomationProperties.Name="{Binding AutomationName}">
+             <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
+              <Border Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="{Binding Status}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
+             </StackPanel>
+             <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+             <Expander Visibility="{Binding StepsVisibility}" Header="What was tried" Padding="0" FontSize="12" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+              <TextBlock Text="{Binding Steps}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+             </Expander>
+            </StackPanel>
+           </Grid>
+          </Border>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+       </Border>
+       <TextBlock Visibility="{Binding RestartVisibility}" Text="Restart Windows to finish. Some of what was repaired only takes effect after a restart." FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
+      </StackPanel>
       <ItemsControl ItemsSource="{Binding Groups}" IsEnabled="{Binding CanScan}" AutomationProperties.Name="Problems found">
        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
        <ItemsControl.ItemTemplate><DataTemplate>
@@ -147,5 +181,8 @@
 
    <local:LoadingOverlay IsActive="{Binding ScanOverlay}" Text="Checking installed programs…" />
   </Grid>
+
+  <!-- While a repair or undo runs: the whole page is blurred, and it says which item, what is happening now and what already finished. -->
+  <local:LoadingOverlay Grid.RowSpan="3" Margin="-8" IsActive="{Binding FixOverlay}" Heading="{Binding ProgressHeading}" Counter="{Binding ProgressCounter}" Text="{Binding ProgressText}" Steps="{Binding ProgressSteps}" />
  </Grid>
 </UserControl>

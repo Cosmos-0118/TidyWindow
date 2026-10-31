@@ -7,7 +7,7 @@
   <Grid.Background>
    <AcrylicBrush TintColor="{ThemeResource LoadingTintColor}" TintOpacity="0.5" TintLuminosityOpacity="0.85" FallbackColor="{ThemeResource LoadingFallbackColor}" />
   </Grid.Background>
-  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="18" MaxWidth="320" Padding="24">
+  <StackPanel x:Name="Panel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="18" MaxWidth="320" Padding="24">
    <!-- The app icon's three panes, scattering and snapping into a tidy layout. Transform and opacity animations run on the compositor, so they stay smooth while the UI thread is busy. -->
    <Canvas Width="72" Height="72" HorizontalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
     <Rectangle x:Name="LeftPane" Canvas.Left="3" Canvas.Top="3" Width="30" Height="66" RadiusX="7" RadiusY="7" RenderTransformOrigin="0.5,0.5">
@@ -25,7 +25,24 @@
      <Rectangle.RenderTransform><CompositeTransform x:Name="QuietMove" /></Rectangle.RenderTransform>
     </Rectangle>
    </Canvas>
+   <!-- Optional, for long jobs: what is being worked on, how far along, and what already finished. Collapsed unless set. -->
+   <StackPanel Spacing="4" HorizontalAlignment="Center">
+    <TextBlock x:Name="CounterText" Visibility="Collapsed" FontSize="11" TextAlignment="Center" Foreground="{ThemeResource MutedBrush}" />
+    <TextBlock x:Name="HeadingText" Visibility="Collapsed" FontSize="15" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+   </StackPanel>
    <TextBlock x:Name="Message" FontSize="13" TextAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+   <Border x:Name="StepsCard" Visibility="Collapsed" Background="{ThemeResource BadgeBrush}" CornerRadius="8" Padding="12,10" MaxHeight="150">
+    <ItemsControl x:Name="StepList" AutomationProperties.AccessibilityView="Raw">
+     <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+     <ItemsControl.ItemTemplate><DataTemplate>
+      <Grid ColumnSpacing="8">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+       <FontIcon Glyph="&#xE73E;" FontSize="11" Foreground="{ThemeResource GoodBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+       <TextBlock Grid.Column="1" Text="{Binding}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
+      </Grid>
+     </DataTemplate></ItemsControl.ItemTemplate>
+    </ItemsControl>
+   </Border>
    <Button x:Name="CancelButton" Visibility="Collapsed" HorizontalAlignment="Center" FontSize="12" Padding="14,5" Click="CancelClicked" />
   </StackPanel>
  </Grid>
