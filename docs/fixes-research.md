@@ -102,3 +102,45 @@ Not done yet, and needing a person at the PC:
 - Exit codes: `net stop` and `net start` return 2 when the service is already stopped or running. This comes from documentation and is accepted as success.
 - Whether Windows restarts File Explorer by itself after it is closed for the icon fix. The fix waits a few seconds and starts it if not.
 - How the Fixes page looks. It was built and loaded, but not seen on screen.
+
+## Third round: catalog growth (31 October 2026)
+
+An outside review of the page was checked against the code and against this PC (Windows 11 build 26300) before anything was taken from it. The catalog went from 16 to 23 fixes.
+
+### Changed in existing fixes
+
+- **Create a restore point / Repair Windows system files.** `Checkpoint-Computer` only prints a warning when Windows refuses a second restore point within 24 hours, so the old step printed "Restore point created." when none was. The step now compares the list of restore points before and after, says what happened, and exits 1 (a warning) when nothing new exists. The 24-hour limit itself is not bypassed: that means writing `SystemRestorePointCreationFrequency` in the registry, which fixes do not do.
+- **Reset Windows Update.** Also stops and starts the Update Orchestrator (`UsoSvc`), which can keep the download folder open, and empties the Delivery Optimization cache (`Delete-DeliveryOptimizationCache`, optional step). `usoclient StartInteractiveScan` was not added: Microsoft no longer supports it, and the effect text already sends people to Settings.
+- **Refresh the network connection.** The guard already allowed `ipconfig /registerdns` but no fix used it. It now runs after the new address is obtained (optional, with the "new IP address" option).
+- **Fix Start menu and taskbar.** Also registers `Microsoft.UI.Xaml.CBS`, `MicrosoftWindows.Client.Core` and `MicrosoftWindows.Client.CBS` (present on this PC; they host Search and the Windows 11 shell). Only the original three packages can fail the fix, so a package that cannot be registered while in use no longer turns a working fix into a failure. `Microsoft.Windows.Search` is not a package on this build and was left out.
+- **Reset OneDrive.** Closes OneDrive first (`/shutdown`, optional), resets it, then, whether or not the reset worked, waits 20 seconds and starts OneDrive if it is not running. Microsoft's page says OneDrive restarts by itself, so the final step only acts when it did not. **Not tested:** OneDrive is not installed on this PC, so whether closing it first avoids the `0xC0000005` crash from the first run is unknown.
+
+### New fixes
+
+| Fix | Group, scope | Notes |
+| --- | --- | --- |
+| Rebuild the font cache | Windows, machine | Stops `FontCache` and `FontCache3.0.0.0`, deletes `*.dat` in the LocalService FontCache folder and `System32\FNTCACHE.DAT` (present here), starts both again. Careful. |
+| Check and repair WMI | Windows, machine | `winmgmt /verifyrepository`, then (option, on by default) `/salvagerepository`. `/resetrepository` stays forbidden. The old test that banned the word "salvagerepository" was narrowed to `resetrepository`: salvage keeps what it can read, reset wipes. Careful. `winmgmt.exe` lives in `System32\wbem`, which the guard now knows. |
+| Fix other PCs not showing in Network | Network, machine | Restarts `fdPHost` and `FDResPub`. It does not touch firewall rules or service start types. |
+| Restart the camera service | Devices, machine | Restarts `FrameServer`, then rescans hardware. |
+| Find devices with problems | Devices, user | Read-only list of devices with an error code. Run on this PC it found none. |
+| Fix a blank Windows Security window | Apps, user | Registers `Microsoft.SecHealthUI` again, then `Reset-AppxPackage` (optional). Registering apps is per user, so this is a user fix. |
+| Repair WinGet and App Installer | Apps, user | Registers `Microsoft.DesktopAppInstaller` again and runs `winget source update`. `winget source reset --force` needs administrator rights and the helper may be a different account, so the effect text points to it instead. |
+
+### Looked at and not added
+
+- **Reset display driver / restart the compositor.** The first round dropped this on purpose (disabling the display adapter can leave a black screen on a one-GPU PC) and nothing has changed.
+- **Fix clipboard history (Win+V).** The service that matters, `cbdhsvc_xxxxx`, has a per-user random suffix, and a user fix may not control services. Nothing here could be verified.
+- **Refresh group policy.** `gpupdate /force` does not clear "managed by your organization" left by local registry policy, and deleting policy caches is what round one removed.
+- **Repair devices by disabling and enabling them.** Restarting a USB controller can cut off the keyboard or mouse in use, so the page lists problem devices and leaves the repair to Device Manager.
+
+### Page changes
+
+- Options now update the page: ticking one rebuilds the **Steps** list so it shows only the steps that will run.
+- A new **Commands** row shows the exact program and arguments (or PowerShell script, or folder action) of each of those steps, which is what the README promises ("inspect the commands first").
+- The last run's step-by-step summary is kept in `last-runs.json` (`Detail`; older files still load) and shown as **Last run** in the details, so the step that failed is still visible after a restart.
+- A fix whose last run needed a restart shows **Restart now** until Windows has restarted. It asks first and runs `shutdown /r /t 30`; the toast can cancel with `shutdown /a`.
+
+### Not verified here
+
+Machine fixes (font cache, WMI, camera, discovery, Update Orchestrator, restore point) were validated by the guard and by tests but not run: they need an administrator prompt. The new user scripts were run from the catalog text on this PC: *Find devices with problems* (no problems found; the table branch was exercised with a loosened filter) and the `winget source update` step of *Repair WinGet* (exit 0). The re-register steps (Windows Security, App Installer, shell packages) and the Restart now button were not run or seen on screen.

@@ -30,6 +30,22 @@ public sealed partial class FixesView : UserControl
         row.ToggleDetails();
     }
 
+    private async void RestartClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Restart Windows now?",
+            Content = new TextBlock { Text = "Windows restarts after a 30 second countdown that you can cancel. Save your work and close your apps first.", TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = "Restart",
+            CloseButtonText = "Not now",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ActualTheme
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.RestartWindows();
+    }
+
     private async void RunClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: FixRow row } || Model is not { } model || row.Busy) return;

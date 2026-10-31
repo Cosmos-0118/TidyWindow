@@ -28,6 +28,7 @@
          <ProgressRing IsActive="{Binding Working}" Width="12" Height="12" VerticalAlignment="Center" />
          <TextBlock Text="{Binding Live}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
         </StackPanel>
+        <HyperlinkButton Content="Restart now" Click="RestartClick" Visibility="{Binding RestartNowVisibility}" Padding="0" Margin="0,2,0,0" FontSize="12" AutomationProperties.Name="Restart Windows to finish this fix" />
         <StackPanel Orientation="Horizontal" Spacing="7" Visibility="{Binding LastVisibility}" Margin="0,3,0,0">
          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding LastGoodVisibility}" Fill="{ThemeResource GoodBrush}" />
          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding LastWarnVisibility}" Fill="{ThemeResource WarnBrush}" />
@@ -104,16 +105,16 @@
   <!-- Four groups as slim tabs, each with its count -->
   <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
    <StackPanel Orientation="Horizontal">
-    <RadioButton GroupName="FixTabs" Tag="Windows" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Windows" ToolTipService.ToolTip="System files, updates, the drive, the clock and search">
+    <RadioButton GroupName="FixTabs" Tag="Windows" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Windows" ToolTipService.ToolTip="System files, updates, the drive, the clock, search, fonts and WMI">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Windows" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding WindowsCount}" FontSize="11" /></Border></StackPanel>
     </RadioButton>
     <RadioButton GroupName="FixTabs" Tag="Network" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Network" ToolTipService.ToolTip="Internet and network connection problems">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Network" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding NetworkCount}" FontSize="11" /></Border></StackPanel>
     </RadioButton>
-    <RadioButton GroupName="FixTabs" Tag="Devices" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Devices" ToolTipService.ToolTip="Printers, sound and hardware">
+    <RadioButton GroupName="FixTabs" Tag="Devices" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Devices" ToolTipService.ToolTip="Printers, sound, cameras and hardware">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Devices" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding DevicesCount}" FontSize="11" /></Border></StackPanel>
     </RadioButton>
-    <RadioButton GroupName="FixTabs" Tag="Apps" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Apps" ToolTipService.ToolTip="Store, Start menu, icons and OneDrive">
+    <RadioButton GroupName="FixTabs" Tag="Apps" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Apps" ToolTipService.ToolTip="Store, Start menu, icons, OneDrive, Windows Security and WinGet">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Apps" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding AppsCount}" FontSize="11" /></Border></StackPanel>
     </RadioButton>
    </StackPanel>

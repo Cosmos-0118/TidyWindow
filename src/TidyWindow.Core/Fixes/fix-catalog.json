@@ -12,14 +12,14 @@
       "duration": "20 to 60 minutes",
       "sources": ["Microsoft Support: System File Checker (DISM first, then SFC)"],
       "options": [
-        { "id": "restore-point", "label": "Create a restore point first", "detail": "Windows allows one automatic restore point a day, so this may be skipped." },
+        { "id": "restore-point", "label": "Create a restore point first", "detail": "Windows allows one restore point every 24 hours. If it declines, the repair goes on and the output says so." },
         { "id": "cleanup", "label": "Also clean up old update files afterwards", "detail": "Frees some space; old updates can no longer be uninstalled." }
       ],
       "steps": [
         {
           "title": "Create a restore point",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Checkpoint-Computer -Description 'TidyWindow: before repairing Windows files' -RestorePointType MODIFY_SETTINGS; 'Restore point created.'"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | ForEach-Object { $_.SequenceNumber }); Checkpoint-Computer -Description 'TidyWindow: before repairing Windows files' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.' } else { if ($skipped) { \"$skipped\" }; 'Windows did not create a new restore point. It allows one every 24 hours, and System Protection must be on for the system drive.'; exit 1 } } catch { $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
           "minutes": 5,
           "optional": true,
@@ -57,7 +57,7 @@
       "scope": "machine",
       "icon": "E895",
       "summary": "For updates that fail, get stuck downloading, or never finish checking. Stops the update services, clears what they downloaded, and starts them again.",
-      "effect": "Downloaded update files are renamed to .bak (Windows downloads them again). Your installed updates are not removed. Afterwards open Settings > Windows Update and check for updates.",
+      "effect": "Downloaded update files are renamed to .bak and the Delivery Optimization cache is emptied (Windows downloads them again). Your installed updates are not removed. Afterwards open Settings > Windows Update and check for updates.",
       "duration": "A few minutes",
       "sources": ["Microsoft Learn: Reset Windows Update components manually", "WinUtil (cross-check; its policy clean-up was not copied)"],
       "options": [
@@ -66,6 +66,7 @@
       "steps": [
         { "title": "Stop Background Intelligent Transfer", "file": "net.exe", "args": ["stop", "bits", "/y"], "ok": [0, 2], "minutes": 3 },
         { "title": "Stop Windows Update", "file": "net.exe", "args": ["stop", "wuauserv", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Update Orchestrator", "file": "net.exe", "args": ["stop", "UsoSvc", "/y"], "ok": [0, 2], "minutes": 3 },
         { "title": "Stop Cryptographic Services", "file": "net.exe", "args": ["stop", "cryptsvc", "/y"], "ok": [0, 2], "minutes": 3 },
         {
           "title": "Remove the old download queue files",
@@ -76,11 +77,20 @@
           "optional": true
         },
         { "title": "Set aside the downloaded update files", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\Download", "optional": true },
+        {
+          "title": "Clear the Delivery Optimization cache",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Delete-DeliveryOptimizationCache -Force; 'Delivery Optimization cache cleared.'"],
+          "encoding": "utf8",
+          "minutes": 5,
+          "optional": true
+        },
         { "title": "Set aside the update database", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\DataStore", "optional": true, "when": "deep" },
         { "title": "Set aside the update certificate store", "kind": "renameFolder", "path": "%SystemRoot%\\System32\\catroot2", "optional": true, "when": "deep" },
         { "title": "Start Cryptographic Services", "file": "net.exe", "args": ["start", "cryptsvc"], "ok": [0, 2], "minutes": 3, "always": true },
         { "title": "Start Background Intelligent Transfer", "file": "net.exe", "args": ["start", "bits"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Windows Update", "file": "net.exe", "args": ["start", "wuauserv"], "ok": [0, 2], "minutes": 3, "always": true }
+        { "title": "Start Windows Update", "file": "net.exe", "args": ["start", "wuauserv"], "ok": [0, 2], "minutes": 3, "always": true },
+        { "title": "Start Update Orchestrator", "file": "net.exe", "args": ["start", "UsoSvc"], "ok": [0, 2], "minutes": 3, "always": true }
       ]
     },
     {
@@ -119,16 +129,17 @@
       "scope": "machine",
       "icon": "E777",
       "summary": "A save point to go back to if something goes wrong after a change. Good to do before repairs or installing drivers.",
-      "effect": "Uses a little disk space. System Protection must be on for your system drive, and Windows allows one automatic restore point a day, so it may be skipped.",
+      "effect": "Uses a little disk space. System Protection must be on for your system drive. Windows allows one restore point every 24 hours; if it declines, this says so and finishes with a warning instead of reporting one that does not exist.",
       "duration": "About a minute",
       "sources": ["Microsoft Learn: Checkpoint-Computer"],
       "steps": [
         {
           "title": "Create the restore point",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Checkpoint-Computer -Description 'TidyWindow restore point' -RestorePointType MODIFY_SETTINGS; 'Restore point created.'"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | ForEach-Object { $_.SequenceNumber }); Checkpoint-Computer -Description 'TidyWindow restore point' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.' } else { if ($skipped) { \"$skipped\" }; 'Windows did not create a new restore point. It allows one every 24 hours, and System Protection must be on for the system drive.'; exit 1 } } catch { $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
-          "minutes": 10
+          "minutes": 10,
+          "warn": [1]
         }
       ]
     },
@@ -212,6 +223,7 @@
         { "title": "Clear the address table (ARP cache)", "file": "netsh.exe", "args": ["interface", "ip", "delete", "arpcache"], "minutes": 2, "optional": true },
         { "title": "Release the current IP address", "file": "ipconfig.exe", "args": ["/release"], "ok": [0, 1], "minutes": 3, "optional": true, "when": "renew" },
         { "title": "Get a new IP address", "file": "ipconfig.exe", "args": ["/renew"], "ok": [0, 1], "minutes": 5, "optional": true, "when": "renew", "always": true },
+        { "title": "Register this PC’s name again", "file": "ipconfig.exe", "args": ["/registerdns"], "minutes": 3, "optional": true, "when": "renew" },
         {
           "title": "Restart the network adapters",
           "file": "powershell.exe",
@@ -320,12 +332,12 @@
       "summary": "For a Start menu or search box that will not open, a blank or frozen taskbar, or a Settings app that closes at once. Registers Windows' own shell apps again.",
       "effect": "The taskbar disappears for a few seconds while File Explorer restarts. Your pinned items and settings are kept.",
       "duration": "1 to 3 minutes",
-      "sources": ["Microsoft Q&A: Start menu not working (re-register the shell packages)"],
+      "sources": ["Microsoft Q&A: Start menu not working (re-register the shell packages, including the Windows 11 shell components)"],
       "steps": [
         {
-          "title": "Register the Start menu, taskbar and Settings apps again",
+          "title": "Register the Start menu, taskbar, search and Settings apps again",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $hosts = 'ShellExperienceHost', 'StartMenuExperienceHost', 'SearchApp', 'SearchUI', 'SearchHost', 'SystemSettings'; $failed = @(); foreach ($name in 'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost', 'windows.immersivecontrolpanel') { $packages = @(Get-AppxPackage -Name $name | Where-Object { $_ }); if ($packages.Count -eq 0) { \"$name is not installed.\"; continue }; foreach ($package in $packages) { $manifest = Join-Path $package.InstallLocation 'AppXManifest.xml'; $done = $false; $reason = ''; foreach ($attempt in 1, 2) { try { Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest; $done = $true; break } catch { $reason = $_.Exception.Message.Split([char]10)[0].Trim(); if ($attempt -eq 1) { \"$name is in use. Closing it so Windows can open it again, then trying once more.\"; Get-Process -Name $hosts -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 } } }; if ($done) { \"Registered $name.\" } else { $failed += $name; \"Could not register $name. $reason\" } } }; if ($failed.Count -gt 0) { throw ('Could not register: ' + (($failed | Select-Object -Unique) -join ', ') + '. Restart Windows and run this fix again.') }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $hosts = 'ShellExperienceHost', 'StartMenuExperienceHost', 'SearchApp', 'SearchUI', 'SearchHost', 'SystemSettings'; $failed = @(); $core = 'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost', 'windows.immersivecontrolpanel'; foreach ($name in $core + 'Microsoft.UI.Xaml.CBS', 'MicrosoftWindows.Client.Core', 'MicrosoftWindows.Client.CBS') { $packages = @(Get-AppxPackage -Name $name | Where-Object { $_ }); if ($packages.Count -eq 0) { \"$name is not installed.\"; continue }; foreach ($package in $packages) { $manifest = Join-Path $package.InstallLocation 'AppXManifest.xml'; $done = $false; $reason = ''; foreach ($attempt in 1, 2) { try { Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest; $done = $true; break } catch { $reason = $_.Exception.Message.Split([char]10)[0].Trim(); if ($attempt -eq 1) { \"$name is in use. Closing it so Windows can open it again, then trying once more.\"; Get-Process -Name $hosts -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 } } }; if ($done) { \"Registered $name.\" } else { if ($core -contains $name) { $failed += $name }; \"Could not register $name. $reason\" } } }; if ($failed.Count -gt 0) { throw ('Could not register: ' + (($failed | Select-Object -Unique) -join ', ') + '. Restart Windows and run this fix again.') }"],
           "encoding": "utf8",
           "minutes": 10
         },
@@ -356,11 +368,168 @@
       "scope": "user",
       "icon": "E753",
       "summary": "For OneDrive that is stuck syncing, shows the wrong status, or will not start. Resets the sync app without touching your files.",
-      "effect": "OneDrive restarts by itself within a minute or two (open it from Start if it does not) and checks all its files again, which can take a while. No files are deleted.",
+      "effect": "OneDrive is closed, reset and started again (this waits about 20 seconds to see whether it started by itself). It then checks all its files again, which can take a while. No files are deleted.",
       "duration": "A minute, then OneDrive syncs again",
       "sources": ["Microsoft Support: Reset OneDrive"],
       "steps": [
-        { "title": "Reset OneDrive", "file": "onedrive", "args": ["/reset"], "minutes": 2 }
+        { "title": "Close OneDrive", "file": "onedrive", "args": ["/shutdown"], "minutes": 2, "optional": true },
+        { "title": "Reset OneDrive", "file": "onedrive", "args": ["/reset"], "minutes": 2 },
+        {
+          "title": "Start OneDrive again if it did not start by itself",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Start-Sleep -Seconds 20; if (Get-Process -Name OneDrive -ErrorAction SilentlyContinue) { 'OneDrive is running.' } else { $path = @(\"$env:LOCALAPPDATA\\Microsoft\\OneDrive\\OneDrive.exe\", \"$env:ProgramFiles\\Microsoft OneDrive\\OneDrive.exe\", \"${env:ProgramFiles(x86)}\\Microsoft OneDrive\\OneDrive.exe\") | Where-Object { Test-Path $_ } | Select-Object -First 1; if (-not $path) { throw 'OneDrive was not found.' }; 'OneDrive did not start by itself. Starting it now.'; Start-Process -FilePath $path -ArgumentList '/background' }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "always": true
+        }
+      ]
+    },
+    {
+      "id": "rebuild-font-cache",
+      "name": "Rebuild the font cache",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E8D2",
+      "summary": "For text that shows empty boxes or garbled letters, fonts that are missing from apps, or apps that freeze while loading fonts. Deletes the saved font database so Windows builds a fresh one.",
+      "effect": "Apps may be slow for a moment the first time they load fonts afterwards. Installed fonts are not removed. Restart open apps (or Windows) for the new cache to be used everywhere.",
+      "risk": "careful",
+      "restart": "maybe",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Q&A: Fonts display as boxes or are missing (stop Windows Font Cache Service, delete the cache files, start it again)"],
+      "steps": [
+        {"title": "Stop the font cache service", "file": "net.exe", "args": ["stop", "FontCache", "/y"], "ok": [0, 2], "minutes": 3},
+        {"title": "Stop the WPF font cache service", "file": "net.exe", "args": ["stop", "FontCache3.0.0.0", "/y"], "ok": [0, 2], "minutes": 3},
+        {"title": "Delete the saved font database", "kind": "deleteFiles", "path": "%SystemRoot%\\ServiceProfiles\\LocalService\\AppData\\Local\\FontCache", "patterns": ["*.dat"], "warn": [1], "optional": true},
+        {"title": "Delete the old system font cache file", "kind": "deleteFiles", "path": "%SystemRoot%\\System32", "patterns": ["FNTCACHE.DAT"], "warn": [1], "optional": true},
+        {"title": "Start the font cache service", "file": "net.exe", "args": ["start", "FontCache"], "ok": [0, 2], "minutes": 3, "always": true},
+        {"title": "Start the WPF font cache service", "file": "net.exe", "args": ["start", "FontCache3.0.0.0"], "ok": [0, 2], "minutes": 3, "always": true}
+      ]
+    },
+    {
+      "id": "repair-wmi",
+      "name": "Check and repair WMI",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E713",
+      "summary": "For tools that fail with “Invalid namespace”, error 0x80041002 or WMI timeouts: system information, hardware readouts, some installers and games. Checks the WMI repository and repairs it if it is inconsistent.",
+      "effect": "The check changes nothing. The repair keeps everything it can still read and drops only what is damaged; programs that registered their own WMI parts may need to be repaired or reinstalled if they stop working. The repository is never wiped.",
+      "risk": "careful",
+      "duration": "A minute",
+      "sources": ["Microsoft Learn: WMI troubleshooting (winmgmt /verifyrepository, then /salvagerepository)"],
+      "options": [{"id": "repair", "label": "Repair the repository if it is inconsistent", "detail": "Leave this off to only check it.", "default": true}],
+      "steps": [
+        {"title": "Check the WMI repository", "file": "winmgmt.exe", "args": ["/verifyrepository"], "minutes": 3, "warn": [1], "optional": true},
+        {"title": "Repair the WMI repository", "file": "winmgmt.exe", "args": ["/salvagerepository"], "minutes": 10, "when": "repair"}
+      ]
+    },
+    {
+      "id": "fix-network-discovery",
+      "name": "Fix other PCs not showing in Network",
+      "group": "network",
+      "scope": "machine",
+      "icon": "E968",
+      "summary": "For a home or office network where other PCs, a NAS or shared folders do not appear under Network in File Explorer. Restarts the services Windows uses to find and announce devices.",
+      "effect": "Network browsing may pause for a few seconds. Firewall and sharing settings are not changed: if devices still do not show, turn on Network discovery in Settings > Network & internet > Advanced network settings > Advanced sharing settings.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Network discovery (Function Discovery services must be running)"],
+      "steps": [
+        {"title": "Stop Function Discovery Resource Publication", "file": "net.exe", "args": ["stop", "FDResPub", "/y"], "ok": [0, 2], "minutes": 3},
+        {"title": "Stop Function Discovery Provider Host", "file": "net.exe", "args": ["stop", "fdPHost", "/y"], "ok": [0, 2], "minutes": 3},
+        {"title": "Start Function Discovery Provider Host", "file": "net.exe", "args": ["start", "fdPHost"], "ok": [0, 2], "minutes": 3, "always": true},
+        {"title": "Start Function Discovery Resource Publication", "file": "net.exe", "args": ["start", "FDResPub"], "ok": [0, 2], "minutes": 3, "always": true}
+      ]
+    },
+    {
+      "id": "restart-camera",
+      "name": "Restart the camera service",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E722",
+      "summary": "For a webcam that says “in use by another app” or “no camera found”, often after a video call ended badly. Restarts the service that shares the camera between apps and looks for the camera again.",
+      "effect": "Any app using the camera loses it and may need to be reopened. Nothing is changed or removed.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Camera does not work in Windows (Windows Camera Frame Server)"],
+      "steps": [
+        {"title": "Stop the Windows Camera Frame Server", "file": "net.exe", "args": ["stop", "FrameServer", "/y"], "ok": [0, 2], "minutes": 3},
+        {"title": "Start the Windows Camera Frame Server", "file": "net.exe", "args": ["start", "FrameServer"], "ok": [0, 2], "minutes": 3, "always": true},
+        {"title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true}
+      ]
+    },
+    {
+      "id": "find-problem-devices",
+      "name": "Find devices with problems",
+      "group": "devices",
+      "scope": "user",
+      "icon": "E9D9",
+      "summary": "For a USB, Bluetooth, audio or other device that Device Manager marks with a yellow warning, or that stopped working after sleep. Lists every device that reports an error and its code.",
+      "effect": "Nothing is changed; this only reads and reports. It finishes with a warning when it finds devices, so you can see them in the output. Use Rescan hardware, reinstall the driver from the maker, or look the code up in Device Manager.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: Get-PnpDevice"],
+      "steps": [
+        {
+          "title": "List devices that report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $bad = @(Get-PnpDevice -PresentOnly | Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 }); if ($bad.Count -eq 0) { 'No device reports a problem.' } else { \"$($bad.Count) device(s) report a problem:\"; $bad | Select-Object FriendlyName, Class, Status, @{ Name = 'Code'; Expression = { [int]$_.ConfigManagerErrorCode } }, @{ Name = 'Meaning'; Expression = { \"$($_.ConfigManagerErrorCode)\" } } | Format-Table -AutoSize | Out-String -Width 160; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "repair-windows-security",
+      "name": "Fix a blank Windows Security window",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E72E",
+      "summary": "For Windows Security that opens blank, closes at once, or says you need a new app to open the windowsdefender link. Registers the Windows Security app again and resets its app data.",
+      "effect": "Only the Windows Security app is repaired. Your virus protection settings and exclusions belong to Microsoft Defender and are kept. If another antivirus has taken over, Windows Security shows less.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Q&A: Windows Security app blank or not opening (re-register Microsoft.SecHealthUI, Reset-AppxPackage)"],
+      "steps": [
+        {
+          "title": "Register the Windows Security app again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Get-AppxPackage -Name Microsoft.SecHealthUI | Select-Object -First 1; if (-not $package) { throw 'The Windows Security app is not installed for this account.' }; Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Join-Path $package.InstallLocation 'AppXManifest.xml'); 'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
+          "encoding": "utf8",
+          "minutes": 5
+        },
+        {
+          "title": "Reset the Windows Security app data",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Get-AppxPackage -Name Microsoft.SecHealthUI | Select-Object -First 1; if ($package) { Reset-AppxPackage -Package $package.PackageFullName; 'Reset ' + $package.Name + '.' }"],
+          "encoding": "utf8",
+          "minutes": 5,
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "repair-winget",
+      "name": "Repair WinGet and App Installer",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E896",
+      "summary": "For winget that stopped working after an update, or fails with “Data required by the source is missing” (0x8a15000f). Registers App Installer again and refreshes winget’s app lists.",
+      "effect": "Nothing you installed is touched. If the source error stays, open an administrator terminal and run winget source reset --force, which Windows only allows for administrators.",
+      "duration": "Under a minute",
+      "sources": ["Microsoft Learn: winget source (update); Microsoft Q&A: Re-register App Installer"],
+      "steps": [
+        {
+          "title": "Register App Installer again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Select-Object -First 1; if (-not $package) { throw 'App Installer is not installed for this account. Install or update it from the Microsoft Store.' }; Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Join-Path $package.InstallLocation 'AppXManifest.xml'); 'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
+          "encoding": "utf8",
+          "minutes": 5
+        },
+        {
+          "title": "Refresh winget’s app lists",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; & winget source update --disable-interactivity; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"],
+          "encoding": "utf8",
+          "minutes": 5
+        }
       ]
     }
   ]
