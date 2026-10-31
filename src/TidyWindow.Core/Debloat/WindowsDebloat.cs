@@ -1,0 +1,441 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Win32;
+
+namespace TidyWindow.Next.Core;
+
+/// <summary>Runs the few programs the removal steps need: Windows PowerShell for the app cmdlets, and DISM and the installers' own uninstallers.</summary>
+internal static class DebloatProcess
+{
+    /// <summary>
+    /// The app cmdlets need Windows PowerShell 5.1. PowerShell 7 loads them through a compatibility layer that fails with 0x80131539,
+    /// so this never uses whatever "powershell" or "pwsh" is first on the path.
+    /// </summary>
+    public static string PowerShell { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+
+    public sealed record Result(int ExitCode, string Output, bool TimedOut);
+
+    public static Result Run(string file, IEnumerable<string> arguments, TimeSpan timeout)
+    {
+        var info = new ProcessStartInfo(file) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
+        foreach (var argument in arguments) info.ArgumentList.Add(argument);
+        using var process = Process.Start(info) ?? throw new InvalidOperationException($"{Path.GetFileName(file)} could not be started.");
+        var output = new StringBuilder();
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) lock (output) output.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (output) output.AppendLine(e.Data); };
+        process.BeginOutputReadLine(); process.BeginErrorReadLine();
+        if (!process.WaitForExit(timeout))
+        {
+            try { process.Kill(entireProcessTree: true); } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
+            return new(-1, "", true);
+        }
+        process.WaitForExit();
+        lock (output) return new(process.ExitCode, output.ToString().Trim(), false);
+    }
+
+    /// <summary>Runs a script in Windows PowerShell. Its text is passed encoded, so nothing in it is ever read as a command line.</summary>
+    public static Result Script(string script, TimeSpan timeout)
+    {
+        var full = "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;" + script;
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(full));
+        return Run(PowerShell, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], timeout);
+    }
+}
+
+/// <summary>
+/// Whether OneDrive is installed. Two things that look like OneDrive are not evidence: Windows keeps OneDriveSetup.exe in System32 whether or not OneDrive is installed,
+/// and OneDrive's own uninstaller leaves its folder behind (logs, and a shell extension that Explorer keeps locked until it restarts).
+/// What counts is the program itself, in a version folder or beside it, or the uninstall entry OneDrive registers.
+/// </summary>
+public static class OneDriveDetection
+{
+    public static bool IsInstalled(IEnumerable<string> roots, Func<string, bool> fileExists, Func<string, bool> directoryExists, Func<bool> hasUninstallEntry)
+    {
+        if (hasUninstallEntry()) return true;
+        foreach (var root in roots)
+        {
+            if (fileExists(Path.Combine(root, "OneDrive.exe"))) return true;
+            // The program also sits in a folder named for its version, such as 26.189.0928.0009.
+            if (directoryExists(root) && VersionFolders(root).Any(folder => fileExists(Path.Combine(folder, "OneDrive.exe")))) return true;
+        }
+        return false;
+    }
+
+    private static IEnumerable<string> VersionFolders(string root)
+    {
+        try { return Directory.EnumerateDirectories(root).Where(x => char.IsDigit(Path.GetFileName(x)[0])).ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+}
+
+/// <summary>Reads packages and the state of OneDrive, Edge and Recall from this PC.</summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
+{
+    private static readonly string[] KnownFolders = ["Desktop", "Personal", "My Pictures"];
+    private static readonly string[] KnownFolderNames = ["Desktop", "Documents", "Pictures"];
+
+    public int Build { get; } = Environment.OSVersion.Version.Build;
+
+    public IReadOnlyList<AppxFact> Packages()
+    {
+        var script = (elevated ? "$p=Get-AppxPackage -AllUsers;" : "$p=Get-AppxPackage;") +
+            "$r=@($p|ForEach-Object{[pscustomobject]@{n=$_.Name;f=$_.PackageFullName;y=$_.PackageFamilyName;r=[bool]$_.NonRemovable;w=[bool]$_.IsFramework;" +
+            "u=@($_.PackageUserInformation|Where-Object{\"$($_.InstallState)\" -eq 'Installed'}|ForEach-Object{\"$($_.UserSecurityID.SID)\"})}});" +
+            "ConvertTo-Json -InputObject $r -Compress -Depth 3";
+        var result = DebloatProcess.Script(script, TimeSpan.FromSeconds(90));
+        if (result.TimedOut || result.ExitCode != 0) throw new InvalidOperationException("Windows did not list the installed apps. " + Brief(result.Output));
+        var list = new List<AppxFact>();
+        using var json = JsonDocument.Parse(result.Output.Length == 0 ? "[]" : result.Output);
+        foreach (var row in json.RootElement.EnumerateArray())
+        {
+            var users = new List<string>();
+            if (row.TryGetProperty("u", out var u))
+            {
+                if (u.ValueKind == JsonValueKind.Array) users.AddRange(u.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0));
+                else if (u.ValueKind == JsonValueKind.String && u.GetString() is { Length: > 0 } one) users.Add(one);
+            }
+            list.Add(new(Text(row, "n"), Text(row, "f"), Text(row, "y"), Flag(row, "r"), Flag(row, "w"), users));
+        }
+        // Without administrator rights Windows does not say who has a package; what it lists is the current user's.
+        return elevated ? list : list.Select(x => x with { Users = [] }).ToList();
+    }
+
+    public IReadOnlyList<ProvisionedFact> Provisioned()
+    {
+        if (!elevated) return [];
+        var result = DebloatProcess.Script("ConvertTo-Json -InputObject @(Get-AppxProvisionedPackage -Online|ForEach-Object{[pscustomobject]@{d=$_.DisplayName;p=$_.PackageName}}) -Compress", TimeSpan.FromSeconds(90));
+        if (result.TimedOut || result.ExitCode != 0) throw new InvalidOperationException("Windows did not list the apps it installs for new accounts. " + Brief(result.Output));
+        using var json = JsonDocument.Parse(result.Output.Length == 0 ? "[]" : result.Output);
+        return json.RootElement.EnumerateArray().Select(x => new ProvisionedFact(Text(x, "d"), Text(x, "p"))).Where(x => x.DisplayName.Length > 0).ToList();
+    }
+
+    public PlaybookFacts Playbooks()
+    {
+        var folders = new List<string>();
+        foreach (var sid in Registry.Users.GetSubKeyNames().Where(x => x.StartsWith("S-1-5-21", StringComparison.Ordinal) && !x.EndsWith("_Classes", StringComparison.Ordinal)))
+        {
+            try
+            {
+                using var key = Registry.Users.OpenSubKey(sid + @"\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders");
+                if (key is null) continue;
+                for (var i = 0; i < KnownFolders.Length; i++)
+                    if (key.GetValue(KnownFolders[i], null, RegistryValueOptions.DoNotExpandEnvironmentNames) is string path && path.Contains("OneDrive", StringComparison.OrdinalIgnoreCase) && !folders.Contains(KnownFolderNames[i]))
+                        folders.Add(KnownFolderNames[i]);
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { }
+        }
+        return new(OneDriveInstalled(), folders, EdgeUninstaller() is not null, OtherBrowserInstalled(), RecallInstalled());
+    }
+
+    internal static bool OneDriveInstalled()
+    {
+        var programFiles = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft OneDrive");
+        var local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "OneDrive");
+        return OneDriveDetection.IsInstalled([programFiles, local], File.Exists, Directory.Exists, UninstallEntryExists);
+    }
+
+    private static bool UninstallEntryExists()
+    {
+        const string path = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe";
+        using (var user = Registry.CurrentUser.OpenSubKey(path)) if (user is not null) return true;
+        using (var machine = Registry.LocalMachine.OpenSubKey(path)) if (machine is not null) return true;
+        using var machine32 = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe");
+        return machine32 is not null;
+    }
+
+    /// <summary>The uninstall command Edge registered, or null when Edge is not installed.</summary>
+    internal static string? EdgeUninstaller()
+    {
+        foreach (var path in new[] { @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" })
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(path);
+            if (key?.GetValue("UninstallString") is string text && text.Length > 0) return text;
+        }
+        return null;
+    }
+
+    /// <summary>Another web browser is registered with Windows. Edge and Internet Explorer do not count.</summary>
+    internal static bool OtherBrowserInstalled()
+    {
+        foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+            foreach (var path in new[] { @"SOFTWARE\Clients\StartMenuInternet", @"SOFTWARE\WOW6432Node\Clients\StartMenuInternet" })
+            {
+                using var key = hive.OpenSubKey(path);
+                if (key?.GetSubKeyNames().Any(x => !x.StartsWith("Microsoft Edge", StringComparison.OrdinalIgnoreCase) && !x.StartsWith("IEXPLORE", StringComparison.OrdinalIgnoreCase)) == true) return true;
+            }
+        return false;
+    }
+
+    /// <summary>Recall is a Windows feature. It is there when its servicing package is installed (state 112).</summary>
+    internal static bool RecallInstalled()
+    {
+        using var packages = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\Packages");
+        if (packages is null) return false;
+        foreach (var name in packages.GetSubKeyNames().Where(x => x.StartsWith("UserExperience-Recall-Package", StringComparison.OrdinalIgnoreCase)))
+        {
+            using var key = packages.OpenSubKey(name);
+            if (key?.GetValue("CurrentState") is int state && state == 112) return true;
+        }
+        return false;
+    }
+
+    private static string Text(JsonElement row, string name) => row.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+    private static bool Flag(JsonElement row, string name) => row.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+    private static string Brief(string text) => text.Length <= 200 ? text : text[..200] + "…";
+}
+
+/// <summary>The part of the app registry that deals with removal. Only these four places are ever written, and only with names that passed the guard.</summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsAppxStore : IAppxStore
+{
+    private const string Root = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore";
+
+    private static RegistryKey Machine() => RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+
+    public IReadOnlyList<string> UserSids()
+    {
+        using var hklm = Machine();
+        using var key = hklm.OpenSubKey(Root);
+        return key?.GetSubKeyNames().Where(DebloatGuard.IsSid).ToList() ?? [];
+    }
+
+    public bool DeleteInbox(string fullName)
+    {
+        Require(fullName);
+        using var hklm = Machine();
+        using var key = hklm.OpenSubKey(Root + @"\InboxApplications");
+        if (key is null || !key.GetSubKeyNames().Contains(fullName, StringComparer.OrdinalIgnoreCase)) return false;
+        using var writable = hklm.OpenSubKey(Root + @"\InboxApplications", writable: true);
+        writable?.DeleteSubKeyTree(fullName, throwOnMissingSubKey: false);
+        return true;
+    }
+
+    public bool CreateEndOfLife(string sid, string fullName)
+    {
+        Require(fullName); if (!DebloatGuard.IsSid(sid)) throw new ArgumentException("Not an account id.", nameof(sid));
+        using var hklm = Machine();
+        var path = $@"{Root}\EndOfLife\{sid}\{fullName}";
+        using (var existing = hklm.OpenSubKey(path)) if (existing is not null) return false;
+        using var created = hklm.CreateSubKey(path);
+        return created is not null;
+    }
+
+    public void DeleteEndOfLife(string sid, string fullName)
+    {
+        Require(fullName); if (!DebloatGuard.IsSid(sid)) return;
+        using var hklm = Machine();
+        using var parent = hklm.OpenSubKey($@"{Root}\EndOfLife\{sid}", writable: true);
+        parent?.DeleteSubKeyTree(fullName, throwOnMissingSubKey: false);
+    }
+
+    public bool HasDeprovisioned(string family)
+    {
+        Require(family);
+        using var hklm = Machine();
+        using var key = hklm.OpenSubKey($@"{Root}\Deprovisioned\{family}");
+        return key is not null;
+    }
+
+    public void CreateDeprovisioned(string family)
+    {
+        Require(family);
+        using var hklm = Machine();
+        using var key = hklm.CreateSubKey($@"{Root}\Deprovisioned\{family}");
+    }
+
+    public void DeleteDeprovisioned(string family)
+    {
+        Require(family);
+        using var hklm = Machine();
+        using var parent = hklm.OpenSubKey($@"{Root}\Deprovisioned", writable: true);
+        parent?.DeleteSubKeyTree(family, throwOnMissingSubKey: false);
+    }
+
+    private static void Require(string name) { if (!DebloatGuard.IsToken(name)) throw new ArgumentException("Not a package name.", nameof(name)); }
+}
+
+/// <summary>Removes packages with the Windows PowerShell app cmdlets and DISM.</summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsAppxOps : IAppxOps
+{
+    public string? ClearNonRemovable(string family)
+    {
+        if (!DebloatGuard.IsToken(family)) return "Not a package family.";
+        var dism = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "dism.exe");
+        var result = DebloatProcess.Run(dism, ["/Online", "/Set-NonRemovableAppPolicy", $"/PackageFamily:{family}", "/NonRemovable:0", "/NoRestart"], TimeSpan.FromMinutes(2));
+        return result.TimedOut ? "Windows took too long to unlock the app." : result.ExitCode is 0 or 3010 ? null : Brief("Windows would not unlock the app. " + result.Output);
+    }
+
+    public string? RemovePackage(string fullName, IReadOnlyList<string> sids)
+    {
+        if (!DebloatGuard.IsToken(fullName) || sids.Any(x => !DebloatGuard.IsSid(x))) return "Not a package name.";
+        // Each account first, then everyone: a package registered for several accounts is otherwise left half removed.
+        var script = new StringBuilder("$e=@();");
+        foreach (var sid in sids) script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -User '{sid}'}}catch{{$e+=$_.Exception.Message}};");
+        script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -AllUsers}}catch{{$e+=$_.Exception.Message}};($e -join ' | ')");
+        var result = DebloatProcess.Script(script.ToString(), TimeSpan.FromMinutes(3));
+        if (result.TimedOut) return "Windows took too long to remove the app.";
+        return result.Output.Length == 0 ? null : Brief(result.Output);
+    }
+
+    public string? RemoveProvisioned(string packageName)
+    {
+        if (!DebloatGuard.IsToken(packageName)) return "Not a package name.";
+        var result = DebloatProcess.Script($"try{{Remove-AppxProvisionedPackage -Online -AllUsers -PackageName '{packageName}'|Out-Null}}catch{{$_.Exception.Message}}", TimeSpan.FromMinutes(3));
+        if (result.TimedOut) return "Windows took too long to remove the app.";
+        return result.Output.Length == 0 ? null : Brief(result.Output);
+    }
+
+    private static string Brief(string text) => text.Length <= 220 ? text : text[..220] + "…";
+}
+
+/// <summary>
+/// Removes the things that are not ordinary apps. Each one is done the way its owner's own uninstaller expects, never by deleting program folders,
+/// and none of them deletes a file of yours.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsPlaybooks : IDebloatPlaybooks
+{
+    private const string EdgeStableId = "{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}";
+    private const string EdgeUpdatePolicy = @"SOFTWARE\Policies\Microsoft\EdgeUpdate";
+
+    public string? Remove(DebloatKind kind) => kind switch
+    {
+        DebloatKind.OneDrive => RemoveOneDrive(),
+        DebloatKind.Edge => RemoveEdge(),
+        DebloatKind.Recall => SetRecall(enable: false),
+        _ => "That is not a component."
+    };
+
+    public string? Restore(DebloatKind kind) => kind switch
+    {
+        DebloatKind.OneDrive => null,  // The installer comes from WinGet.
+        DebloatKind.Edge => AllowEdge(),
+        DebloatKind.Recall => SetRecall(enable: true),
+        _ => "That is not a component."
+    };
+
+    internal static IEnumerable<string> OneDriveSetups()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        yield return Path.Combine(windows, "SysWOW64", "OneDriveSetup.exe");
+        yield return Path.Combine(windows, "System32", "OneDriveSetup.exe");
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        foreach (var root in new[] { Path.Combine(local, "Microsoft", "OneDrive"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft OneDrive") })
+        {
+            if (!Directory.Exists(root)) continue;
+            foreach (var setup in Directory.EnumerateFiles(root, "OneDriveSetup.exe", SearchOption.AllDirectories).OrderByDescending(x => x)) yield return setup;
+        }
+    }
+
+    // OneDrive: stop it, run its own uninstaller, and stop Windows adding it to new accounts. Files in the OneDrive folder are left exactly where they are.
+    private static string? RemoveOneDrive()
+    {
+        foreach (var name in new[] { "OneDrive", "OneDriveStandaloneUpdater", "FileCoAuth" })
+            foreach (var process in Process.GetProcessesByName(name))
+            {
+                try { process.Kill(); process.WaitForExit(5000); }
+                catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
+                finally { process.Dispose(); }
+            }
+        var setup = OneDriveSetups().FirstOrDefault(File.Exists);
+        if (setup is null) return "OneDrive's own uninstaller was not found.";
+        var result = DebloatProcess.Run(setup, ["/uninstall"], TimeSpan.FromMinutes(3));
+        if (result.TimedOut) return "OneDrive took too long to uninstall.";
+
+        // Do not start it again at sign-in, for you or for accounts made later.
+        using (var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true)) run?.DeleteValue("OneDrive", throwOnMissingValue: false);
+        ForgetOneDriveInNewAccounts();
+        return null;
+    }
+
+    private static void ForgetOneDriveInNewAccounts()
+    {
+        var hive = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "..", "Default", "NTUSER.DAT");
+        hive = Path.GetFullPath(hive);
+        if (!File.Exists(hive)) return;
+        const string mount = "TidyWindowDefaultUser";
+        var reg = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "reg.exe");
+        if (DebloatProcess.Run(reg, ["load", @"HKU\" + mount, hive], TimeSpan.FromSeconds(20)).ExitCode != 0) return;
+        try
+        {
+            using var run = Registry.Users.OpenSubKey(mount + @"\Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+            run?.DeleteValue("OneDriveSetup", throwOnMissingValue: false);
+        }
+        finally
+        {
+            // A handle left open keeps the file locked, and reg refuses to unload it.
+            GC.Collect(); GC.WaitForPendingFinalizers();
+            DebloatProcess.Run(reg, ["unload", @"HKU\" + mount], TimeSpan.FromSeconds(20));
+        }
+    }
+
+    // Edge: Windows blocks its removal in some regions, and Edge's own uninstaller refuses to run unless it is told this is allowed and a
+    // placeholder for the old Edge exists. Those two are set for the length of the removal only. WebView2, which apps depend on, is a separate product and is not touched.
+    private static string? RemoveEdge()
+    {
+        if (!WindowsDebloatSystem.OtherBrowserInstalled()) return DebloatScan.OnlyBrowserLock;
+        var command = WindowsDebloatSystem.EdgeUninstaller();
+        if (command is null) return null;
+        var setup = command.Trim().StartsWith('"') ? command.Trim().Split('"')[1] : command.Trim().Split(' ')[0];
+        if (!File.Exists(setup) || !Path.GetFileName(setup).Equals("setup.exe", StringComparison.OrdinalIgnoreCase)) return "Edge's own uninstaller was not found.";
+
+        var stubDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemApps", "Microsoft.MicrosoftEdge_8wekyb3d8bbwe");
+        var stub = Path.Combine(stubDirectory, "MicrosoftEdge.exe");
+        var madeStub = false;
+        try
+        {
+            using (var update = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdateDev")) update.SetValue("AllowUninstall", 1, RegistryValueKind.DWord);
+            if (!File.Exists(stub))
+            {
+                try { Directory.CreateDirectory(stubDirectory); File.WriteAllBytes(stub, []); madeStub = true; }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+            }
+            DebloatProcess.Run(setup, ["--uninstall", "--system-level", "--verbose-logging", "--force-uninstall"], TimeSpan.FromMinutes(5));
+        }
+        finally
+        {
+            if (madeStub) { try { File.Delete(stub); Directory.Delete(stubDirectory); } catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { } }
+            using var update = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdateDev", writable: true);
+            update?.DeleteValue("AllowUninstall", throwOnMissingValue: false);
+        }
+
+        // Tell the updater not to install Edge again. The WebView2 runtime has its own product id and is not affected.
+        using (var policy = Registry.LocalMachine.CreateSubKey(EdgeUpdatePolicy)) policy.SetValue("Install" + EdgeStableId, 0, RegistryValueKind.DWord);
+
+        foreach (var link in new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "Microsoft Edge.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Microsoft Edge.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "Microsoft Edge.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Microsoft Edge.lnk")
+        })
+        {
+            try { File.Delete(link); } catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        }
+        return null;
+    }
+
+    private static string? AllowEdge()
+    {
+        using var policy = Registry.LocalMachine.OpenSubKey(EdgeUpdatePolicy, writable: true);
+        policy?.DeleteValue("Install" + EdgeStableId, throwOnMissingValue: false);
+        return null;
+    }
+
+    // Recall is switched off as a Windows feature, not deleted, so that it can be switched back on.
+    private static string? SetRecall(bool enable)
+    {
+        var dism = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "dism.exe");
+        var result = DebloatProcess.Run(dism, ["/Online", enable ? "/Enable-Feature" : "/Disable-Feature", "/FeatureName:Recall", "/NoRestart"], TimeSpan.FromMinutes(5));
+        if (result.TimedOut) return "Windows took too long to change Recall.";
+        if (result.ExitCode is 0 or 3010) return null;
+        // 0x800f080c: this Windows has no Recall feature, so there is nothing to switch.
+        if (result.ExitCode == unchecked((int)0x800F080C)) return null;
+        return "Windows would not change Recall. " + (result.Output.Length <= 200 ? result.Output : result.Output[..200] + "…");
+    }
+}
