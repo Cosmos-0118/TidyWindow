@@ -16,6 +16,21 @@ internal static class CleanupNative
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHEmptyRecycleBinW(IntPtr window, string? root, uint flags);
 
+    private const string VolumeCaches = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches";
+
+    /// <summary>The folders Windows lists for one Disk Cleanup handler, or null when the handler does not exist on this Windows.</summary>
+    public static string[]? VolumeCacheFolders(string handler)
+    {
+        if (!OperatingSystem.IsWindows() || handler.Length == 0 || handler.AsSpan().IndexOfAny('\\', '/') >= 0) return null;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"{VolumeCaches}\{handler}");
+            if (key is null) return null;
+            return (key.GetValue("Folder") as string)?.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return null; }
+    }
+
     public static bool IsAdministrator()
     {
         if (!OperatingSystem.IsWindows()) return false;
