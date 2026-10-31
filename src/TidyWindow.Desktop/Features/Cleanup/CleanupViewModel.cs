@@ -33,7 +33,8 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     /// <summary>Permission has been given, so what is left is the measuring itself.</summary>
     public bool Allowed { get => allowed; set { if (allowed != value) { allowed = value; NotifySize(); } } }
     public bool Declined { get => declined; set { if (declined != value) { declined = value; NotifySize(); } } }
-    public bool NeedsMeasuring => NeedsAdmin && exact is null;
+    // A row Windows can only size after cleaning has nothing to measure, so ticking it never asks for permission early.
+    public bool NeedsMeasuring => NeedsAdmin && exact is null && !Finding.Unmeasured;
     public long Bytes => exact?.Bytes ?? Finding.Bytes;
     private void NotifySize() { Changed(nameof(SizeText)); Changed(nameof(FilesText)); Changed(nameof(AutomationName)); }
     public string SizeText
@@ -42,7 +43,7 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
         {
             if (measuring) return "Measuring…";
             if (exact is { } found) return found.Unmeasured ? "Size shown after" : found.Bytes > 0 ? ByteSize.Format(found.Bytes) : "Empty";
-            if (NeedsAdmin) return declined ? "Needs permission" : !Finding.Unmeasured && Finding.Bytes > 0 ? "At least " + ByteSize.Format(Finding.Bytes) : "Tick to measure";
+            if (NeedsAdmin && !Finding.Unmeasured) return declined ? "Needs permission" : Finding.Bytes > 0 ? "At least " + ByteSize.Format(Finding.Bytes) : "Tick to measure";
             return Finding.Unmeasured ? "Size shown after" : Finding.Bytes > 0 || Finding.Rule.Action == CleanupAction.RecycleBin ? (Finding.Unreadable > 0 ? "At least " : "") + ByteSize.Format(Finding.Bytes) : "Empty";
         }
     }
@@ -50,9 +51,9 @@ public sealed class CleanupRow(CleanupFinding finding, Action<CleanupRow> change
     {
         get
         {
-            if (measuring) return !allowed ? "asking for permission" : Finding.Rule.Action == CleanupAction.ComponentStore ? "Windows is working it out, a few minutes" : "measuring";
+            if (measuring) return !allowed ? "asking for permission" : "measuring";
             if (exact is { } found) return found.Unmeasured ? "cleaning" : found.Files == 1 ? "1 file" : $"{found.Files:N0} files";
-            if (NeedsAdmin) return declined ? "permission declined" : "needs admin to measure";
+            if (NeedsAdmin && !Finding.Unmeasured) return declined ? "permission declined" : "needs admin to measure";
             return Finding.Unmeasured ? "cleaning" : Finding.Files == 1 ? "1 file" : $"{Finding.Files:N0} files";
         }
     }
@@ -178,7 +179,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         var byId = rows.ToDictionary(x => x.Finding.Rule.Id);
         try
         {
-            // Sizes arrive one at a time: Windows can take minutes over its update files, and the other rows should not wait for them.
+            // Sizes are shown as the helper reports them rather than all at the end.
             var report = await system.MeasureAsync(rows.Select(x => x.Finding.Rule.Id).ToList(),
                 onItem: item => post(() =>
                 {
@@ -190,7 +191,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
                 {
                     if (current != generation) return;
                     foreach (var row in rows.Where(x => x.Exact is null)) row.Allowed = true;
-                    Status = "Measuring… Windows can take a few minutes over its update files.";
+                    Status = "Measuring…";
                     Notify();
                 }),
                 cancellationToken: token);
