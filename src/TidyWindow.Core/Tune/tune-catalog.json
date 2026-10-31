@@ -87,7 +87,8 @@
         { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338389Enabled", "value": "0" },
         { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-338393Enabled", "value": "0" },
         { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353694Enabled", "value": "0" },
-        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353696Enabled", "value": "0" }
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "SubscribedContent-353696Enabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager", "name": "RotatingLockScreenOverlayEnabled", "value": "0" }
       ]
     },
     {
@@ -111,10 +112,11 @@
       "scope": "user",
       "topic": "Start and Search",
       "summary": "Searching from Start or the taskbar shows only your PC, apps and settings, with no Bing web suggestions mixed in. This is the “Web Searches” switch in Settings > Privacy & security > Search.",
-      "effect": "You search the web from your browser instead. Microsoft Store suggestions in search are a separate switch and stay as they are. Only Windows 11 26H2 (build 26300.8697 and later) has this setting.",
+      "effect": "You search the web from your browser instead. Microsoft Store suggestions in search are a separate switch and stay as they are. Windows 11 26H2 (build 26300.8697 and later) has this setting, and 24H2 (26100.9278) and 25H2 (26200.9278) got it in the August 2026 update. Windows rolls it out in stages, so it can be missing from Settings for a while even on those builds.",
       "minBuild": 26300,
       "minRevision": 8697,
-      "sources": ["Windows Settings (Privacy & security > Search)", "KapilArya"],
+      "alsoOn": [{ "build": 26100, "revision": 9278 }, { "build": 26200, "revision": 9278 }],
+      "sources": ["Windows Settings (Privacy & security > Search)", "KapilArya", "Windows Latest and Admin365 on the 24H2 and 25H2 update (KB5120998)"],
       "targets": [
         { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsWebSuggestionsEnabled", "value": "0" }
       ]
@@ -315,6 +317,7 @@
       "sources": ["Microsoft Q&A: ms-gamebar link pop-up", "Technipages: ms-gamingoverlay link pop-ups", "Win11Debloat"],
       "targets": [
         { "key": "Software\\Microsoft\\GameBar", "name": "UseNexusForGameBarEnabled", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\GameBar", "name": "ShowStartupPanel", "value": "0", "normal": "1" },
         { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR", "name": "AppCaptureEnabled", "value": "0", "normal": "1" },
         { "key": "System\\GameConfigStore", "name": "GameDVR_Enabled", "value": "0", "normal": "1" }
       ]
@@ -393,6 +396,207 @@
       "sources": ["Windows Settings (Power options > Turn on fast startup)"],
       "targets": [
         { "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power", "name": "HiberbootEnabled", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "startup-delay-off",
+      "name": "Startup apps start at once",
+      "group": "speed",
+      "scope": "user",
+      "topic": "Sign-in",
+      "icon": "E7E8",
+      "summary": "Apps in your Startup folder and Run list start the moment the desktop appears, instead of waiting about ten seconds, or longer on Windows 11 while it waits for the PC to go quiet.",
+      "effect": "Everything starts together, so the PC is busier for the first minute after you sign in. It only helps if you have apps that start with Windows; the Startup page lists them. The key is missing on some builds and community reports differ on how much it changes.",
+      "takes": "signOut",
+      "sources": ["Microsoft Q&A: startup apps delayed after sign-in", "Windows Eleven Forum: Delay of running startup apps"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "StartupDelayInMSec", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "WaitForIdleState", "value": "0" }
+      ]
+    },
+    {
+      "id": "search-clean",
+      "name": "Search without highlights or cloud results",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Start and Search",
+      "minBuild": 22621,
+      "summary": "The search box stops showing daily “search highlights” pictures, and Start search stops looking in your Microsoft account and work or school account cloud content. These are the switches in Settings > Privacy & security > Search permissions.",
+      "effect": "Search still finds your files, apps and settings. It will not suggest items from your OneDrive, Outlook or SharePoint accounts.",
+      "takes": "explorer",
+      "sources": ["Windows Settings (Privacy & security > Search permissions)"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsDynamicSearchBoxEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsMSACloudSearchEnabled", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\SearchSettings", "name": "IsAADCloudSearchEnabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "no-workplace-join",
+      "name": "No accidental work or school enrollment",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "Accounts",
+      "risk": "careful",
+      "summary": "Signing in to Office, Teams or OneDrive with a work or school account no longer offers “Allow my organization to manage my device”, so clicking OK cannot enroll this personal PC in an organization's management.",
+      "effect": "You can still sign in to the apps. You lose single sign-on across apps for those accounts, and this PC cannot be registered with an organization from that prompt, so leave it off on a PC your employer or school manages.",
+      "sources": ["Microsoft Q&A: Suppress “Allow my organization to manage my device”", "MSEndpointMgr: Are you tired of “Allow my organization to manage my device”"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WorkplaceJoin", "name": "BlockAADWorkplaceJoin", "value": "1" }
+      ]
+    },
+    {
+      "id": "edge-clean",
+      "name": "Edge without first-run, shopping and feed pop-ups",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "Microsoft Edge",
+      "icon": "E774",
+      "risk": "careful",
+      "summary": "Edge skips its welcome screen, stops showing the MSN feed on new tabs, shopping and coupon pop-ups and recommendations, and stops asking to be your default browser.",
+      "effect": "Edge also says “managed by your organization”, which is how it shows any policy. New tabs show the plain search page. Applies the next time Edge starts.",
+      "sources": ["Microsoft Learn: HideFirstRunExperience", "Microsoft Learn: NewTabPageContentEnabled", "Microsoft Learn: Edge policy reference"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "HideFirstRunExperience", "value": "1" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "NewTabPageContentEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "EdgeShoppingAssistantEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "ShowRecommendationsEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "SpotlightExperiencesAndRecommendationsEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "DefaultBrowserSettingEnabled", "value": "0" },
+        { "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "name": "DefaultBrowserSettingsCampaignEnabled", "value": "0" }
+      ]
+    },
+    {
+      "id": "no-onedrive-backup-nag",
+      "name": "OneDrive stops asking to back up your folders",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "OneDrive",
+      "summary": "OneDrive stops asking you to move your Desktop, Documents and Pictures folders into OneDrive, and its backup button is turned off.",
+      "effect": "OneDrive still syncs the files you put in it. Folders already moved into OneDrive stay where they are, and you cannot start a new folder backup from OneDrive until this is off. Applies to every user of this PC.",
+      "sources": ["Microsoft Learn: Prevent users from moving their Windows known folders to OneDrive"],
+      "targets": [
+        { "key": "SOFTWARE\\Policies\\Microsoft\\OneDrive", "name": "KFMBlockOptIn", "value": "1" }
+      ]
+    },
+    {
+      "id": "no-typing-profile",
+      "name": "Windows keeps no typing profile",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Privacy",
+      "summary": "Windows stops learning from what you type and write, stops collecting contacts for typing suggestions, and stops sending typing and inking data for “improvement”. These are the switches in Settings > Privacy & security > Inking & typing personalization.",
+      "effect": "Suggestions as you type and handwriting recognition are a little less tailored to you. Spell checking and the keyboard keep working. This is a privacy setting, so you may not notice any difference.",
+      "sources": ["Windows Settings (Privacy & security > Inking & typing personalization)", "Sophia Script"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Input\\TIPC", "name": "Enabled", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\InputPersonalization", "name": "RestrictImplicitTextCollection", "value": "1", "normal": "0" },
+        { "key": "Software\\Microsoft\\InputPersonalization", "name": "RestrictImplicitInkCollection", "value": "1", "normal": "0" },
+        { "key": "Software\\Microsoft\\InputPersonalization\\TrainedDataStore", "name": "HarvestContacts", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "no-language-list",
+      "name": "Websites cannot read your language list",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Privacy",
+      "summary": "Websites no longer get the list of languages installed on this PC, which they can use to tell you apart from other visitors. This is the “Let websites show me local content by accessing my language list” switch.",
+      "effect": "Sites may pick their language from your browser's own setting instead of your Windows languages. This is a privacy setting, so you may not notice any difference.",
+      "sources": ["Windows Settings (Privacy & security > General)", "Sophia Script"],
+      "targets": [
+        { "key": "Control Panel\\International\\User Profile", "name": "HttpAcceptLanguageOptOut", "value": "1" }
+      ]
+    },
+    {
+      "id": "hide-explorer-gallery",
+      "name": "No Gallery in File Explorer",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "File Explorer",
+      "summary": "The Gallery entry in File Explorer's left sidebar is gone. Windows gives no switch for this.",
+      "effect": "Nothing you would miss. Your pictures stay in the Pictures folder and in the Photos app.",
+      "minBuild": 22621,
+      "takes": "explorer",
+      "sources": ["Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Classes\\CLSID\\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}", "name": "System.IsPinnedToNameSpaceTree", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "explorer-compact-view",
+      "name": "Closer rows in File Explorer",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "File Explorer",
+      "summary": "File Explorer lists files with the tighter spacing of Windows 10, so about a third more fit on screen. This is the “Compact view” switch in File Explorer's View menu.",
+      "effect": "Rows are harder to hit with a finger on a touch screen. Windows already open pick it up when you open a new window.",
+      "minBuild": 22000,
+      "sources": ["File Explorer's View > Show > Compact view", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "UseCompactMode", "value": "1" }
+      ]
+    },
+    {
+      "id": "alt-tab-windows-only",
+      "name": "Alt+Tab shows windows, not browser tabs",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Window switching",
+      "minBuild": 22621,
+      "summary": "Alt+Tab lists your open windows only, without every Edge tab or app tab mixed in. This is the Alt+Tab switch in Settings > System > Multitasking.",
+      "effect": "You switch between tabs inside the browser itself.",
+      "sources": ["Windows Settings (System > Multitasking)"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "MultiTaskingAltTabFilter", "value": "3" }
+      ]
+    },
+    {
+      "id": "no-aero-shake",
+      "name": "Shaking a window does nothing",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Window switching",
+      "summary": "Shaking a window by its title bar no longer minimizes every other window. This is the “Title bar window shake” switch in Settings > System > Multitasking.",
+      "effect": "Nothing you would miss. Windows can still be minimized with the buttons or Win+Home.",
+      "takes": "explorer",
+      "sources": ["Windows Settings (System > Multitasking)", "Microsoft Learn: Aero Shake policy"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "DisallowShaking", "value": "1" }
+      ]
+    },
+    {
+      "id": "no-f1-help",
+      "name": "F1 does not open a web search",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Keyboard",
+      "summary": "Pressing F1 by accident in File Explorer or on the desktop no longer opens Edge with a Bing search for “how to get help in Windows”.",
+      "effect": "Apps with their own help, such as Word, still open it. Only the Windows Help page is gone.",
+      "takes": "explorer",
+      "sources": ["Sophia Script"],
+      "targets": [
+        {
+          "key": "Software\\Classes\\Typelib\\{8cec5860-07a1-11d9-b15e-000d56bfe6ee}\\1.0\\0\\win64",
+          "name": "",
+          "kind": "string",
+          "value": "",
+          "removeKey": "Software\\Classes\\Typelib\\{8cec5860-07a1-11d9-b15e-000d56bfe6ee}"
+        }
+      ]
+    },
+    {
+      "id": "verbose-status",
+      "name": "Detailed messages at start-up and shutdown",
+      "group": "comfort",
+      "scope": "machine",
+      "topic": "Shutdown",
+      "summary": "While Windows starts, shuts down, signs in and installs updates it says what it is doing, such as “Installing update 2 of 3”, instead of only “Please wait”.",
+      "effect": "The screen shows a few more words. Nothing else changes.",
+      "takes": "restart",
+      "sources": ["Microsoft Learn: Display highly detailed status messages"],
+      "targets": [
+        { "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "name": "VerboseStatus", "value": "1", "normal": "0" }
       ]
     }
   ]
