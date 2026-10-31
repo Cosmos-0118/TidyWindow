@@ -21,12 +21,15 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             results.Where(x => x.Error is not null).Select(x => $"{x.Manager}: Installed status could not be checked. {x.Error}").Concat(windows.Errors));
     }
 
-    public async Task<InventoryResult> ReadInstalledAsync(ManagerStatus manager, CancellationToken token = default)
+    /// <param name="windowsApps">Also return what WinGet finds on the PC that no source installed: programs from the registry and Store apps. Without it only WinGet's own packages are listed.</param>
+    public async Task<InventoryResult> ReadInstalledAsync(ManagerStatus manager, CancellationToken token = default, bool windowsApps = false)
     {
         var kind = manager.Definition.Kind;
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null) return new(kind, [], "Manager is unavailable.");
+        windowsApps &= kind == ManagerKind.Winget;
         string[] arguments = kind switch
         {
+            ManagerKind.Winget when windowsApps => ["list", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Winget => ["list", "--source", "winget", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Chocolatey => ["list", "--limit-output"],
             _ => ["list"]
@@ -38,8 +41,8 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             if (kind == ManagerKind.Scoop && result.ExitCode == 1 && result.Output.Contains("There aren't any apps installed", StringComparison.OrdinalIgnoreCase)) return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));
             // Inventory must not inherit the search result cap: an installed app can be row 61+.
-            var apps = PackageOutputParser.Parse(kind, result.Output, int.MaxValue)
-                .Select(x => new InstalledApp(kind, x.Id, x.Name, x.Version)).ToArray();
+            var apps = PackageOutputParser.Parse(kind, result.Output, int.MaxValue, windowsApps)
+                .Select(x => new InstalledApp(kind, x.Id, x.Name, x.Version, x.Source)).ToArray();
             var clean = PackageOutputParser.Clean(result.Output);
             if (apps.Length == 0 && !string.IsNullOrWhiteSpace(clean) &&
                 !Regex.IsMatch(clean, @"(?m)^\s*-{2,}[\s-]*$|0 packages|no (?:installed |applications |apps |packages)|aren't any installed", RegexOptions.IgnoreCase))
