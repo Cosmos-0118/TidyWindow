@@ -9,10 +9,13 @@ namespace TidyWindow.Next.Desktop;
 public partial class App : Application
 {
     private Window? window;
-    private readonly ActivityLog log = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Logs"));
+    private static readonly string LogFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Logs");
+    private readonly ActivityLog log = new(LogFolder);
     public App()
     {
         InitializeComponent();
+        // A crash in Windows or the runtime ends the process before any handler below can write, so a copy that vanished is noticed on the next start.
+        new SessionGuard(Path.Combine(LogFolder, "sessions"), log).Begin();
         // Record the failure before the process ends; these handlers do not suppress the crash.
         UnhandledException += (_, e) => log.Write(ActivityLevel.Error, ActivityArea.App, "TidyWindow hit an unexpected error", e.Exception?.ToString() ?? e.Message);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => log.Write(ActivityLevel.Error, ActivityArea.App, "TidyWindow stopped unexpectedly", e.ExceptionObject.ToString());
