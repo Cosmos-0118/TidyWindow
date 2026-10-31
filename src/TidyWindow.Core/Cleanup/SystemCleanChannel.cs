@@ -36,6 +36,8 @@ public static class SystemCleanHost
             finally { send.Release(); }
         }
 
+        // Permission has been given and the helper is running; the app can stop saying it is waiting.
+        await Send(new HostMessage("ready")).ConfigureAwait(false);
         using var cancel = new CancellationTokenSource();
         // The app asks to stop by writing a line; the helper finishes the file it is on and returns what it has done so far.
         _ = Task.Run(async () => { try { if (await reader.ReadLineAsync().ConfigureAwait(false) is not null) cancel.Cancel(); } catch (IOException) { } });
@@ -46,7 +48,10 @@ public static class SystemCleanHost
             // A leading marker asks for sizes only; it is not a rule id, so it can never select anything to clean.
             if (ids.Length > 0 && ids[0] == MeasureMarker)
             {
-                var items = await job.MeasureAsync(catalog ?? CleanupCatalog.Load(), ids[1..], cancel.Token).ConfigureAwait(false);
+                // Each size goes to the app the moment it is known: sizing Windows' update files can take minutes, and the rest should not wait for it.
+                var sent = new System.Collections.Concurrent.ConcurrentBag<Task>();
+                var items = await job.MeasureAsync(catalog ?? CleanupCatalog.Load(), ids[1..], new MeasureRelay(item => sent.Add(Send(new HostMessage("item", Measured: [item])))), cancel.Token).ConfigureAwait(false);
+                await Task.WhenAll(sent).ConfigureAwait(false);
                 await Send(new HostMessage("measured", Measured: items.ToList())).ConfigureAwait(false);
                 return 0;
             }
@@ -60,6 +65,7 @@ public static class SystemCleanHost
     }
 
     private sealed class Relay(Action<CleanupProgress> action) : IProgress<CleanupProgress> { public void Report(CleanupProgress value) => action(value); }
+    private sealed class MeasureRelay(Action<MeasuredItem> action) : IProgress<MeasuredItem> { public void Report(MeasuredItem value) => action(value); }
 }
 
 /// <summary>What the helper found when asked to size administrator rules.</summary>
@@ -87,10 +93,20 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
     }
 
     /// <summary>Asks the elevated helper how much each administrator rule could free. Nothing is cleaned.</summary>
-    public async Task<SystemMeasureReport> MeasureAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken = default)
+    /// <param name="onAllowed">Called once the helper is running, which is after the person has accepted the permission prompt.</param>
+    /// <param name="onItem">Called with each size as soon as the helper knows it, ahead of the full report. Runs on a background thread.</param>
+    public async Task<SystemMeasureReport> MeasureAsync(IReadOnlyList<string> ruleIds, Action<MeasuredItem>? onItem = null, Action? onAllowed = null, CancellationToken cancellationToken = default)
     {
         List<MeasuredItem>? items = null;
-        var (error, declined) = await ConverseAsync([SystemCleanHost.MeasureMarker, .. ruleIds], message => { if (message.Kind == "measured") items = message.Measured; }, cancellationToken).ConfigureAwait(false);
+        var (error, declined) = await ConverseAsync([SystemCleanHost.MeasureMarker, .. ruleIds], message =>
+        {
+            switch (message.Kind)
+            {
+                case "ready": try { onAllowed?.Invoke(); } catch { /* A display callback must not end the conversation. */ } break;
+                case "item": foreach (var item in message.Measured ?? []) try { onItem?.Invoke(item); } catch { } break;
+                case "measured": items = message.Measured; break;
+            }
+        }, cancellationToken).ConfigureAwait(false);
         if (declined) return new SystemMeasureReport([], "Administrator permission was declined.", true);
         return items is null ? new SystemMeasureReport([], error ?? "The helper stopped before it finished.", false) : new SystemMeasureReport(items, null, false);
     }

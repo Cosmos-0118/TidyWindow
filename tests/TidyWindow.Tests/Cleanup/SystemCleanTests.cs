@@ -41,13 +41,19 @@ public sealed class SystemCleanTests : IDisposable
         public Action? OnRun;
         private bool ran;
         public string Output = "";
+        /// <summary>When set, a program that returns output (the component store analysis) waits for this before it answers.</summary>
+        public TaskCompletionSource? Hold;
         public Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken)
         {
             Commands.Add(Path.GetFileName(fileName) + " " + string.Join(' ', arguments));
             ran = true; OnRun?.Invoke();
             return Task.FromResult(ExitCode);
         }
-        public async Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken) => (await RunAsync(fileName, arguments, timeout, cancellationToken), Output);
+        public async Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            if (Hold is not null) await Hold.Task.WaitAsync(cancellationToken);
+            return (await RunAsync(fileName, arguments, timeout, cancellationToken), Output);
+        }
         public void SetCleanupHandler(string handler, int slot, bool enabled) => Handlers.Add((handler, enabled));
         public long FreeBytes(string drive) => ran ? FreeAfter : Free;
     }
@@ -315,6 +321,33 @@ public sealed class SystemCleanTests : IDisposable
         Assert.True(File.Exists(a));
         Assert.Equal(["Dism.exe /Online /Cleanup-Image /AnalyzeComponentStore"], tools.Commands);
         Assert.Empty(tools.Handlers);
+    }
+
+    [Fact]
+    public async Task SizesArriveOneByOneSoTheSlowWindowsAnalysisCannotHoldBackTheRest()
+    {
+        Make("Windows/SoftwareDistribution/Download/a.cab", 300);
+        tools.Output = Analysis; tools.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CleanupRule[] catalog =
+        [
+            new() { Id = "component-store", Group = "Windows", Name = "c", Admin = true, Action = CleanupAction.ComponentStore },
+            new() { Id = "update-downloads", Group = "Windows", Name = "u", Admin = true, Paths = ["%WINDIR%\\SoftwareDistribution\\Download"] }
+        ];
+        var arrived = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var fast = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var running = Helper(catalog).MeasureAsync(["component-store", "update-downloads"],
+            onItem: item => { arrived.Enqueue(item.Id); if (item.Id == "update-downloads") fast.TrySetResult(); },
+            onAllowed: () => allowed.TrySetResult());
+        // The quick size is shown while Windows is still analysing its update files, and the app is told the permission was given.
+        await fast.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await allowed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(running.IsCompleted);
+        Assert.Equal(["update-downloads"], arrived);
+        tools.Hold.SetResult();
+        var report = await running.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(["update-downloads", "component-store"], arrived);
+        Assert.Equal(["component-store", "update-downloads"], report.Items.Select(x => x.Id));
     }
 
     [Fact]
