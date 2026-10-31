@@ -18,7 +18,9 @@ An item is only listed if it passes one of these:
 
 Each item also carries a plain label: **Speed**, **Cleaner** or **Comfort**, plus when it takes effect (now, sign out, restart Explorer, restart).
 
-## Catalog (15 items)
+## Catalog (25 items)
+
+The last nine rows were added in the second round (31 October 2026). The memory integrity item, added with the Lab, is described at the end.
 
 | Item | Scope | What changes | You notice | Source |
 | --- | --- | --- | --- | --- |
@@ -37,6 +39,15 @@ Each item also carries a plain label: **Speed**, **Cleaner** or **Comfort**, plu
 | Show file extensions | User | `Advanced\HideFileExt = 0` | `invoice.pdf.exe` cannot hide its real type | WinUtil, Win11Debloat |
 | End task from the taskbar | User | `TaskbarDeveloperSettings\TaskbarEndTask = 1` | Right-click an app on the taskbar, End task | WinUtil, Win11Debloat |
 | Long file paths | Machine | `FileSystem\LongPathsEnabled = 1` | Paths over 260 characters stop failing in apps that opt in | Microsoft Learn |
+| Taskbar click opens the last window | User | `Explorer\Advanced\LastActiveClick = 1` | One click on a multi-window app goes to its last window instead of showing previews. Undocumented by Microsoft; community guides report it works on Windows 11 | Windows Eleven Forum, NinjaOne |
+| File Explorer opens to This PC | User | `Explorer\Advanced\LaunchTo = 1` | Win+E shows drives instead of Home. Put back by removing the value | Win11Debloat, Windows Eleven Forum |
+| File copies show the full details | User | `Explorer\OperationStatusManager\EnthusiastMode = 1` | The copy window opens with the speed graph. It is the value Explorer saves for "More details" | Explorer itself (already set on the development PC) |
+| No Game Bar pop-ups | User | `GameBar\UseNexusForGameBarEnabled`, `GameDVR\AppCaptureEnabled`, `GameConfigStore\GameDVR_Enabled` = 0 | The controller button and game launch stop opening Game Bar, or the "get an app for ms-gamebar" prompt. Separate from Quiet's machine-wide `AllowGameDVR` policy; no URL protocol handlers are touched | Microsoft Q&A, Technipages |
+| Full-quality wallpaper | User | `Control Panel\Desktop\JPEGImportQuality = 100` | A JPEG wallpaper set afterwards is not compressed again. Applies to pictures set from then on | Winaero |
+| No "finish setting up" pages or Explorer banners | User | `Explorer\Advanced\ShowSyncProviderNotifications = 0`, `UserProfileEngagement\ScoobeSystemSettingEnabled = 0` | The full-screen setup page after updates and the OneDrive/Microsoft 365 banners in Explorer are gone | Windows Eleven Forum, Winaero |
+| Start keeps no recent files or app lists | User, Windows 11 | `Explorer\Advanced\Start_TrackDocs`, `Start_IrisRecommendations`, `Start\ShowRecentList`, `ShowFrequentList` = 0 | Start's Recommended section empties. These are the Settings > Personalization > Start switches, so they work on Home and Pro. Trade-off: recent files also leave Jump Lists and Explorer's Recent | Windows Eleven Forum, Windows Settings |
+| No maker apps for new devices | Machine | `Device Metadata\PreventDeviceMetadataFromNetwork = 1` | Windows stops fetching the maker's companion app and icons for new mice, keyboards, headsets and monitors. The driver still installs | Windows Device installation settings, Microsoft Learn |
+| Shut down really shuts down | Machine, Careful | `Session Manager\Power\HiberbootEnabled = 0` | Shut down is a full shutdown (uptime resets). Trade-off: a slightly slower start. Listed under Comfort, not Speed, because it does not make anything faster | Windows Settings (Fast startup) |
 
 ## Deliberately left out
 
@@ -56,6 +67,14 @@ These appear in almost every "speed up Windows" list. The evidence for them is t
 | Telemetry services and policies, Recall, Game DVR | Already on the Quiet page. |
 | Windows Update restart rules | The registry rule only applies to scheduled installs (`AUOptions = 4`), which a normal PC does not use. Not reliable on 11. |
 | Explorer startup delay (`StartupDelayInMSec`) | Sources date from Windows 10; not confirmed on 11. |
+| Drag tray off (`CDP\DragTrayEnabled`) | Microsoft has been pulling and renaming the drag tray ("Drop Tray") in recent builds, and the development PC (26300) does not have the value at all. A switch that may do nothing is what this page avoids. |
+| "- Shortcut" off (`NamingTemplates\ShortcutNameTemplate`) | The value needs literal quotes (`"%s.lnk"`), reports on current builds disagree (one says nothing changed), and it could not be checked by hand. |
+| Crash screen details (`CrashControl\DisplayParameters`) | You would only see it at the next crash, so it fails "notice it within a minute", and the simplified Windows 11 crash screen was not confirmed to honor it. |
+| Do not reopen apps (`Winlogon\RestartApps = 0`) | "Automatically save my restartable apps" is already off by default on Windows 11, so writing 0 changes nothing for most people. The after-update sign-in value (`ARSOUserConsent`) is a different, machine-wide setting about passwords. |
+| Settings ads (`CloudContent\DisableConsumerAccountStateContent`, `SettingsPageVisibility = hide:home`) | The policy exists, but nothing found shows it removes the Settings home cards. `hide:home` would overwrite a person's own page-hiding list. |
+| Extra nag values (`Start_AccountNotifications`, `EnableAccountNotifications`, `Windows.SystemToast.BackupReminder\Enabled`, `SubscribedContent-353698Enabled`) | No source found that confirms them. The one Microsoft Q&A thread that tried the Backup reminder key reported it did not work. The two nag values that are confirmed are in "No finish setting up pages" and the Start tips value is in "Start keeps no recent files or app lists". |
+| `HideRecommendedSection` policy | Honored only on Windows 11 Education and Enterprise. The per-user Start switches above work on Home and Pro without changing the reported edition. |
+| Snap Assist off, taskbar alignment, dark mode, combine taskbar buttons | Personal taste, and already in Settings. |
 | Start search without web results on older Windows 11 (`Policies\...\Explorer\DisableSearchBoxSuggestions`) | Microsoft documents it only for File Explorer's search box. Win11Debloat and forum posts say it also hides web results in Start on 24H2/25H2, but one report says it was blocked, and it could not be checked on a machine without the new setting. Not offered; the item above covers 26H2. |
 
 ## Safety rules
@@ -70,7 +89,7 @@ These appear in almost every "speed up Windows" list. The evidence for them is t
 
 ## Page design
 
-Follows Quiet. A list of switches with a one-line effect each, the small print behind a chevron (values before and after, "applies after you restart Explorer"), tabs **Speed · Cleaner · Comfort · Changes**, a search box and an On/Off filter. The Changes tab lists what TidyWindow changed, with **Put everything back**. Items that need Explorer restarted offer a **Restart Explorer** button after the change. Careful items show a one-time confirmation that states the trade-off. Toasts and the Logs page report outcomes like the other pages.
+Follows Quiet. A list of switches with a one-line effect each, the small print behind a chevron (values before and after, "applies after you restart Explorer"), tabs **Speed · Cleaner · Comfort · Changes**, a search box and an On/Off filter. The Changes tab lists what TidyWindow changed, with **Put everything back**. Rows that are off are dimmed, like Quiet. Items that need Explorer restarted offer a **Restart Explorer** button in the toast, and a banner at the top of the list stays until Explorer has been restarted, so several shell tweaks can be changed first. When something such as a Windows update puts tweaks back, a banner and the toast offer **Turn on again** for all of them at once. Search also looks at the registry key and value names and at the effect text (for example `ContentDeliveryManager` or `HVCI`). Careful items show a one-time confirmation that states the trade-off. Toasts and the Logs page report outcomes like the other pages.
 
 ## Implementation outline
 
@@ -90,6 +109,7 @@ Reading, the guard, the rules for applying and putting back, rollback, and the h
 - Whether the Edge policies make Edge show a "managed by your organization" notice. The item says so up front; Edge's behavior with these policies was not confirmed here.
 - `WaitToKillAppTimeout` is written as "at most 5000". Its Windows default of 20000 comes from guides, not from a fresh install (the system default profile has no value, and loading the default user hive needs administrator rights). The page reads the real value and only offers a change when the current one is higher.
 - Web search: checked by hand on build 26300.9818. Setting `IsWebSuggestionsEnabled = 0` made Settings show Web Searches Off, Microsoft Store suggestions stayed On, and removing the value put it back to On. What the Start menu itself then shows was not looked at, because screenshots of the Start menu are masked. Microsoft's own wording for this setting is not documented yet; the value comes from a preview-build article and the Settings test.
+- The nine items added in the second round were checked by reading this PC (a read-only scan: values and their "partly on" states came out as expected) and against community guides, not by switching each one on and watching the result. In particular `LastActiveClick` on the newest Windows 11 builds, `Start_IrisRecommendations`, `ShowRecentList`/`ShowFrequentList` (no written source; the two Settings switches they match, and `ShowFrequentList` exists on the development PC) and `PreventDeviceMetadataFromNetwork` blocking a real companion app were not seen working. The new page behavior (dimming, Explorer banner, Turn on again) was built and compiled but not looked at in the running app.
 - Whether `MenuShowDelay` and the Sticky Keys flags apply without signing in again. The page says "After sign-in" to be safe.
 
 ## Sources

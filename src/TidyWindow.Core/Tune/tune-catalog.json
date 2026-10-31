@@ -262,6 +262,138 @@
       "targets": [
         { "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity", "name": "Enabled", "value": "0", "normal": "1" }
       ]
+    },
+    {
+      "id": "last-active-click",
+      "name": "Taskbar click opens the last window",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Taskbar",
+      "summary": "Clicking an app on the taskbar that has several windows open goes straight to the one you used last, instead of showing a row of previews first. Click again to go to the next window.",
+      "effect": "You can still pick any window from the previews by hovering over the icon. This value is not documented by Microsoft, so a Windows update may stop honoring it.",
+      "takes": "explorer",
+      "sources": ["Windows Eleven Forum: Always use last active click on taskbar", "NinjaOne: Last Active Click on the taskbar"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "LastActiveClick", "value": "1" }
+      ]
+    },
+    {
+      "id": "explorer-this-pc",
+      "name": "File Explorer opens to This PC",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "File Explorer",
+      "summary": "File Explorer opens showing your drives (This PC) instead of Home, which first has to gather your recent and cloud files.",
+      "effect": "Home's recent and pinned files are no longer the first thing you see. They stay one click away in the sidebar.",
+      "sources": ["Win11Debloat", "Windows Eleven Forum: Open File Explorer to This PC"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "LaunchTo", "value": "1" }
+      ]
+    },
+    {
+      "id": "detailed-file-transfer",
+      "name": "File copies show the full details",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "File Explorer",
+      "summary": "Copying or moving files shows the full progress window at once, with the speed graph and the time left, instead of a small box you have to open with “More details”.",
+      "effect": "The progress window is a little taller. Nothing else changes.",
+      "sources": ["The value File Explorer itself saves when you open or close “More details”"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\OperationStatusManager", "name": "EnthusiastMode", "value": "1", "normal": "0" }
+      ]
+    },
+    {
+      "id": "no-gamebar-popup",
+      "name": "No Game Bar pop-ups",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Game Bar",
+      "icon": "E7FC",
+      "summary": "Pressing a controller's Xbox button or starting a game no longer opens Game Bar, or asks you to “get an app to open this ms-gamebar link” when Game Bar has been removed.",
+      "effect": "Game Bar's controller button, clips and “record what happened” stop working. Other recorders, such as OBS, are not affected. The Quiet page has a separate, stronger switch that blocks game recording for everyone.",
+      "sources": ["Microsoft Q&A: ms-gamebar link pop-up", "Technipages: ms-gamingoverlay link pop-ups", "Win11Debloat"],
+      "targets": [
+        { "key": "Software\\Microsoft\\GameBar", "name": "UseNexusForGameBarEnabled", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR", "name": "AppCaptureEnabled", "value": "0", "normal": "1" },
+        { "key": "System\\GameConfigStore", "name": "GameDVR_Enabled", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "wallpaper-quality",
+      "name": "Full-quality wallpaper",
+      "group": "comfort",
+      "scope": "user",
+      "topic": "Desktop background",
+      "summary": "A JPEG picture you set as your wallpaper keeps its full quality instead of being compressed again, so gradients and dark pictures show less banding.",
+      "effect": "Only pictures you set from now on are affected: set your wallpaper again after signing back in. The copy Windows keeps is a little larger.",
+      "takes": "signOut",
+      "sources": ["Winaero: Increase desktop wallpaper quality"],
+      "targets": [
+        { "key": "Control Panel\\Desktop", "name": "JPEGImportQuality", "value": "100" }
+      ]
+    },
+    {
+      "id": "no-setup-nags",
+      "name": "No “finish setting up” pages or Explorer banners",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Sign-in and File Explorer",
+      "summary": "Stops the full-screen “Let's finish setting up your device” page after updates, and the OneDrive and Microsoft 365 banners at the top of File Explorer.",
+      "effect": "Nothing you use. You can still finish setup from Settings, and OneDrive keeps syncing.",
+      "takes": "signOut",
+      "sources": ["Windows Eleven Forum: Let's finish setting up your device", "Winaero: How to disable ads in Windows 11"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "ShowSyncProviderNotifications", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\UserProfileEngagement", "name": "ScoobeSystemSettingEnabled", "value": "0", "normal": "1" }
+      ]
+    },
+    {
+      "id": "clean-start",
+      "name": "Start keeps no recent files or app lists",
+      "group": "cleaner",
+      "scope": "user",
+      "topic": "Start menu",
+      "summary": "Start's Recommended section stops listing your recent files, recently added apps and most used apps, and stops showing tips and app suggestions. These are the switches in Settings > Personalization > Start, and they work on Windows 11 Home and Pro.",
+      "effect": "Recent files also stop appearing in Jump Lists and in File Explorer's Recent list. Nothing is deleted, and Start's Pinned apps are not touched.",
+      "minBuild": 22000,
+      "takes": "explorer",
+      "sources": ["Windows Eleven Forum: Recommended files in Start", "Windows Eleven Forum: tips, shortcuts and new apps on Start", "Windows Settings (Personalization > Start)"],
+      "targets": [
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_TrackDocs", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Start_IrisRecommendations", "value": "0", "normal": "1" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Start", "name": "ShowRecentList", "value": "0" },
+        { "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Start", "name": "ShowFrequentList", "value": "0" }
+      ]
+    },
+    {
+      "id": "no-device-companion-apps",
+      "name": "No maker apps for new devices",
+      "group": "cleaner",
+      "scope": "machine",
+      "topic": "Hardware",
+      "summary": "Windows stops downloading the maker's companion app and custom icons when you plug in a mouse, keyboard, headset or monitor.",
+      "effect": "The device itself still installs through Windows Update and works. If you want the maker's control app, you install it yourself. Applies to every user of this PC.",
+      "sources": ["Windows “Device installation settings”", "Microsoft Learn: Prevent device metadata retrieval from the Internet"],
+      "targets": [
+        { "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Device Metadata", "name": "PreventDeviceMetadataFromNetwork", "value": "1", "normal": "0" }
+      ]
+    },
+    {
+      "id": "fast-startup-off",
+      "name": "Shut down really shuts down",
+      "group": "comfort",
+      "scope": "machine",
+      "topic": "Shutdown",
+      "icon": "E7E8",
+      "risk": "careful",
+      "summary": "Shut down turns the PC fully off. Normally Windows saves its running state to disk and resumes from it next time (Fast startup), so uptime never resets and driver, USB audio and dual-boot problems carry over.",
+      "effect": "Starting the PC can take a few seconds longer, more on a hard drive than on an SSD. Restart already shuts Windows down fully, so only Shut down changes.",
+      "takes": "restart",
+      "sources": ["Windows Settings (Power options > Turn on fast startup)"],
+      "targets": [
+        { "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power", "name": "HiberbootEnabled", "value": "0", "normal": "1" }
+      ]
     }
   ]
 }

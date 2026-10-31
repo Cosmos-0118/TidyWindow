@@ -16,13 +16,13 @@
         <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
        </Grid.ColumnDefinitions>
 
-       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center">
+       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center" Opacity="{Binding Dim}">
         <FontIcon Glyph="{Binding Glyph}" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
        </Border>
 
        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
-        <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+        <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
+        <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" Opacity="{Binding Dim}" />
         <TextBlock Text="{Binding Note}" Visibility="{Binding NoteVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
         <TextBlock Text="Something changed this back after you turned it on." Visibility="{Binding RevertedVisibility}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" Margin="0,2,0,0" />
        </StackPanel>
@@ -118,6 +118,34 @@
    <Grid>
     <!-- Speed, Cleaner and Comfort share one list -->
     <StackPanel Visibility="{Binding ListVisibility}" Spacing="10" Margin="0,0,0,12">
+     <!-- Shown when a Windows update (or anything else) put back something that was turned on here -->
+     <Border Visibility="{Binding RevertedVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="8" Padding="16,12">
+      <Grid ColumnSpacing="12">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+       <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="{Binding RevertedTitle}" FontSize="13" FontWeight="SemiBold" />
+        <TextBlock Text="Something, such as a Windows update, put them back. The ones marked below can be turned on again together." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+       </StackPanel>
+       <Button Grid.Column="2" Click="TurnOnAgainClick" IsEnabled="{Binding CanTurnOnAgain}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Turn on again">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Turn on again" FontSize="12" /></StackPanel>
+       </Button>
+      </Grid>
+     </Border>
+     <!-- Stays until File Explorer has been restarted, so several shell tweaks can be changed first -->
+     <Border Visibility="{Binding ExplorerVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="8" Padding="16,12">
+      <Grid ColumnSpacing="12">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <FontIcon Glyph="&#xE72C;" FontSize="16" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+       <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="Restart File Explorer to finish" FontSize="13" FontWeight="SemiBold" />
+        <TextBlock Text="Some of the changes you made show up once File Explorer restarts. The taskbar and open folders close for a moment. Change as many as you like first." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+       </StackPanel>
+       <Button Grid.Column="2" Click="RestartExplorerClick" IsEnabled="{Binding CanRestartExplorer}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Restart File Explorer now">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72C;" FontSize="12" /><TextBlock Text="Restart File Explorer now" FontSize="12" /></StackPanel>
+       </Button>
+      </Grid>
+     </Border>
      <Grid ColumnSpacing="12">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <TextBlock Text="{Binding TabNote}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />

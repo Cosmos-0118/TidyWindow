@@ -14,6 +14,8 @@ public sealed partial class TuneView : UserControl
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
     private async void RestoreAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestoreAllAsync(); }
+    private async void TurnOnAgainClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.TurnOnAgainAsync(); }
+    private async void RestartExplorerClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestartExplorerAsync(); }
     private async void PutBackClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is TuneChangeRow row) await model.PutBackAsync(row); }
     private void QueryChanged(object sender, TextChangedEventArgs e) { if (Model is { } model) model.Query = ((TextBox)sender).Text; }
     private void DetailsClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is TuneRow row) row.ToggleDetails(); }
