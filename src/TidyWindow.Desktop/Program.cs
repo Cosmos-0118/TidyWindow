@@ -21,6 +21,9 @@ public static class Program
     // How long a new launch waits for the open window to take over. If that window is stuck, the new one starts instead of doing nothing.
     private static readonly TimeSpan HandOverWait = TimeSpan.FromSeconds(8);
 
+    // WinUI needs the thread that runs the interface to be single-threaded. The generated entry point has this attribute, and without it
+    // the app starts but fails at random moments within seconds, with a native error that nothing in the app can catch or log.
+    [STAThread]
     private static void Main()
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
