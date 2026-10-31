@@ -63,7 +63,7 @@ The error codes the recovery rung reads are from [Microsoft's list](https://lear
 
 ## The ladder
 
-Per finding, in `core/RepairService.cs`:
+Per finding, in `src/TidyWindow.Core/Repair/RepairService.cs`:
 
 1. **Recover** (only when the program is still on the PC): look for the program's own installer file in its source list, the Package Cache (`{code}v*`) and `$PatchCache$`. A candidate is used only if the `ProductCode` in the file
    is the program's and, when Windows Installer registered one, the `PackageCode` is the same build. Then `msiexec /fvomus <file> /qn /norestart` (per-machine products through the helper). Success means exit 0, 3010 or 1641 **and** Windows Installer has a `LocalPackage` that exists afterwards. 3010/1641 are reported as *Fixed after restart*.

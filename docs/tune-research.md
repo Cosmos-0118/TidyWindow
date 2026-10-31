@@ -1,6 +1,6 @@
 # Tune: registry settings that make a real difference
 
-Research and implementation decision, 30 October 2026. Status: implemented (`core/TuneModel.cs`, `core/TuneManager.cs`, `core/WindowsTuneSystem.cs`, `core/tune-catalog.json`, `app/TuneView.xaml`). The old Registry Optimizer offered about 50 scripts, and most were folklore. This page offers a short, reviewed list where each setting has a reason you can point to, shows what is set on this PC right now, and can put every value back exactly.
+Research and implementation decision, 30 October 2026. Status: implemented (`src/TidyWindow.Core/Tune/TuneModel.cs`, `src/TidyWindow.Core/Tune/TuneManager.cs`, `src/TidyWindow.Core/Tune/WindowsTuneSystem.cs`, `src/TidyWindow.Core/Tune/tune-catalog.json`, `src/TidyWindow.Desktop/Features/Tune/TuneView.xaml`). The old Registry Optimizer offered about 50 scripts, and most were folklore. This page offers a short, reviewed list where each setting has a reason you can point to, shows what is set on this PC right now, and can put every value back exactly.
 
 ## Decision
 
@@ -74,11 +74,11 @@ Follows Quiet. A list of switches with a one-line effect each, the small print b
 
 ## Implementation outline
 
-- `core/TuneModel.cs`: item/target types, `TuneCatalog`, `TuneGuard` (validation), `TuneScan`.
-- `core/TuneManager.cs`: local changer, history (`%LOCALAPPDATA%\TidyWindow.Next\Tune\changed.json`), manager, elevated host command `--tune` in the existing `CleanHost`.
-- `core/WindowsTuneSystem.cs`: registry reader and writer, and an Explorer restart helper.
-- `core/tune-catalog.json`: the catalog above.
-- `app/TuneView.xaml(.cs)`, `app/TuneViewModel.cs`, a sidebar entry and page in `MainWindow`.
+- `src/TidyWindow.Core/Tune/TuneModel.cs`: item/target types, `TuneCatalog`, `TuneGuard` (validation), `TuneScan`.
+- `src/TidyWindow.Core/Tune/TuneManager.cs`: local changer, history (`%LOCALAPPDATA%\TidyWindow.Next\Tune\changed.json`), manager, elevated host command `--tune` in the existing `CleanHost`.
+- `src/TidyWindow.Core/Tune/WindowsTuneSystem.cs`: registry reader and writer, and an Explorer restart helper.
+- `src/TidyWindow.Core/Tune/tune-catalog.json`: the catalog above.
+- `src/TidyWindow.Desktop/Features/Tune/TuneView.xaml(.cs)`, `src/TidyWindow.Desktop/Features/Tune/TuneViewModel.cs`, a sidebar entry and page in `MainWindow`.
 - `tests/TidyWindow.Tests/TuneTests.cs`: catalog validation, scan states, exact restore (including "not set"), rollback, edition gating, refusal of out-of-catalog writes.
 - README entry and this document updated to "implemented" with what was verified by hand.
 

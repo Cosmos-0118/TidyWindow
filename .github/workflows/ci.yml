@@ -43,7 +43,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Build self-contained app
-        run: dotnet build app/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
+        run: dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Build installer
