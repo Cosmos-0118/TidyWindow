@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using TidyWindow.Next.Core;
 
@@ -5,14 +7,14 @@ namespace TidyWindow.Next.Desktop;
 
 public enum FixesTab { Windows, Network, Devices, Apps }
 
-public sealed class FixOptionRow(FixOption option) : ObservableState
+public sealed class FixOptionRow(FixOption option, Action changed) : ObservableState
 {
     private bool on = option.Default;
     public string Id => option.Id;
     public string Label => option.Label;
     public string Detail => option.Detail;
     public Visibility DetailVisibility => option.Detail.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public bool IsOn { get => on; set => Set(ref on, value); }
+    public bool IsOn { get => on; set { if (Set(ref on, value)) changed(); } }
 }
 
 public sealed class FixRow : ObservableState
@@ -25,7 +27,7 @@ public sealed class FixRow : ObservableState
     public FixRow(FixItem item)
     {
         Item = item;
-        Options = item.Options.Select(x => new FixOptionRow(x)).ToList();
+        Options = item.Options.Select(x => new FixOptionRow(x, RebuildFacts)).ToList();
     }
 
     public FixItem Item { get; }
@@ -43,6 +45,11 @@ public sealed class FixRow : ObservableState
     public Visibility RestartVisibility => Item.Restart != FixRestart.Never ? Visibility.Visible : Visibility.Collapsed;
     public string RestartText => Item.Restart == FixRestart.Always ? "Restart" : "May restart";
     public string RestartTip => Item.Restart == FixRestart.Always ? "Windows needs a restart to finish this fix" : "Windows may ask for a restart when this finishes";
+
+    private static DateTimeOffset BootTime => DateTimeOffset.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+    /// <summary>The last run needed a restart and Windows has not been restarted since.</summary>
+    public bool NeedsRestart => note is { Outcome: nameof(ActionOutcome.RestartRequired) } && note.When > BootTime;
+    public Visibility RestartNowVisibility => NeedsRestart && !Busy ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Queued => entry?.State == QueueItemState.Waiting;
     public bool Running => entry?.State == QueueItemState.Running;
@@ -99,6 +106,8 @@ public sealed class FixRow : ObservableState
 
     public IReadOnlyList<StartupFact> Facts => facts ??= BuildFacts();
 
+    private void RebuildFacts() { facts = null; Changed(nameof(Facts)); }
+
     private List<StartupFact> BuildFacts()
     {
         var list = new List<StartupFact>();
@@ -106,25 +115,25 @@ public sealed class FixRow : ObservableState
         Add("What to know", Item.Effect);
         Add("How long", Item.Duration);
         Add("Needs", Item.Scope == FixScope.Machine ? "Administrator permission. The output still shows here." : "Nothing special. Runs as you.");
-        var steps = new List<string>();
-        var number = 0;
-        foreach (var step in Item.Steps)
-        {
-            var option = step.When.Length > 0 ? Item.Options.FirstOrDefault(x => x.Id == step.When.TrimStart('!')) : null;
-            var suffix = option is null ? "" : step.When.StartsWith('!') ? $"  (unless “{option.Label}”)" : $"  (if “{option.Label}”)";
-            steps.Add($"{++number}. {step.Title}{suffix}");
-        }
-        Add("Steps", string.Join("\n", steps), true);
+        // Only the steps the ticked options switch on, exactly as the runner will take them.
+        var plan = FixPlan.Build(Item, SelectedOptions);
+        Add("Steps", string.Join("\n", plan.Select((step, i) => $"{i + 1}. {step.Title}")), true);
+        Add("Commands", string.Join("\n", plan.Select((step, i) => $"{i + 1}. {FixPlan.Describe(step)}")), true);
+        if (note is { Detail.Length: > 0 }) Add("Last run", $"{Words(note.Outcome)} · {note.When.ToLocalTime():d MMM, h:mm tt}\n{note.Detail}", true);
         Add("Source", string.Join(", ", Item.Sources));
         return list;
     }
 
     public void Update(QueueEntry? latest, FixRunNote? last)
     {
-        entry = latest; note = last;
+        entry = latest;
+        // The last run's details are part of the facts, so they are rebuilt when a new run is recorded.
+        var noteChanged = !Equals(note, last);
+        note = last;
+        if (noteChanged) RebuildFacts();
         foreach (var name in new[]
         {
-            nameof(Queued), nameof(Running), nameof(Busy), nameof(CanRun), nameof(ButtonText), nameof(Live), nameof(LiveVisibility), nameof(Working), nameof(LastText), nameof(LastVisibility), nameof(LastGoodVisibility), nameof(LastWarnVisibility)
+            nameof(RestartNowVisibility), nameof(Queued), nameof(Running), nameof(Busy), nameof(CanRun), nameof(ButtonText), nameof(Live), nameof(LiveVisibility), nameof(Working), nameof(LastText), nameof(LastVisibility), nameof(LastGoodVisibility), nameof(LastWarnVisibility)
         }) Changed(name);
     }
 }
@@ -160,10 +169,10 @@ public sealed class FixesViewModel : ObservableState, IDisposable
 
     public string TabNote => tab switch
     {
-        FixesTab.Windows => "Repairs for Windows itself: system files, updates, the drive, the clock and search.",
-        FixesTab.Network => "When the internet or a network connection will not work properly.",
-        FixesTab.Devices => "Printers, sound and hardware that Windows does not see or use properly.",
-        _ => "Windows apps and parts of the desktop that misbehave: Store, Start menu, icons and OneDrive."
+        FixesTab.Windows => "Repairs for Windows itself: system files, updates, the drive, the clock, search, fonts and WMI.",
+        FixesTab.Network => "When the internet or a network connection will not work properly, or other PCs do not show up.",
+        FixesTab.Devices => "Printers, sound, cameras and hardware that Windows does not see or use properly.",
+        _ => "Windows apps and parts of the desktop that misbehave: Store, Start menu, icons, OneDrive, Windows Security and WinGet."
     };
 
     public string FooterNote => "Fixes run one at a time in the Queue, where you can watch each step as it happens. Each one is a short list of standard Windows commands with a plain description; nothing runs that is not on this page. Anything that needs administrator permission asks once, and its output still shows live.";
@@ -220,6 +229,34 @@ public sealed class FixesViewModel : ObservableState, IDisposable
     }
 
     public void OpenQueue() => openQueue();
+
+    /// <summary>Restarts Windows after a 30 second countdown, which the toast can cancel.</summary>
+    public void RestartWindows()
+    {
+        var shutdown = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "shutdown.exe");
+        try
+        {
+            Start(shutdown, "/r", "/t", "30", "/c", "TidyWindow: restarting to finish a fix.");
+            toasts.Show("fix-restart", ToastKind.Warning, "Windows will restart in 30 seconds", "Save your work now.", "Cancel restart", () => { CancelRestart(shutdown); return Task.CompletedTask; }, 30);
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            toasts.Show("fix-restart", ToastKind.Warning, "Couldn’t restart Windows", "Restart it from the Start menu.", seconds: 8);
+        }
+    }
+
+    private void CancelRestart(string shutdown)
+    {
+        try { Start(shutdown, "/a"); toasts.Show("fix-restart", ToastKind.Info, "Restart cancelled", seconds: 5); }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException) { }
+    }
+
+    private static void Start(string program, params string[] arguments)
+    {
+        var info = new ProcessStartInfo(program) { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var argument in arguments) info.ArgumentList.Add(argument);
+        Process.Start(info)?.Dispose();
+    }
 
     public void Dispose() => queue.Refreshed -= Refresh;
 }

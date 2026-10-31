@@ -136,13 +136,14 @@ public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor 
 
     private PackageActionResult Record(FixItem item, PackageActionResult result)
     {
-        try { history?.Set(new(item.Id, now(), result.Outcome.ToString(), result.Message)); }
+        try { history?.Set(new(item.Id, now(), result.Outcome.ToString(), result.Message, result.Detail)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* A note about the last run is never worth failing a fix for. */ }
         return result;
     }
 }
 
-public sealed record FixRunNote(string Id, DateTimeOffset When, string Outcome, string Message);
+/// <summary>How the last run of a fix went. Detail is the step-by-step summary, so the reason for a failure is still there after the app restarts.</summary>
+public sealed record FixRunNote(string Id, DateTimeOffset When, string Outcome, string Message, string Detail = "");
 
 /// <summary>The outcome of the last run of each fix, kept on disk so the page can say when it was last used.</summary>
 public sealed class FixRunStore(string folder)

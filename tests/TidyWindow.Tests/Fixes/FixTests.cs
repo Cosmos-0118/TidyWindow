@@ -38,7 +38,7 @@ public sealed class FixCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = FixCatalog.Load();
-        Assert.Equal(16, catalog.Count);
+        Assert.Equal(23, catalog.Count);
         Assert.Empty(FixGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<FixGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); Assert.NotEmpty(x.Duration); });
@@ -65,7 +65,7 @@ public sealed class FixCatalogTests
     public void TheDangerousThingsTheOldPageDidAreNotThere()
     {
         var text = string.Join('\n', FixCatalog.Load().SelectMany(x => x.Steps).SelectMany(x => x.Args.Append(x.File).Append(x.Path)));
-        foreach (var gone in new[] { "bootrec", "bcdedit", "slmgr", "rearm", "Clear-Tpm", "manage-bde", "EnableLUA", "Enable-PSRemoting", "Set-ExecutionPolicy", "advfirewall", "resetrepository", "salvagerepository", "EmptyStandbyList", "SysMain", "pagefile", "oem", "regsvr32" })
+        foreach (var gone in new[] { "bootrec", "bcdedit", "slmgr", "rearm", "Clear-Tpm", "manage-bde", "EnableLUA", "Enable-PSRemoting", "Set-ExecutionPolicy", "advfirewall", "resetrepository", "EmptyStandbyList", "SysMain", "pagefile", "oem", "regsvr32" })
             Assert.DoesNotContain(gone, text, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -77,6 +77,85 @@ public sealed class FixCatalogTests
         // sfc writes UTF-16 to a pipe; reading it as anything else would show unreadable text.
         Assert.Equal(FixEncoding.Utf16, steps.Single(x => x.File == "sfc.exe").Encoding);
         Assert.Contains(3010, steps.First(x => x.File == "dism.exe").Restart);
+    }
+
+    [Fact]
+    public void WindowsUpdateAlsoStopsTheUpdateOrchestratorWhichKeepsTheDownloadFolderOpen()
+    {
+        var steps = FixCatalog.Load().Single(x => x.Id == "reset-windows-update").Steps;
+        var stop = Array.FindIndex(steps, x => x.File == "net.exe" && x.Args.SequenceEqual(["stop", "UsoSvc", "/y"]));
+        var rename = Array.FindIndex(steps, x => x.Kind == FixStepKind.RenameFolder);
+        Assert.InRange(stop, 0, rename - 1);
+    }
+
+    [Fact]
+    public void RefreshingTheNetworkRegistersTheNamesAgainAfterTheNewAddress()
+    {
+        var item = FixCatalog.Load().Single(x => x.Id == "refresh-network");
+        var plan = FixPlan.Build(item, FixPlan.DefaultOptions(item)).Select(x => string.Join(' ', x.Args)).ToList();
+        Assert.True(plan.IndexOf("/registerdns") > plan.IndexOf("/renew"));
+        Assert.DoesNotContain("/registerdns", FixPlan.Build(item, []).Select(x => string.Join(' ', x.Args)));
+    }
+
+    [Fact]
+    public void ARestorePointIsOnlyReportedWhenWindowsReallyMadeOne()
+    {
+        // Checkpoint-Computer only warns when Windows refuses a second restore point within 24 hours, so the steps compare the list before and after.
+        foreach (var step in FixCatalog.Load().SelectMany(x => x.Steps).Where(x => x.Args.LastOrDefault()?.Contains("Checkpoint-Computer") == true))
+        {
+            Assert.Contains("Get-ComputerRestorePoint", step.Args[^1]);
+            Assert.Contains("exit 1", step.Args[^1]);
+        }
+        Assert.Contains(1, FixCatalog.Load().Single(x => x.Id == "create-restore-point").Steps[0].Warn);
+    }
+
+    [Fact]
+    public void TheFontCacheIsOnlyDeletedWhileItsServicesAreStopped()
+    {
+        var steps = FixCatalog.Load().Single(x => x.Id == "rebuild-font-cache").Steps;
+        var firstDelete = Array.FindIndex(steps, x => x.Kind == FixStepKind.DeleteFiles);
+        var lastStop = Array.FindLastIndex(steps, x => x.File == "net.exe" && x.Args[0] == "stop");
+        Assert.True(lastStop < firstDelete);
+        Assert.True(Array.FindIndex(steps, x => x.File == "net.exe" && x.Args[0] == "start") > firstDelete);
+    }
+
+    [Fact]
+    public void TheWmiRepositoryIsCheckedAndSalvagedButNeverWiped()
+    {
+        var item = FixCatalog.Load().Single(x => x.Id == "repair-wmi");
+        Assert.Equal(FixRisk.Careful, item.Risk);
+        Assert.Equal(["/verifyrepository"], FixPlan.Build(item, []).Single().Args);
+        Assert.Equal(["/verifyrepository", "/salvagerepository"], FixPlan.Build(item, ["repair"]).Select(x => x.Args[0]));
+        Assert.NotEmpty(Check(FixScope.Machine, Run("winmgmt.exe", "/resetrepository")));
+        Assert.Empty(Check(FixScope.Machine, Run("winmgmt.exe", "/salvagerepository")));
+    }
+
+    [Fact]
+    public void OneDriveIsClosedBeforeTheResetAndStartedAgainAfterEvenIfTheResetFails()
+    {
+        var steps = FixCatalog.Load().Single(x => x.Id == "reset-onedrive").Steps;
+        Assert.Equal(["/shutdown", "/reset"], steps.Where(x => x.File == "onedrive").Select(x => x.Args[0]));
+        Assert.True(steps[^1] is { File: "powershell.exe", Always: true });
+        Assert.NotEmpty(Check(FixScope.User, Run("onedrive", "/unlink")));
+    }
+
+    [Fact]
+    public void TheStartMenuRepairAlsoRegistersTheWindows11ShellComponentsButOnlyTheOriginalOnesCanFailIt()
+    {
+        var script = FixCatalog.Load().Single(x => x.Id == "repair-start-menu").Steps[0].Args[^1];
+        Assert.Contains("MicrosoftWindows.Client.CBS", script);
+        Assert.Contains("$core -contains $name", script);
+    }
+
+    [Fact]
+    public void EveryStepShowsTheCommandItRuns()
+    {
+        foreach (var step in FixCatalog.Load().SelectMany(x => x.Steps)) Assert.NotEmpty(FixPlan.Describe(step));
+        var item = FixCatalog.Load().Single(x => x.Id == "refresh-network");
+        Assert.Equal("ipconfig.exe /flushdns", FixPlan.Describe(item.Steps[0]));
+        Assert.Equal("netsh.exe interface ip delete arpcache", FixPlan.Describe(item.Steps[1]));
+        Assert.Equal(@"Rename %SystemRoot%\SoftwareDistribution\Download to Download.bak", FixPlan.Describe(FixCatalog.Load().Single(x => x.Id == "reset-windows-update").Steps.First(x => x.Kind == FixStepKind.RenameFolder)));
+        Assert.StartsWith("powershell.exe -Command ", FixPlan.Describe(FixCatalog.Load().Single(x => x.Id == "check-disk").Steps[0]));
     }
 
     [Fact]
@@ -401,6 +480,29 @@ public sealed class FixServiceTests : IDisposable
         Assert.Equal("Completed", new FixRunStore(folder).Get("a")!.Outcome);
         File.WriteAllText(Path.Combine(folder, "last-runs.json"), "{ not json");
         Assert.Empty(new FixRunStore(folder).All());
+    }
+
+    [Fact]
+    public async Task TheStepByStepSummaryOfTheLastRunIsRememberedToo()
+    {
+        var store = new FixRunStore(folder);
+        var executor = new ScriptedExecutor { Codes = { ["run"] = 5 } };
+        var service = new FixService([Item("a", FixScope.User)], executor, null, () => false, null, store);
+
+        await service.RunAsync(new("a", []), new Collector(), CancellationToken.None);
+
+        var note = new FixRunStore(folder).Get("a")!;
+        Assert.Equal("Failed", note.Outcome);
+        Assert.Contains("FAILED", note.Detail);
+    }
+
+    [Fact]
+    public void NotesSavedBeforeTheDetailWasKeptStillLoad()
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "last-runs.json"), """[{ "Id": "a", "When": "2026-10-30T19:00:00+00:00", "Outcome": "Completed", "Message": "A finished" }]""");
+        var note = new FixRunStore(folder).Get("a")!;
+        Assert.Equal("Completed", note.Outcome); Assert.Equal("", note.Detail);
     }
 }
 

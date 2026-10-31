@@ -106,10 +106,14 @@ public static partial class FixGuard
         "dism.exe", "sfc.exe", "netsh.exe", "ipconfig.exe", "net.exe", "w32tm.exe", "pnputil.exe", "wsreset.exe"
     };
 
+    // Programs that live in System32\wbem rather than System32 itself.
+    private static readonly HashSet<string> WbemPrograms = new(StringComparer.OrdinalIgnoreCase) { "winmgmt.exe" };
+
     // Services a fix may stop and start. Only restarts: nothing here changes how a service starts.
     private static readonly HashSet<string> Services = new(StringComparer.OrdinalIgnoreCase)
     {
-        "spooler", "audiosrv", "AudioEndpointBuilder", "bthserv", "w32time", "WSearch", "bits", "wuauserv", "cryptsvc"
+        "spooler", "audiosrv", "AudioEndpointBuilder", "bthserv", "w32time", "WSearch", "bits", "wuauserv", "cryptsvc", "UsoSvc",
+        "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub"
     };
 
     private static readonly string[][] AllowedNetsh =
@@ -124,6 +128,11 @@ public static partial class FixGuard
         ["/Online", "/Cleanup-Image", "/RestoreHealth"], ["/Online", "/Cleanup-Image", "/StartComponentCleanup"]
     ];
 
+    // Only the checks and the repair that keeps what can be read. /resetrepository, which wipes the repository, is never allowed.
+    private static readonly string[][] AllowedWinmgmt = [["/verifyrepository"], ["/salvagerepository"]];
+
+    private static readonly HashSet<string> AllowedOneDrive = new(StringComparer.OrdinalIgnoreCase) { "/reset", "/shutdown" };
+
     private static readonly string[][] AllowedW32tm = [["/resync", "/rediscover"], ["/config", "/update"]];
 
     // Folders a fix may clear or rename, with what it may remove from them.
@@ -132,6 +141,8 @@ public static partial class FixGuard
         (FixScope.Machine, @"%ALLUSERSPROFILE%\Microsoft\Network\Downloader", ["qmgr*.dat"]),
         (FixScope.Machine, @"%SystemRoot%\System32\spool\PRINTERS", ["*"]),
         (FixScope.Machine, @"%ProgramData%\Microsoft\Search\Data\Applications\Windows", ["Windows.edb"]),
+        (FixScope.Machine, @"%SystemRoot%\ServiceProfiles\LocalService\AppData\Local\FontCache", ["*.dat"]),
+        (FixScope.Machine, @"%SystemRoot%\System32", ["FNTCACHE.DAT"]),
         (FixScope.User, @"%LOCALAPPDATA%", ["IconCache.db"]),
         (FixScope.User, @"%LOCALAPPDATA%\Microsoft\Windows\Explorer", ["iconcache_*.db", "thumbcache_*.db"])
     ];
@@ -159,6 +170,7 @@ public static partial class FixGuard
     {
         var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
         if (System32Programs.Contains(file)) return Path.Combine(system, file);
+        if (WbemPrograms.Contains(file)) return Path.Combine(system, "wbem", file);
         if (string.Equals(file, "powershell.exe", StringComparison.OrdinalIgnoreCase)) return Path.Combine(system, "WindowsPowerShell", "v1.0", "powershell.exe");
         if (string.Equals(file, "onedrive", StringComparison.OrdinalIgnoreCase))
             return new[]
@@ -168,7 +180,7 @@ public static partial class FixGuard
         return null;
     }
 
-    public static bool IsKnownProgram(string file) => System32Programs.Contains(file) || file.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) || file.Equals("onedrive", StringComparison.OrdinalIgnoreCase);
+    public static bool IsKnownProgram(string file) => System32Programs.Contains(file) || WbemPrograms.Contains(file) || file.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) || file.Equals("onedrive", StringComparison.OrdinalIgnoreCase);
 
     public static bool AllowsDelete(FixScope scope, string path, string pattern) =>
         Deletable.Any(x => x.Scope == scope && string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase) && x.Patterns.Contains(pattern, StringComparer.OrdinalIgnoreCase));
@@ -242,7 +254,8 @@ public static partial class FixGuard
             case "w32tm.exe": if (!Is(AllowedW32tm)) problems.Add($"{at}: that w32tm command is not allowed."); break;
             case "pnputil.exe": if (step.Args.Length != 1 || step.Args[0] != "/scan-devices") problems.Add($"{at}: pnputil may only rescan devices."); break;
             case "wsreset.exe": if (step.Args.Length != 0) problems.Add($"{at}: wsreset takes no arguments."); break;
-            case "onedrive": if (step.Args.Length != 1 || step.Args[0] != "/reset") problems.Add($"{at}: OneDrive may only be reset."); break;
+            case "winmgmt.exe": if (!Is(AllowedWinmgmt)) problems.Add($"{at}: that winmgmt command is not allowed."); break;
+            case "onedrive": if (step.Args.Length != 1 || !AllowedOneDrive.Contains(step.Args[0])) problems.Add($"{at}: OneDrive may only be shut down or reset."); break;
             case "powershell.exe":
                 if (step.Args.Length != 4 || step.Args[0] != "-NoProfile" || step.Args[1] != "-NonInteractive" || step.Args[2] != "-Command") { problems.Add($"{at}: PowerShell must run one fixed -Command."); break; }
                 foreach (var bad in Forbidden)
@@ -263,4 +276,17 @@ public static class FixPlan
         var on = options.Where(x => item.Options.Any(o => o.Id.Equals(x, StringComparison.OrdinalIgnoreCase))).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return item.Steps.Where(step => step.When.Length == 0 || (step.When[0] == '!' ? !on.Contains(step.When[1..]) : on.Contains(step.When))).ToList();
     }
+
+    /// <summary>What a step runs, written the way a person would read it, so the page can show the exact commands before anything starts.</summary>
+    public static string Describe(FixStep step) => step.Kind switch
+    {
+        FixStepKind.Run when step.File.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) => "powershell.exe -Command " + (step.Args.Length > 0 ? step.Args[^1] : ""),
+        FixStepKind.Run when step.File.Equals("onedrive", StringComparison.OrdinalIgnoreCase) => string.Join(' ', step.Args.Prepend("OneDrive.exe")),
+        FixStepKind.Run => string.Join(' ', step.Args.Prepend(step.File)),
+        FixStepKind.DeleteFiles => $"Delete {string.Join(", ", step.Patterns)} in {step.Path}",
+        FixStepKind.RenameFolder => $"Rename {step.Path} to {System.IO.Path.GetFileName(step.Path)}.bak",
+        FixStepKind.StopExplorer => "Close File Explorer",
+        FixStepKind.StartExplorer => "Start File Explorer",
+        _ => "Restart File Explorer"
+    };
 }
