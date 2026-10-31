@@ -625,7 +625,9 @@ public sealed class RegistryFidelityTests : IDisposable
         using (var key = sandbox.Root.OpenSubKey(@"HKU\" + RepairSandbox.Sid + path[4..], RegistryKeyPermissionCheck.ReadWriteSubTree, RegistryRights.ChangePermissions)!)
         {
             var security = new RegistrySecurity();
-            security.SetSecurityDescriptorSddlForm("D:P(A;OICI;CCSWRPWPRC;;;WD)(A;OICI;KA;;;SY)(A;OICI;KA;;;BA)", AccessControlSections.Access);
+            // Administrators are left out of the list: on a PC where the tests run elevated (a build server) that group would give full access,
+            // and the plain delete below would succeed. The real keys are owned by Administrators, but only an elevated token ever gets to use that.
+            security.SetSecurityDescriptorSddlForm("D:P(A;OICI;CCSWRPWPRC;;;WD)(A;OICI;KA;;;SY)", AccessControlSections.Access);
             key.SetAccessControl(security);
         }
         var before = sandbox.Dump();
