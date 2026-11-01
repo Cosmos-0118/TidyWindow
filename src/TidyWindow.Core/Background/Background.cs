@@ -140,6 +140,8 @@ public static partial class BackgroundGuard
 /// <summary>Reads what is on this PC and works out, for each catalog item, whether it is present, allowed to run, running, and whether it is safe to turn off.</summary>
 public static class BackgroundScan
 {
+    public const string UcpdLock = "Windows blocks changing this setting directly (User Choice Protection Driver), even with administrator permission. Remove Widgets on the Debloat page, or turn the Widgets button off in Settings > Personalization > Taskbar.";
+
     public static BackgroundScanResult Run(IBackgroundSystem system, IReadOnlyList<BackgroundItem> catalog)
     {
         system.Refresh();
@@ -199,7 +201,8 @@ public static class BackgroundScan
     {
         var value = system.Policy(target.Key, target.Name);
         var on = value != target.Block;
-        var rule = target.NeedsPro && system.Edition.StartsWith("Core", StringComparison.OrdinalIgnoreCase) ? "Windows Home does not support this setting." : null;
+        var rule = target.NeedsPro && system.Edition.StartsWith("Core", StringComparison.OrdinalIgnoreCase) ? "Windows Home does not support this setting."
+            : target.BlockedByUcpd && system.UcpdActive ? UcpdLock : null;
         return new(target, true, on, false, rule);
     }
 }

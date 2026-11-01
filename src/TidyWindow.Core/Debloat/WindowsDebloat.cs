@@ -298,7 +298,10 @@ public sealed class WindowsAppxOps : IAppxOps
         if (!DebloatGuard.IsToken(fullName) || sids.Any(x => !DebloatGuard.IsSid(x))) return "Not a package name.";
         // Everyone first: removing it for one account first leaves Windows holding the files for itself, and its "all users" removal then has nothing to finish.
         // Each account is tried afterwards, for a package that is still registered for some of them.
-        var script = new StringBuilder($"$e=@();try{{Remove-AppxPackage -Package '{fullName}' -AllUsers}}catch{{$e+=$_.Exception.Message}};");
+        // First the package's own programs are closed. A running WidgetBoard.exe holds the packageManagement capability and installs Widgets back
+        // from C:\Windows\InboxApps, and a running program also holds its files open, which makes Windows refuse the removal.
+        var script = new StringBuilder($"$e=@();Get-Process -ErrorAction SilentlyContinue|Where-Object{{$_.Path -like '*\\WindowsApps\\{fullName}\\*'}}|Stop-Process -Force -ErrorAction SilentlyContinue;");
+        script.Append($"try{{Remove-AppxPackage -Package '{fullName}' -AllUsers}}catch{{$e+=$_.Exception.Message}};");
         if (sids.Count > 0)
         {
             script.Append($"if(Get-AppxPackage -AllUsers|Where-Object{{$_.PackageFullName -eq '{fullName}'}}){{");

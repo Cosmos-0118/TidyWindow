@@ -26,6 +26,8 @@ public sealed class BackgroundTarget
     public int Block { get; init; } = 1;
     /// <summary>Policies only: Windows Home ignores this setting.</summary>
     public bool NeedsPro { get; init; }
+    /// <summary>Policies only: Windows' User Choice Protection Driver (UCPD) refuses writes to this value, even from an administrator, while the driver is active.</summary>
+    public bool BlockedByUcpd { get; init; }
 }
 
 /// <summary>One thing that may run in the background, described for a person rather than for an administrator. Items are data (background-catalog.json).</summary>
@@ -65,6 +67,8 @@ public interface IBackgroundSystem
     IReadOnlyList<ServiceFact> Dependents(string name);
     TaskFact? Task(string path);
     int? Policy(string key, string name);
+    /// <summary>Whether Windows' User Choice Protection Driver is installed and not disabled. It blocks some settings at the kernel, so no permission prompt gets past it.</summary>
+    bool UcpdActive => false;
 }
 
 /// <summary>The few writes the page may make. Nothing here deletes a service or a task, or edits what a program installed.</summary>

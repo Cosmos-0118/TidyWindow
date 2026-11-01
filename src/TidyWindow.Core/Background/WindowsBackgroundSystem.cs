@@ -21,6 +21,20 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
 
     public string Expand(string text) => Environment.ExpandEnvironmentVariables(text);
 
+    /// <summary>UCPD is a kernel driver, so it is not in the service list (which keeps only Windows services). It is on while its start value is anything but disabled (4).</summary>
+    public bool UcpdActive { get; } = ReadUcpd();
+
+    private static bool ReadUcpd()
+    {
+        try
+        {
+            using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var key = root.OpenSubKey(ServicesPath + @"\UCPD");
+            return key is not null && key.GetValue("Start") is int start && start != 4;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return false; }
+    }
+
     private static string ReadEdition()
     {
         try
