@@ -14,12 +14,13 @@
   </Grid>
   <Grid Grid.Row="1">
    <Grid.ColumnDefinitions><ColumnDefinition x:Name="SidebarColumn" Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-   <!-- Rests as an icon rail and opens over the page (it never pushes the content) while the pointer or keyboard focus is on it. -->
+   <!-- Rests as an icon rail. On a wide window it opens over the page; on a narrower one the page moves aside so the titles stay visible. -->
    <!-- The border is the 1px SidebarEdge below instead of a BorderThickness, so the compositor can slide it along with the reveal. -->
    <Border x:Name="Sidebar" Grid.ColumnSpan="2" Canvas.ZIndex="1" Width="56" HorizontalAlignment="Left" Background="{ThemeResource CanvasBrush}"
      PointerEntered="SidebarPointerEntered" PointerExited="SidebarPointerExited" GotFocus="SidebarGotFocus" LostFocus="SidebarLostFocus">
     <Grid Margin="10,20,10,12">
      <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ZoomMode="Disabled">
      <StackPanel Spacing="4">
      <Button x:Name="OverviewNav" Style="{StaticResource NavButton}" Click="OverviewClick" AutomationProperties.Name="Overview">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE80F;" FontSize="15" /><TextBlock x:Name="OverviewLabel" Text="Overview" FontSize="13" /></StackPanel>
@@ -55,7 +56,7 @@
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE738;" FontSize="15" /><TextBlock x:Name="DebloatLabel" Text="Debloat" FontSize="13" /></StackPanel>
      </Button>
      <Button x:Name="FixesNav" Style="{StaticResource NavButton}" Click="FixesClick" AutomationProperties.Name="Fixes">
-      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE713;" FontSize="15" /><TextBlock x:Name="FixesLabel" Text="Fixes" FontSize="13" /></StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xEC7A;" FontSize="15" /><TextBlock x:Name="FixesLabel" Text="Fixes" FontSize="13" /></StackPanel>
      </Button>
      <Button x:Name="LabNav" Style="{StaticResource NavButton}" Click="LabClick" AutomationProperties.Name="Lab">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9D9;" FontSize="15" /><TextBlock x:Name="LabLabel" Text="Lab" FontSize="13" /></StackPanel>
@@ -67,6 +68,7 @@
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE81C;" FontSize="15" /><TextBlock x:Name="LogsLabel" Text="Logs" FontSize="13" /></StackPanel>
      </Button>
      </StackPanel>
+     </ScrollViewer>
      <StackPanel Grid.Row="1" Spacing="4">
      <Button Style="{StaticResource NavButton}" x:Name="AppearanceNav" AutomationProperties.Name="Appearance">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE790;" FontSize="15" /><TextBlock x:Name="AppearanceLabel" Text="Appearance" FontSize="13" /></StackPanel>
@@ -75,6 +77,9 @@
        <RadioMenuFlyoutItem x:Name="LightThemeItem" Text="Light" GroupName="Theme" Tag="Light" Click="ThemeClick" />
        <RadioMenuFlyoutItem x:Name="DarkThemeItem" Text="Dark" GroupName="Theme" Tag="Dark" Click="ThemeClick" />
       </MenuFlyout></Button.Flyout>
+     </Button>
+     <Button x:Name="SettingsNav" Style="{StaticResource NavButton}" Click="SettingsClick" AutomationProperties.Name="Settings">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE713;" FontSize="15" /><TextBlock x:Name="SettingsLabel" Text="Settings" FontSize="13" /></StackPanel>
      </Button>
      </StackPanel>
     </Grid>
@@ -404,6 +409,7 @@
     <local:TuneView x:Name="TunePage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:DebloatView x:Name="DebloatPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:FixesView x:Name="FixesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:SettingsView x:Name="SettingsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:LabView x:Name="LabPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>

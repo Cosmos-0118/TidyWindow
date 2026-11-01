@@ -39,4 +39,25 @@ public sealed class AdaptiveLayoutTests
         Assert.True(layout.CompactManagers);
         Assert.True(layout.CompactResults);
     }
+
+    [Theory]
+    [InlineData(480)]
+    [InlineData(1100)]
+    [InlineData(1199)]
+    public void NarrowWindowMovesThePageAsideWhileTheSidebarIsOpen(double width)
+    {
+        var closed = AdaptiveLayout.ForWidth(width);
+        var open = AdaptiveLayout.ForWidth(width, sidebarOpen: true);
+        Assert.Equal(AdaptiveLayout.RailWidth, closed.SidebarWidth);
+        Assert.Equal(AdaptiveLayout.OpenWidth, open.SidebarWidth);
+        Assert.True(closed.SidebarWidth < open.SidebarWidth);
+    }
+
+    [Fact]
+    public void WideWindowKeepsTheSidebarOverThePage()
+    {
+        var open = AdaptiveLayout.ForWidth(1600, sidebarOpen: true);
+        Assert.Equal(AdaptiveLayout.RailWidth, open.SidebarWidth);
+        Assert.False(AdaptiveLayout.PushesContent(AdaptiveLayout.OverlayWidth));
+    }
 }
