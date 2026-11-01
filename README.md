@@ -73,6 +73,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 | **Tune** | Apply a focused set of registry settings, inspect current values and restore saved originals. |
 | **Debloat** | Remove Windows default apps, promoted apps, manufacturer software, Recall, OneDrive and Edge for every account, then put them back from the Removed tab. |
 | **Fixes** | Run standard Windows repairs for system files, Windows Update, networking, audio and more. Inspect the commands first and follow their live output. |
+| **Unstick** | One-press fixes for things that get stuck: restart File Explorer, Start, search, the clipboard, notifications or media keys, unstick screenshots and folder previews, refresh the display, flush DNS or restart WSL. Each runs at once and takes seconds. A separate section restarts sound, Bluetooth, the camera or the print queue, and rescans hardware, and asks for administrator permission once. |
 | **Lab** | Compare a 15-second performance check with the previous one, switch power plans or temporarily change one app's priority. |
 | **Queue** | Follow installs, updates and uninstalls from every page, one operation at a time. |
 | **Logs** | Review outcomes and problems that need attention, without a stream of routine activity. |
@@ -171,6 +172,7 @@ The research notes explain what each tool changes, the evidence behind it, and w
 | [Tune](docs/tune-research.md) | Registry settings, their effects and the tweaks left out for lack of evidence. |
 | [Debloat](docs/debloat-research.md) | How apps are removed for every account, the protected list, OneDrive and Edge checks, and put back. |
 | [Fixes](docs/fixes-research.md) | Standard Windows repair commands, scope and limitations. |
+| [Unstick](docs/unstick-research.md) | The instant restarts and why each is safe, what was left out, and what was checked on a real PC. |
 | [Lab](docs/lab-research.md) | What the performance check measures and how comparisons work. |
 
 ## Contributing

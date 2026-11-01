@@ -60,6 +60,9 @@
      <Button x:Name="FixesNav" Style="{StaticResource NavButton}" Click="FixesClick" AutomationProperties.Name="Fixes">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xEC7A;" FontSize="15" /><TextBlock x:Name="FixesLabel" Text="Fixes" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="UnstickNav" Style="{StaticResource NavButton}" Click="UnstickClick" AutomationProperties.Name="Unstick">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE72C;" FontSize="15" /><TextBlock x:Name="UnstickLabel" Text="Unstick" FontSize="13" /></StackPanel>
+     </Button>
      <Button x:Name="LabNav" Style="{StaticResource NavButton}" Click="LabClick" AutomationProperties.Name="Lab">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9D9;" FontSize="15" /><TextBlock x:Name="LabLabel" Text="Lab" FontSize="13" /></StackPanel>
      </Button>
@@ -413,6 +416,7 @@
     <local:TuneView x:Name="TunePage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:DebloatView x:Name="DebloatPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:FixesView x:Name="FixesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:UnstickView x:Name="UnstickPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:SettingsView x:Name="SettingsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:LabView x:Name="LabPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">

@@ -296,6 +296,21 @@
       ]
     },
     {
+      "id": "restart-bluetooth",
+      "name": "Restart Bluetooth",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E702",
+      "summary": "For Bluetooth headphones, a mouse or a keyboard that shows as connected but does nothing, or will not pair. Restarts the Bluetooth service.",
+      "effect": "Bluetooth devices disconnect for a moment and reconnect by themselves. Nothing is unpaired.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Fix Bluetooth problems in Windows"],
+      "steps": [
+        { "title": "Stop Bluetooth Support", "file": "net.exe", "args": ["stop", "bthserv", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Start Bluetooth Support", "file": "net.exe", "args": ["start", "bthserv"], "ok": [0, 2], "minutes": 3, "always": true }
+      ]
+    },
+    {
       "id": "rescan-devices",
       "name": "Rescan hardware",
       "group": "devices",

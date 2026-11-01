@@ -127,6 +127,10 @@ An outside review of the page was checked against the code and against this PC (
 | Fix a blank Windows Security window | Apps, user | Registers `Microsoft.SecHealthUI` again, then `Reset-AppxPackage` (optional). Registering apps is per user, so this is a user fix. |
 | Repair WinGet and App Installer | Apps, user | Registers `Microsoft.DesktopAppInstaller` again and runs `winget source update`. `winget source reset --force` needs administrator rights and the helper may be a different account, so the effect text points to it instead. |
 
+### Added later: Restart Bluetooth (1 November 2026)
+
+The catalog is now 24 fixes. **Restart Bluetooth** (Devices, machine) stops and starts `bthserv` and nothing else, for a headset, mouse or keyboard that shows as connected but does nothing. Before this, the only way to restart Bluetooth was the option inside *Restart sound services*, which also restarted audio. `bthserv` was already on the guard's list of services a fix may restart, so the guard did not change. It was added for the Unstick page ([unstick-research.md](unstick-research.md)), which runs it, and four other fixes already here, without the queue. It is listed on this page too. It was checked by the guard and the tests, and run by hand from the Unstick page on 1 November 2026, where it worked.
+
 ### Looked at and not added
 
 - **Reset display driver / restart the compositor.** The first round dropped this on purpose (disabling the display adapter can leave a black screen on a one-GPU PC) and nothing has changed.
