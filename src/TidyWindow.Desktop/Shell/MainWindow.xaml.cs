@@ -55,7 +55,14 @@ public sealed partial class MainWindow : Window
         toasts = new(action => DispatcherQueue.TryEnqueue(() => action()));
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator, new ChocolateyFeed(), new ScoopCatalog());
-        var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")));
+        // Repairs to Windows-wide records go through a helper that only runs after the person approves the Windows permission prompt.
+        // An uninstall that fails uses the same repair engine, so the helper is shared.
+        var installSystem = new WindowsInstallSystem();
+        var repairHistory = new RepairHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "RepairBackups"));
+        repairSession = RepairSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
+        var repairService = new RepairService(installSystem, RegistryRepair.User, repairSession, repairSession.OpenAsync, repairSession.Close, repairHistory, new WindowsInstallerOps(), repairSession, new WingetFetcher());
+        var uninstallRecovery = new UninstallRecovery(installSystem, new WindowsUninstallHost(), runner, repairService) { AllowDownload = true };
+        var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")), uninstallRecovery);
         var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
         // Fixes share the queue, and so its live output. Machine-wide fixes run in a helper that sends its output back as it is produced.
         fixSession = FixSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
@@ -90,11 +97,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ToastStack.ItemsSource = toasts.Items;
         Root.DataContext = model;
-        // Repairs to Windows-wide records go through a helper that only runs after the person approves the Windows permission prompt.
-        var installSystem = new WindowsInstallSystem();
-        var repairHistory = new RepairHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "RepairBackups"));
-        repairSession = RepairSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
-        repair = new(installSystem, new RepairService(installSystem, RegistryRepair.User, repairSession, repairSession.OpenAsync, repairSession.Close, repairHistory, new WindowsInstallerOps(), repairSession, new WingetFetcher()), repairHistory, log, toasts, chooseFolder: PickFolderAsync);
+        repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
         var startupSystem = new WindowsStartupSystem();
         startupSession = StartupSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));

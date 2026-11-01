@@ -18,8 +18,9 @@ public static partial class PackageOutputParser
 
     public static string Clean(string text) => Ansi().Replace(text, "").Replace("\b", "");
     // WinGet names what it did not install from a source by where Windows keeps it: the registry's uninstall list (ARP) or a Store package (MSIX).
-    // Registry key names are free text, so the characters allowed are a fixed set with no quotes, pipes, percent signs or redirection.
-    [GeneratedRegex(@"^(?:ARP\\(?:Machine|User)\\X(?:64|86)|MSIX)\\[A-Za-z0-9 ._+\-{}()&,@~=#!\\]+$")]
+    // Registry key names are free text, so the characters allowed are a fixed set with no double quotes, pipes, percent signs or redirection.
+    // Letters and digits of any script are allowed (WinGet prints them as they are); a cut-off name ends in "…", which is not one of them.
+    [GeneratedRegex(@"^(?:ARP\\(?:Machine|User)\\(?:X64|X86|ARM64|ARM)|MSIX)\\[\p{L}\p{N} ._+\-{}()&,@~=#!:';\[\]\\]+$", RegexOptions.IgnoreCase)]
     private static partial Regex WindowsIdentifier();
 
     // WinGet pads a column to its widest cell plus one space, so when every name is short the header reads "Name Id" with a single space.
@@ -31,6 +32,16 @@ public static partial class PackageOutputParser
         var found = words.Count is >= 3 and <= 5 && words.Count > spaced.Count ? words : spaced;
         return found.Select(m => CellWidth(header[..m.Index])).ToArray();
     }
+    /// <summary>Whether two version texts are the same version: trailing ".0" parts do not count, so 6.7.0.0 is 6.7.</summary>
+    internal static bool SameVersion(string left, string right) => string.Equals(WithoutTrailingZeros(left), WithoutTrailingZeros(right), StringComparison.OrdinalIgnoreCase);
+
+    private static string WithoutTrailingZeros(string version)
+    {
+        var parts = version.Trim().Split('.').ToList();
+        while (parts.Count > 1 && parts[^1] == "0") parts.RemoveAt(parts.Count - 1);
+        return string.Join('.', parts);
+    }
+
     public static bool IsSafeId(string id) => id.Length is > 0 and <= 256 && Identifier().IsMatch(id) && !id.Contains("..");
     public static bool IsWindowsId(string id) => id.Length is > 0 and <= 256 && WindowsIdentifier().IsMatch(id) && !id.Contains("..");
     public static bool IsSafeInstalledId(string id) => IsSafeId(id) || IsWindowsId(id);

@@ -66,7 +66,7 @@ public sealed partial class InstalledInventory
     private static string Identity(ManagerKind manager, string id) => $"{manager}:{id.ToUpperInvariant()}";
     // Registry entries often add a generic trailing word the package name lacks ("MSYS2" vs "MSYS2 Installer").
     // Dropping only that word keeps the comparison exact: "Git" still does not match "GitHub".
-    private static string NameKey(string name) => string.Concat(TrimGenericSuffix(name).Normalize(NormalizationForm.FormKC)
+    internal static string NameKey(string name) => string.Concat(TrimGenericSuffix(name).Normalize(NormalizationForm.FormKC)
         .EnumerateRunes().Where(x => Rune.IsLetterOrDigit(x) || x.Value is '+' or '#').Select(x => Rune.ToUpperInvariant(x).ToString()));
     private static string TrimGenericSuffix(string name)
     {
