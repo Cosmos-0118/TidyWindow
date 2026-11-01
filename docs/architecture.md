@@ -7,7 +7,7 @@ TidyWindow is a Windows-specific desktop app built with C#, .NET 10 and WinUI 3.
 | Path | Contents |
 | --- | --- |
 | [`src/TidyWindow.Desktop/`](../src/TidyWindow.Desktop/) | WinUI app. `Shell/` is the main window, `Features/` has one folder per page (view and view model together), and `Controls/`, `Common/` and `Styles/` are shared. |
-| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Lab/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
+| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Unstick/`, `Lab/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
 | [`src/TidyWindow.CleanHost/`](../src/TidyWindow.CleanHost/) | The elevated helper for Windows-wide changes. |
 | [`src/TidyWindow.SearchHost/`](../src/TidyWindow.SearchHost/) | The Scout worker that talks to Everything. |
 | [`tests/TidyWindow.Tests/`](../tests/TidyWindow.Tests/) | Unit tests, in folders that mirror `TidyWindow.Core` (and `Desktop/` for the UI code they link). |

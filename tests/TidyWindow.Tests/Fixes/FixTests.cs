@@ -38,7 +38,7 @@ public sealed class FixCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = FixCatalog.Load();
-        Assert.Equal(23, catalog.Count);
+        Assert.Equal(24, catalog.Count);
         Assert.Empty(FixGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<FixGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); Assert.NotEmpty(x.Duration); });
