@@ -79,6 +79,42 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         return new(run.Results.Count(x => x.Status != RepairStatus.NotFixed), problems, batch, run.Results);
     }
 
+    /// <summary>
+    /// Repairs a program that works as far as Windows Installer is concerned, from the saved copy of its own installer, the way Windows' own Repair does (<c>msiexec /fvomus</c>).
+    /// Nothing is removed from the registry, so there is nothing to undo.
+    /// </summary>
+    public async Task<RepairResult> RepairProgramAsync(MsiProduct product, string title, CancellationToken cancellationToken = default, IProgress<RepairProgress>? progress = null)
+    {
+        var run = new Run(cancellationToken, new(), progress) { Total = 1 };
+        run.Begin(title);
+        var steps = new Steps(run);
+        var finding = new RepairFinding($"repair:{product.Code}", RepairKind.InstallerRecord, title, "", product.Code, RepairLevel.Review, []);
+        var package = product.LocalPackage;
+        if (ops is null || string.IsNullOrWhiteSpace(package) || !system.FileExists(package))
+            return Failed(finding, "Windows Installer has no saved copy of this program's installer, so it cannot be repaired from here.", steps);
+        var elevate = product.Context != "User";
+        if (elevate && elevated is null) return Failed(finding, "Repairing a Windows-wide program needs the administrator helper, which is not available.", steps);
+        if (elevate)
+        {
+            run.Doing("Asking Windows for administrator permission. Approve the prompt when it appears.");
+            await unlock(cancellationToken).ConfigureAwait(false); run.Elevated = true;
+        }
+        try
+        {
+            run.Doing("Repairing the program with Windows Installer, from its saved installer file…");
+            var result = await Task.Run(() => elevate ? elevated!.Reinstall(package, product) : ops.Reinstall(package, product), CancellationToken.None).ConfigureAwait(false);
+            steps.Add($"Repaired it with Windows Installer; it returned {result.ExitCode}. {result.Output}".TrimEnd());
+            if (result.ExitCode is 0 or 3010 or 1641)
+                return Done(finding, "Windows Installer checked the program and put back what was missing or changed.", steps, restart: result.ExitCode != 0);
+            return Failed(finding, $"Windows Installer could not repair it ({Describe(result.ExitCode)}).", steps);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return Failed(finding, ex.Message, steps);
+        }
+        finally { if (elevate) relock(); }
+    }
+
     private void Elevate(Run run)
     {
         if (run.Elevated) return;
@@ -164,30 +200,31 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         }
         else steps.Add("Looked in the program's folder for an uninstaller; none is there.");
 
+        // A bundle whose cached setup program is gone gets one back: from a folder the person chose first, then from WinGet.
+        var bundleTarget = finding.Kind == RepairKind.BundleRecord && ops is not null ? CachedSetup(entry) : null;
+        if (bundleTarget is not null && run.Options.Folders is { Count: > 0 } chosen)
+        {
+            run.Doing($"Checking {chosen.Count} folder{(chosen.Count == 1 ? "" : "s")} you chose for the program's setup program…");
+            var setups = chosen.SelectMany(ops!.FilesIn).Where(x => x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (PutBackSetup(finding, entry, setups, bundleTarget, run, steps, quiet: true) is { } restored) return restored;
+            steps.Add(setups.Count == 0 ? $"Looked in {chosen.Count} folder{(chosen.Count == 1 ? "" : "s")} the person chose; no setup program is there." : $"Looked in {chosen.Count} folder{(chosen.Count == 1 ? "" : "s")} the person chose; none of the {setups.Count} setup programs there is this program's.");
+        }
+
         if (!run.Options.Download || fetcher is null) { steps.Add("Getting the original installer was not allowed, so nothing was downloaded."); return null; }
         run.Doing("Asking WinGet for this program's original installer…");
-        if (fetcher.Match(entry.Name, entry.Version) is not { } match) { steps.Add($"WinGet does not list {entry.Name} {entry.Version} as a package, so there is no original installer to get."); return null; }
+        if (fetcher.Match(entry.Name, entry.Version, run.Token) is not { } match) { steps.Add($"WinGet does not list {entry.Name} {entry.Version} as a package, so there is no original installer to get."); return null; }
         steps.Add($"WinGet knows it as {match.Id} {match.Version}.");
         var work = Path.Combine(Path.GetTempPath(), "TidyWindow-repair-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
             if (finding.Kind == RepairKind.BundleRecord && ops is not null)
             {
-                var target = CachedSetup(entry);
-                if (target is null) steps.Add("The entry does not name a setup program in Windows' package cache, so there is nowhere to put one back.");
+                if (bundleTarget is null) steps.Add("The entry does not name a setup program in Windows' package cache, so there is nowhere to put one back.");
                 else
                 {
                     run.Doing($"Downloading {match.Id} {match.Version} from WinGet…");
-                    var downloads = fetcher.Download(match, work, null, run.Token).Where(x => x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)).ToList();
-                    foreach (var file in downloads)
-                    {
-                        run.Doing("Checking the download's signature and putting it back in Windows' package cache…");
-                        var result = ops.RestoreBundleCopy(file, entry.Name, target);
-                        steps.Add(result.ExitCode == 0 ? $"Put the downloaded setup program back as {target}." : $"Could not put the downloaded setup program back as {target}: {result.Output}".TrimEnd());
-                        if (result.ExitCode == 0) run.Files.Add(target);
-                        if (result.ExitCode == 0 && Uninstallable(entry.Key))
-                            return Done(finding, "The program's own setup program was downloaded and put back in Windows' package cache, so it can be uninstalled and repaired from the Windows list again.", steps);
-                    }
+                    var downloads = fetcher.Download(match, work, ArchitectureOf(entry), run.Token).Where(x => x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (PutBackSetup(finding, entry, downloads, bundleTarget, run, steps, quiet: false) is { } downloaded) return downloaded;
                 }
             }
             else
@@ -203,6 +240,50 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         steps.Add("The entry still names an uninstaller that is not there.");
         return null;
     }
+
+    /// <summary>
+    /// Puts the first of these setup programs that is this program's back in the package cache. A Windows-wide bundle's cache needs administrator rights, so the helper does it;
+    /// <paramref name="quiet"/> skips the ones that are simply another program's, as a folder full of downloads is mostly.
+    /// </summary>
+    private RepairResult? PutBackSetup(RepairFinding finding, UninstallEntry entry, IEnumerable<string> files, string target, Run run, Steps steps, bool quiet)
+    {
+        foreach (var file in files)
+        {
+            run.Doing("Checking the setup program's signature and putting it back in Windows' package cache…");
+            RunResult result;
+            if (InstallRepair.IsMachine(entry.Key) && elevated is not null) { Elevate(run); result = elevated.RestoreBundleCopy(file, entry.Name, target); }
+            else result = ops!.RestoreBundleCopy(file, entry.Name, target);
+            // 87 is "not this program's"; a folder of downloads is full of those.
+            if (quiet && result.ExitCode == 87) continue;
+            steps.Add(result.ExitCode == 0 ? $"Put the setup program back as {target}." : $"Could not put the setup program back as {target}: {result.Output}".TrimEnd());
+            if (result.ExitCode != 0) continue;
+            run.Files.Add(target);
+            if (Uninstallable(entry.Key))
+                return Done(finding, "The program's own setup program was put back in Windows' package cache, so it can be uninstalled and repaired from the Windows list again.", steps);
+        }
+        return null;
+    }
+
+    /// <summary>The architecture a program was built for, from what its entry says about itself, so WinGet is asked for that build and not the one for another processor.</summary>
+    internal static string? ArchitectureOf(UninstallEntry entry)
+    {
+        var setup = InstallRepair.Candidates(string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString).Select(x => Path.GetFileName(x.Trim().Trim('"'))).FirstOrDefault() ?? "";
+        var text = entry.Name + " " + setup;
+        if (Arm64().IsMatch(text)) return "arm64";
+        if (X64().IsMatch(text)) return "x64";
+        if (X86().IsMatch(text)) return "x86";
+        return entry.Key.Contains(@"\WOW6432Node\", StringComparison.OrdinalIgnoreCase) ? "x86" : null;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<![A-Za-z0-9])(?:arm64|aarch64)(?![A-Za-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex Arm64();
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<![A-Za-z0-9])(?:x64|amd64|x86[-_]64|64-bit)(?![A-Za-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex X64();
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<![A-Za-z0-9])(?:x86|win32|32-bit)(?![A-Za-z0-9])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex X86();
+
+    /// <summary>A file under C:\ProgramData is only reachable with administrator rights.</summary>
+    private static bool NeedsAdminFile(string path) => path.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The setup program in Windows' package cache that the entry's uninstall command names.</summary>
     private string? CachedSetup(UninstallEntry entry)
@@ -323,7 +404,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         foreach (var query in queries.Take(4))
         {
             run.Doing($"Asking WinGet for {query.Name}…");
-            if (fetcher!.Match(query.Name, query.Version) is not { } package || !tried.Add(package.Id + " " + package.Version)) continue;
+            if (fetcher!.Match(query.Name, query.Version, run.Token) is not { } package || !tried.Add(package.Id + " " + package.Version)) continue;
             run.Doing($"Downloading {package.Id} {package.Version} from WinGet…");
             steps.Add($"WinGet knows {query.Name} as {package.Id} {package.Version}; downloaded that version.");
             var found = matching(fetcher.Download(package, Path.Combine(work, "download" + tried.Count), architecture, run.Token));
@@ -502,7 +583,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
     {
         var run = new Run(cancellationToken, new(), progress) { Total = 1 };
         run.Begin(batch.Title);
-        if (batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)))
+        if (batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)) || batch.PutBack.Any(NeedsAdminFile))
         {
             run.Doing("Asking Windows for administrator permission. Approve the prompt when it appears.");
             await unlock(cancellationToken).ConfigureAwait(false); run.Elevated = true;
@@ -544,7 +625,8 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             foreach (var file in batch.PutBack)
             {
                 run.Doing($"Removing the setup program the repair put back ({Path.GetFileName(file)})…");
-                if (ops is null || ops.RemoveCopy(file)) removed++;
+                var remover = NeedsAdminFile(file) && elevated is not null ? elevated : ops;
+                if (remover is null || remover.RemoveCopy(file)) removed++;
                 else problems.Add($"{Path.GetFileName(file)}: Windows would not let TidyWindow remove the setup program it put back. The registry keys were put back.");
             }
             return new(applied.Count, problems, removed);

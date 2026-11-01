@@ -29,18 +29,40 @@ public sealed class ResultRow(RepairResult result)
     public string Status => result.Status switch { RepairStatus.Fixed => "Fixed", RepairStatus.FixedAfterRestart => "Fixed after restart", _ => "Could not fix" };
     public string Glyph => result.Status == RepairStatus.NotFixed ? "\uE7BA" : result.Status == RepairStatus.FixedAfterRestart ? "\uE777" : "\uE73E";
     public string Steps => string.Join("\n", result.Steps);
+    public IReadOnlyList<StepRow> StepItems => result.Steps.Select(x => new StepRow(x)).ToList();
+    public string StepsLabel => result.Steps.Count == 1 ? "1 step tried" : $"{result.Steps.Count} steps tried";
     public Visibility StepsVisibility => result.Steps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string AutomationName => $"{Title}: {Status}. {Summary}";
+}
+
+/// <summary>One step of a repair, marked when it did not work out so the list reads at a glance.</summary>
+public sealed class StepRow(string text)
+{
+    private static readonly string[] Setbacks = ["could not", "not allowed", "none matches", "does not list", "is not this", "still missing", "still names", "still does not", "nothing there", "none is there", "no setup program"];
+    public string Text => text;
+    private bool Problem => Setbacks.Any(x => text.Contains(x, StringComparison.OrdinalIgnoreCase));
+    public Visibility OkVisibility => Problem ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility ProblemVisibility => Problem ? Visibility.Visible : Visibility.Collapsed;
 }
 
 public sealed class RepairGroup(string name) : ObservableState
 {
     public string Name { get; } = name;
     public ObservableCollection<RepairRow> Rows { get; } = [];
+    private IEnumerable<RepairRow> Fixable => Rows.Where(x => x.Finding.CanFix);
+
+    /// <summary>Ticks or clears every row in the group that can be fixed; a broken bundle can bring dozens of them with it.</summary>
+    public bool AllSelected
+    {
+        get => Fixable.Any() && Fixable.All(x => x.IsSelected);
+        set { foreach (var row in Fixable) row.IsSelected = value; Changed(nameof(AllSelected)); }
+    }
+    public Visibility SelectAllVisibility => Fixable.Count() > 1 ? Visibility.Visible : Visibility.Collapsed;
+    public void Refresh() => Changed(nameof(AllSelected));
 }
 
 /// <summary>One program in the full list, for removing an entry by hand.</summary>
-public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys) : ObservableState
+public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys, MsiProduct? repairable = null) : ObservableState
 {
     private ImageSource? icon;
     public UninstallEntry Entry { get; } = entry;
@@ -50,10 +72,16 @@ public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys)
     public IconQuery IconQuery => new(Entry.Name, "", "", Entry.DisplayIcon, Entry.InstallLocation, Entry.UninstallString.Length > 0 ? Entry.UninstallString : Entry.QuietUninstallString, InstallRepair.ProductCode(Entry) ?? "");
     public IReadOnlyList<string> Keys { get; } = keys;
     public string Name => Entry.Name;
-    public string Sub => string.Join(" · ", new[] { Entry.Publisher, Entry.Version }.Where(x => x.Length > 0));
+    /// <summary>A package another program installs for itself (a Burn bundle's parts): Windows hides it from the list.</summary>
+    public bool Hidden => Entry.SystemComponent;
+    /// <summary>The Windows Installer product this row can be repaired as, when it still has its saved installer copy.</summary>
+    public MsiProduct? RepairProduct { get; } = repairable;
+    public Visibility RepairVisibility => RepairProduct is null ? Visibility.Collapsed : Visibility.Visible;
+    public string Sub => string.Join(" · ", new[] { Entry.Publisher, Entry.Version, Hidden ? "Hidden sub-package" : "" }.Where(x => x.Length > 0));
     public string Where => Entry.Key.StartsWith("HKCU", StringComparison.OrdinalIgnoreCase) ? "Just for you" : "All users";
     public Visibility AdminVisibility => Keys.Any(InstallRepair.IsMachine) ? Visibility.Visible : Visibility.Collapsed;
     public string AutomationName => $"{Name}, {Where}";
+    public string RepairAutomationName => $"Repair {Name}, {Where}";
 }
 
 /// <summary>One finished repair, kept so it can be undone later.</summary>
@@ -89,7 +117,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     private readonly IconService icons = iconService ?? IconService.Shared;
     private static readonly string[] GroupOrder = ["Programs Windows still lists but cannot remove", "Windows Installer records", "Installs that got stuck", "Waiting on Windows"];
     private readonly CancellationTokenSource lifetime = new();
-    private IReadOnlyList<ProgramRow> allPrograms = [];
+    private IReadOnlyList<ProgramRow> allPrograms = [], everyProgram = [];
+    private bool showHidden;
     private IReadOnlyList<MsiProduct> scanProducts = [];
     private bool restartNeeded, allowDownload = true;
     private readonly List<string> installerFolders = [];
@@ -103,6 +132,9 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public BulkObservableCollection<ResultRow> Results { get; } = new();
     /// <summary>Whether a program's original installer may be fetched from WinGet when its own copy is gone.</summary>
     public bool AllowDownload { get => allowDownload; set => Set(ref allowDownload, value); }
+    /// <summary>Also list the packages other programs install for themselves, which Windows hides: one of them can block an install with "another version is already installed".</summary>
+    public bool ShowHidden { get => showHidden; set { if (Set(ref showHidden, value)) Relist(); } }
+    public Visibility ClearFoldersVisibility => installerFolders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string InstallerFolderText => installerFolders.Count == 0 ? "No folder chosen" : installerFolders.Count == 1 ? installerFolders[0] : $"{installerFolders.Count} folders chosen";
     public Visibility LocateVisibility => chooseFolder is null ? Visibility.Collapsed : Visibility.Visible;
 
@@ -111,7 +143,15 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     {
         if (chooseFolder is null || Busy) return;
         if (await chooseFolder() is { Length: > 0 } folder && !installerFolders.Contains(folder, StringComparer.OrdinalIgnoreCase)) installerFolders.Add(folder);
-        Changed(nameof(InstallerFolderText));
+        Changed(nameof(InstallerFolderText)); Changed(nameof(ClearFoldersVisibility));
+    }
+
+    /// <summary>Forgets the folders chosen for the installer.</summary>
+    public void ClearInstallerFolders()
+    {
+        if (Busy) return;
+        installerFolders.Clear();
+        Changed(nameof(InstallerFolderText)); Changed(nameof(ClearFoldersVisibility));
     }
 
     public Visibility ResultsVisibility => Results.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -169,6 +209,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         var chosen = SelectedRows().ToList();
         selectedCount = chosen.Count;
         Changed(nameof(CanFix)); Changed(nameof(FixLabel));
+        foreach (var group in Groups) group.Refresh();
     }
 
     public async Task ScanAsync()
@@ -203,7 +244,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             var title = GroupOrder[finding.Kind switch
             {
                 RepairKind.BrokenEntry => 0,
-                RepairKind.InstallerRecord or RepairKind.BundleRecord or RepairKind.DanglingLinks => 1,
+                RepairKind.InstallerRecord or RepairKind.BundleRecord or RepairKind.DanglingLinks or RepairKind.MissingPatch => 1,
                 RepairKind.InstallLock or RepairKind.RunningInstaller or RepairKind.InstallerService => 2,
                 _ => 3
             }];
@@ -217,14 +258,28 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             group.Rows.Add(new RepairRow(finding, RowChanged));
         }
         scanProducts = scan.Products;
-        allPrograms = scan.Entries
-            .Where(x => x.Name.Trim().Length > 0 && !x.SystemComponent && !x.IsUpdate)
+        everyProgram = scan.Entries
+            .Where(x => x.Name.Trim().Length > 0 && !x.IsUpdate)
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(x => new ProgramRow(x, InstallRepair.RemovalKeys(x, scan.Products))).ToList();
-        foreach (var row in allPrograms) if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
+            .Select(x => new ProgramRow(x, InstallRepair.RemovalKeys(x, scan.Products), Repairable(x, scan.Products))).ToList();
+        if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+        Relist();
+    }
+
+    /// <summary>The product a list entry stands for, when Windows Installer still has the installer copy it needs to repair it.</summary>
+    private MsiProduct? Repairable(UninstallEntry entry, IReadOnlyList<MsiProduct> products)
+    {
+        var code = InstallRepair.ProductCode(entry);
+        return code is null ? null : products.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(x.LocalPackage) && system.FileExists(x.LocalPackage));
+    }
+
+    /// <summary>Lists the programs again: the hidden sub-packages only when asked for.</summary>
+    private void Relist()
+    {
+        allPrograms = showHidden ? everyProgram : everyProgram.Where(x => !x.Hidden).ToList();
+        foreach (var row in allPrograms) if (row.Icon is null && icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
         ApplyFilter(keepPosition: true);
         Changed(nameof(ProgramCount));
-        if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
         _ = LoadIconsAsync(allPrograms);
     }
 
@@ -261,13 +316,45 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public async Task RemoveProgramAsync(ProgramRow row)
     {
         if (Busy) return;
-        // A program Windows Installer knows is removed with its whole record, found in every place, not only the few keys the list shows.
+        var id = "manual:" + row.Entry.Key;
         var code = InstallRepair.ProductCode(row.Entry);
-        var product = code is null ? null : scanProducts.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
-        var finding = product is null
-            ? new RepairFinding("manual:" + row.Entry.Key, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys)
-            : new RepairFinding("manual:" + row.Entry.Key, RepairKind.InstallerRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("product", product.Code, product.Context, product.Sid, [row.Entry.Key]), Product: product);
-        await RunAsync([finding], $"Removed {row.Name} from the list", rescan: true);
+        var products = code is null ? [] : scanProducts.Where(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)).ToList();
+        var findings = new List<RepairFinding>();
+        if (products.Count > 0)
+        {
+            // A program Windows Installer knows is removed with its whole record, found in every place, and in every context it is registered in.
+            foreach (var product in products)
+                findings.Add(new(findings.Count == 0 ? id : $"{id}:{product.Context}", RepairKind.InstallerRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("product", product.Code, product.Context, product.Sid, [row.Entry.Key]), Product: product));
+        }
+        else if (row.Entry.BundleProvider.Length > 0)
+            // A Burn bundle (Python, Visual C++ and many more) keeps dependency records that name it, and they go with its entry.
+            findings.Add(new(id, RepairKind.BundleRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("bundle", Keys: [row.Entry.Key])));
+        else
+            findings.Add(new(id, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys));
+        await RunAsync(findings, $"Removed {row.Name} from the list", rescan: true);
+    }
+
+    /// <summary>Repairs a working program from the saved copy of its own installer, the way Windows' Repair does. Nothing is removed.</summary>
+    public async Task RepairProgramAsync(ProgramRow row)
+    {
+        if (Busy || row.RepairProduct is not { } product) return;
+        ResetProgress();
+        fixing = true; Notify();
+        try
+        {
+            var result = await service.RepairProgramAsync(product, row.Name, lifetime.Token, new Progress<RepairProgress>(OnProgress));
+            ShowResults([result], result.Status == RepairStatus.FixedAfterRestart);
+            if (result.Status == RepairStatus.NotFixed) toasts.Show("repair", ToastKind.Warning, $"{row.Name} could not be repaired", ToastCenter.Brief(result.Summary));
+            else toasts.Show("repair", ToastKind.Success, $"Repaired {row.Name}", result.Status == RepairStatus.FixedAfterRestart ? "Restart Windows to finish." : "See Last repair on the Problems tab for what was done.");
+            log.Write(result.Status == RepairStatus.NotFixed ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Repaired {row.Name}", result.Summary + " " + string.Join(" ", result.Steps));
+        }
+        catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.Message);
+        }
+        finally { fixing = false; Notify(); }
     }
 
     private async Task RunAsync(IReadOnlyList<RepairFinding> findings, string title, bool rescan)

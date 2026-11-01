@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart, BundleRecord, DanglingLinks, InstallerService }
+public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart, BundleRecord, DanglingLinks, InstallerService, MissingPatch }
 public enum RepairLevel { Recommended, Review, Info }
 
 /// <summary>One program as Windows lists it in "Installed apps", read from the registry.</summary>
@@ -17,6 +17,9 @@ public sealed record UninstallEntry(string Key, string Name, string Version, str
 public sealed record MsiProduct(string Code, string Context, string Sid, string Name, string? LocalPackage);
 
 public sealed record RunningInstaller(int Id, string Name, DateTimeOffset? Started);
+
+/// <summary>An update (patch) a program wears whose saved .msp file is gone. <see cref="Keys"/> are the registrations of that patch to remove: the program's own links to it, and the patch's shared records when nothing else wears it.</summary>
+public sealed record DeadPatch(string Patch, string File, IReadOnlyList<string> Programs, IReadOnlyList<string> Keys);
 
 /// <summary>Something wrong that a repair can fix, with exactly the registry keys that fixing it removes.</summary>
 public sealed record RepairFinding(string Id, RepairKind Kind, string Title, string Detail, string Evidence, RepairLevel Level, IReadOnlyList<string> Keys, int? ProcessId = null,
@@ -56,6 +59,12 @@ public interface IInstallSystem
     bool BundleHasChildren(string bundleId) => false;
     /// <summary>The Windows Installer service is stuck starting or stopping, with nothing installing.</summary>
     bool InstallerServiceStuck() => false;
+    /// <summary>Called once at the start of every scan, so anything read from the registry for the last scan is read again.</summary>
+    void BeginScan() { }
+    /// <summary>Updates whose saved patch file is gone while a program still wears them: what repairing, updating or removing that program trips over (error 1612 or 1714).</summary>
+    IReadOnlyList<DeadPatch> DeadPatches() => [];
+    /// <summary>Windows Installer's saved rollback information, left behind by an install that was cut short.</summary>
+    bool InstallRollbackExists() => false;
     /// <summary>Removes a folder only if nothing is in it; returns whether it is gone.</summary>
     bool RemoveEmptyFolder(string path) => true;
     /// <summary>The files directly in a folder, or none when it cannot be read.</summary>
@@ -82,16 +91,21 @@ public static partial class InstallRepair
     public static bool IsMachine(string path) => path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase);
 
     public const string InstallLockKey = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress";
+    public const string InstallRollbackKey = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Rollback";
+    /// <summary>INSTALLSTATE_DEFAULT: Windows Installer says the program is installed on this PC.</summary>
+    private const int InstalledState = 5;
     private static readonly string[] UpdateTypes = ["Update", "Hotfix", "Security Update", "Update Rollup", "Service Pack"];
 
     public static RepairScan Scan(IInstallSystem system)
     {
+        system.BeginScan();
         var entries = system.Entries();
         var products = system.Products();
         var findings = new List<RepairFinding>();
         findings.AddRange(BrokenEntries(system, entries));
         findings.AddRange(BrokenRecords(system, products, entries));
         findings.AddRange(Ghosts(system, products));
+        findings.AddRange(DeadPatches(system));
         findings.AddRange(DanglingLinks(system));
         findings.AddRange(StuckInstalls(system));
         return new(entries, products, findings);
@@ -103,8 +117,10 @@ public static partial class InstallRepair
     {
         foreach (var entry in entries)
         {
-            if (string.IsNullOrWhiteSpace(entry.Name) || entry.SystemComponent || entry.IsUpdate) continue;
+            if (string.IsNullOrWhiteSpace(entry.Name) || entry.IsUpdate) continue;
             var code = ProductCode(entry);
+            // A hidden entry is checked only when it is a Windows Installer product: Burn's child packages hide themselves, and one Windows Installer has forgotten still blocks a reinstall.
+            if (entry.SystemComponent && code is null) continue;
             if (code is not null)
             {
                 if (system.ProductState(code) != Unknown) continue;
@@ -123,7 +139,7 @@ public static partial class InstallRepair
             }
             else
             {
-                var found = Candidates(command).ToList();
+                var found = Launched(system, command);
                 if (found.Count == 0 || found.Any(x => Exists(system, x) || IsUri(x))) continue;
                 // A program on a drive that is not plugged in is not broken, only out of reach.
                 if (found.Any(x => !system.DriveAvailable(system.Expand(x)))) continue;
@@ -161,8 +177,22 @@ public static partial class InstallRepair
     {
         var command = string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString;
         if (string.IsNullOrWhiteSpace(command)) return false;
-        var found = Candidates(command).ToList();
+        var found = Launched(system, command);
         return found.Count > 0 && found.Any(x => Exists(system, x) || IsUri(x));
+    }
+
+    private static readonly string[] Hosts = ["cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "rundll32"];
+
+    /// <summary>
+    /// What an uninstall command has to find to work. Where it only hands a script or library to a system host (cmd, PowerShell, rundll32), that script or library is what counts:
+    /// the host itself is always there, so a deleted script would otherwise look healthy.
+    /// </summary>
+    private static List<string> Launched(IInstallSystem system, string command)
+    {
+        var found = Candidates(command).ToList();
+        if (found.Count == 0 || !Hosts.Contains(Path.GetFileNameWithoutExtension(system.Expand(found[0].Trim().Trim('"'))), StringComparer.OrdinalIgnoreCase)) return found;
+        var wrapped = IconCommand.Targets(command, system.Expand).Select(x => x.Path).Where(x => x.IndexOfAny(['\\', '/']) >= 0).ToList();
+        return wrapped.Count > 0 ? wrapped : found;
     }
 
     private static bool Exists(IInstallSystem system, string candidate)
@@ -187,7 +217,12 @@ public static partial class InstallRepair
             if (end > 1) yield return text[1..end];
             yield break;
         }
-        if (ExecutablePrefix().Match(text) is { Success: true } match) { yield return match.Groups[1].Value; yield break; }
+        if (ExecutablePrefix().Match(text) is { Success: true } match)
+        {
+            yield return match.Groups[1].Value;
+            // A prefix that swallowed a switch ("uninst /app=C:\Vendor\app.exe") may have taken an argument for the program's name.
+            if (!SwitchInside().IsMatch(match.Groups[1].Value)) yield break;
+        }
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         for (var count = words.Length; count >= 1; count--) yield return string.Join(' ', words.Take(count));
     }
@@ -210,14 +245,18 @@ public static partial class InstallRepair
     {
         foreach (var product in products)
         {
-            if (string.IsNullOrWhiteSpace(product.LocalPackage) || system.FileExists(product.LocalPackage)) continue;
+            // A record with no saved copy named at all is as broken as one naming a file that is gone, but only when Windows Installer says the program is installed:
+            // a program that is only advertised has no saved copy yet.
+            var unnamed = string.IsNullOrWhiteSpace(product.LocalPackage);
+            if (unnamed ? system.ProductState(product.Code) != InstalledState : system.FileExists(product.LocalPackage!)) continue;
             var arp = entries.Where(x => string.Equals(x.KeyName, product.Code, StringComparison.OrdinalIgnoreCase)).ToList();
             var alive = arp.Any(x => StillThere(system, x)) || system.ProductFilesPresent(product);
             var name = string.IsNullOrWhiteSpace(product.Name) ? arp.FirstOrDefault()?.Name ?? product.Code : product.Name;
             var keys = RecordKeys(product).Concat(arp.Select(x => x.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var lost = unnamed ? "Windows Installer has no saved copy recorded that it needs to repair or uninstall this program" : "Windows Installer lost the saved copy it needs to repair or uninstall this program";
             yield return new($"record:{product.Code}", RepairKind.InstallerRecord, name,
-                alive ? "Windows Installer lost the saved copy it needs to repair or uninstall this program, and the program is still on this PC. TidyWindow first tries to restore the copy from the program's own installer files; if it cannot, it removes the record so the program can be installed again."
-                      : "Windows Installer lost the saved copy it needs to repair or uninstall this program, and the program is gone. Its leftover record blocks installing it again.",
+                alive ? $"{lost}, and the program is still on this PC. TidyWindow first tries to restore the copy from the program's own installer files; if it cannot, it removes the record so the program can be installed again."
+                      : $"{lost}, and the program is gone. Its leftover record blocks installing it again.",
                 product.Code, alive ? RepairLevel.Review : RepairLevel.Recommended, keys,
                 Footprint: new("product", product.Code, product.Context, product.Sid, arp.Select(x => x.Key).ToList()), Product: product, Alive: alive);
         }
@@ -226,12 +265,25 @@ public static partial class InstallRepair
     /// <summary>Programs whose record Windows Installer holds only half of, as an interrupted repair or a half-finished undo leaves them.</summary>
     private static IEnumerable<RepairFinding> Ghosts(IInstallSystem system, IReadOnlyList<MsiProduct> products)
     {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var ghost in system.Ghosts())
         {
-            if (products.Any(x => string.Equals(x.Code, ghost.Code, StringComparison.OrdinalIgnoreCase))) continue;
+            if (products.Any(x => string.Equals(x.Code, ghost.Code, StringComparison.OrdinalIgnoreCase)) || !seen.Add(ghost.Code)) continue;
             yield return new($"ghost:{ghost.Code}", RepairKind.InstallerRecord, string.IsNullOrWhiteSpace(ghost.Name) ? ghost.Code : ghost.Name,
                 "Windows Installer holds part of this program's record but not the rest, so it can neither repair, remove nor reinstall it. This is what an install or repair that was cut short leaves behind. Removing the rest of the record lets the program be installed again.",
                 ghost.Code, RepairLevel.Review, RecordKeys(ghost), Footprint: new("product", ghost.Code, ghost.Context, ghost.Sid), Product: ghost);
+        }
+    }
+
+    /// <summary>Updates whose saved file is gone: the program still lists them, so repairing, updating or removing it asks for a file that no longer exists.</summary>
+    private static IEnumerable<RepairFinding> DeadPatches(IInstallSystem system)
+    {
+        foreach (var patch in system.DeadPatches())
+        {
+            var programs = patch.Programs.Count == 0 ? "a program" : string.Join(", ", patch.Programs.Take(3)) + (patch.Programs.Count > 3 ? $" and {patch.Programs.Count - 3} more" : "");
+            yield return new($"patch:{patch.Patch}", RepairKind.MissingPatch, $"Missing update file for {(patch.Programs.Count == 0 ? "a program" : patch.Programs[0])}",
+                $"{programs} wears an update whose saved file ({Path.GetFileName(patch.File)}) is gone, so repairing, updating or removing it can fail with error 1612 or 1714. Removing the update's registration lets Windows Installer carry on; the changes the update made to the program's files stay.",
+                patch.File, RepairLevel.Review, patch.Keys);
         }
     }
 
@@ -297,9 +349,14 @@ public static partial class InstallRepair
         var installers = system.Installers();
         var lockExists = system.InstallLockExists();
         if (lockExists && !system.InstallerBusy() && installers.Count == 0)
+        {
+            // The rollback information an interrupted install saved goes with its marker; on its own it is left alone.
+            var rollback = system.InstallRollbackExists();
             yield return new("lock", RepairKind.InstallLock, "Windows thinks an install is still running",
-                "An install was interrupted and left its marker behind. Every new install fails with “another installation is in progress” until the marker is removed.",
-                InstallLockKey, RepairLevel.Recommended, [InstallLockKey]);
+                "An install was interrupted and left its marker behind. Every new install fails with “another installation is in progress” until the marker is removed."
+                + (rollback ? " Its saved rollback information is removed with it." : ""),
+                InstallLockKey, RepairLevel.Recommended, rollback ? [InstallLockKey, InstallRollbackKey] : [InstallLockKey]);
+        }
 
         if (!system.InstallerBusy() && installers.Count == 0 && system.InstallerServiceStuck())
             yield return new("service", RepairKind.InstallerService, "The Windows Installer service is stuck",
@@ -328,8 +385,11 @@ public static partial class InstallRepair
     private static partial Regex CacheMarker();
     [GeneratedRegex(@"msiexec", RegexOptions.IgnoreCase)]
     private static partial Regex MsiExec();
-    [GeneratedRegex(@"/[xXiI]\s*(\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\})")]
+    // msiexec takes "/" or "-" for its switches: /x, /i, /f..., /uninstall and /package all name a product by its code.
+    [GeneratedRegex(@"(?:^|\s)[/-](?:[xif][a-z]*|uninstall|package)\s*(\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\})", RegexOptions.IgnoreCase)]
     private static partial Regex MsiCode();
+    [GeneratedRegex(@"\s(?:/[A-Za-z?]|--?[A-Za-z])")]
+    private static partial Regex SwitchInside();
     [GeneratedRegex(@"^(.+?\.(?:exe|bat|cmd|com|msi|cpl|msc|lnk|vbs|ps1))(?=\s|$)", RegexOptions.IgnoreCase)]
     private static partial Regex ExecutablePrefix();
 }

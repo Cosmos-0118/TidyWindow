@@ -455,7 +455,7 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
 
     // ---- Authenticode: is the file signed, does the signature check out, and who signed it? ----
 
-    private static (StartupTrust Trust, string Signer) Verify(string path)
+    internal static (StartupTrust Trust, string Signer) Verify(string path)
     {
         var file = IntPtr.Zero; var data = IntPtr.Zero; var name = IntPtr.Zero;
         var opened = false;

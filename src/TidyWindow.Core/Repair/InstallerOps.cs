@@ -11,19 +11,27 @@ public sealed record MsiPackageInfo(string ProductCode, string PackageCode, stri
 
 public sealed record RunResult(int ExitCode, string Output);
 
-/// <summary>The two jobs that need the elevated helper for a Windows-wide program, apart from changing the registry.</summary>
+/// <summary>The jobs that need the elevated helper for a Windows-wide program, apart from changing the registry.</summary>
 public interface IElevatedOps
 {
     /// <summary>Repairs one product from its own installer file with <c>msiexec /fvomus</c>, which also puts the saved copy back. Refuses a file that is not that product's.</summary>
     RunResult Reinstall(string msiPath, MsiProduct product);
     /// <summary>Stops the Windows Installer service, ending it by force if it does not stop. Nothing else is ever stopped.</summary>
     bool StopInstallerService();
+    /// <summary>
+    /// Puts a bundle's cached setup program back where its list entry says it is, from a downloaded copy that is signed, names the program and is the very file the entry expects.
+    /// A Windows-wide bundle's cache (C:\ProgramData\Package Cache) only administrators can write to, so this runs in the helper for those.
+    /// The bundle's own <c>/repair</c> is not used: with its saved choices gone it installs the default parts (Python's documentation and test suite) as well.
+    /// </summary>
+    RunResult RestoreBundleCopy(string exePath, string programName, string targetPath);
+    /// <summary>Takes back a setup program <see cref="RestoreBundleCopy"/> put in the package cache, and its folder when that is empty. True once the file is gone.</summary>
+    bool RemoveCopy(string path);
 }
 
 /// <summary>Finding and checking the installer file a broken program needs. Reading only; nothing here changes the PC.</summary>
 public interface IInstallerOps : IElevatedOps
 {
-    /// <summary>Installer files that could be this program's, from its own source list and the places Windows and installers keep copies.</summary>
+    /// <summary>Installer files that could be this program's, from its own source list and the places Windows, installers and TidyWindow itself keep copies.</summary>
     IReadOnlyList<string> CandidatePackages(MsiProduct product);
     MsiPackageInfo? ReadPackage(string path);
     /// <summary>The package code Windows Installer registered for the product, as a GUID, or null when it has none.</summary>
@@ -32,18 +40,21 @@ public interface IInstallerOps : IElevatedOps
     IReadOnlyList<string> FilesIn(string folder);
     /// <summary>Unpacks every package out of a program's own setup program (a WiX Burn bundle, with <c>/layout</c>) and returns the .msi files. Only a setup program with a valid signature that names the program is run.</summary>
     IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName);
-    /// <summary>
-    /// Puts a bundle's cached setup program back where its list entry says it is, from a downloaded copy that is signed, names the program and is the very file the entry expects.
-    /// The bundle's own <c>/repair</c> is not used: with its saved choices gone it installs the default parts (Python's documentation and test suite) as well.
-    /// </summary>
-    RunResult RestoreBundleCopy(string exePath, string programName, string targetPath);
-    /// <summary>Takes back a setup program <see cref="RestoreBundleCopy"/> put in the package cache, and its folder when that is empty. True once the file is gone.</summary>
-    bool RemoveCopy(string path);
 }
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsInstallerOps : IInstallerOps
+public sealed partial class WindowsInstallerOps : IInstallerOps
 {
+
+    private const string InstallerKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer";
+
+    /// <summary>Where Windows Installer keeps a product's source list, by context: the signed-in user's, the machine's, or an administrator's for this user (Managed).</summary>
+    private static (RegistryKey Hive, string Path) ProductKey(MsiProduct product, string packed) => product.Context switch
+    {
+        "User" => (Registry.CurrentUser, $@"SOFTWARE\Microsoft\Installer\Products\{packed}"),
+        "Managed" => (Registry.LocalMachine, $@"{InstallerKey}\Managed\{product.Sid}\Installer\Products\{packed}"),
+        _ => (Registry.LocalMachine, $@"SOFTWARE\Classes\Installer\Products\{packed}")
+    };
 
     public IReadOnlyList<string> CandidatePackages(MsiProduct product)
     {
@@ -51,11 +62,10 @@ public sealed class WindowsInstallerOps : IInstallerOps
         var packed = InstallRepair.Pack(product.Code);
         var folders = new List<string>();
         var names = new List<string>();
-        var list = product.Context == "User" ? Registry.CurrentUser : Registry.LocalMachine;
-        var path = product.Context == "User" ? $@"SOFTWARE\Microsoft\Installer\Products\{packed}\SourceList" : $@"SOFTWARE\Classes\Installer\Products\{packed}\SourceList";
+        var (list, path) = ProductKey(product, packed);
         try
         {
-            using var source = list.OpenSubKey(path);
+            using var source = list.OpenSubKey(path + @"\SourceList");
             if (source is not null)
             {
                 if (source.GetValue("PackageName") is string name && name.Length > 0) names.Add(name);
@@ -67,6 +77,15 @@ public sealed class WindowsInstallerOps : IInstallerOps
                     foreach (var value in sub?.GetValueNames() ?? []) if (sub!.GetValue(value) is string folder && kind != "Media") folders.Add(folder);
                 }
             }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+
+        // The folder the program was installed from outlives its source list.
+        try
+        {
+            var sid = product.Context == "Machine" || product.Sid.Length == 0 ? "S-1-5-18" : product.Sid;
+            using var properties = Registry.LocalMachine.OpenSubKey($@"{InstallerKey}\UserData\{sid}\Products\{packed}\InstallProperties");
+            if (properties?.GetValue("InstallSource") is string { Length: > 0 } installSource) folders.Add(installSource);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
 
@@ -83,7 +102,23 @@ public sealed class WindowsInstallerOps : IInstallerOps
             foreach (var name in names) if (SafeExists(Path.Combine(folder, name))) found.Add(Path.Combine(folder, name));
             found.AddRange(Safe(() => Directory.EnumerateFiles(folder, "*.msi")));
         }
+
+        // Copies already on this PC that the program's own records know nothing about: what TidyWindow's Cleanup set aside (kept for 14 days), and what WinGet and Scoop downloaded.
+        // Only installer packages are taken from these; every one is checked against the program before it is used.
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        foreach (var root in new[] { Path.Combine(local, "TidyWindow.Next", "Undo"), Path.Combine(Path.GetTempPath(), "WinGet"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "scoop", "cache") })
+            found.AddRange(Packages(root));
         return found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static IEnumerable<string> Packages(string root)
+    {
+        try
+        {
+            if (!Directory.Exists(root)) return [];
+            return Directory.EnumerateFiles(root, "*.msi", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 4, IgnoreInaccessible = true }).Take(300).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
     }
 
     private static IEnumerable<string> Safe(Func<IEnumerable<string>> read)
@@ -96,12 +131,10 @@ public sealed class WindowsInstallerOps : IInstallerOps
 
     public string? RegisteredPackageCode(MsiProduct product)
     {
-        var packed = InstallRepair.Pack(product.Code);
+        var (hive, path) = ProductKey(product, InstallRepair.Pack(product.Code));
         try
         {
-            using var key = product.Context == "User"
-                ? Registry.CurrentUser.OpenSubKey($@"SOFTWARE\Microsoft\Installer\Products\{packed}")
-                : Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Classes\Installer\Products\{packed}");
+            using var key = hive.OpenSubKey(path);
             return key?.GetValue("PackageCode") is string { Length: 32 } code ? InstallRepair.Unpack(code) : null;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { return null; }
@@ -163,57 +196,92 @@ public sealed class WindowsInstallerOps : IInstallerOps
 
     public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath)
     {
-        if (!targetPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !targetPath.Contains(@"\Package Cache\", StringComparison.OrdinalIgnoreCase)) return new(87, "That is not a place Windows keeps a setup program.");
+        if (PackageCachePath(targetPath) is not { } target) return new(87, "That is not a place Windows keeps a setup program.");
         if (!IsTrusted(exePath, programName)) return new(87, "That setup program is not signed, or does not belong to this program.");
         string original;
         try { original = FileVersionInfo.GetVersionInfo(exePath).OriginalFilename ?? ""; }
         catch (IOException) { return new(2, "The downloaded setup program could not be read."); }
-        if (!string.Equals(original, Path.GetFileName(targetPath), StringComparison.OrdinalIgnoreCase)) return new(87, $"That setup program is {original}, not {Path.GetFileName(targetPath)}.");
+        // Bundles are often built with a generic name inside (Setup.exe) and downloaded under the name the entry expects, so either one is enough.
+        var wanted = Path.GetFileName(target);
+        if (!string.Equals(original, wanted, StringComparison.OrdinalIgnoreCase) && !string.Equals(Path.GetFileName(exePath), wanted, StringComparison.OrdinalIgnoreCase))
+            return new(87, $"That setup program is {(original.Length > 0 ? original : Path.GetFileName(exePath))}, not {wanted}.");
+        var staged = target + ".tidywindow-new";
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            File.Copy(exePath, targetPath, true);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(exePath, staged, true);
+            // The copy now sits in a folder only administrators can write to (for a Windows-wide bundle), so nobody can swap it between this check and the move below.
+            if (!IsTrusted(staged, programName)) { File.Delete(staged); return new(87, "That setup program is not signed, or does not belong to this program."); }
+            File.Move(staged, target, true);
             return new(0, "");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return new(5, ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            try { File.Delete(staged); } catch (Exception inner) when (inner is IOException or UnauthorizedAccessException) { }
+            return new(5, ex.Message);
+        }
     }
 
     public bool RemoveCopy(string path)
     {
-        if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !path.Contains(@"\Package Cache\", StringComparison.OrdinalIgnoreCase)) return false;
+        if (PackageCachePath(path) is not { } target) return false;
         try
         {
-            File.Delete(path);
-            var folder = Path.GetDirectoryName(path);
+            File.Delete(target);
+            var folder = Path.GetDirectoryName(target);
             if (folder is not null && Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
-            return !File.Exists(path);
+            return !File.Exists(target);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 
-    /// <summary>A setup program is only run when Windows says its signature is valid and it names the program it is meant to repair.</summary>
+    /// <summary>The full path of a setup program inside a "Package Cache" folder, or null for anything else. Resolving the path first keeps "..\" from walking out of the cache.</summary>
+    private static string? PackageCachePath(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            return full.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && full.Contains(@"\Package Cache\", StringComparison.OrdinalIgnoreCase) ? full : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+    }
+
+    /// <summary>A setup program is only run when Windows says its signature is valid and its own details name the program it is meant to repair.</summary>
     internal static bool IsTrusted(string exePath, string programName)
     {
         try
         {
-            var first = programName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-            if (first.Length < 3) return false;
             var info = FileVersionInfo.GetVersionInfo(exePath);
             var text = string.Join(' ', info.ProductName, info.FileDescription, info.InternalName, info.OriginalFilename, info.CompanyName, Path.GetFileName(exePath));
-            if (!text.Contains(first, StringComparison.OrdinalIgnoreCase)) return false;
-            var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-            // A PSModulePath inherited from PowerShell 7 or a dev shell stops Windows PowerShell 5.1 loading its security module; its own default is right.
-            start.Environment.Remove("PSModulePath");
-            foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-Command", $"(Get-AuthenticodeSignature -LiteralPath '{exePath.Replace("'", "''")}').Status" }) start.ArgumentList.Add(argument);
-            using var process = Process.Start(start);
-            if (process is null) return false;
-            process.StandardError.ReadToEndAsync();
-            var status = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit(30000);
-            return status == "Valid";
+            if (!Names(text, programName)) return false;
+            // The same in-process check Startup uses: Windows' own WinVerifyTrust, with no PowerShell started per file.
+            return WindowsStartupSystem.Verify(exePath).Trust == StartupTrust.Verified;
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or ArgumentException) { return false; }
+        catch (Exception ex) when (ex is IOException or ArgumentException) { return false; }
     }
+
+    private static readonly HashSet<string> Filler = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "microsoft", "windows", "corporation", "inc", "ltd", "llc", "the", "for", "and", "of", "app", "setup", "installer", "bit", "x64", "x86", "amd64", "arm64"
+    };
+
+    /// <summary>
+    /// Whether a file's own details (product, description, company, file name) name the program. The words that tell programs apart have to be there:
+    /// the program's first one, and its second as well when the name opens with a word every program from that maker or platform shares ("Microsoft", "Windows").
+    /// A short word (R, HP, LG, EA) has to stand alone as a word, so it is not found inside any other.
+    /// </summary>
+    internal static bool Names(string details, string programName)
+    {
+        var words = Words().Matches(programName).Select(x => x.Value).ToList();
+        var distinct = words.Where(x => !x.All(char.IsDigit) && !Filler.Contains(x)).ToList();
+        if (distinct.Count == 0) return false;
+        var whole = Words().Matches(details).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var needed = words.Count > 0 && Filler.Contains(words[0]) ? Math.Min(2, distinct.Count) : 1;
+        return distinct.Take(needed).All(word => word.Length < 3 ? whole.Contains(word) : details.Contains(word, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("[A-Za-z0-9]+")]
+    private static partial System.Text.RegularExpressions.Regex Words();
 
     private static RunResult RunSetup(string exePath, TimeSpan timeout, bool shell, params string[] arguments)
     {

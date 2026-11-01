@@ -84,9 +84,14 @@ public sealed class FakePc : IInstallSystem
     public bool FileExists(string path) => Files.Contains(path);
     public bool FolderExists(string path) => Folders.Contains(path);
     public bool DriveAvailable(string path) => true;
-    public string? FindOnPath(string fileName) => null;
+    public HashSet<string> OnPath = new(StringComparer.OrdinalIgnoreCase);
+    public string? FindOnPath(string fileName) => OnPath.Contains(fileName) ? @"C:\Windows\System32\" + fileName : null;
     public string Expand(string text) => text;
-    public bool InstallLockExists() => false;
+    public bool Lock, Rollback;
+    public List<DeadPatch> Patches = [];
+    public bool InstallLockExists() => Lock;
+    public bool InstallRollbackExists() => Rollback;
+    public IReadOnlyList<DeadPatch> DeadPatches() => Patches;
     public bool InstallerBusy() => false;
     public IReadOnlyList<RunningInstaller> Installers() => [];
     public IReadOnlyList<string> PendingRestart() => [];
@@ -109,7 +114,7 @@ public sealed class FakeFetcher : IInstallerFetcher
     public int ReinstallExit;
     public Action? OnReinstall;
     public List<string> Calls = [];
-    public WingetMatch? Match(string name, string version) { Calls.Add($"match {name} {version}"); return Found; }
+    public WingetMatch? Match(string name, string version, CancellationToken cancellationToken = default) { Calls.Add($"match {name} {version}"); return Found; }
     public IReadOnlyList<string> Download(WingetMatch match, string folder, string? architecture, CancellationToken cancellationToken) { Calls.Add($"download {match.Id} {match.Version} {architecture}"); return Files; }
     public RunResult Reinstall(WingetMatch match, CancellationToken cancellationToken) { Calls.Add($"reinstall {match.Id}"); OnReinstall?.Invoke(); return new(ReinstallExit, ""); }
 }
@@ -126,13 +131,20 @@ public sealed class FakeOps : IInstallerOps
     public Dictionary<string, string[]> Folders = new(StringComparer.OrdinalIgnoreCase), Bundles = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Expanded = [], Repaired = [];
     public int BundleExit;
+    public Func<string, int>? BundleExitFor;
     public Action? OnRepairBundle;
     public IReadOnlyList<string> FilesIn(string folder) => Folders.GetValueOrDefault(folder) ?? [];
     public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName) { Expanded.Add(exePath); return Bundles.GetValueOrDefault(exePath) ?? []; }
     public List<string> RestoredTo = [], Removed = [];
     public bool RemoveWorks = true;
     public bool RemoveCopy(string path) { Removed.Add(path); return RemoveWorks; }
-    public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) { Repaired.Add(exePath); RestoredTo.Add(targetPath); OnRepairBundle?.Invoke(); return new(BundleExit, ""); }
+    public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath)
+    {
+        Repaired.Add(exePath); RestoredTo.Add(targetPath);
+        var exit = BundleExitFor?.Invoke(exePath) ?? BundleExit;
+        if (exit == 0) OnRepairBundle?.Invoke();
+        return new(exit, "");
+    }
     public IReadOnlyList<string> CandidatePackages(MsiProduct product) => Candidates;
     public MsiPackageInfo? ReadPackage(string path) => Packages.GetValueOrDefault(path);
     public string? RegisteredPackageCode(MsiProduct product) => Registered;
@@ -731,6 +743,9 @@ public sealed class RepairHostTests
         public MsiProduct? Reinstalled;
         public RunResult Reinstall(string msiPath, MsiProduct product) { Reinstalled = product; return new(3010, "ok"); }
         public bool StopInstallerService() => true;
+        public List<string> Restored = [], Removed = [];
+        public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) { Restored.Add($"{exePath}|{programName}|{targetPath}"); return new(0, ""); }
+        public bool RemoveCopy(string path) { Removed.Add(path); return true; }
     }
 
     private static RepairSession Session(Recorder editor, Ops ops, bool admin = true) =>
