@@ -462,12 +462,15 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     {
         var took = result.Elapsed.TotalMinutes >= 1 ? $"{(int)result.Elapsed.TotalMinutes} min {result.Elapsed.Seconds} s" : $"{result.Elapsed.TotalSeconds:0.0} s";
         var parts = new List<string> { $"Finished in {took}" };
-        if (result.HeldBytes > 0) parts.Add($"{ByteSize.Format(result.HeldBytes)} held for 14 days");
+        if (result.HeldBytes > 0 && result.FreedBytes > 0) parts.Add($"{ByteSize.Format(result.HeldBytes)} held for 14 days");
+        else if (result.HeldBytes > 0) parts.Add("Space is freed when the 14 days are over");
         if (result.InUse > 0) parts.Add(result.InUse == 1 ? "1 file in use, skipped" : $"{result.InUse:N0} files in use, skipped");
         var missed = result.Denied + result.Failed;
         if (missed > 0) parts.Add($"{missed:N0} could not be removed");
         var detail = string.Join(" · ", parts) + (resultNotes.Count > 0 ? "\n" + string.Join("\n", resultNotes) : "");
-        toasts.Show("clean", missed > 0 ? ToastKind.Warning : ToastKind.Success, ByteSize.Format(result.FreedBytes) + " freed", detail, result.HeldBytes > 0 ? "Undo" : "", result.HeldBytes > 0 ? UndoAsync : null, 14);
+        // Files moved to the undo folder free nothing yet, so a clean of only those would read "0 B freed" next to a Success tick.
+        var headline = result.FreedBytes == 0 && result.HeldBytes > 0 ? ByteSize.Format(result.HeldBytes) + " held for undo" : ByteSize.Format(result.FreedBytes) + " freed";
+        toasts.Show("clean", missed > 0 ? ToastKind.Warning : ToastKind.Success, headline, detail, result.HeldBytes > 0 ? "Undo" : "", result.HeldBytes > 0 ? UndoAsync : null, 14);
     }
 
     public async Task UndoAsync()

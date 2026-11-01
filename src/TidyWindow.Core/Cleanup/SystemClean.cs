@@ -17,6 +17,8 @@ public interface ISystemTools
     Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken);
     /// <summary>Turns one Disk Cleanup handler on or off for the unattended run that follows.</summary>
     void SetCleanupHandler(string handler, int slot, bool enabled);
+    /// <summary>Turns the slot off for every handler, so an interrupted earlier run or another script cannot make the unattended run clean more than was asked for.</summary>
+    void ClearCleanupHandlers(int slot);
     long FreeBytes(string drive);
 }
 
@@ -54,6 +56,22 @@ public sealed class WindowsSystemTools : ISystemTools
         var name = $"StateFlags{slot:D4}";
         if (enabled) key.SetValue(name, 2, Microsoft.Win32.RegistryValueKind.DWord);
         else key.DeleteValue(name, throwOnMissingValue: false);
+    }
+
+    public void ClearCleanupHandlers(int slot)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var name = $"StateFlags{slot:D4}";
+        using var handlers = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(Handlers);
+        foreach (var handler in handlers?.GetSubKeyNames() ?? [])
+        {
+            try
+            {
+                using var key = handlers!.OpenSubKey(handler, writable: true);
+                if (key?.GetValue(name) is not null) key.DeleteValue(name, throwOnMissingValue: false);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
     }
 
     public long FreeBytes(string drive) => new DriveInfo(drive).AvailableFreeSpace;
@@ -170,6 +188,7 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
             case CleanupAction.PreviousWindows:
             {
                 var folder = finding.Roots.FirstOrDefault() ?? Path.Combine(drive + Path.DirectorySeparatorChar, "Windows.old");
+                tools.ClearCleanupHandlers(HandlerSlot);
                 tools.SetCleanupHandler("Previous Installations", HandlerSlot, true);
                 int exit;
                 try { exit = await tools.RunAsync(Path.Combine(system32, "cleanmgr.exe"), [$"/sagerun:{HandlerSlot}"], CleanmgrLimit, token).ConfigureAwait(false); }
@@ -188,6 +207,7 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
                 int exit;
                 try
                 {
+                    tools.ClearCleanupHandlers(HandlerSlot);
                     foreach (var handler in handlers) { tools.SetCleanupHandler(handler, HandlerSlot, true); armed.Add(handler); }
                     exit = await tools.RunAsync(Path.Combine(system32, "cleanmgr.exe"), [$"/sagerun:{HandlerSlot}"], CleanmgrLimit, token).ConfigureAwait(false);
                 }

@@ -83,7 +83,8 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
         var cutoff = rule.MinAgeDays > 0 ? context.Now().AddDays(-rule.MinAgeDays).Ticks : long.MaxValue;
         var filter = unit.Filter;
         var files = new List<(string Path, long Length)>();
-        var folders = new List<string>();
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var emptied = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         // Deleting inside a folder refreshes its own timestamp, so whether it is old enough is decided before anything is removed.
         var folderIsOld = unit.Recurse && wholeFolders && Directory.GetLastWriteTimeUtc(unit.Folder).Ticks < cutoff;
         var enumerable = new FileSystemEnumerable<(string Path, long Length, bool IsDirectory)>(unit.Folder,
@@ -106,7 +107,10 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
             if (token.IsCancellationRequested) return;
             switch (rule.Quarantine ? Hold(batch!, unit, file) : Delete(file.Path))
             {
-                case Outcome.Removed: Interlocked.Add(ref totals.Freed, file.Length); Interlocked.Increment(ref totals.Removed); break;
+                case Outcome.Removed:
+                    Interlocked.Add(ref totals.Freed, file.Length); Interlocked.Increment(ref totals.Removed);
+                    if (wholeFolders && unit.Recurse && Path.GetDirectoryName(file.Path) is { } parent) emptied.TryAdd(parent, 0);
+                    break;
                 case Outcome.Held: Interlocked.Increment(ref totals.Removed); break;
                 case Outcome.InUse: Interlocked.Increment(ref totals.InUse); break;
                 case Outcome.Denied: Interlocked.Increment(ref totals.Denied); break;
@@ -119,10 +123,12 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
         else foreach (var file in files) Remove(file);
 
         // Folders emptied by the clean go too, deepest first; a folder that still holds something refuses and stays.
+        // That includes folders that were too new to remove on their own but only held files that were old enough.
+        foreach (var directory in emptied.Keys)
+            for (var parent = directory; parent is not null && CleanupPaths.IsInside(parent, unit.Root); parent = Path.GetDirectoryName(parent)) folders.Add(parent);
         if (!rule.Quarantine && folders.Count > 0)
         {
-            folders.Sort((a, b) => b.Length.CompareTo(a.Length));
-            foreach (var folder in folders)
+            foreach (var folder in folders.OrderByDescending(x => x.Length))
             {
                 try { Directory.Delete(folder, recursive: false); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
