@@ -13,9 +13,25 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
     /// <exception cref="UnauthorizedAccessException">The change needs administrator rights this process does not have.</exception>
     public StartupOutcome Change(StartupRequest request)
     {
+        try
+        {
+            return request.Action switch
+            {
+                StartupAction.Remove => Remove(request),
+                StartupAction.Restore => Restore(request),
+                _ => Toggle(request)
+            };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or FormatException)
+        { return new(false, ex.Message); }
+    }
+
+    private StartupOutcome Toggle(StartupRequest request)
+    {
         var entry = StartupScan.Find(system, request.Id);
         if (entry is null) return new(false, "That item is no longer on this PC.");
         if (!entry.CanChange) return new(false, entry.Reason);
+        if (!entry.CanToggle) return new(false, "Windows has no on/off switch for this item. It can only be removed.", entry);
         try { Apply(entry, request); }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         { return new(false, ex.Message, entry); }
@@ -23,6 +39,57 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
         return after is null || after.Enabled != request.Enable
             ? new(false, "Windows did not accept the change.", after ?? entry)
             : new(true, null, after);
+    }
+
+    // Taking an item out is the one change that deletes, so the copy needed to put it back is made first and handed back with the outcome.
+    private StartupOutcome Remove(StartupRequest request)
+    {
+        var entry = StartupScan.Find(system, request.Id);
+        if (entry is null) return new(false, "That item is no longer on this PC.");
+        if (!entry.CanChange) return new(false, entry.Reason);
+        if (!entry.CanRemove) return new(false, "That kind of item cannot be removed from startup.", entry);
+        StartupVault vault;
+        switch (entry.Kind)
+        {
+            case StartupKind.RunKey:
+                var value = system.RunValues().FirstOrDefault(x => x.Scope == entry.Scope && x.Where == entry.Source && string.Equals(x.Name, entry.Key, StringComparison.Ordinal));
+                if (value is null) return new(false, "That item is no longer on this PC.");
+                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, value.Command, value.Expandable);
+                writer.RemoveRun(entry.Scope, entry.Source, entry.Key);
+                break;
+            case StartupKind.StartupFolder:
+                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: Convert.ToBase64String(writer.RemoveFolderItem(entry.Scope, entry.Key)));
+                break;
+            default:
+                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: writer.RemoveTask(entry.Key));
+                break;
+        }
+        return StartupScan.Find(system, request.Id) is null
+            ? new(true, null, null, vault)
+            : new(false, "Windows did not accept the change.", entry, vault);
+    }
+
+    // The helper may be asked to put back something it never removed, so it checks the copy is well formed and belongs to the item it was asked for.
+    private StartupOutcome Restore(StartupRequest request)
+    {
+        if (request.Vault is not { } vault) return new(false, "There is nothing to put back.");
+        if (StartupScan.IdFor(vault) != request.Id || vault.Key.Length == 0) return new(false, "That copy does not belong to this item.");
+        if (StartupScan.Find(system, request.Id) is { } already) return new(true, null, already);
+        switch (vault.Kind)
+        {
+            case StartupKind.RunKey:
+                writer.RestoreRun(vault.Scope, vault.Source, vault.Key, vault.Command, vault.Expandable);
+                break;
+            case StartupKind.StartupFolder:
+                writer.RestoreFolderItem(vault.Scope, vault.Key, Convert.FromBase64String(vault.Data));
+                break;
+            case StartupKind.ScheduledTask:
+                writer.RestoreTask(vault.Key, vault.Data);
+                break;
+            default:
+                return new(false, "That kind of item cannot be put back.");
+        }
+        return StartupScan.Find(system, request.Id) is { } after ? new(true, null, after) : new(false, "Windows did not accept the change.");
     }
 
     private void Apply(StartupEntry entry, StartupRequest request)
@@ -114,19 +181,7 @@ public sealed class StartupService(IStartupChanger user, IStartupChanger machine
         if (!entry.CanChange) return new(false, entry.Reason);
         var remembered = history.Get(entry.Id);
         var request = new StartupRequest(entry.Id, enable, remembered?.ServiceStart ?? 2, remembered?.ServiceDelayed ?? false);
-        StartupOutcome outcome;
-        try { outcome = await Task.Run(() => user.Change(request)).ConfigureAwait(false); }
-        catch (UnauthorizedAccessException)
-        {
-            await unlock().ConfigureAwait(false);
-            try { outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false); }
-            catch (IOException)
-            {
-                // The helper leaves by itself after five idle minutes, and the app only finds out when it next uses it. Ask again, once.
-                await unlock().ConfigureAwait(false);
-                outcome = await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
-            }
-        }
+        var outcome = await SendAsync(request).ConfigureAwait(false);
         if (outcome.Ok)
         {
             if (enable) history.Remove(entry.Id);
@@ -135,12 +190,50 @@ public sealed class StartupService(IStartupChanger user, IStartupChanger machine
         return outcome;
     }
 
-    /// <summary>Turns back on everything TidyWindow turned off. Items that are gone from this PC are forgotten.</summary>
+    /// <summary>Takes an item out of startup, keeping a copy so <see cref="RestoreAsync"/> can put it back exactly as it was.</summary>
+    /// <exception cref="OperationCanceledException">The person declined the administrator prompt.</exception>
+    public async Task<StartupOutcome> RemoveAsync(StartupEntry entry)
+    {
+        if (!entry.CanRemove) return new(false, entry.CanChange ? "That kind of item cannot be removed from startup." : entry.Reason);
+        var outcome = await SendAsync(new(entry.Id, false, Action: StartupAction.Remove)).ConfigureAwait(false);
+        // The copy is saved before anything else can go wrong: it is the only way back.
+        if (outcome.Ok && outcome.Vault is { } vault) history.Add(new(entry.Id, entry.Name, entry.Kind, entry.Scope, now(), Removed: true, Vault: vault));
+        return outcome;
+    }
+
+    /// <summary>Puts back an item <see cref="RemoveAsync"/> took out.</summary>
+    /// <exception cref="OperationCanceledException">The person declined the administrator prompt.</exception>
+    public async Task<StartupOutcome> RestoreAsync(StartupChange change)
+    {
+        if (change.Vault is not { } vault) { history.Remove(change.Id); return new(false, "There is no saved copy of this item."); }
+        var outcome = await SendAsync(new(change.Id, true, Action: StartupAction.Restore, Vault: vault)).ConfigureAwait(false);
+        if (outcome.Ok) history.Remove(change.Id);
+        return outcome;
+    }
+
+    private async Task<StartupOutcome> SendAsync(StartupRequest request)
+    {
+        try { return await Task.Run(() => user.Change(request)).ConfigureAwait(false); }
+        catch (UnauthorizedAccessException)
+        {
+            await unlock().ConfigureAwait(false);
+            try { return await Task.Run(() => machine.Change(request)).ConfigureAwait(false); }
+            catch (IOException)
+            {
+                // The helper leaves by itself after five idle minutes, and the app only finds out when it next uses it. Ask again, once.
+                await unlock().ConfigureAwait(false);
+                return await Task.Run(() => machine.Change(request)).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Turns back on everything TidyWindow turned off or removed. Items that are gone from this PC are forgotten.</summary>
     public async Task<IReadOnlyList<(StartupChange Change, StartupOutcome Outcome)>> RestoreAllAsync(IStartupSystem system)
     {
         var results = new List<(StartupChange, StartupOutcome)>();
         foreach (var change in history.All())
         {
+            if (change.Removed) { results.Add((change, await RestoreAsync(change).ConfigureAwait(false))); continue; }
             var entry = await Task.Run(() => StartupScan.Find(system, change.Id)).ConfigureAwait(false);
             if (entry is null) { history.Remove(change.Id); continue; }
             if (entry.Enabled) { history.Remove(change.Id); continue; }

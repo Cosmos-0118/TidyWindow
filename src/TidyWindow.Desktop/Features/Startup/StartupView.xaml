@@ -39,6 +39,7 @@
        <Grid Grid.Column="3" VerticalAlignment="Center" MinWidth="44">
         <ToggleSwitch IsOn="{Binding Enabled, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" Visibility="{Binding ToggleVisibility}" Toggled="ToggleChanged" OnContent="" OffContent="" MinWidth="0" HorizontalAlignment="Right" Margin="0,0,-8,0" AutomationProperties.Name="{Binding AutomationName}" />
         <FontIcon Glyph="&#xE72E;" FontSize="14" Visibility="{Binding LockVisibility}" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Right" Margin="0,0,10,0" ToolTipService.ToolTip="Windows needs this, so it cannot be changed here" />
+        <Button Click="RemoveClick" IsEnabled="{Binding CanRemove}" Visibility="{Binding InlineRemoveVisibility}" Padding="10,5" FontSize="12" HorizontalAlignment="Right" Content="Remove" AutomationProperties.Name="{Binding RemoveName}" ToolTipService.ToolTip="Windows has no switch for this, so it can only be removed. A copy is kept so you can put it back." />
        </Grid>
 
        <Button Grid.Column="4" Click="DetailsClick" Padding="8" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding DetailsName}" ToolTipService.ToolTip="Details">
@@ -63,6 +64,9 @@
         </ItemsControl>
         <Button Click="ShowFolderClick" Visibility="{Binding FolderVisibility}" Padding="10,6" Margin="0,0,0,8" HorizontalAlignment="Left" FontSize="12">
          <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Show in folder" FontSize="12" /></StackPanel>
+        </Button>
+        <Button Click="RemoveClick" IsEnabled="{Binding CanRemove}" Visibility="{Binding RemoveVisibility}" Padding="10,6" Margin="0,0,0,8" HorizontalAlignment="Left" FontSize="12" AutomationProperties.Name="{Binding RemoveName}" ToolTipService.ToolTip="Takes it out of startup for good. A copy is kept in Turned off so you can put it back.">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock Text="Remove from startup" FontSize="12" /></StackPanel>
         </Button>
        </StackPanel>
       </Border>
@@ -148,7 +152,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid Padding="16,12" ColumnSpacing="12" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock Text="Everything TidyWindow has turned off is kept here, even after you close the app. Nothing is deleted, so turning an item back on puts it exactly as it was." Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
+      <TextBlock Text="Everything TidyWindow has turned off or removed is kept here, even after you close the app. Turning an item back on puts it exactly as it was." Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
       <Button Grid.Column="1" Click="RestoreAllClick" IsEnabled="{Binding CanRestore}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Turn everything back on">
        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Turn everything back on" FontSize="12" /></StackPanel>
       </Button>
@@ -164,8 +168,8 @@
            <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
            <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
           </StackPanel>
-          <Button Grid.Column="2" Click="TurnBackOnClick" VerticalAlignment="Center" Padding="12,6" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Start this with Windows again">
-           <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Turn back on" FontSize="12" /></StackPanel>
+          <Button Grid.Column="2" Click="TurnBackOnClick" VerticalAlignment="Center" Padding="12,6" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="{Binding ActionTip}">
+           <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="{Binding ActionText}" FontSize="12" /></StackPanel>
           </Button>
          </Grid>
         </Border>

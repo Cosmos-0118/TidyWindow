@@ -35,6 +35,10 @@ internal sealed class FakeStartupPc : IStartupSystem, IStartupWriter
     public bool FileExists(string path) => Files.TryGetValue(path, out var facts) && facts.Exists;
     public string? FindOnPath(string name) => Files.Keys.FirstOrDefault(x => x.EndsWith("\\" + name, StringComparison.OrdinalIgnoreCase));
     public ISet<string> RunningImages() => Running;
+    public Dictionary<string, List<string>> Subfolder = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<string> Subfolders(string folder) => Subfolder.GetValueOrDefault(folder) ?? [];
+    public Dictionary<string, byte[]> FolderBytes = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> TaskXml = new(StringComparer.OrdinalIgnoreCase);
 
     public void Add(string path, string company = "Acme Corp", StartupTrust trust = StartupTrust.Verified) => Files[path] = new(true, company, "", "", trust);
 
@@ -59,6 +63,40 @@ internal sealed class FakeStartupPc : IStartupSystem, IStartupWriter
     {
         Guard(); Writes.Add($"store {family} {taskId} {enabled}");
         Store = [.. Store.Select(x => x.Family == family && x.TaskId == taskId ? x with { State = enabled ? 2 : 1 } : x)];
+    }
+    public void RemoveRun(StartupScope scope, string source, string name)
+    {
+        Guard(); Writes.Add($"remove-run {scope} {source} {name}");
+        Runs = [.. Runs.Where(x => !(x.Scope == scope && x.Where == source && x.Name == name))];
+    }
+    public void RestoreRun(StartupScope scope, string source, string name, string command, bool expandable)
+    {
+        Guard(); Writes.Add($"restore-run {scope} {source} {name} {expandable}");
+        Runs.Add(new(scope, source is "Run32" or "RunOnce32", name, command, source, expandable));
+    }
+    public byte[] RemoveFolderItem(StartupScope scope, string fileName)
+    {
+        Guard(); Writes.Add($"remove-folder {scope} {fileName}");
+        Folder = [.. Folder.Where(x => !(x.Scope == scope && x.FileName == fileName))];
+        return FolderBytes.GetValueOrDefault(fileName) ?? [1, 2, 3];
+    }
+    public void RestoreFolderItem(StartupScope scope, string fileName, byte[] contents)
+    {
+        Guard(); Writes.Add($"restore-folder {scope} {fileName} {contents.Length}");
+        Folder.Add(new(scope, fileName, $@"C:\Startup\{fileName}", @"C:\Apps\a.exe", ""));
+    }
+    private ScheduledStartup? removedTask;
+    public string RemoveTask(string path)
+    {
+        Guard(); Writes.Add($"remove-task {path}");
+        removedTask = TaskList.First(x => x.Path == path);
+        TaskList = [.. TaskList.Where(x => x.Path != path)];
+        return TaskXml.GetValueOrDefault(path) ?? "<Task/>";
+    }
+    public void RestoreTask(string path, string xml)
+    {
+        Guard(); Writes.Add($"restore-task {path} {xml}");
+        if (removedTask is not null) TaskList.Add(removedTask);
     }
 }
 
@@ -141,6 +179,147 @@ public sealed class StartupScanTests
         var entries = StartupScan.Run(pc).Entries;
         Assert.Equal(2, entries.Count);
         Assert.All(entries, x => { Assert.Equal(StartupRisk.Careful, x.Risk); Assert.True(x.CanChange); });
+    }
+
+    [Fact]
+    public void ALauncherDoesNotLendItsMicrosoftIdentityOrRunningStateToTheScriptItRuns()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Windows\System32\cmd.exe", "Microsoft Corporation");
+        pc.Add(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", "Microsoft Corporation");
+        pc.Add(@"C:\Users\me\tools\sync.bat", "Acme Tools");
+        pc.Running.Add(@"C:\Windows\System32\cmd.exe"); pc.Running.Add(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+        pc.Runs.Add(new(StartupScope.User, false, "Sync", @"C:\Windows\System32\cmd.exe /c start """" C:\Users\me\tools\sync.bat"));
+        pc.Runs.Add(new(StartupScope.User, false, "Inline", @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -enc AAAA"));
+        pc.Runs.Add(new(StartupScope.User, false, "Gone", @"C:\Windows\System32\cmd.exe /c C:\Users\me\tools\deleted.bat"));
+        pc.Runs.Add(new(StartupScope.User, false, "Bare", @"C:\Windows\System32\cmd.exe /c start notepad"));
+        var entries = StartupScan.Run(pc).Entries.ToDictionary(x => x.Key);
+
+        Assert.Equal(@"C:\Users\me\tools\sync.bat", entries["Sync"].ExePath);
+        Assert.Equal("Acme Tools", entries["Sync"].Publisher);
+        Assert.False(entries["Sync"].Running);
+
+        Assert.Equal(StartupTrust.Unknown, entries["Inline"].Trust);
+        Assert.DoesNotContain("Microsoft", entries["Inline"].Publisher);
+        Assert.False(entries["Inline"].Running);
+        Assert.False(entries["Inline"].FileMissing);
+
+        Assert.True(entries["Gone"].FileMissing);
+        Assert.False(entries["Bare"].FileMissing);
+        Assert.All(entries.Values, x => Assert.Equal(StartupRisk.Careful, x.Risk));
+    }
+
+    [Fact]
+    public void ACommandBuiltIntoCmdIsNotMistakenForAProgramOfTheSameNameOnThePath()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Windows\System32\cmd.exe", "Microsoft Corporation"); pc.Add(@"C:\Program Files\Git\usr\bin\echo.exe", "GNU");
+        pc.Runs.Add(new(StartupScope.User, false, "Once", @"C:\Windows\System32\cmd.exe /c echo hi"));
+        var entry = Only(pc);
+        Assert.Equal(@"C:\Windows\System32\cmd.exe", entry.ExePath);
+        Assert.Equal(StartupTrust.Unknown, entry.Trust);
+        Assert.False(entry.FileMissing);
+    }
+
+    [Fact]
+    public void SquirrelAppsAreFoundInsideTheirNewestVersionFolderNotAsTheirUpdater()
+    {
+        var pc = new FakeStartupPc();
+        const string root = @"C:\Users\me\AppData\Local\Discord";
+        pc.Add($@"{root}\Update.exe", "GitHub"); pc.Add($@"{root}\app-1.0.9001\Discord.exe", "Discord Inc."); pc.Add($@"{root}\app-1.0.9010\Discord.exe", "Discord Inc.");
+        pc.Subfolder[root] = [$@"{root}\app-1.0.9001", $@"{root}\app-1.0.9010", $@"{root}\packages"];
+        pc.Running.Add($@"{root}\app-1.0.9010\Discord.exe");
+        pc.Runs.Add(new(StartupScope.User, false, "Discord", $@"""{root}\Update.exe"" --processStart Discord.exe"));
+        var entry = Only(pc);
+        Assert.Equal($@"{root}\app-1.0.9010\Discord.exe", entry.ExePath);
+        Assert.Equal("Discord Inc.", entry.Publisher);
+        Assert.True(entry.Running);
+        Assert.Equal(StartupGuard.OrdinaryReason, entry.Reason);
+    }
+
+    [Fact]
+    public void ATasksArgumentsDecideWhatItStarts()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Windows\System32\cmd.exe", "Microsoft Corporation"); pc.Add(@"C:\Apps\run.bat", "Acme");
+        pc.TaskList.Add(new(@"\Wrapped", "Wrapped", "", "Acme", true, @"C:\Windows\System32\cmd.exe", @"/c C:\Apps\run.bat", true, false, "me"));
+        var entry = Only(pc);
+        Assert.Equal(@"C:\Apps\run.bat", entry.ExePath);
+        Assert.Equal("Acme", entry.Publisher);
+    }
+
+    [Fact]
+    public void OnlyWindowsOwnTasksUnderMicrosoftAreLeftOut()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Windows\System32\sihost.exe", "Microsoft Corporation"); pc.Add(@"C:\Program Files\Office\office.exe", "Microsoft Corporation");
+        pc.TaskList.Add(new(@"\Microsoft\XblGameSave\Sign-in", "Sign-in", "", "Microsoft", true, @"C:\Windows\System32\sihost.exe", "", true, false, "me"));
+        pc.TaskList.Add(new(@"\Microsoft\Office\Logon", "Office Logon", "", "Microsoft", true, @"C:\Program Files\Office\office.exe", "", true, false, "me"));
+        var result = StartupScan.Run(pc);
+        Assert.Equal("Office Logon", Assert.Single(result.Entries).Name);
+        Assert.Equal(1, result.WindowsTasks);
+    }
+
+    [Theory]
+    [InlineData("RunOnce", StartupRisk.Optional)]
+    [InlineData("RunOnce32", StartupRisk.Optional)]
+    [InlineData("PolicyRun", StartupRisk.Careful)]
+    public void RunKeysExplorerCannotSwitchOffAreListedAsRemovableOnly(string source, StartupRisk risk)
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\setup.exe");
+        pc.Runs.Add(new(StartupScope.User, source == "RunOnce32", "Setup", @"C:\Apps\setup.exe /finish", source));
+        var entry = Only(pc);
+        Assert.Equal($"run|user|{source}|Setup", entry.Id);
+        Assert.True(entry.Enabled);
+        Assert.False(entry.CanToggle);
+        Assert.True(entry.CanRemove);
+        Assert.Equal(risk, entry.Risk);
+        Assert.Contains("remove", entry.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.False(new LocalStartupChanger(pc, pc).Change(new(entry.Id, false)).Ok);
+        Assert.Empty(pc.Writes);
+    }
+
+    [Fact]
+    public void AServiceWindowsStartsOnAnEventSaysSoAndASharedHostServiceIsKnownByItsLibrary()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\vpn.exe"); pc.Add(@"C:\Windows\System32\svchost.exe", "Microsoft Corporation");
+        pc.Add(@"C:\Windows\System32\wuauserv.dll", "Microsoft Corporation"); pc.Add(@"C:\Program Files\Acme\acme.dll", "Acme Corp");
+        pc.ServiceList.Add(new("Vpn", "Vpn", "", "\"C:\\Apps\\vpn.exe\"", 0x10, 2, false, "LocalSystem", [], Triggered: true));
+        pc.ServiceList.Add(new("Hosted", "Hosted", "", @"C:\Windows\System32\svchost.exe -k netsvcs", 0x20, 2, false, "LocalSystem", [], ServiceDll: @"C:\Program Files\Acme\acme.dll"));
+        pc.ServiceList.Add(new("wuauserv", "Windows Update", "", @"C:\Windows\System32\svchost.exe -k netsvcs", 0x20, 2, false, "LocalSystem", [], ServiceDll: @"C:\Windows\System32\wuauserv.dll"));
+        var result = StartupScan.Run(pc);
+        var entries = result.Entries.ToDictionary(x => x.Key);
+        Assert.True(entries["Vpn"].ServiceTriggered);
+        Assert.Contains("events", entries["Vpn"].Reason);
+        Assert.Equal("Acme Corp", entries["Hosted"].Publisher);
+        Assert.False(entries["Hosted"].ServiceTriggered);
+        Assert.DoesNotContain("wuauserv", entries.Keys);
+        Assert.Equal(1, result.WindowsServices);
+    }
+
+    [Fact]
+    public void PerUserWinlogonSettingsAreMarkedAsTheUsers()
+    {
+        var pc = new FakeStartupPc();
+        pc.Settings.Add(new("User.Winlogon.Shell", "Your own desktop program (Shell)", @"C:\evil.exe", "", "HKCU", StartupScope.User));
+        var entry = Only(pc);
+        Assert.Equal("setting|user|User.Winlogon.Shell", entry.Id);
+        Assert.Equal(StartupScope.User, entry.Scope);
+        Assert.False(entry.CanChange);
+        Assert.Contains("not the usual", entry.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AShortcutWhoseProgramIsGoneCanStillBeRevealedByItsOwnPath()
+    {
+        var pc = new FakeStartupPc();
+        pc.Folder.Add(new(StartupScope.User, "Old.lnk", @"C:\Users\me\Startup\Old.lnk", @"C:\Gone\old.exe", ""));
+        var entry = Only(pc);
+        Assert.True(entry.FileMissing);
+        Assert.Equal(@"C:\Users\me\Startup\Old.lnk", entry.FolderPath);
+        Assert.True(entry.CanRemove);
     }
 
     [Theory]
@@ -411,6 +590,89 @@ public sealed class StartupChangeTests
         Assert.Equal("store Acme.App_abc Boot False", pc.Writes.Single());
     }
 
+    private static StartupRequest Remove(string id) => new(id, false, Action: StartupAction.Remove);
+    private static StartupRequest Restore(string id, StartupVault vault) => new(id, true, Action: StartupAction.Restore, Vault: vault);
+
+    [Fact]
+    public void RemovingARunValueKeepsACopyAndRestoringPutsItBackExactlyAsItWas()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\setup.exe");
+        pc.Runs.Add(new(StartupScope.User, false, "Setup", @"C:\Apps\setup.exe /finish", "RunOnce", Expandable: true));
+        var changer = new LocalStartupChanger(pc, pc);
+        var id = StartupScan.Run(pc).Entries[0].Id;
+
+        var removed = changer.Change(Remove(id));
+
+        Assert.True(removed.Ok);
+        Assert.Empty(pc.Runs);
+        var vault = removed.Vault!;
+        Assert.Equal(new StartupVault(StartupKind.RunKey, StartupScope.User, "RunOnce", "Setup", @"C:\Apps\setup.exe /finish", true), vault);
+
+        var restored = changer.Change(Restore(id, vault));
+        Assert.True(restored.Ok);
+        var back = Assert.Single(pc.Runs);
+        Assert.True(back.Expandable);
+        Assert.Equal(@"C:\Apps\setup.exe /finish", back.Command);
+        Assert.Equal(["remove-run User RunOnce Setup", "restore-run User RunOnce Setup True"], pc.Writes);
+    }
+
+    [Fact]
+    public void AStartupShortcutAndAScheduledTaskAreAlsoKeptAndPutBack()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\a.exe");
+        pc.FolderBytes["A.lnk"] = [9, 8, 7, 6];
+        pc.Folder.Add(new(StartupScope.User, "A.lnk", @"C:\Startup\A.lnk", @"C:\Apps\a.exe", ""));
+        pc.TaskList.Add(new(@"\Sync", "Sync", "", "Acme", true, @"C:\Apps\a.exe", "", true, false, "me"));
+        pc.TaskXml[@"\Sync"] = "<Task>sync</Task>";
+        var changer = new LocalStartupChanger(pc, pc);
+
+        foreach (var entry in StartupScan.Run(pc).Entries.ToList())
+        {
+            var removed = changer.Change(Remove(entry.Id));
+            Assert.True(removed.Ok);
+            Assert.Null(StartupScan.Find(pc, entry.Id));
+            Assert.True(changer.Change(Restore(entry.Id, removed.Vault!)).Ok);
+            Assert.NotNull(StartupScan.Find(pc, entry.Id));
+        }
+
+        Assert.Contains("restore-folder User A.lnk 4", pc.Writes);
+        Assert.Contains(@"restore-task \Sync <Task>sync</Task>", pc.Writes);
+    }
+
+    [Fact]
+    public void AnItemIsNeverRestoredUnderAnotherItemsName()
+    {
+        var pc = new FakeStartupPc();
+        var vault = new StartupVault(StartupKind.RunKey, StartupScope.User, "Run", "Evil", @"C:\evil.exe");
+        Assert.False(new LocalStartupChanger(pc, pc).Change(Restore("run|user|Run|Innocent", vault)).Ok);
+        Assert.False(new LocalStartupChanger(pc, pc).Change(new("run|user|Run|Evil", true, Action: StartupAction.Restore)).Ok);
+        Assert.False(new LocalStartupChanger(pc, pc).Change(Restore("service|machine|X", vault with { Kind = StartupKind.Service })).Ok);
+        Assert.Empty(pc.Writes);
+    }
+
+    [Fact]
+    public void ProtectedItemsAndServicesCannotBeRemoved()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Windows\System32\SecurityHealthSystray.exe", "Microsoft Corporation"); pc.Add(@"C:\Apps\svc.exe");
+        pc.Runs.Add(new(StartupScope.Machine, false, "SecurityHealth", @"C:\Windows\System32\SecurityHealthSystray.exe"));
+        pc.ServiceList.Add(new("Acme", "Acme", "", "\"C:\\Apps\\svc.exe\"", 0x10, 2, false, "LocalSystem", []));
+        foreach (var entry in StartupScan.Run(pc).Entries)
+            Assert.False(new LocalStartupChanger(pc, pc).Change(Remove(entry.Id)).Ok);
+        Assert.Empty(pc.Writes);
+    }
+
+    [Fact]
+    public void ARemovalWindowsDoesNotAcceptIsReportedNotAssumed()
+    {
+        var (pc, entry) = Pc();
+        var outcome = new LocalStartupChanger(pc, new IgnoringWriter()).Change(Remove(entry.Id));
+        Assert.False(outcome.Ok);
+        Assert.Contains("did not accept", outcome.Error);
+    }
+
     [Fact]
     public void AChangeThatNeedsAdministratorRightsSaysSo()
     {
@@ -435,6 +697,12 @@ public sealed class StartupChangeTests
         public void SetTask(string path, bool enabled) { }
         public void SetService(string name, int start, bool delayed) { }
         public void SetStoreTask(string family, string taskId, bool enabled) { }
+        public void RemoveRun(StartupScope scope, string source, string name) { }
+        public void RestoreRun(StartupScope scope, string source, string name, string command, bool expandable) { }
+        public byte[] RemoveFolderItem(StartupScope scope, string fileName) => [];
+        public void RestoreFolderItem(StartupScope scope, string fileName, byte[] contents) { }
+        public string RemoveTask(string path) => "";
+        public void RestoreTask(string path, string xml) { }
     }
 }
 
@@ -504,6 +772,12 @@ public sealed class StartupServiceTests : IDisposable
         public void SetTask(string path, bool enabled) { pc.DenyWrites = false; pc.SetTask(path, enabled); pc.DenyWrites = true; }
         public void SetService(string name, int start, bool delayed) { pc.DenyWrites = false; pc.SetService(name, start, delayed); pc.DenyWrites = true; }
         public void SetStoreTask(string family, string taskId, bool enabled) { pc.DenyWrites = false; pc.SetStoreTask(family, taskId, enabled); pc.DenyWrites = true; }
+        public void RemoveRun(StartupScope scope, string source, string name) { pc.DenyWrites = false; pc.RemoveRun(scope, source, name); pc.DenyWrites = true; }
+        public void RestoreRun(StartupScope scope, string source, string name, string command, bool expandable) { pc.DenyWrites = false; pc.RestoreRun(scope, source, name, command, expandable); pc.DenyWrites = true; }
+        public byte[] RemoveFolderItem(StartupScope scope, string fileName) { pc.DenyWrites = false; var bytes = pc.RemoveFolderItem(scope, fileName); pc.DenyWrites = true; return bytes; }
+        public void RestoreFolderItem(StartupScope scope, string fileName, byte[] contents) { pc.DenyWrites = false; pc.RestoreFolderItem(scope, fileName, contents); pc.DenyWrites = true; }
+        public string RemoveTask(string path) { pc.DenyWrites = false; var xml = pc.RemoveTask(path); pc.DenyWrites = true; return xml; }
+        public void RestoreTask(string path, string xml) { pc.DenyWrites = false; pc.RestoreTask(path, xml); pc.DenyWrites = true; }
     }
 
     [Fact]
@@ -548,6 +822,61 @@ public sealed class StartupServiceTests : IDisposable
         Assert.Equal(2, results.Count); Assert.All(results, x => Assert.True(x.Outcome.Ok));
         Assert.Empty(service.History.All());
         Assert.All(StartupScan.Run(pc).Entries, x => Assert.True(x.Enabled));
+    }
+
+    [Fact]
+    public async Task ARemovedItemIsKeptWithItsCopyAndRestoreAllPutsItBack()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\setup.exe");
+        pc.Runs.Add(new(StartupScope.User, false, "Setup", @"C:\Apps\setup.exe", "RunOnce"));
+        var service = new StartupService(new LocalStartupChanger(pc, pc), new Counter(), () => Task.CompletedTask, new(folder));
+        var entry = StartupScan.Run(pc).Entries[0];
+
+        Assert.True((await service.RemoveAsync(entry)).Ok);
+
+        var kept = Assert.Single(service.History.All());
+        Assert.True(kept.Removed);
+        Assert.Equal(@"C:\Apps\setup.exe", kept.Vault!.Command);
+        Assert.Empty(pc.Runs);
+        // Reloaded from disk, the copy is still whole.
+        Assert.Equal(kept.Vault, Assert.Single(new StartupHistory(folder).All()).Vault);
+
+        var results = await service.RestoreAllAsync(pc);
+
+        Assert.True(Assert.Single(results).Outcome.Ok);
+        Assert.Empty(service.History.All());
+        Assert.Equal(@"C:\Apps\setup.exe", Assert.Single(pc.Runs).Command);
+    }
+
+    [Fact]
+    public async Task RemovingAMachineItemAsksForPermissionOnceAndTheHelperDoesIt()
+    {
+        var pc = new FakeStartupPc();
+        pc.Add(@"C:\Apps\a.exe");
+        pc.Runs.Add(new(StartupScope.Machine, false, "A", @"C:\Apps\a.exe"));
+        pc.DenyWrites = true;
+        var unlocks = 0;
+        var helper = new Counter { Run = r => new LocalStartupChanger(pc, new Allowing(pc)).Change(r) };
+        var service = new StartupService(new LocalStartupChanger(pc, pc), helper, () => { unlocks++; return Task.CompletedTask; }, new(folder));
+
+        Assert.True((await service.RemoveAsync(StartupScan.Run(pc).Entries[0])).Ok);
+
+        Assert.Equal(1, unlocks);
+        Assert.True(Assert.Single(service.History.All()).Removed);
+    }
+
+    [Fact]
+    public async Task AFailedRemovalRemembersNothingAndProtectedItemsNeverReachAChanger()
+    {
+        var (pc, entry) = Machine();
+        var user = new Counter { Run = _ => new(false, "no") };
+        var service = new StartupService(user, new Counter(), () => Task.CompletedTask, new(folder));
+        Assert.False((await service.RemoveAsync(entry with { Kind = StartupKind.Service })).Ok);
+        Assert.Equal(0, user.Calls);
+        var run = entry with { Kind = StartupKind.RunKey };
+        Assert.False((await service.RemoveAsync(run)).Ok);
+        Assert.Empty(service.History.All());
     }
 
     [Fact]

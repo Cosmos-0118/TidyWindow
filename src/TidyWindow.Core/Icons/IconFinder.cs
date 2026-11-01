@@ -60,6 +60,26 @@ public static partial class IconCommand
         return found;
     }
 
+    /// <summary>True for a Squirrel launch such as <c>Update.exe --processStart Discord.exe</c>: the program named is the app, and Update.exe only starts it.</summary>
+    public static bool IsSquirrelLaunch(string command) => ProcessStart().IsMatch(command);
+
+    /// <summary>The app a Squirrel launch starts (Discord, Slack, GitHub Desktop): the named program inside the newest <c>app-*</c> folder next to Update.exe, or null.</summary>
+    public static string? SquirrelApp(string path, string arguments, Func<string, IEnumerable<string>> subfolders, Func<string, bool> exists)
+    {
+        if (!string.Equals(Path.GetFileName(path), "Update.exe", StringComparison.OrdinalIgnoreCase)) return null;
+        if (ProcessStart().Match(arguments) is not { Success: true } match || Path.GetDirectoryName(path) is not { } directory) return null;
+        var exe = match.Groups[1].Value;
+        foreach (var folder in subfolders(directory).Where(x => Path.GetFileName(x).StartsWith("app-", StringComparison.OrdinalIgnoreCase)).OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase))
+        {
+            var candidate = Path.Combine(folder, exe);
+            if (exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"--processStart(?:AndWait)?[ =]""?([^""\s]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ProcessStart();
+
     /// <summary>The icon location in a registry value such as <c>"C:\App\app.exe",1</c> or <c>C:\App\app.ico</c>.</summary>
     public static (string Path, int Index)? Location(string text)
     {
@@ -386,21 +406,7 @@ public sealed partial class IconFinder(IIconSystem system, Func<bool>? dark = nu
     private static partial Regex Scale();
 
     // Squirrel apps (Discord, Slack, GitHub Desktop) start through Update.exe, whose own icon says nothing; the app lives in the newest app-* folder.
-    private string? Squirrel(string path, string arguments)
-    {
-        if (!string.Equals(Path.GetFileName(path), "Update.exe", StringComparison.OrdinalIgnoreCase)) return null;
-        if (ProcessStart().Match(arguments) is not { Success: true } match || Path.GetDirectoryName(path) is not { } directory) return null;
-        var exe = match.Groups[1].Value;
-        foreach (var folder in system.Subfolders(directory).Where(x => Path.GetFileName(x).StartsWith("app-", StringComparison.OrdinalIgnoreCase)).OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase))
-        {
-            var candidate = Path.Combine(folder, exe);
-            if (system.FileExists(candidate)) return candidate;
-        }
-        return null;
-    }
-
-    [GeneratedRegex(@"--processStart(?:AndWait)?[ =]""?([^""\s]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex ProcessStart();
+    private string? Squirrel(string path, string arguments) => IconCommand.SquirrelApp(path, arguments, system.Subfolders, system.FileExists);
 
     // ---- What programs registered when they were installed ----
 

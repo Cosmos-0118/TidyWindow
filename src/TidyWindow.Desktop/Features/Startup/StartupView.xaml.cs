@@ -19,6 +19,22 @@ public sealed partial class StartupView : UserControl
     private void ShowFolderClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is StartupRow row) StartupViewModel.ShowInFolder(row); }
     private void DetailsClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is StartupRow row) row.ToggleDetails(); }
 
+    private async void RemoveClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not StartupRow row || Model is not { } model) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Remove {row.Name} from startup?",
+            Content = new TextBlock { Text = $"This takes it out of {row.RemoveWhere}, so it no longer starts with Windows. TidyWindow keeps a copy, and you can put it back any time from Turned off.", TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = "Remove",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ActualTheme
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.RemoveAsync(row);
+    }
+
     private void TabChecked(object sender, RoutedEventArgs e)
     {
         if (Model is { } model && sender is RadioButton { Tag: string tag } && Enum.TryParse<StartupTab>(tag, out var next)) model.Tab = next;

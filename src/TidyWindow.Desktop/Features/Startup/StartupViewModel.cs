@@ -26,8 +26,9 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     public string Name => current.Name;
     // Two-way only so the switch stays attached to this value after the person flips it; the change itself is made by the page, and the switch snaps to the real state when this is raised.
     public bool Enabled { get => current.Enabled; set { } }
-    public bool CanToggle => current.CanChange && !busy;
-    public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanToggle)); } }
+    public bool CanToggle => current.CanToggle && !busy;
+    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(CanToggle)); Changed(nameof(CanRemove)); } } }
+    public bool CanRemove => current.CanRemove && !busy;
     // Items that are off stay in the list, but step back so the ones that still start are easy to spot.
     public double Dim => current.Enabled ? 1 : 0.55;
 
@@ -45,15 +46,29 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     public string Sub => $"{Publisher} · {Kind}";
     // Locked items say why right on the row, so nobody has to guess why there is no switch.
     public string Note => current.Reason;
-    public Visibility NoteVisibility => current.CanChange ? Visibility.Collapsed : Visibility.Visible;
+    // Items with no switch say why (and what to do instead) right on the row too.
+    public Visibility NoteVisibility => current.CanToggle ? Visibility.Collapsed : Visibility.Visible;
     public Visibility CarefulVisibility => current.Risk == StartupRisk.Careful ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ProtectedVisibility => current.CanChange ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MissingVisibility => current.FileMissing ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility ToggleVisibility => current.CanChange ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ToggleVisibility => current.CanToggle ? Visibility.Visible : Visibility.Collapsed;
+    // Where there is no switch, taking the item out is the only way to stop it, so the button is on the row itself.
+    public Visibility InlineRemoveVisibility => current.CanChange && !current.CanToggle && current.CanRemove ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RemoveVisibility => current.CanRemove ? Visibility.Visible : Visibility.Collapsed;
     public Visibility LockVisibility => ProtectedVisibility;
     public Visibility RunningVisibility => current.Running ? Visibility.Visible : Visibility.Collapsed;
     public Visibility AdminVisibility => current.CanChange && current.Scope == StartupScope.Machine ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility FolderVisibility => current.ExePath.Length > 0 && File.Exists(current.ExePath) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility FolderVisibility => RevealPath.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>What "Show in folder" selects: the program, or, when that is gone, the shortcut in the Startup folder that points to it.</summary>
+    public string RevealPath => current.ExePath.Length > 0 && File.Exists(current.ExePath) ? current.ExePath : current.FolderPath.Length > 0 && File.Exists(current.FolderPath) ? current.FolderPath : "";
+    public string RemoveName => $"Remove {Name} from startup";
+    public string RemoveWhere => current.Kind switch
+    {
+        StartupKind.StartupFolder => "the Startup folder",
+        StartupKind.ScheduledTask => "Task Scheduler",
+        _ => "the registry list of programs that start with Windows"
+    };
     public string AutomationName => $"{Name} starts with Windows";
     public string DetailsName => $"Details for {Name}";
 
@@ -105,7 +120,7 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     public void Update(StartupEntry updated)
     {
         current = updated; facts = null;
-        foreach (var name in new[] { nameof(Enabled), nameof(Entry), nameof(RunningVisibility), nameof(CanToggle), nameof(Dim), nameof(Facts) }) Changed(name);
+        foreach (var name in new[] { nameof(Enabled), nameof(Entry), nameof(RunningVisibility), nameof(CanToggle), nameof(CanRemove), nameof(Dim), nameof(Facts), nameof(FolderVisibility) }) Changed(name);
     }
 }
 
@@ -135,11 +150,13 @@ public sealed class ChangeRow(StartupChange change) : ObservableState
         StartupKind.StartupFolder => "Startup folder",
         _ => "Startup entry"
     };
-    public string Sub => $"{Kind} · turned off {When}";
+    public string Sub => $"{Kind} · {(Change.Removed ? "removed" : "turned off")} {When}";
     public ImageSource? Icon => icon;
     public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
     public string Glyph => StartupGlyph.For(Change.Kind);
-    public string AutomationName => $"Turn {Name} back on";
+    public string ActionText => Change.Removed ? "Put back" : "Turn back on";
+    public string ActionTip => Change.Removed ? "Put this back where it was, so it starts with Windows again" : "Start this with Windows again";
+    public string AutomationName => Change.Removed ? $"Put {Name} back" : $"Turn {Name} back on";
 }
 
 public sealed class StartupViewModel(IStartupSystem system, StartupService service, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
@@ -212,8 +229,12 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             hiddenTasks = scan.WindowsTasks; hiddenServices = scan.WindowsServices;
             scanned = true;
             // Anything turned back on outside TidyWindow no longer counts as turned off by it.
+            // An item that was removed is expected to be gone; if it is back (put back by hand or reinstalled), the saved copy is no longer needed.
             foreach (var change in remembered)
-                if (scan.Entries.FirstOrDefault(x => x.Id == change.Id) is not { Enabled: false }) service.History.Remove(change.Id);
+            {
+                var present = scan.Entries.FirstOrDefault(x => x.Id == change.Id);
+                if (change.Removed ? present is not null : present is not { Enabled: false }) service.History.Remove(change.Id);
+            }
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
             ApplyFilter(keepPosition: true);
             RefreshChanges();
@@ -326,7 +347,75 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
     }
 
     public Task<bool> TurnBackOnAsync(ChangeRow change) =>
-        all.FirstOrDefault(x => x.Id == change.Change.Id) is { } row ? SetAsync(row, true) : Task.FromResult(false);
+        change.Change.Removed ? PutBackAsync(change.Change)
+        : all.FirstOrDefault(x => x.Id == change.Change.Id) is { } row ? SetAsync(row, true) : Task.FromResult(false);
+
+    /// <summary>Takes an item out of startup. A copy is kept, so it can be put back from the Turned off tab.</summary>
+    public async Task<bool> RemoveAsync(StartupRow row)
+    {
+        if (Busy || !row.Entry.CanRemove) return false;
+        working = true; row.Busy = true; Notify();
+        var removed = false;
+        try
+        {
+            var outcome = await service.RemoveAsync(row.Entry);
+            if (outcome.Ok)
+            {
+                removed = true;
+                all = all.Where(x => x.Id != row.Id).ToList();
+                var saved = service.History.Get(row.Id);
+                toasts.Show("startup", ToastKind.Success, $"{row.Name} removed from startup", "It no longer starts with Windows. You can put it back any time from Turned off.", saved is null ? "" : "Put back", saved is null ? null : () => PutBackAsync(saved), 12);
+                log.Write(ActivityLevel.Success, ActivityArea.App, "Startup item removed", $"{row.Name} ({row.Kind}).");
+            }
+            else
+            {
+                toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+                log.Write(ActivityLevel.Warning, ActivityArea.App, "Startup item could not be removed", $"{row.Name}: {outcome.Error}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed.");
+            log.Write(ActivityLevel.Info, ActivityArea.App, "Startup change stopped", "Administrator permission was declined.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be removed", ex.Message);
+        }
+        finally
+        {
+            row.Busy = false; working = false;
+            RefreshChanges(); Notify();
+            ApplyFilter(keepPosition: true);
+        }
+        return removed;
+    }
+
+    /// <summary>Puts back an item that was removed from startup, then reads the list again so it shows where it was.</summary>
+    private async Task<bool> PutBackAsync(StartupChange change)
+    {
+        if (Busy) return false;
+        working = true; Notify();
+        var done = false;
+        try
+        {
+            var outcome = await service.RestoreAsync(change);
+            done = outcome.Ok;
+            if (done) toasts.Show("startup", ToastKind.Success, $"{change.Name} will start with Windows");
+            else toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+            log.Write(done ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, done ? "Startup item put back" : "Startup item could not be put back", $"{change.Name}: {outcome.Error}".TrimEnd(' ', ':'));
+        }
+        catch (OperationCanceledException) { toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be put back", ex.Message);
+        }
+        finally { working = false; Notify(); }
+        await ScanAsync();
+        return done;
+    }
 
     /// <summary>Turns back on everything TidyWindow turned off.</summary>
     public async Task RestoreAllAsync()
@@ -354,8 +443,9 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
 
     public static void ShowInFolder(StartupRow row)
     {
-        if (row.Entry.ExePath.Length == 0 || !File.Exists(row.Entry.ExePath)) return;
-        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{row.Entry.ExePath}\"") { UseShellExecute = true }); }
+        var path = row.RevealPath;
+        if (path.Length == 0) return;
+        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
     }
 
