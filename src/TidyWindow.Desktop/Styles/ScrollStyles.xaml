@@ -1,0 +1,172 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ResourceDictionary.ThemeDictionaries>
+  <ResourceDictionary x:Key="Light">
+   <SolidColorBrush x:Key="ScrollThumbBrush" Color="#5C000000" />
+   <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#8F000000" />
+  </ResourceDictionary>
+  <ResourceDictionary x:Key="Default">
+   <SolidColorBrush x:Key="ScrollThumbBrush" Color="#47FFFFFF" />
+   <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#80FFFFFF" />
+  </ResourceDictionary>
+  <ResourceDictionary x:Key="HighContrast">
+   <SolidColorBrush x:Key="ScrollThumbBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+   <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+  </ResourceDictionary>
+ </ResourceDictionary.ThemeDictionaries>
+
+ <!--
+  The thumb sits in its own lane, the way Vercel and Linear do it, instead of being drawn on top of the page.
+  ScrollGutterSize, the column width 12, and the -12 in PageScrollMargin are that same lane. The column is a literal because a double cannot be a grid length. Page padding is never under 16, so the lane hangs in the padding.
+ -->
+ <x:Double x:Key="ScrollGutterSize">12</x:Double>
+ <Thickness x:Key="PageScrollMargin">0,0,-12,0</Thickness>
+
+ <!-- Keyed, not implicit: the icon rail keeps the system bar, which fades out. This one is only for page and list scrollers. -->
+ <Style x:Key="GutterScrollBarStyle" TargetType="ScrollBar">
+  <Setter Property="MinWidth" Value="{StaticResource ScrollGutterSize}" />
+  <Setter Property="MinHeight" Value="{StaticResource ScrollGutterSize}" />
+  <Setter Property="Background" Value="Transparent" />
+  <Setter Property="IsTabStop" Value="False" />
+  <Setter Property="UseLayoutRounding" Value="True" />
+  <Setter Property="Template">
+   <Setter.Value>
+    <ControlTemplate TargetType="ScrollBar">
+     <Grid x:Name="Root" Background="Transparent">
+      <Grid.Resources>
+       <ControlTemplate x:Key="BlankRepeat" TargetType="RepeatButton">
+        <Grid Background="Transparent" />
+       </ControlTemplate>
+       <ControlTemplate x:Key="PillThumb" TargetType="Thumb">
+        <Grid Background="Transparent">
+         <Border Margin="4,2" Background="{TemplateBinding Background}" CornerRadius="4" />
+        </Grid>
+       </ControlTemplate>
+      </Grid.Resources>
+      <VisualStateManager.VisualStateGroups>
+       <VisualStateGroup x:Name="CommonStates">
+        <VisualState x:Name="Normal" />
+        <VisualState x:Name="PointerOver">
+         <VisualState.Setters>
+          <Setter Target="VerticalThumb.Background" Value="{ThemeResource ScrollThumbHoverBrush}" />
+          <Setter Target="HorizontalThumb.Background" Value="{ThemeResource ScrollThumbHoverBrush}" />
+         </VisualState.Setters>
+        </VisualState>
+        <VisualState x:Name="Pressed">
+         <VisualState.Setters>
+          <Setter Target="VerticalThumb.Background" Value="{ThemeResource ScrollThumbHoverBrush}" />
+          <Setter Target="HorizontalThumb.Background" Value="{ThemeResource ScrollThumbHoverBrush}" />
+         </VisualState.Setters>
+        </VisualState>
+        <VisualState x:Name="Disabled">
+         <VisualState.Setters>
+          <Setter Target="Root.Opacity" Value="0" />
+         </VisualState.Setters>
+        </VisualState>
+       </VisualStateGroup>
+      </VisualStateManager.VisualStateGroups>
+
+      <Grid x:Name="HorizontalRoot" Height="{StaticResource ScrollGutterSize}" Visibility="Collapsed">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+       </Grid.ColumnDefinitions>
+       <RepeatButton x:Name="HorizontalSmallDecrease" Grid.Column="0" Width="0" Opacity="0" IsHitTestVisible="False" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <RepeatButton x:Name="HorizontalLargeDecrease" Grid.Column="1" Width="0" Opacity="0" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <Thumb x:Name="HorizontalThumb" Grid.Column="2" Background="{ThemeResource ScrollThumbBrush}" Template="{StaticResource PillThumb}" Height="4" MinWidth="32" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+       <RepeatButton x:Name="HorizontalLargeIncrease" Grid.Column="3" Opacity="0" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <RepeatButton x:Name="HorizontalSmallIncrease" Grid.Column="4" Width="0" Opacity="0" IsHitTestVisible="False" Interval="50" Template="{StaticResource BlankRepeat}" />
+      </Grid>
+      <Grid x:Name="HorizontalPanningRoot" Visibility="Collapsed">
+       <Border x:Name="HorizontalPanningThumb" />
+      </Grid>
+
+      <Grid x:Name="VerticalRoot" Width="{StaticResource ScrollGutterSize}">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+       </Grid.RowDefinitions>
+       <RepeatButton x:Name="VerticalSmallDecrease" Grid.Row="0" Height="0" Opacity="0" IsHitTestVisible="False" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <RepeatButton x:Name="VerticalLargeDecrease" Grid.Row="1" Height="0" Opacity="0" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <Thumb x:Name="VerticalThumb" Grid.Row="2" Background="{ThemeResource ScrollThumbBrush}" Template="{StaticResource PillThumb}" Width="{StaticResource ScrollGutterSize}" MinHeight="32" HorizontalAlignment="Stretch" AutomationProperties.AccessibilityView="Raw" />
+       <RepeatButton x:Name="VerticalLargeIncrease" Grid.Row="3" Opacity="0" Interval="50" Template="{StaticResource BlankRepeat}" />
+       <RepeatButton x:Name="VerticalSmallIncrease" Grid.Row="4" Height="0" Opacity="0" IsHitTestVisible="False" Interval="50" Template="{StaticResource BlankRepeat}" />
+      </Grid>
+      <Grid x:Name="VerticalPanningRoot" Visibility="Collapsed">
+       <Border x:Name="VerticalPanningThumb" />
+      </Grid>
+     </Grid>
+    </ControlTemplate>
+   </Setter.Value>
+  </Setter>
+ </Style>
+
+ <!-- Used by lists, menus and flyouts. The lane appears only when there is something to scroll, and it never covers what is in it. -->
+ <Style x:Key="GutterScrollViewerStyle" TargetType="ScrollViewer">
+  <Setter Property="HorizontalScrollMode" Value="Auto" />
+  <Setter Property="VerticalScrollMode" Value="Auto" />
+  <Setter Property="IsHorizontalRailEnabled" Value="True" />
+  <Setter Property="IsVerticalRailEnabled" Value="True" />
+  <Setter Property="IsTabStop" Value="False" />
+  <Setter Property="ZoomMode" Value="Disabled" />
+  <Setter Property="HorizontalContentAlignment" Value="Left" />
+  <Setter Property="VerticalContentAlignment" Value="Top" />
+  <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+  <Setter Property="Background" Value="Transparent" />
+  <Setter Property="Template">
+   <Setter.Value>
+    <ControlTemplate TargetType="ScrollViewer">
+     <Grid Background="{TemplateBinding Background}">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition Width="*" />
+       <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+       <RowDefinition Height="*" />
+       <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <ScrollContentPresenter x:Name="ScrollContentPresenter" Margin="{TemplateBinding Padding}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+      <ScrollBar x:Name="VerticalScrollBar" Style="{StaticResource GutterScrollBarStyle}" Grid.Column="1" Orientation="Vertical" IndicatorMode="MouseIndicator" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Value="{TemplateBinding VerticalOffset}" HorizontalAlignment="Right" />
+      <ScrollBar x:Name="HorizontalScrollBar" Style="{StaticResource GutterScrollBarStyle}" Grid.Row="1" Orientation="Horizontal" IndicatorMode="MouseIndicator" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" Maximum="{TemplateBinding ScrollableWidth}" ViewportSize="{TemplateBinding ViewportWidth}" Value="{TemplateBinding HorizontalOffset}" VerticalAlignment="Bottom" />
+      <Border x:Name="ScrollBarSeparator" Grid.Row="1" Grid.Column="1" />
+     </Grid>
+    </ControlTemplate>
+   </Setter.Value>
+  </Setter>
+ </Style>
+ <Style TargetType="ScrollViewer" BasedOn="{StaticResource GutterScrollViewerStyle}" />
+
+ <!-- The page scroller. The lane is always there, so the cards do not jump when the thumb appears, and it hangs in the page padding so it lines up with the title row. -->
+ <Style x:Key="PageScrollViewerStyle" TargetType="ScrollViewer" BasedOn="{StaticResource GutterScrollViewerStyle}">
+  <Setter Property="Margin" Value="{StaticResource PageScrollMargin}" />
+  <Setter Property="HorizontalScrollMode" Value="Disabled" />
+  <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+  <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+  <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  <Setter Property="Template">
+   <Setter.Value>
+    <ControlTemplate TargetType="ScrollViewer">
+     <Grid Background="{TemplateBinding Background}">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition Width="*" />
+       <ColumnDefinition Width="12" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+       <RowDefinition Height="*" />
+       <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <ScrollContentPresenter x:Name="ScrollContentPresenter" Margin="{TemplateBinding Padding}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+      <ScrollBar x:Name="VerticalScrollBar" Style="{StaticResource GutterScrollBarStyle}" Grid.Column="1" Orientation="Vertical" IndicatorMode="MouseIndicator" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Value="{TemplateBinding VerticalOffset}" HorizontalAlignment="Stretch" />
+      <ScrollBar x:Name="HorizontalScrollBar" Style="{StaticResource GutterScrollBarStyle}" Grid.Row="1" Orientation="Horizontal" IndicatorMode="MouseIndicator" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" Maximum="{TemplateBinding ScrollableWidth}" ViewportSize="{TemplateBinding ViewportWidth}" Value="{TemplateBinding HorizontalOffset}" VerticalAlignment="Bottom" />
+      <Border x:Name="ScrollBarSeparator" Grid.Row="1" Grid.Column="1" />
+     </Grid>
+    </ControlTemplate>
+   </Setter.Value>
+  </Setter>
+ </Style>
+</ResourceDictionary>
