@@ -114,7 +114,7 @@
    </Border>
   </Grid>
 
-  <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+  <ScrollViewer Grid.Row="3" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
    <Grid>
     <!-- Speed, Cleaner and Comfort share one list -->
     <StackPanel Visibility="{Binding ListVisibility}" Spacing="10" Margin="0,0,0,12">

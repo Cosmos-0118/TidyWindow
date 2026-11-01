@@ -271,15 +271,83 @@ public sealed partial class MainWindow : Window
 
     // The sidebar opens a moment after the pointer arrives and closes a little after it leaves, so crossing the edge of the window does not make it flicker.
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? sidebarTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? navThumbTimer;
+    private bool navThumbHold;
     private bool sidebarOpen, sidebarReserved, sidebarPointer, sidebarKeyboard, sidebarMenu, keyboardUsed;
     private Microsoft.UI.Composition.CompositionPropertySet? sidebarState;
     private readonly bool sidebarAnimations = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
 
-    private void SidebarPointerEntered(object sender, PointerRoutedEventArgs e) { sidebarPointer = true; UpdateSidebar(); }
-    private void SidebarPointerExited(object sender, PointerRoutedEventArgs e) { sidebarPointer = false; UpdateSidebar(); }
+    private void SidebarPointerEntered(object sender, PointerRoutedEventArgs e) { sidebarPointer = true; UpdateSidebar(); PlaceNavThumb(); }
+    private void SidebarPointerExited(object sender, PointerRoutedEventArgs e) { sidebarPointer = false; UpdateSidebar(); PlaceNavThumb(); }
     // The first control to get focus when the app starts is in the sidebar; only focus the person moved there with the keyboard opens it.
     private void SidebarGotFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = keyboardUsed && (e.OriginalSource as Control)?.FocusState == FocusState.Keyboard; UpdateSidebar(); }
     private void SidebarLostFocus(object sender, RoutedEventArgs e) { sidebarKeyboard = false; UpdateSidebar(); }
+
+    // The rail is too narrow for a scrollbar. The wheel still scrolls. The hairline fades in while the pointer is here, and fades out a moment after it leaves.
+    private Microsoft.UI.Composition.Visual? navThumbVisual;
+    private bool navThumbShown;
+    private double navThumbHeight = -1;
+
+    private void NavScrolled(object sender, ScrollViewerViewChangedEventArgs e)
+    {
+        navThumbHold = true;
+        PlaceNavThumb();
+        navThumbTimer ??= DispatcherQueue.CreateTimer();
+        navThumbTimer.Interval = TimeSpan.FromMilliseconds(600);
+        navThumbTimer.IsRepeating = false;
+        navThumbTimer.Tick -= NavThumbFaded;
+        navThumbTimer.Tick += NavThumbFaded;
+        navThumbTimer.Start();
+    }
+
+    private void NavThumbFaded(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args) { navThumbHold = false; PlaceNavThumb(); }
+
+    private void NavScrollSized(object sender, SizeChangedEventArgs e) => PlaceNavThumb();
+
+    private void PlaceNavThumb()
+    {
+        if (navThumbVisual is null)
+        {
+            Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(NavThumb, true);
+            navThumbVisual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(NavThumb);
+            NavThumb.Opacity = 1;
+            navThumbVisual.Opacity = 0;
+        }
+        var extent = NavScroll.ExtentHeight;
+        var viewport = NavScroll.ViewportHeight;
+        var track = NavScroll.ActualHeight;
+        var canScroll = extent > viewport + 0.5 && track > 0;
+        if (canScroll)
+        {
+            var thumb = Math.Clamp(viewport / extent * track, 28, track);
+            if (Math.Abs(thumb - navThumbHeight) > 0.5)
+            {
+                navThumbHeight = thumb;
+                NavThumb.Height = thumb;
+            }
+            var travel = Math.Max(0, track - thumb);
+            var span = NavScroll.ScrollableHeight;
+            navThumbVisual.Properties.InsertVector3("Translation", new System.Numerics.Vector3(0, (float)(span <= 0 ? 0 : NavScroll.VerticalOffset / span * travel), 0));
+        }
+        FadeNavThumb(canScroll && (sidebarPointer || navThumbHold));
+    }
+
+    private void FadeNavThumb(bool show)
+    {
+        if (navThumbVisual is null || show == navThumbShown) return;
+        navThumbShown = show;
+        var target = show ? 1f : 0f;
+        if (!sidebarAnimations)
+        {
+            navThumbVisual.Opacity = target;
+            return;
+        }
+        var compositor = navThumbVisual.Compositor;
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Duration = TimeSpan.FromMilliseconds(show ? 180 : 280);
+        fade.InsertKeyFrame(1, target, compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.215f, 0.61f), new System.Numerics.Vector2(0.355f, 1f)));
+        navThumbVisual.StartAnimation("Opacity", fade);
+    }
 
     /// <summary>
     /// The sidebar is as wide as it opens from the moment it is hovered, and a clip that follows <c>Reveal</c> decides how much of it shows.

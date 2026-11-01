@@ -3,7 +3,10 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <Application.Resources>
   <ResourceDictionary>
-   <ResourceDictionary.MergedDictionaries><XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" /></ResourceDictionary.MergedDictionaries>
+   <ResourceDictionary.MergedDictionaries>
+    <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+    <ResourceDictionary Source="ms-appx:///Styles/ScrollStyles.xaml" />
+   </ResourceDictionary.MergedDictionaries>
    <ResourceDictionary.ThemeDictionaries>
     <ResourceDictionary x:Key="Light">
      <SolidColorBrush x:Key="RowHoverBrush" Color="#0A000000" />
