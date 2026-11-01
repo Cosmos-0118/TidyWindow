@@ -26,7 +26,13 @@ public sealed class LocalBackgroundChanger(IBackgroundSystem system, IBackground
         {
             if (request.Enable) TurnOn(entry, request.Saved, notes); else TurnOff(entry, notes);
         }
-        catch (UnauthorizedAccessException) { throw; }
+        catch (UnauthorizedAccessException)
+        {
+            // A service can allow a start-type change yet deny stopping. Put it back before the administrator helper retries,
+            // or the retry sees it already off, records nothing to restore, and leaves it running.
+            if (!request.Enable) Undo(entry, before);
+            throw;
+        }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
             if (!request.Enable) Undo(entry, before);

@@ -15,6 +15,8 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public bool DenyWrites, IgnoreWrites;
     /// <summary>The write that fails, such as "task", to test undoing a half-finished change.</summary>
     public string? FailOn;
+    /// <summary>The write that needs administrator rights, such as "stop", while every other write is allowed.</summary>
+    public string? DenyOn;
     public HashSet<string> WillNotStop = new(StringComparer.OrdinalIgnoreCase);
 
     public void Refresh() { }
@@ -37,7 +39,7 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
 
     private void Guard(string what)
     {
-        if (DenyWrites) throw new UnauthorizedAccessException("denied");
+        if (DenyWrites || DenyOn == what) throw new UnauthorizedAccessException("denied");
         if (FailOn == what) throw new IOException("the write failed");
     }
 
@@ -480,6 +482,15 @@ public sealed class BackgroundChangeTests : IDisposable
     }
 
     [Fact]
+    public void RightsDeniedPartWayPutTheStartTypeBackBeforeAskingForMore()
+    {
+        var pc = new FakeBackgroundPc { DenyOn = "stop" }.Svc("S", start: 2, running: true);
+        Assert.Throws<UnauthorizedAccessException>(() => Changer(pc, Item(Svc("S", start: 2))).Change(Off));
+        Assert.Equal(2, pc.ServiceList["S"].Start);
+        Assert.True(pc.ServiceList["S"].Running);
+    }
+
+    [Fact]
     public void LockedAndMissingItemsNeverReachTheWriter()
     {
         var pc = new FakeBackgroundPc().Svc("Base").Svc("Needy", depends: ["Base"]);
@@ -541,6 +552,28 @@ public sealed class BackgroundChangeTests : IDisposable
         Assert.True((await manager.SetAsync(entry, false)).Ok);
         Assert.Equal(1, unlocks); Assert.Equal(1, helper.Calls);
         Assert.Single(manager.History.All());
+    }
+
+    [Fact]
+    public async Task AServiceThatAllowsStartupChangesButDeniesStoppingIsStillStoppedRememberedAndRestorable()
+    {
+        var (pc, item, entry) = Machine();
+        pc.DenyOn = "stop";
+        var unlocks = 0;
+        var helper = new Counter { Run = r => { pc.DenyOn = null; try { return Changer(pc, item).Change(r); } finally { pc.DenyOn = "stop"; } } };
+        var manager = new BackgroundManager(Changer(pc, item), helper, () => { unlocks++; return Task.CompletedTask; }, new(folder));
+
+        Assert.True((await manager.SetAsync(entry, false)).Ok);
+
+        Assert.Equal(1, unlocks);
+        Assert.Equal(4, pc.ServiceList["Diag"].Start); Assert.False(pc.ServiceList["Diag"].Running);
+        var remembered = Assert.Single(manager.History.All());
+        var saved = Assert.Single(remembered.Saved);
+        Assert.Equal(2, saved.Start); Assert.True(saved.Delayed);
+
+        pc.DenyOn = null;
+        Assert.True(Assert.Single(await manager.RestoreAllAsync(pc, [item])).Outcome.Ok);
+        Assert.Equal(2, pc.ServiceList["Diag"].Start); Assert.True(pc.ServiceList["Diag"].Delayed); Assert.True(pc.ServiceList["Diag"].Running);
     }
 
     [Fact]
