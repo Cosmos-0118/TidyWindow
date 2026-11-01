@@ -68,13 +68,19 @@ public sealed class DebloatGuardTests
     [InlineData("Microsoft.Windows.ShellExperienceHost")]
     [InlineData("MicrosoftWindows.Client.CBS")]
     [InlineData("MicrosoftWindows.Client.Core")]
+    [InlineData("MicrosoftWindows.Client.CoreAI")]
+    [InlineData("MicrosoftWindows.Client.FileExp")]
+    [InlineData("MicrosoftWindows.Client.OOBE")]
+    [InlineData("MicrosoftWindows.Client.Photon")]
+    [InlineData("MicrosoftWindows.Client.AIX")]
+    [InlineData("Microsoft.Office.ActionsServer")]
+    [InlineData("Microsoft.OfficePushNotificationUtility")]
     [InlineData("Microsoft.XboxIdentityProvider")]
     [InlineData("Microsoft.SecHealthUI")]
     [InlineData("Windows.PrintDialog")]
     [InlineData("1527c705-839a-4832-9118-54d4Bd6a0c89")]
     [InlineData("Microsoft.Xbox.TCUI")]
     [InlineData("Microsoft.GamingServices")]
-    [InlineData("MicrosoftWindows.Client.WebExperience")]
     [InlineData("Microsoft.WindowsCalculator")]
     [InlineData("Microsoft.WindowsNotepad")]
     [InlineData("Microsoft.Paint")]
@@ -93,13 +99,17 @@ public sealed class DebloatGuardTests
     [InlineData("Microsoft.PCManager")]
     [InlineData("Microsoft.StartExperiencesApp")]
     [InlineData("Microsoft.WidgetsPlatformRuntime")]
+    [InlineData("MicrosoftWindows.Client.WebExperience")]
     [InlineData("Microsoft.Windows.AIHub")]
     [InlineData("Microsoft.Edge.GameAssist")]
     [InlineData("Microsoft.MSPaint")]
     public void OrdinaryAppsAreNotProtected(string name) => Assert.False(DebloatGuard.IsProtected(name));
 
     [Theory]
-    [InlineData("MicrosoftWindows.Client.WebExperience")]
+    [InlineData("MicrosoftWindows.Client.CBS")]
+    [InlineData("MicrosoftWindows.Client.Core")]
+    [InlineData("MicrosoftWindows.Client.FileExp")]
+    [InlineData("Microsoft.Office.ActionsServer")]
     [InlineData("Microsoft.XboxIdentityProvider")]
     [InlineData("Microsoft.Xbox.TCUI")]
     [InlineData("Microsoft.GamingServices")]
@@ -117,6 +127,7 @@ public sealed class DebloatGuardTests
     [Theory]
     [InlineData("pc-manager", "Microsoft.PCManager")]
     [InlineData("pc-manager", "Microsoft.MicrosoftPCManager")]
+    [InlineData("widgets-experiences", "MicrosoftWindows.Client.WebExperience")]
     [InlineData("widgets-experiences", "Microsoft.StartExperiencesApp")]
     [InlineData("widgets-experiences", "Microsoft.WidgetsPlatformRuntime")]
     [InlineData("m365-companions", "Microsoft.M365Companions")]
@@ -134,7 +145,6 @@ public sealed class DebloatGuardTests
     [InlineData("xbox-app", "Microsoft.XboxApp")]
     [InlineData("ai-hub", "Microsoft.Windows.AIHub")]
     [InlineData("edge-game-assist", "Microsoft.Edge.GameAssist")]
-    [InlineData("copilot-app", "Microsoft.Office.ActionsServer")]
     [InlineData("copilot-app", "Microsoft.WritingAssistant")]
     [InlineData("preinstalled-trials", "5A894077.McAfeeSecurity")]
     [InlineData("preinstalled-trials", "McAfeeWPSSparsePackage")]
@@ -179,6 +189,17 @@ public sealed class DebloatGuardTests
         var item = DebloatCatalog.Load().Single(x => x.Id == id);
         Assert.Equal(DebloatRisk.Careful, item.Risk);
         Assert.False(item.Recommended);
+    }
+
+    [Fact]
+    public void WidgetsCanBeRemovedWithTheWebExperiencePackFirstAndPutBackFromTheStore()
+    {
+        var item = DebloatCatalog.Load().Single(x => x.Id == "widgets-experiences");
+        Assert.Equal(["MicrosoftWindows.Client.WebExperience", "Microsoft.StartExperiencesApp", "Microsoft.WidgetsPlatformRuntime"], item.Packages);
+        Assert.Equal("9MSSGKG348SP", item.StoreId);
+        Assert.True(DebloatReinstaller.IsStoreProduct(item.StoreId));
+        Assert.Equal(0, DebloatGuard.CatalogOrder(item, "MicrosoftWindows.Client.WebExperience"));
+        Assert.Equal(2, DebloatGuard.CatalogOrder(item, "Microsoft.WidgetsPlatformRuntime"));
     }
 
     [Theory]
@@ -456,6 +477,45 @@ public sealed class AppxRemoverTests
             Assert.Contains("Clipchamp.Clipchamp_yxz26nhyzhsrt", pc.Deprovisioned);
         }
         finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public void PackagesGoInTheOrderTheCatalogListsThemSoWidgetBoardCannotPutTheRuntimeBack()
+    {
+        // Windows lists the runtime first. WidgetBoard, in the web experience pack, would reinstall it from C:\Windows\InboxApps if it were still installed.
+        var pc = new FakeDebloatPc { Installed = [FakeDebloatPc.Package("Microsoft.WidgetsPlatformRuntime"), FakeDebloatPc.Package("Microsoft.StartExperiencesApp"), FakeDebloatPc.Package("MicrosoftWindows.Client.WebExperience", "cw5n1h2txyewy")] };
+        var (remover, entry) = Setup(pc, "widgets-experiences");
+        Assert.Equal(["MicrosoftWindows.Client.WebExperience", "Microsoft.StartExperiencesApp", "Microsoft.WidgetsPlatformRuntime"], entry.Packages.Select(x => x.Name));
+
+        var outcome = remover.Remove(entry);
+
+        Assert.True(outcome.Ok, outcome.Error);
+        Assert.Equal(["remove MicrosoftWindows.Client.WebExperience_1.0.0.0_x64__cw5n1h2txyewy", "remove Microsoft.StartExperiencesApp_1.0.0.0_x64__8wekyb3d8bbwe", "remove Microsoft.WidgetsPlatformRuntime_1.0.0.0_x64__8wekyb3d8bbwe"], pc.Log.Where(x => x.StartsWith("remove ")));
+        Assert.Contains("MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy", pc.Deprovisioned);
+    }
+
+    [Fact]
+    public void TheRemoverKeepsTheCatalogOrderEvenWhenTheEntryWasBuiltInAnotherOrder()
+    {
+        var pc = new FakeDebloatPc();
+        var item = Catalog.Single(x => x.Id == "widgets-experiences");
+        var entry = new DebloatEntry(item, [FakeDebloatPc.Package("Microsoft.WidgetsPlatformRuntime"), FakeDebloatPc.Package("MicrosoftWindows.Client.WebExperience", "cw5n1h2txyewy")], [], null);
+        pc.Installed = entry.Packages.ToList();
+
+        Assert.True(new AppxRemover(pc, pc, pc).Remove(entry).Ok);
+
+        Assert.StartsWith("remove MicrosoftWindows.Client.WebExperience", pc.Log.First(x => x.StartsWith("remove ")));
+    }
+
+    [Fact]
+    public void RefusesTheSystemClientPackagesAndTheOfficeRuntimes()
+    {
+        var pc = new FakeDebloatPc();
+        var item = Catalog.Single(x => x.Id == "widgets-experiences");
+
+        foreach (var name in new[] { "MicrosoftWindows.Client.CBS", "MicrosoftWindows.Client.Core", "Microsoft.Office.ActionsServer" })
+            Assert.False(new AppxRemover(pc, pc, pc).Remove(new DebloatEntry(item, [FakeDebloatPc.Package(name, "cw5n1h2txyewy")], [], null)).Ok, name);
+        Assert.Empty(pc.Log);
     }
 
     [Fact]

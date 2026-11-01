@@ -146,10 +146,10 @@
       "packages": ["Microsoft.PCManager", "Microsoft.MicrosoftPCManager"], "sources": ["Win11Debloat Apps.json"]
     },
     {
-      "id": "widgets-experiences", "name": "Start feed and Widgets runtime", "group": "microsoft", "icon": "E71D", "risk": "careful",
-      "summary": "The MSN feed behind Start suggestions and the runtime that Widgets use to run in the background.",
-      "effect": "The Widgets board can stop loading and the feed in Start goes. The Windows web experience pack that Snipping Tool and the emoji panel need is never touched. You can also just turn Widgets off in Quiet.",
-      "packages": ["Microsoft.StartExperiencesApp", "Microsoft.WidgetsPlatformRuntime"], "sources": ["Win11Debloat Apps.json"]
+      "id": "widgets-experiences", "name": "Widgets and Start feed", "group": "microsoft", "icon": "E71D", "risk": "careful", "storeId": "9MSSGKG348SP",
+      "summary": "The Widgets board and button, the runtime behind it, and the MSN feed behind Start suggestions.",
+      "effect": "The Widgets button and board go, and so does the feed in Start. The Windows Web Experience Pack holds only Widgets, so Snipping Tool, the emoji panel, clipboard history and Search keep working. Putting it back installs the pack from the Store.",
+      "packages": ["MicrosoftWindows.Client.WebExperience", "Microsoft.StartExperiencesApp", "Microsoft.WidgetsPlatformRuntime"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "m365-companions", "name": "Microsoft 365 Companions", "group": "microsoft", "icon": "E902",
@@ -208,7 +208,7 @@
       "id": "copilot-app", "name": "Copilot app", "group": "ai", "icon": "E99A", "recommended": true, "storeId": "9NHT9RB2F4HD",
       "summary": "The Copilot assistant app and the pieces that put it on the taskbar.",
       "effect": "The Copilot button and app go. Copilot on the web in your browser keeps working.",
-      "packages": ["Microsoft.Copilot", "Microsoft.Windows.Ai.Copilot.Provider", "Microsoft.WindowsCopilot", "Microsoft.Office.ActionsServer", "Microsoft.WritingAssistant"], "sources": ["Win11Debloat Apps.json", "RemoveWindowsAI"]
+      "packages": ["Microsoft.Copilot", "Microsoft.Windows.Ai.Copilot.Provider", "Microsoft.WindowsCopilot", "Microsoft.WritingAssistant"], "sources": ["Win11Debloat Apps.json", "RemoveWindowsAI"]
     },
     {
       "id": "ai-hub", "name": "Copilot+ AI Hub", "group": "ai", "icon": "E950", "recommended": true,

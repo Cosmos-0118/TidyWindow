@@ -110,7 +110,11 @@ public static partial class DebloatGuard
         "Microsoft.Windows.OOBENetwork", "Microsoft.Windows.PeopleExperienceHost", "Microsoft.Windows.SecureAssessmentBrowser", "Microsoft.Windows.CapturePicker", "Microsoft.Windows.AssignedAccessLockApp",
         "Microsoft.Windows.PinningConfirmationDialog", "Microsoft.Windows.ParentalControls", "Microsoft.Windows.XGpuEjectDialog", "Microsoft.Windows.Apprep.ChxApp", "Microsoft.Windows.CallingShellApp",
         "Microsoft.Windows.NarratorQuickStart", "Microsoft.SecHealthUI", "Microsoft.Win32WebViewHost", "Microsoft.ECApp", "Microsoft.AsyncTextService",
-        "MicrosoftWindows.Client.", "MicrosoftWindows.UndockedDevKit",
+        // Only the Windows client packages that ship in C:\Windows\SystemApps. MicrosoftWindows.Client.WebExperience is a Store package that holds nothing but Widgets, so it is not here.
+        "MicrosoftWindows.Client.CBS", "MicrosoftWindows.Client.Core", "MicrosoftWindows.Client.FileExp", "MicrosoftWindows.Client.OOBE", "MicrosoftWindows.Client.Photon", "MicrosoftWindows.Client.AIX",
+        "MicrosoftWindows.UndockedDevKit",
+        // Office re-stages these itself whenever it runs maintenance, so removing them only makes them reappear
+        "Microsoft.Office.ActionsServer", "Microsoft.OfficePushNotificationUtility",
         // The everyday tools: nobody should lose a calculator, a screenshot tool, an image viewer or a terminal by ticking a box
         "Microsoft.WindowsCalculator", "Microsoft.WindowsNotepad", "Microsoft.Paint", "Microsoft.ScreenSketch", "Microsoft.Windows.Photos", "Microsoft.WindowsTerminal", "Microsoft.WindowsCamera"
     ];
@@ -139,6 +143,17 @@ public static partial class DebloatGuard
 
     /// <summary>The family name is the package name, an underscore and the publisher id. Only the name part is judged.</summary>
     public static string NameOf(string familyOrFullName) => familyOrFullName.Split('_')[0];
+
+    /// <summary>
+    /// Where a package sits in the item's own list. Packages go in this order, so a package that can reinstall another (WidgetBoard puts
+    /// the Widgets runtime back) is removed before the one it would repair.
+    /// </summary>
+    public static int CatalogOrder(DebloatItem item, string name)
+    {
+        for (var i = 0; i < item.Packages.Length; i++)
+            if (Matches(item.Packages[i], name)) return i;
+        return item.Packages.Length;
+    }
 
     /// <summary>Whether an installed package belongs to this item and may be removed.</summary>
     public static bool Covers(DebloatItem item, string name, bool framework) =>
@@ -198,8 +213,8 @@ public static class DebloatScan
         switch (item.Kind)
         {
             case DebloatKind.Appx:
-                var found = packages.Where(x => DebloatGuard.Covers(item, x.Name, x.Framework)).ToList();
-                var staged = provisioned.Where(x => DebloatGuard.Covers(item, x.DisplayName, false)).ToList();
+                var found = packages.Where(x => DebloatGuard.Covers(item, x.Name, x.Framework)).OrderBy(x => DebloatGuard.CatalogOrder(item, x.Name)).ToList();
+                var staged = provisioned.Where(x => DebloatGuard.Covers(item, x.DisplayName, false)).OrderBy(x => DebloatGuard.CatalogOrder(item, x.DisplayName)).ToList();
                 return found.Count == 0 && staged.Count == 0 ? null : new(item, found, staged, null);
             case DebloatKind.Recall:
                 return facts.Recall ? new(item, [], [], null) : null;

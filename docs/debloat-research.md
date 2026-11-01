@@ -14,7 +14,7 @@ Items are grouped as tabs, plus **Removed**, which is the way back.
 
 | Tab | Contents |
 | --- | --- |
-| **Microsoft** | Inbox apps such as Clipchamp, News and Weather, Get Help, Feedback Hub, Solitaire, Office hub, To Do, Power Automate, Phone Link, Dev Home, Quick Assist, Xbox app and Game Bar, PC Manager, the Start feed and Widgets runtime, Microsoft 365 Companions, Whiteboard, Sway, Journal and Power BI, Mobile Plans, and the Windows App and Store Remote Desktop clients. |
+| **Microsoft** | Inbox apps such as Clipchamp, News and Weather, Get Help, Feedback Hub, Solitaire, Office hub, To Do, Power Automate, Phone Link, Dev Home, Quick Assist, Xbox app and Game Bar, PC Manager, Widgets (the Windows Web Experience Pack, its runtime and the Start feed), Microsoft 365 Companions, Whiteboard, Sway, Journal and Power BI, Mobile Plans, and the Windows App and Store Remote Desktop clients. |
 | **Promoted** | Games, streaming and social apps, photo and video trial apps, and the antivirus and shopping trials that new laptops ship with. |
 | **AI** | The Copilot app (with its Office helpers), the Copilot+ AI Hub, Edge Game Assist and Recall. |
 | **Manufacturer** | Pre-installed software from HP, Dell, Lenovo, ASUS, Acer, MSI, Samsung and LG, SmartByte and Killer network apps, the Surface Hub app, and Dolby, Waves and Nahimic audio apps. Shown only if present. |
@@ -41,7 +41,7 @@ PowerShell 7 cannot load the Appx module (it fails with `0x80131539`), so every 
 
 ## Safety rules
 
-- **Catalog and guard.** Only catalog entries can be removed. A protected list stays out of reach: .NET and VC runtimes, WebView2, the Store, App Installer (WinGet), Xbox sign-in, shell and start components, `MicrosoftWindows.Client.*` packages and GUID-named packages. The catalog is refused as a whole if it names one of them.
+- **Catalog and guard.** Only catalog entries can be removed. A protected list stays out of reach: .NET and VC runtimes, WebView2, the Store, App Installer (WinGet), Xbox sign-in, shell and start components, the system `MicrosoftWindows.Client.*` packages (CBS, Core, FileExp, OOBE, Photon, AIX), the Office-managed `Microsoft.Office.ActionsServer` and `Microsoft.OfficePushNotificationUtility`, and GUID-named packages. The catalog is refused as a whole if it names one of them.
 - **Strict names.** Package patterns must match `^[A-Za-z0-9][A-Za-z0-9._-]*\*?$`. A wildcard needs a prefix of at least six characters. Tokens and SIDs are regex-checked before they reach the registry or a command line.
 - **Checked twice.** The page and the elevated helper both validate. A request that names anything outside the catalog is rejected in the helper whatever the page sent.
 - **Scan without admin.** The page reads Windows' package store in the registry (`HKLM\...\Appx\AppxAllUserStore`), which anyone may read, plus `Get-AppxPackage` for the current user. `Applications` lists the apps Windows installs for new accounts and has installed for any account (`InboxApplications` holds only parts of Windows itself). So an app that someone "uninstalled" from Start, which only removes it for that one account, still shows up while it is staged for new accounts, and reading the store is also faster than DISM. The helper rescans once you approve the Windows prompt.
@@ -118,7 +118,6 @@ Rows show the app's own logo, read from the `AppxManifest.xml` in its package fo
 
 - Runtimes, WebView2, the Store, WinGet, shell components, drivers and security components.
 - Component-store (CBS) servicing packages, such as the hidden AI packages that some tools delete from `C:\Windows\servicing\Packages`. Removing them can corrupt the component store and make cumulative updates fail with `0x800f0988` or `0x800f081f`. Recall is switched off as a feature instead.
-- `MicrosoftWindows.Client.WebExperience`. Removing it to get rid of Widgets breaks Snipping Tool, the emoji panel and shell flyouts. The Start feed and Widgets runtime packages are separate and are offered instead, marked Careful.
 - `Microsoft.XboxIdentityProvider`, `Microsoft.Xbox.TCUI` and `Microsoft.GamingServices`. Games from the Store and Game Pass fail to sign in or start without them, so only the Xbox app and Game Bar are offered.
 - Everyday tools: Calculator, Notepad, Paint, Snipping Tool, Photos, Windows Terminal and Camera.
 - Windows features unrelated to apps (Defender, Windows Update, search, widgets and similar). Quiet and Tune handle those.
@@ -131,3 +130,14 @@ Rows show the app's own logo, read from the `AppxManifest.xml` in its package fo
 - One opt-in live test (`TIDYWINDOW_LIVE_TESTS=1`) does a read-only scan of the real PC.
 - Writing to the registry, DISM, the Appx commands and the OneDrive and Edge uninstallers needs administrator rights and was run by hand on one Windows 11 PC with the apps listed above. Other Windows builds, other editions and PCs with manufacturer software were not tested.
 - Windows Home, Pro and Enterprise were not compared, and policy-managed PCs can block any of these steps. A blocked step is reported as a failure and rolled back.
+
+## Widgets keep coming back
+
+Removing only `Microsoft.WidgetsPlatformRuntime` does not last. `MicrosoftWindows.Client.WebExperience` is a Store package that holds only Widgets (`WidgetBoard.exe`, the Widgets dashboard and picker), and it declares the restricted `packageManagement` capability. When `WidgetBoard.exe` starts (sign-in, the taskbar button) and finds the runtime missing, it installs it again from `C:\Windows\InboxApps\Microsoft.WidgetsPlatformRuntime_8wekyb3d8bbwe.msixbundle`. The `Deprovisioned` mark does not stop that, because it only stops provisioning for new accounts. So the item now covers all three packages and removes them in the catalog's order: web experience pack first, then the Start feed, then the runtime. Before each package is removed, any program running from its folder is closed.
+
+- The emoji panel, clipboard history and Search live in `MicrosoftWindows.Client.CBS`, and screen clipping in `MicrosoftWindows.Client.Core`. Both are system packages and stay protected.
+- Put back installs the pack from the Store (`9MSSGKG348SP`), which brings the runtime back with it.
+- The Quiet "Widgets" switch writes `Policies\Microsoft\Dsh\AllowNewsAndInterests`. On PCs where the User Choice Protection Driver (`UCPD`) is active, Windows refuses that write even for an administrator, so Quiet now shows the row as locked and points here instead.
+- `Microsoft.Office.ActionsServer` was removed from the Copilot app item: Office's Click-to-Run service stages it again whenever it runs maintenance, so the item kept reappearing on PCs with Office.
+
+These findings come from one Windows 11 PC (build 26300); the package contents, the `UCPD` behaviour and the reinstall trigger should be re-checked on other builds.

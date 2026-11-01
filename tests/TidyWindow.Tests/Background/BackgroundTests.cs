@@ -13,6 +13,7 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public Dictionary<string, int> Policies = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Writes = [];
     public bool DenyWrites, IgnoreWrites;
+    public bool UcpdActive { get; set; }
     /// <summary>The write that fails, such as "task", to test undoing a half-finished change.</summary>
     public string? FailOn;
     /// <summary>The write that needs administrator rights, such as "stop", while every other write is allowed.</summary>
@@ -310,6 +311,42 @@ public sealed class BackgroundScanTests
         Assert.Contains("Home", entry.Lock);
         pc.Edition = "Professional";
         Assert.True(One(pc, Policy(pro: true)).CanChange);
+    }
+
+    private static BackgroundTarget UcpdPolicy() => new() { Kind = BackgroundTargetKind.Policy, Key = @"SOFTWARE\Policies\Microsoft\Dsh", Name = "AllowNewsAndInterests", Block = 0, BlockedByUcpd = true };
+
+    [Fact]
+    public void ASettingTheUserChoiceDriverBlocksIsLockedWithAClearReasonInsteadOfFailingAfterThePrompt()
+    {
+        var pc = new FakeBackgroundPc { UcpdActive = true };
+        var entry = One(pc, UcpdPolicy());
+        Assert.False(entry.CanChange);
+        Assert.Equal(BackgroundScan.UcpdLock, entry.Lock);
+        Assert.Contains("Debloat", entry.Lock);
+
+        pc.UcpdActive = false;
+        Assert.True(One(pc, UcpdPolicy()).CanChange);
+    }
+
+    [Fact]
+    public void TheDriverOnlyLocksTheSettingsThatAreMarkedAsBlockedByIt() =>
+        Assert.True(One(new FakeBackgroundPc { UcpdActive = true }, Policy()).CanChange);
+
+    [Fact]
+    public void TheWidgetsItemIsMarkedAsBlockedByTheDriver() =>
+        Assert.All(BackgroundCatalog.Load().Single(x => x.Id == "widgets").Targets.Where(x => x.Kind == BackgroundTargetKind.Policy), x => Assert.True(x.BlockedByUcpd));
+
+    [Fact]
+    public void ALockedSettingIsRefusedByTheHelperToo()
+    {
+        var pc = new FakeBackgroundPc { UcpdActive = true };
+        var item = Item("widgets", UcpdPolicy());
+
+        var outcome = new LocalBackgroundChanger(pc, pc, [item]).Change(new("widgets", false));
+
+        Assert.False(outcome.Ok);
+        Assert.Equal(BackgroundScan.UcpdLock, outcome.Error);
+        Assert.Empty(pc.Writes);
     }
 
     [Fact]

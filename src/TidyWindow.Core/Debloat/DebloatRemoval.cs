@@ -57,7 +57,8 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
             // The "do not install again" mark is not made yet: Windows makes it itself while it removes the app for everyone, and it refuses
             // (access denied) when the mark is already there. It is added afterwards for whatever Windows did not mark.
             var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var package in entry.Packages)
+            // In the order the catalog lists them, whatever order the caller sent: see DebloatGuard.CatalogOrder. OrderBy keeps equal ones as they were.
+            foreach (var package in entry.Packages.OrderBy(x => DebloatGuard.CatalogOrder(item, x.Name)))
             {
                 if (package.NonRemovable && unlocked.Add(package.FamilyName) && ops.ClearNonRemovable(package.FamilyName) is { } clearFailed) errors.Add(clearFailed);
                 store.DeleteInbox(package.FullName);
@@ -66,7 +67,7 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
                 if (ops.RemovePackage(package.FullName, package.Users) is { } failed) errors.Add(failed);
             }
 
-            foreach (var staged in entry.Provisioned)
+            foreach (var staged in entry.Provisioned.OrderBy(x => DebloatGuard.CatalogOrder(item, x.DisplayName)))
             {
                 foreach (var sid in userSids.Append(SystemSid).Distinct(StringComparer.OrdinalIgnoreCase))
                     if (store.CreateEndOfLife(sid, staged.PackageName)) madeEndOfLife.Add((sid, staged.PackageName));

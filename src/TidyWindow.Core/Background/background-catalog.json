@@ -504,7 +504,8 @@
           "kind": "policy",
           "key": "SOFTWARE\\Policies\\Microsoft\\Dsh",
           "name": "AllowNewsAndInterests",
-          "block": 0
+          "block": 0,
+          "blockedByUcpd": true
         }
       ],
       "risk": "safe"
