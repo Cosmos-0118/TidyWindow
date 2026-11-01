@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
@@ -71,6 +72,55 @@ public static class OneDriveDetection
     }
 }
 
+/// <summary>An Edge that is installed: the setup program that uninstalls it, and the Windows Installer product code when it was installed from Microsoft's MSI.</summary>
+public sealed record EdgeInstall(string Setup, string? MsiProductCode);
+
+/// <summary>
+/// Whether Edge is installed, found from what Edge itself leaves rather than from one registry entry. Edge installed by its own setup registers
+/// "Uninstall\Microsoft Edge", but Edge installed from Microsoft's MSI (which is what WinGet installs) registers a Windows Installer product instead and no such entry,
+/// so looking only there made Edge vanish from the list as soon as it was put back. Its updater records the uninstall command for both kinds, and the setup program
+/// sits in the same place for both. What counts is a setup.exe that exists inside Edge's own folder, so an entry that outlives an uninstall is not evidence.
+/// </summary>
+public static partial class EdgeDetection
+{
+    /// <summary>The updater's id for Edge Stable.</summary>
+    public const string StableId = "{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}";
+
+    [GeneratedRegex(@"^\{[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\}$")]
+    private static partial Regex ProductCode();
+
+    public static bool IsProductCode(string? text) => text is not null && ProductCode().IsMatch(text);
+
+    /// <param name="registered">Uninstall commands that were found in the registry, most trusted first. Each may be quoted or not, and may carry arguments.</param>
+    /// <param name="applicationFolder">Edge's own folder, such as C:\Program Files (x86)\Microsoft\Edge\Application. A setup program anywhere else is ignored.</param>
+    /// <param name="versionFolders">The version folders inside <paramref name="applicationFolder"/>.</param>
+    public static EdgeInstall? Find(IEnumerable<string> registered, string applicationFolder, string? msiProductCode, Func<string, bool> fileExists, Func<string, IEnumerable<string>> versionFolders)
+    {
+        var product = IsProductCode(msiProductCode) ? msiProductCode : null;
+        foreach (var command in registered)
+            if (SetupOf(command) is { } setup && IsInside(setup, applicationFolder) && fileExists(setup)) return new(setup, product);
+        // No usable entry (or none at all): the setup program of the newest version folder.
+        foreach (var folder in versionFolders(applicationFolder).Where(x => char.IsDigit(Path.GetFileName(x).FirstOrDefault())).OrderByDescending(x => Version.TryParse(Path.GetFileName(x), out var v) ? v : new Version()))
+        {
+            var setup = Path.Combine(folder, "Installer", "setup.exe");
+            if (fileExists(setup)) return new(setup, product);
+        }
+        return null;
+    }
+
+    /// <summary>The setup.exe an uninstall command runs. Edge's updater stores the path without quotes even when it has spaces, so the path is cut after "setup.exe" instead of at the first space.</summary>
+    public static string? SetupOf(string? command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return null;
+        var end = command.IndexOf("setup.exe", StringComparison.OrdinalIgnoreCase);
+        if (end < 0) return null;
+        var path = command[..(end + "setup.exe".Length)].Trim().Trim('"');
+        return Path.IsPathFullyQualified(path) && string.Equals(Path.GetFileName(path), "setup.exe", StringComparison.OrdinalIgnoreCase) ? path : null;
+    }
+
+    private static bool IsInside(string path, string folder) => path.StartsWith(folder.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase) && !path.Contains("..");
+}
+
 /// <summary>Reads packages and the state of OneDrive, Edge and Recall from this PC.</summary>
 [SupportedOSPlatform("windows")]
 public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
@@ -126,7 +176,7 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
             }
             catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { }
         }
-        return new(OneDriveInstalled(), folders, EdgeUninstaller() is not null, OtherBrowserInstalled(), RecallInstalled());
+        return new(OneDriveInstalled(), folders, FindEdge() is not null, OtherBrowserInstalled(), RecallInstalled());
     }
 
     internal static bool OneDriveInstalled()
@@ -145,13 +195,42 @@ public sealed class WindowsDebloatSystem(bool elevated) : IDebloatSystem
         return machine32 is not null;
     }
 
-    /// <summary>The uninstall command Edge registered, or null when Edge is not installed.</summary>
-    internal static string? EdgeUninstaller()
+    /// <summary>The installed Edge, or null when Edge is not installed. See <see cref="EdgeDetection"/> for why more than one place is read.</summary>
+    internal static EdgeInstall? FindEdge()
     {
-        foreach (var path in new[] { @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" })
+        var registered = new List<string>();
+        var places = new[]
+        {
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge",
+            @"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\ClientState\" + EdgeDetection.StableId, @"SOFTWARE\Microsoft\EdgeUpdate\ClientState\" + EdgeDetection.StableId
+        };
+        foreach (var path in places)
         {
             using var key = Registry.LocalMachine.OpenSubKey(path);
-            if (key?.GetValue("UninstallString") is string text && text.Length > 0) return text;
+            if (key?.GetValue("UninstallString") is string text && text.Length > 0) registered.Add(text);
+        }
+        var application = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application");
+        return EdgeDetection.Find(registered, application, EdgeMsiProductCode(), File.Exists, VersionFolders);
+    }
+
+    private static IEnumerable<string> VersionFolders(string folder)
+    {
+        try { return Directory.Exists(folder) ? Directory.EnumerateDirectories(folder).ToList() : []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    /// <summary>The Windows Installer product code of Edge when it was installed from Microsoft's MSI, which registers itself under its code instead of the name "Microsoft Edge".</summary>
+    private static string? EdgeMsiProductCode()
+    {
+        foreach (var path in new[] { @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" })
+        {
+            using var list = Registry.LocalMachine.OpenSubKey(path);
+            if (list is null) continue;
+            foreach (var name in list.GetSubKeyNames().Where(EdgeDetection.IsProductCode))
+            {
+                using var key = list.OpenSubKey(name);
+                if (key?.GetValue("DisplayName") as string == "Microsoft Edge" && key.GetValue("Publisher") as string == "Microsoft Corporation" && key.GetValue("WindowsInstaller") is 1) return name;
+            }
         }
         return null;
     }
@@ -398,7 +477,7 @@ internal static class UserHives
 [SupportedOSPlatform("windows")]
 public sealed class WindowsPlaybooks : IDebloatPlaybooks
 {
-    private const string EdgeStableId = "{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}";
+    private const string EdgeStableId = EdgeDetection.StableId;
     private const string EdgeUpdatePolicy = @"SOFTWARE\Policies\Microsoft\EdgeUpdate";
 
     public string? Remove(DebloatKind kind) => kind switch
@@ -522,11 +601,23 @@ public sealed class WindowsPlaybooks : IDebloatPlaybooks
     private static string? RemoveEdge()
     {
         if (!WindowsDebloatSystem.OtherBrowserInstalled()) return DebloatScan.OnlyBrowserLock;
-        var command = WindowsDebloatSystem.EdgeUninstaller();
-        if (command is null) return null;
-        var setup = command.Trim().StartsWith('"') ? command.Trim().Split('"')[1] : command.Trim().Split(' ')[0];
-        if (!File.Exists(setup) || !Path.GetFileName(setup).Equals("setup.exe", StringComparison.OrdinalIgnoreCase)) return "Edge's own uninstaller was not found.";
+        var install = WindowsDebloatSystem.FindEdge();
+        if (install is null) return null;
 
+        // Edge installed from Microsoft's MSI (what putting it back with WinGet gives) belongs to Windows Installer, which is the way to remove it.
+        // If that leaves Edge in place, its own setup program is tried next, as for any other install.
+        if (install.MsiProductCode is { } product)
+        {
+            DebloatProcess.Run(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "msiexec.exe"), ["/x", product, "/qn", "/norestart"], TimeSpan.FromMinutes(5));
+            install = WindowsDebloatSystem.FindEdge();
+        }
+        if (install is not null) RunEdgeSetup(install.Setup);
+        ForgetEdge();
+        return null;
+    }
+
+    private static void RunEdgeSetup(string setup)
+    {
         var stubDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemApps", "Microsoft.MicrosoftEdge_8wekyb3d8bbwe");
         var stub = Path.Combine(stubDirectory, "MicrosoftEdge.exe");
         var madeStub = false;
@@ -546,7 +637,10 @@ public sealed class WindowsPlaybooks : IDebloatPlaybooks
             using var update = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdateDev", writable: true);
             update?.DeleteValue("AllowUninstall", throwOnMissingValue: false);
         }
+    }
 
+    private static void ForgetEdge()
+    {
         // Tell the updater not to install Edge again. The WebView2 runtime has its own product id and is not affected.
         using (var policy = Registry.LocalMachine.CreateSubKey(EdgeUpdatePolicy)) policy.SetValue("Install" + EdgeStableId, 0, RegistryValueKind.DWord);
 
@@ -570,7 +664,6 @@ public sealed class WindowsPlaybooks : IDebloatPlaybooks
         {
             try { File.Delete(link); } catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
         }
-        return null;
     }
 
     private static string? AllowEdge()

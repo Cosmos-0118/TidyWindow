@@ -665,6 +665,88 @@ public sealed class DebloatPlaybookTests
     }
 }
 
+public sealed class EdgeDetectionTests
+{
+    private const string App = @"C:\Program Files (x86)\Microsoft\Edge\Application";
+    private const string Setup = App + @"\156.0.4314.58\Installer\setup.exe";
+    private const string Product = "{3193C6F3-8C79-30A0-AE89-121FE521ABFF}";
+
+    private static EdgeInstall? Find(IEnumerable<string> registered, string? product, params string[] files) =>
+        EdgeDetection.Find(registered, App, product, files.Contains, folder => files.Select(x => Path.GetDirectoryName(Path.GetDirectoryName(x))!).Distinct().Where(x => x.StartsWith(folder, StringComparison.OrdinalIgnoreCase)));
+
+    [Fact]
+    public void EdgeInstalledByItsOwnSetupIsFoundFromItsUninstallEntry()
+    {
+        var found = Find([$"\"{Setup}\" --uninstall --msedge --system-level --verbose-logging"], null, Setup);
+
+        Assert.Equal(Setup, found!.Setup);
+        Assert.Null(found.MsiProductCode);
+    }
+
+    [Fact]
+    public void EdgeInstalledFromTheMsiIsFoundFromTheUpdatersRecordWhichHasNoQuotes()
+    {
+        // This is what is on a PC after Edge is put back with WinGet: no "Microsoft Edge" uninstall entry, only the updater's record and the MSI product.
+        var found = Find([Setup], Product, Setup);
+
+        Assert.Equal(Setup, found!.Setup);
+        Assert.Equal(Product, found.MsiProductCode);
+    }
+
+    [Fact]
+    public void EdgeIsFoundFromItsFolderEvenWhenNothingIsRegistered()
+    {
+        var older = App + @"\155.0.1.1\Installer\setup.exe";
+
+        Assert.Equal(Setup, Find([], null, older, Setup)!.Setup);
+    }
+
+    [Fact]
+    public void AnEntryThatOutlivesTheUninstallIsNotEvidence()
+    {
+        Assert.Null(Find([Setup], Product));
+        Assert.Null(Find([$"\"{Setup}\" --uninstall"], null));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\sam\Downloads\setup.exe --uninstall")]
+    [InlineData(@"C:\Program Files (x86)\Microsoft\Edge\Application\..\..\evil\setup.exe")]
+    [InlineData(@"C:\Program Files (x86)\Microsoft\Edge\Application\156.0.4314.58\Installer\notsetup.exe")]
+    [InlineData("setup.exe --uninstall")]
+    [InlineData("")]
+    public void ASetupProgramOutsideEdgesFolderOrWithoutAFullPathIsIgnored(string command)
+    {
+        // The file is made to exist, so only the rules about where it is and what it is called can turn it down.
+        var setup = EdgeDetection.SetupOf(command);
+        Assert.Null(Find([command], null, setup is null ? [] : [setup]));
+    }
+
+    [Theory]
+    [InlineData(@"""C:\a b\Installer\setup.exe"" --uninstall --msedge", @"C:\a b\Installer\setup.exe")]
+    [InlineData(@"C:\a b\Installer\setup.exe", @"C:\a b\Installer\setup.exe")]
+    [InlineData(@"C:\a b\Installer\SETUP.EXE  --uninstall", @"C:\a b\Installer\SETUP.EXE")]
+    [InlineData("MsiExec.exe /X{3193C6F3-8C79-30A0-AE89-121FE521ABFF}", null)]
+    [InlineData(null, null)]
+    public void TheSetupProgramIsCutOutOfTheCommand(string? command, string? expected) => Assert.Equal(expected, EdgeDetection.SetupOf(command));
+
+    [Theory]
+    [InlineData("{3193C6F3-8C79-30A0-AE89-121FE521ABFF}", true)]
+    [InlineData("3193C6F3-8C79-30A0-AE89-121FE521ABFF", false)]
+    [InlineData("{3193C6F3-8C79-30A0-AE89-121FE521ABFF} & calc", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OnlyARealProductCodeIsHandedToWindowsInstaller(string? text, bool expected) => Assert.Equal(expected, EdgeDetection.IsProductCode(text));
+
+    [Fact]
+    public void ABadProductCodeIsDroppedButEdgeIsStillFound()
+    {
+        var found = Find([Setup], "{x} & calc", Setup);
+
+        Assert.Equal(Setup, found!.Setup);
+        Assert.Null(found.MsiProductCode);
+    }
+}
+
 public sealed class OneDriveDetectionTests
 {
     private static string Folder() => Path.Combine(Path.GetTempPath(), "tidywindow-onedrive-" + Guid.NewGuid().ToString("N"));
