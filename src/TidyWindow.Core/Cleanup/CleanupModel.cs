@@ -18,6 +18,8 @@ public sealed class CleanupRule
     public CleanupAction Action { get; init; } = CleanupAction.Files;
     /// <summary>Folders whose contents are cleaned. %variables% are expanded; a segment may contain * or ? to match several folders (browser profiles).</summary>
     public string[] Paths { get; init; } = [];
+    /// <summary>Data folders of a Chromium based app (the folder holding "Local State", or a pattern for several). Every well-known cache folder in it and in each of its profiles is cleaned, so one list of cache names serves every browser and Electron app.</summary>
+    public string[] ChromiumData { get; init; } = [];
     /// <summary>Windows Disk Cleanup handlers (VolumeCaches in the registry). Files rules add the folders Windows itself lists for them, so the list follows the installed Windows version; DiskCleanup rules hand the work to those handlers.</summary>
     public string[] Handlers { get; init; } = [];
     /// <summary>"chromium" adds the cache folders of every Chromium based app found in the profile (Electron, WebView2, CEF), whatever its name.</summary>
@@ -57,7 +59,8 @@ public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, 
 public sealed class CleanupContext
 {
     public static CleanupContext Current { get; } = new();
-    public Func<string, string?> Variable { get; init; } = name => Environment.GetEnvironmentVariable(name);
+    /// <summary>Environment variables, plus %DOWNLOADS%, %DOCUMENTS%, %DESKTOP%, %PICTURES%, %MUSIC% and %VIDEOS%, which follow the folder if the user moved it.</summary>
+    public Func<string, string?> Variable { get; init; } = CleanupNative.Variable;
     public bool IsAdministrator { get; init; } = CleanupNative.IsAdministrator();
     public Func<DateTime> Now { get; init; } = () => DateTime.UtcNow;
     /// <summary>Names of running processes, read once per scan; asking per app costs far more than listing them all.</summary>

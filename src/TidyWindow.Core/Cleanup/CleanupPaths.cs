@@ -11,9 +11,9 @@ public static partial class CleanupPaths
     private static readonly EnumerationOptions Folders = new() { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint, MatchType = MatchType.Win32 };
 
     /// <summary>Expands variables and wildcard folders. Missing folders, unknown variables and unsafe results are dropped.</summary>
-    public static string[] Roots(CleanupRule rule, CleanupContext context) => Roots(rule, context, Protected(context));
+    public static string[] Roots(CleanupRule rule, CleanupContext context) => Roots(rule, context, Protected(context), new HashSet<string>());
 
-    private static string[] Roots(CleanupRule rule, CleanupContext context, IReadOnlyList<string> protectedPaths)
+    private static string[] Roots(CleanupRule rule, CleanupContext context, IReadOnlyList<string> protectedPaths, IReadOnlySet<string> owned)
     {
         var found = new List<string>();
         void Add(string folder)
@@ -26,6 +26,8 @@ public static partial class CleanupPaths
             if (expanded is null) continue;
             foreach (var folder in Wildcards(expanded)) Add(folder);
         }
+        foreach (var dataFolder in ChromiumDataFolders(rule, context))
+            foreach (var folder in ChromiumCacheFolders(dataFolder)) Add(folder);
         // Folders Windows lists for its own cleanup handlers. They only count inside the places Windows keeps its temporary data.
         foreach (var handler in rule.Handlers)
             foreach (var pattern in context.HandlerFolders(handler) ?? [])
@@ -34,8 +36,20 @@ public static partial class CleanupPaths
                 if (expanded is not null && IsWindowsDataFolder(expanded, context)) Add(expanded);
             }
         if (string.Equals(rule.Discover, "chromium", StringComparison.OrdinalIgnoreCase))
-            foreach (var folder in DiscoverChromium(context)) Add(folder);
+            foreach (var folder in DiscoverChromium(context, owned)) Add(folder);
         return found.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    /// <summary>The existing data folders a rule names in <see cref="CleanupRule.ChromiumData"/>.</summary>
+    private static IEnumerable<string> ChromiumDataFolders(CleanupRule rule, CleanupContext context)
+    {
+        foreach (var pattern in rule.ChromiumData)
+        {
+            var expanded = Expand(pattern, context);
+            if (expanded is null) continue;
+            foreach (var folder in Wildcards(expanded))
+                if (IsPlainFolder(folder)) yield return folder;
+        }
     }
 
     private static bool IsWindowsDataFolder(string path, CleanupContext context)
@@ -47,48 +61,81 @@ public static partial class CleanupPaths
         return false;
     }
 
+    /// <summary>Cache folders inside a Chromium data folder or one of its profiles. A * matches one folder (an Electron webview id or partition).</summary>
     private static readonly string[] ChromiumCaches =
     [
-        "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache",
-        "component_crx_cache", "extensions_crx_cache", "Crashpad", @"Service Worker\CacheStorage", @"Service Worker\ScriptCache"
+        "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache", "GPUPersistentCache",
+        "component_crx_cache", "extensions_crx_cache", "Crashpad", "Media Cache", "System Cache",
+        @"Service Worker\CacheStorage", @"Service Worker\ScriptCache", @"Shared Dictionary\cache", @"WebStorage\*\CacheStorage",
+        @"Partitions\*\Cache", @"Partitions\*\Code Cache", @"Partitions\*\GPUCache"
     ];
     private static readonly HashSet<string> DiscoverSkips = new(StringComparer.OrdinalIgnoreCase) { "Temp", "node_modules", ".git", "Programs", "WinGet", "Windows" };
     private const int DiscoverDepth = 9;
+    /// <summary>How far below an app that has its own rule to keep looking for apps nested in its data (WebView2 hosts such as Edge's sign-in component).</summary>
+    private const int OwnedNesting = 4;
+
+    private static IEnumerable<string> CachesIn(string folder)
+    {
+        foreach (var cache in ChromiumCaches)
+        {
+            var path = Path.Combine(folder, cache);
+            if (cache.Contains('*'))
+            {
+                foreach (var match in Wildcards(path))
+                    if (Directory.Exists(match)) yield return match;
+            }
+            else if (Directory.Exists(path)) yield return path;
+        }
+    }
+
+    /// <summary>Every well-known cache folder directly inside a Chromium data folder or inside one of its profiles, never the profiles themselves, so sign-ins, history and settings are not reachable.</summary>
+    internal static IEnumerable<string> ChromiumCacheFolders(string dataFolder)
+    {
+        foreach (var cache in CachesIn(dataFolder)) yield return cache;
+        string[] profiles;
+        try { profiles = Directory.GetDirectories(dataFolder, "*", Folders); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { yield break; }
+        foreach (var profile in profiles)
+            foreach (var cache in CachesIn(profile)) yield return cache;
+    }
+
+    /// <summary>The data folders that rules clean through <see cref="CleanupRule.ChromiumData"/>.</summary>
+    private static HashSet<string> OwnedDataFolders(IReadOnlyList<CleanupRule> rules, CleanupContext context)
+    {
+        var owned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rule in rules)
+            foreach (var folder in ChromiumDataFolders(rule, context)) owned.Add(Normalize(folder));
+        return owned;
+    }
 
     /// <summary>
     /// Finds the cache folders of every Chromium based app in the profile. A folder counts as an app's data folder only when it holds
-    /// a "Local State" file, which Chromium, Electron, WebView2 and CEF all write; only well-known cache folders directly inside it
-    /// or inside one of its profiles are returned, never the profiles themselves, so sign-ins, history and settings are not reachable.
+    /// a "Local State" file, which Chromium, Electron, WebView2 and CEF all write. Apps that a rule of their own cleans (<paramref name="owned"/>)
+    /// are left to that rule, so unticking it really keeps that app's caches out of this one.
     /// </summary>
-    internal static IReadOnlyList<string> DiscoverChromium(CleanupContext context)
+    internal static IReadOnlyList<string> DiscoverChromium(CleanupContext context, IReadOnlySet<string> owned)
     {
         var found = new System.Collections.Concurrent.ConcurrentBag<string>();
         var tops = new List<string>();
         foreach (var name in new[] { "LOCALAPPDATA", "APPDATA" })
             if (context.Variable(name) is { Length: > 0 } start && Path.IsPathRooted(start) && Directory.Exists(start)) tops.Add(Normalize(start));
 
-        void AddCaches(string folder)
-        {
-            foreach (var cache in ChromiumCaches)
-            {
-                var path = Path.Combine(folder, cache);
-                if (Directory.Exists(path)) found.Add(path);
-            }
-        }
-
-        void Walk(string folder, int depth)
+        void Walk(string folder, int depth, int limit)
         {
             try
             {
                 if (File.Exists(Path.Combine(folder, "Local State")))
                 {
-                    AddCaches(folder);
-                    foreach (var profile in Directory.EnumerateDirectories(folder, "*", Folders)) AddCaches(profile);
-                    return;
+                    if (!owned.Contains(Normalize(folder)))
+                    {
+                        foreach (var cache in ChromiumCacheFolders(folder)) found.Add(cache);
+                        return;
+                    }
+                    limit = Math.Min(limit, depth + OwnedNesting);
                 }
-                if (depth >= DiscoverDepth) return;
+                if (depth >= limit) return;
                 foreach (var child in Directory.EnumerateDirectories(folder, "*", Folders))
-                    if (!DiscoverSkips.Contains(Path.GetFileName(child))) Walk(child, depth + 1);
+                    if (!DiscoverSkips.Contains(Path.GetFileName(child))) Walk(child, depth + 1, limit);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
@@ -100,7 +147,7 @@ public static partial class CleanupPaths
             try { work.AddRange(Directory.EnumerateDirectories(top, "*", Folders).Where(x => !DiscoverSkips.Contains(Path.GetFileName(x)))); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
-        Parallel.ForEach(work, new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism }, folder => Walk(folder, 1));
+        Parallel.ForEach(work, new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism }, folder => Walk(folder, 1, DiscoverDepth));
         return found.ToArray();
     }
 
@@ -109,9 +156,10 @@ public static partial class CleanupPaths
     {
         var roots = new string[rules.Count][];
         var protectedPaths = Protected(context);
+        var owned = rules.Any(x => x.Discover is not null) ? OwnedDataFolders(rules, context) : [];
         // Wildcard folders (browser profiles) make this the slowest of the quick steps, so rules are resolved side by side.
         Parallel.For(0, rules.Count, new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism }, i =>
-            roots[i] = rules[i].Action is CleanupAction.Files or CleanupAction.PreviousWindows ? Roots(rules[i], context, protectedPaths) : []);
+            roots[i] = rules[i].Action is CleanupAction.Files or CleanupAction.PreviousWindows ? Roots(rules[i], context, protectedPaths, owned) : []);
         var whole = new List<(int Rule, string Root)>();
         for (var i = 0; i < rules.Count; i++)
             if (rules[i].Action == CleanupAction.Files && rules[i].Masks.Length == 0 && rules[i].Recurse) whole.AddRange(roots[i].Select(root => (i, root)));
@@ -208,6 +256,8 @@ public static partial class CleanupPaths
             Add(Path.GetDirectoryName(Normalize(profile)));
             foreach (var name in new[] { "Desktop", "Documents", "Pictures", "Music", "Videos", "Downloads", "OneDrive", "AppData" }) Add(Path.Combine(profile, name));
         }
+        // The same folders after the user moved them to another drive or into OneDrive.
+        foreach (var name in CleanupNative.KnownFolders.Keys) Add(context.Variable(name));
         if (!string.IsNullOrWhiteSpace(windows) && Path.IsPathRooted(windows))
             foreach (var name in new[] { "System32", "SysWOW64", "WinSxS", "Installer", "Fonts", "assembly", "Boot" }) Add(Path.Combine(windows, name));
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

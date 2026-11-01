@@ -108,7 +108,7 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
             }
         }
         var chromium = findings.First(x => x.Rule.Discover is not null);
-        var allowed = new[] { "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache", "component_crx_cache", "extensions_crx_cache", "Crashpad", "CacheStorage", "ScriptCache" };
+        var allowed = new[] { "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache", "component_crx_cache", "extensions_crx_cache", "Crashpad", "CacheStorage", "ScriptCache", "cache", "GPUPersistentCache", "Media Cache", "System Cache" };
         Assert.All(chromium.Roots, root => Assert.Contains(Path.GetFileName(root), allowed, StringComparer.OrdinalIgnoreCase));
     }
 

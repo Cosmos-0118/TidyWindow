@@ -55,6 +55,9 @@ public sealed class SystemCleanTests : IDisposable
             return (await RunAsync(fileName, arguments, timeout, cancellationToken), Output);
         }
         public void SetCleanupHandler(string handler, int slot, bool enabled) => Handlers.Add((handler, enabled));
+        /// <summary>How many handler switches had happened each time the slot was swept.</summary>
+        public readonly List<int> Sweeps = [];
+        public void ClearCleanupHandlers(int slot) => Sweeps.Add(Handlers.Count);
         public long FreeBytes(string drive) => ran ? FreeAfter : Free;
     }
 
@@ -67,6 +70,19 @@ public sealed class SystemCleanTests : IDisposable
         Assert.Equal(["cleanmgr.exe /sagerun:5099"], tools.Commands);
         Assert.Equal([("Device Driver Packages", true), ("Language Pack", true), ("Device Driver Packages", false), ("Language Pack", false)], tools.Handlers);
         Assert.Equal(5_000, report.Result.FreedBytes);
+    }
+
+    [Fact]
+    public async Task EveryDiskCleanupRunStartsFromASweptSlotSoNoStaleHandlerRuns()
+    {
+        var disk = new CleanupRule { Id = "drivers", Group = "Windows", Name = "d", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = ["Device Driver Packages"] };
+        var previous = new CleanupRule { Id = "old", Group = "Windows", Name = "o", Admin = true, Action = CleanupAction.PreviousWindows, Paths = [Path.Combine(root, "Windows.old")] };
+        Make("Windows.old/x.bin", 10);
+        await new SystemCleanJob(Context(), tools).RunAsync([disk, previous], ["drivers", "old"]);
+        // The sweep happens before the first handler is armed for each run, never in the middle of one.
+        Assert.Equal(2, tools.Sweeps.Count);
+        Assert.Equal(0, tools.Sweeps[0]);
+        Assert.Equal(2, tools.Sweeps[1]);
     }
 
     [Fact]

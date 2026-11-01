@@ -112,7 +112,17 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
             var relative = Path.GetRelativePath(root, file);
             var stored = Path.Combine(directory, ruleId, rootIndex.ToString(), relative);
             Directory.CreateDirectory(Path.GetDirectoryName(stored)!);
-            File.Move(file, stored);
+            // A read-only installer cannot be moved to another drive (the move copies it, then deletes the original), so the flag is lifted for the move and put back on the held copy.
+            var attributes = File.GetAttributes(file);
+            var readOnly = attributes.HasFlag(FileAttributes.ReadOnly);
+            if (readOnly) File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            try { File.Move(file, stored); }
+            catch
+            {
+                if (readOnly && File.Exists(file)) File.SetAttributes(file, attributes);
+                throw;
+            }
+            if (readOnly) File.SetAttributes(stored, attributes);
             held.Add(new Entry(file, stored, length));
         }
 

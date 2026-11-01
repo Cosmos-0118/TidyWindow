@@ -54,7 +54,8 @@ public sealed class CleanupTests : IDisposable
         {
             Assert.False(string.IsNullOrWhiteSpace(rule.Name));
             Assert.False(string.IsNullOrWhiteSpace(rule.Detail));
-            if (rule.Action == CleanupAction.Files && rule.Handlers.Length == 0 && rule.Discover is null) Assert.NotEmpty(rule.Paths);
+            if (rule.Action == CleanupAction.Files && rule.Handlers.Length == 0 && rule.Discover is null) Assert.NotEmpty(rule.Paths.Concat(rule.ChromiumData));
+            Assert.All(rule.ChromiumData, path => Assert.StartsWith("%", path));
             if (rule.Action == CleanupAction.DiskCleanup) { Assert.NotEmpty(rule.Handlers); Assert.True(rule.Admin); Assert.Equal(CleanupLevel.Review, rule.Level); }
             Assert.All(rule.Paths, path => Assert.StartsWith("%", path));
             if (rule.Quarantine) Assert.Equal(CleanupLevel.Review, rule.Level);
@@ -334,6 +335,108 @@ public sealed class CleanupTests : IDisposable
         Assert.True(File.Exists(Local("Temp/Fake/Cache/x")));
     }
 
+    private static CleanupRule Owning(string id, params string[] dataFolders) => new() { Id = id, Group = "Browsers", Name = id, Paths = [], ChromiumData = dataFolders };
+
+    [Fact]
+    public async Task AnAppWithItsOwnRuleKeepsEveryCacheOutOfTheCatchAllRule()
+    {
+        // Chrome's less common cache folders used to fall through to "other browser and app caches", which ignores the Chrome rule being unticked.
+        var data = "Users/me/AppData/Local/Google/Chrome/User Data";
+        Make($"{data}/Local State", 5);
+        foreach (var cache in new[] { "Crashpad", "DawnCache", "GPUPersistentCache", "Default/Cache", "Default/Service Worker/ScriptCache", "Default/Shared Dictionary/cache", "Default/WebStorage/7/CacheStorage" })
+            Make($"{data}/{cache}/x", 10);
+        Make($"{data}/Default/Shared Dictionary/db", 999);
+        Make($"{data}/Default/Login Data", 999);
+        Make("Users/me/AppData/Roaming/OtherChat/Local State", 5);
+        Make("Users/me/AppData/Roaming/OtherChat/Cache/y", 30);
+        var chrome = Owning("chrome", @"%LOCALAPPDATA%\Google\Chrome\User Data");
+        var findings = await new CleanupScanner(Context()).ScanAsync([chrome, Discovering()]);
+        Assert.Equal(70, findings[0].Bytes);
+        Assert.Equal(30, findings[1].Bytes);
+        Assert.All(findings[1].Roots, folder => Assert.Contains("OtherChat", folder));
+        await new CleanupCleaner(Context()).CleanAsync(findings);
+        Assert.True(File.Exists(Local("Google/Chrome/User Data/Default/Login Data")));
+        Assert.True(File.Exists(Local("Google/Chrome/User Data/Default/Shared Dictionary/db")));
+        Assert.True(File.Exists(Local("Google/Chrome/User Data/Local State")));
+    }
+
+    [Fact]
+    public async Task ElectronWebviewAndPartitionCachesAreFoundButTheirStorageIsNot()
+    {
+        Make("Users/me/AppData/Roaming/Editor/Local State", 5);
+        Make("Users/me/AppData/Roaming/Editor/WebStorage/3/CacheStorage/a", 40);
+        Make("Users/me/AppData/Roaming/Editor/WebStorage/3/IndexedDB/keep", 999);
+        Make("Users/me/AppData/Roaming/Editor/Partitions/login/Cache/b", 50);
+        Make("Users/me/AppData/Roaming/Editor/Partitions/login/Code Cache/c", 60);
+        Make("Users/me/AppData/Roaming/Editor/Partitions/login/Cookies", 999);
+        var finding = await ScanOne(Discovering());
+        Assert.Equal(150, finding.Bytes);
+        await new CleanupCleaner(Context()).CleanAsync([finding]);
+        Assert.True(File.Exists(Roaming("Editor/WebStorage/3/IndexedDB/keep")));
+        Assert.True(File.Exists(Roaming("Editor/Partitions/login/Cookies")));
+    }
+
+    [Fact]
+    public async Task AWebView2HostNestedInsideAnOwnedBrowserIsStillFound()
+    {
+        var data = "Users/me/AppData/Local/Microsoft/Edge/User Data";
+        Make($"{data}/Local State", 5);
+        Make($"{data}/Default/Cache/own", 10);
+        Make($"{data}/OneAuth/WebView2/EBWebView/Local State", 5);
+        Make($"{data}/OneAuth/WebView2/EBWebView/GrShaderCache/n", 25);
+        Make($"{data}/OneAuth/WebView2/EBWebView/Default/Login Data", 999);
+        var findings = await new CleanupScanner(Context()).ScanAsync([Owning("edge", @"%LOCALAPPDATA%\Microsoft\Edge\User Data"), Discovering()]);
+        Assert.Equal(10, findings[0].Bytes);
+        Assert.Equal(25, findings[1].Bytes);
+    }
+
+    [Fact]
+    public async Task AMovedDownloadsFolderIsScannedAndAMovedDocumentsFolderIsProtected()
+    {
+        var moved = Make("Elsewhere/Downloads/setup.exe", 77, ageDays: 90);
+        Make("Elsewhere/Docs/thesis.docx", 500);
+        Make("Users/me/Downloads/setup.exe", 11, ageDays: 90);
+        variables["DOWNLOADS"] = Path.Combine(root, "Elsewhere", "Downloads");
+        variables["DOCUMENTS"] = Path.Combine(root, "Elsewhere", "Docs");
+        var rule = Rule("installers", ["%DOWNLOADS%"], files: "*.exe", age: 60, recurse: false, quarantine: true, level: CleanupLevel.Review);
+        var finding = await ScanOne(rule);
+        Assert.Equal(77, finding.Bytes);
+        Assert.Equal(Path.GetFullPath(moved), Assert.Single(Directory.GetFiles(finding.Roots.Single())));
+        Assert.False(CleanupPaths.IsSafeRoot(Path.Combine(root, "Elsewhere", "Docs"), Rule("bad", ["x"]), CleanupPaths.Protected(Context())));
+    }
+
+    [Fact]
+    public async Task AReadOnlyFileCanBeHeldAndComesBackStillReadOnly()
+    {
+        var installer = Make("Users/me/Downloads/setup.exe", 12, ageDays: 90, readOnly: true);
+        var finding = await ScanOne(Rule("installers", [@"%USERPROFILE%\Downloads"], files: "*.exe", age: 60, recurse: false, quarantine: true, level: CleanupLevel.Review));
+        var quarantine = new CleanupQuarantine(Path.Combine(root, "undo"), () => Now);
+        var result = await new CleanupCleaner(Context(), quarantine).CleanAsync([finding]);
+        Assert.Equal(0, result.Skipped);
+        Assert.False(File.Exists(installer));
+        Assert.Equal(1, quarantine.Restore(result.UndoId!).Restored);
+        Assert.True(File.GetAttributes(installer).HasFlag(FileAttributes.ReadOnly));
+        File.SetAttributes(installer, FileAttributes.Normal);
+    }
+
+    [Fact]
+    public async Task AFolderLeftEmptyByTheCleanIsRemovedEvenWhenItWasChangedRecently()
+    {
+        var temp = Path.Combine(root, "Users", "me", "AppData", "Local", "Temp");
+        Make("Users/me/AppData/Local/Temp/session/deep/old.tmp", 100, ageDays: 5);
+        Make("Users/me/AppData/Local/Temp/kept/old.tmp", 100, ageDays: 5);
+        Make("Users/me/AppData/Local/Temp/kept/new.tmp", 100, ageDays: 0);
+        Directory.CreateDirectory(Path.Combine(temp, "untouched"));
+        foreach (var folder in Directory.EnumerateDirectories(temp, "*", SearchOption.AllDirectories)) Directory.SetLastWriteTimeUtc(folder, Now);
+        var finding = await ScanOne(Rule("temp", ["%TEMP%"], age: 1));
+        await new CleanupCleaner(Context()).CleanAsync([finding]);
+        Assert.False(Directory.Exists(Path.Combine(temp, "session", "deep")));
+        Assert.False(Directory.Exists(Path.Combine(temp, "session")));
+        Assert.True(Directory.Exists(Path.Combine(temp, "kept")));
+        // A folder the clean never emptied is not its business, even if it is empty.
+        Assert.True(Directory.Exists(Path.Combine(temp, "untouched")));
+    }
+
     [Fact]
     public async Task ADiscoveredCacheThatIsReallyALinkIsNeverFollowed()
     {
@@ -404,7 +507,7 @@ public sealed class CleanupTests : IDisposable
     {
         foreach (var rule in CleanupCatalog.Load())
         {
-            Assert.All(rule.Paths, path => Assert.DoesNotContain("..", path));
+            Assert.All(rule.Paths.Concat(rule.ChromiumData), path => Assert.DoesNotContain("..", path));
             Assert.All(rule.Handlers, handler => Assert.DoesNotContain('\\', handler));
             if (rule.Discover is not null) Assert.Equal("chromium", rule.Discover);
         }
