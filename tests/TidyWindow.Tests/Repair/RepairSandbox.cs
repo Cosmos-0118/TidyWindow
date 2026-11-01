@@ -14,13 +14,15 @@ namespace TidyWindow.Next.Tests;
 public sealed class RepairSandbox : IDisposable
 {
     public const string Sid = "S-1-5-21-1000-2000-3000-1001";
+    // Test classes run in parallel and share one parent key. Creating a sandbox under it and removing the parent once it is empty must not interleave.
+    private static readonly object ParentGate = new();
     private readonly string name = @"SOFTWARE\TidyWindowTests\repair-" + Guid.NewGuid().ToString("N")[..10];
     public RegistryKey Root { get; }
     public RegistryRoots Roots => RegistryRoots.Under(Root);
 
     public RepairSandbox()
     {
-        Root = Registry.CurrentUser.CreateSubKey(name, true);
+        lock (ParentGate) Root = Registry.CurrentUser.CreateSubKey(name, true);
         foreach (var hive in new[] { "HKLM", "HKCU", "HKU" }) Root.CreateSubKey(hive, true).Dispose();
     }
 
@@ -122,8 +124,12 @@ public sealed class RepairSandbox : IDisposable
             Registry.CurrentUser.DeleteSubKeyTree(name, false);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { }
-        try { using var parent = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\TidyWindowTests", true); if (parent is { SubKeyCount: 0 }) { parent.Close(); Registry.CurrentUser.DeleteSubKey(@"SOFTWARE\TidyWindowTests", false); } }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { }
+        lock (ParentGate)
+        {
+            try { using var parent = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\TidyWindowTests", true); if (parent is { SubKeyCount: 0 }) { parent.Close(); Registry.CurrentUser.DeleteSubKey(@"SOFTWARE\TidyWindowTests", false); } }
+            // A sandbox in another process may add a child between the check and the delete; the parent is then simply not empty.
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException or InvalidOperationException) { }
+        }
     }
 
     private static void UnlockTree(RegistryKey parent, string sub)

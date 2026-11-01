@@ -22,7 +22,7 @@ public sealed record ManagedInventory(ManagerKind Manager, IReadOnlyList<Managed
 public sealed record PackageActionResult(ActionOutcome Outcome, string Message, string Detail);
 
 /// <summary>Manages exact installed identities. Shares the install/setup operation gate.</summary>
-public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator, SkippedUpdates? skipped = null)
+public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator, SkippedUpdates? skipped = null, UninstallRecovery? recovery = null)
 {
     private readonly SkippedUpdates skipped = skipped ?? new();
 
@@ -86,11 +86,17 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
     /// <summary>Waits between re-reads. Installers and uninstallers often finish registering their change after the process exits.</summary>
     public IReadOnlyList<TimeSpan> VerifyDelays { get; init; } = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4)];
 
+    /// <summary>
+    /// Extra waits for a WinGet uninstall that reported success while the app is still listed. Many uninstallers (NSIS ones especially) copy themselves to a
+    /// temporary folder, end the process WinGet is waiting for, and keep deleting files for a while.
+    /// </summary>
+    public IReadOnlyList<TimeSpan> LateVerifyDelays { get; init; } = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)];
+
     /// <summary>Reads the inventory, re-reading for a bounded time until <paramref name="settled"/> holds. Returns the last read.</summary>
-    internal async Task<ManagedInventory> ReadSettledAsync(ManagerStatus manager, Func<ManagedInventory, bool> settled, CancellationToken token)
+    internal async Task<ManagedInventory> ReadSettledAsync(ManagerStatus manager, Func<ManagedInventory, bool> settled, CancellationToken token, IReadOnlyList<TimeSpan>? delays = null)
     {
         var inventory = await ReadAsync(manager, checkUpdates: false, token).ConfigureAwait(false);
-        foreach (var delay in VerifyDelays)
+        foreach (var delay in delays ?? VerifyDelays)
         {
             if (inventory.Error is not null || settled(inventory)) break;
             await Task.Delay(delay, token).ConfigureAwait(false);
@@ -109,7 +115,8 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
         return new(locator.PowerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], TimeSpan.FromSeconds(30));
     }
 
-    public CommandSpec ActionCommand(ManagerStatus manager, ManagedPackage app, PackageAction action, bool interactive = false)
+    /// <param name="withoutSource">For a WinGet uninstall, leaves out <c>--source</c> so WinGet works from what is installed on this PC, not from its catalog.</param>
+    public CommandSpec ActionCommand(ManagerStatus manager, ManagedPackage app, PackageAction action, bool interactive = false, bool withoutSource = false)
     {
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null || manager.Definition.Kind != app.Manager)
             throw new InvalidOperationException("The package manager is unavailable. Check Overview.");
@@ -119,7 +126,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
         if (action == PackageAction.Update && !app.Updatable) throw new InvalidOperationException("WinGet did not install this app, so it can’t update it. Use the app itself.");
         var uninstall = action == PackageAction.Uninstall;
         // WinGet's own packages keep their source; a registry program or Store app has none to name, and Store packages are uninstalled from msstore.
-        string[] winget = app.Origin != AppOrigin.Package ? []
+        string[] winget = withoutSource || app.Origin != AppOrigin.Package ? []
             : app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase) ? ["--source", "msstore"] : ["--source", "winget"];
         string[] args = app.Manager switch
         {
@@ -148,9 +155,24 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             if (action == PackageAction.Update && app.AvailableVersion is { Length: > 0 } target && current.Version == target)
                 return new(ActionOutcome.Completed, $"{app.Name} is already up to date", "The queued target version is already installed. No update was started.");
             var command = ActionCommand(manager, current, action, interactive) with { Progress = progress };
-            var result = app.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, app.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
-            var reason = InstallFailure.Explain(result);
-            var detail = $"{current.ManagerName} · {current.Id}\nExit code: {result.ExitCode}\n" + (reason is null ? "" : reason + "\n") + PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
+            // With recovery, the ladder owns asking for administrator rights, so the first try is a plain run.
+            var ladder = action == PackageAction.Uninstall ? recovery : null;
+            var result = app.Manager == ManagerKind.Winget && ladder is null ? await InstallFailure.RunAsync(runner, command, app.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
+            IReadOnlyList<string> trail = [];
+            var entryRemoved = false;
+            Task<CommandResult> Rerun(UninstallRecovery.Variant variant)
+            {
+                var again = ActionCommand(manager, current, action, false, variant.WithoutSource);
+                return runner.RunAsync(again with { Progress = progress, Elevate = again.Elevate || variant.Elevated }, token);
+            }
+            if (ladder is not null && result.ExitCode is not (0 or 1641 or 3010))
+            {
+                var recovered = await ladder.RecoverAsync(current, result, Rerun, progress, token).ConfigureAwait(false);
+                result = recovered.Result; trail = recovered.Trail; entryRemoved = recovered.EntryRemoved;
+            }
+            var reason = InstallFailure.Explain(result, action == PackageAction.Uninstall);
+            var detail = $"{current.ManagerName} · {current.Id}\n" + (trail.Count > 0 ? "What TidyWindow tried:\n" + string.Join("\n", trail.Select(x => "• " + x)) + "\n" : "")
+                + $"Exit code: {result.ExitCode}\n" + (reason is null ? "" : reason + "\n") + PackageOutputParser.Clean(result.Output + "\n" + result.Error).Trim();
             if (result.ExitCode is not (0 or 1641 or 3010))
             {
                 if (action == PackageAction.Update && InstallFailure.UpdateCannotBeApplied(result.ExitCode) && app.AvailableVersion is { Length: > 0 } rejected)
@@ -163,10 +185,32 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             packages.ClearSearchCache();
             if (result.ExitCode is 1641 or 3010) return new(ActionOutcome.RestartRequired, $"{app.Name}: restart required", detail + "\nRestart Windows to finish applying the change.");
             ManagedPackage? Find(ManagedInventory x) => x.Packages.FirstOrDefault(p => p.Key.Equals(app.Key, StringComparison.OrdinalIgnoreCase));
-            var after = await ReadSettledAsync(manager, x => action == PackageAction.Uninstall ? Find(x) is null : Find(x) is { } now && now.Version != current.Version, token).ConfigureAwait(false);
+            Func<ManagedInventory, bool> settled = x => action == PackageAction.Uninstall ? Find(x) is null : Find(x) is { } now && now.Version != current.Version;
+            var after = await ReadSettledAsync(manager, settled, token).ConfigureAwait(false);
+            if (action == PackageAction.Uninstall && app.Manager == ManagerKind.Winget && after.Error is null && !settled(after) && LateVerifyDelays.Count > 0)
+            {
+                try { progress?.Report(new("Waiting for the uninstaller to finish removing files…", CommandOutputKind.Notice)); }
+                catch { /* A display failure must not stop verification. */ }
+                after = await ReadSettledAsync(manager, settled, token, LateVerifyDelays).ConfigureAwait(false);
+            }
             var remaining = Find(after);
             if (after.Error is not null) return new(ActionOutcome.Unverified, "The manager finished; verification failed", detail + "\n" + after.Error);
             var verified = action == PackageAction.Uninstall ? remaining is null : remaining is not null && remaining.Version != current.Version;
+            // Scoop prints "ERROR … still running" and exits 0. A manager that says success while the app is still installed has failed in everything but its exit code.
+            if (!verified && ladder is not null && app.Manager != ManagerKind.Winget && remaining is not null)
+            {
+                var silent = await ladder.RecoverAsync(current, result with { ExitCode = 1 }, Rerun, progress, token).ConfigureAwait(false);
+                if (silent.Trail.Count > 0) detail += "\nThe manager reported success, but the app is still installed.\nWhat TidyWindow tried:\n" + string.Join("\n", silent.Trail.Select(x => "• " + x));
+                if (silent.Result.ExitCode is 0 or 1641 or 3010 && silent.Trail.Count > 0)
+                {
+                    packages.ClearSearchCache();
+                    after = await ReadSettledAsync(manager, settled, token).ConfigureAwait(false);
+                    remaining = Find(after);
+                    if (after.Error is not null) return new(ActionOutcome.Unverified, "The manager finished; verification failed", detail + "\n" + after.Error);
+                    verified = remaining is null;
+                }
+            }
+            if (verified && entryRemoved) detail += "\nThe program itself was already gone from this PC. Only its leftover entry in Windows’ list was removed.";
             return verified ? new(ActionOutcome.Completed, $"{app.Name} {(action == PackageAction.Update ? "updated" : "uninstalled")}", detail)
                 : new(ActionOutcome.Unverified, action == PackageAction.Update ? $"{app.Name}: no version change detected" : $"{app.Name} is still listed", detail + "\nFollow any installer window, then refresh. The manager’s exit code alone does not confirm the change.");
         }

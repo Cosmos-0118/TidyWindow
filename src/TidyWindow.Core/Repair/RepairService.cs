@@ -137,6 +137,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             }
             if (finding.ServiceStuck) return StopService(finding, run, steps);
             if (finding.Entry is not null && finding.Alive && Revive(finding, run, steps) is { } revived) return revived;
+            if (finding.Entry is not null && finding.Alive && run.Options.RestoreOnly) return LeftAlone(finding, steps);
             if (finding.Footprint is { Kind: "bundle" } bundle) return Purge(finding, bundle, run, steps);
             if (finding.Footprint is { } request) return FixProduct(finding, request, run, steps);
             if (finding.Links is { Count: > 0 } links) return RemoveLinks(finding, links, run, steps);
@@ -154,6 +155,12 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
 
     private static RepairResult Failed(RepairFinding finding, string reason, Steps steps) =>
         new(finding.Id, finding.Title, RepairStatus.NotFixed, reason, steps);
+
+    private static RepairResult LeftAlone(RepairFinding finding, Steps steps)
+    {
+        steps.Add("The program is still on this PC and its record could not be restored, so the record was left as it was.");
+        return Failed(finding, "It could not be restored, and the program is still on this PC, so nothing was removed.", steps);
+    }
 
     // ---- A program that is still installed, with something missing that it needs ----
 
@@ -342,6 +349,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         {
             var recovered = Recover(finding, product, run, steps);
             if (recovered is not null) return recovered;
+            if (run.Options.RestoreOnly) return LeftAlone(finding, steps);
         }
         return Purge(finding, request, run, steps);
     }

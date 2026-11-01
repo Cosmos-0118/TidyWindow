@@ -5,8 +5,11 @@ using System.Text;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>What the person allowed for one repair: fetching the original installer from WinGet, and folders to look in for it.</summary>
-public sealed record RepairOptions(bool Download = false, IReadOnlyList<string>? Folders = null);
+/// <summary>
+/// What the person allowed for one repair: fetching the original installer from WinGet, and folders to look in for it.
+/// <paramref name="RestoreOnly"/> never gives up on a program that is still on the PC by removing its record: it either puts back what that record needs or leaves it alone.
+/// </summary>
+public sealed record RepairOptions(bool Download = false, IReadOnlyList<string>? Folders = null, bool RestoreOnly = false);
 
 /// <summary>A package WinGet itself matched to a program that is installed, at the version that is installed.</summary>
 public sealed record WingetMatch(string Id, string Name, string Version);
@@ -66,14 +69,7 @@ public sealed partial class WingetFetcher : IInstallerFetcher
     }
 
     /// <summary>Whether two version texts are the same version: trailing ".0" parts do not count, so 6.7.0.0 is 6.7.</summary>
-    internal static bool SameVersion(string left, string right) => string.Equals(WithoutTrailingZeros(left), WithoutTrailingZeros(right), StringComparison.OrdinalIgnoreCase);
-
-    private static string WithoutTrailingZeros(string version)
-    {
-        var parts = version.Trim().Split('.').ToList();
-        while (parts.Count > 1 && parts[^1] == "0") parts.RemoveAt(parts.Count - 1);
-        return string.Join('.', parts);
-    }
+    internal static bool SameVersion(string left, string right) => PackageOutputParser.SameVersion(left, right);
 
     /// <summary>The name without its "(64-bit)", then with the last version part dropped one at a time, and then the last word.</summary>
     internal static IEnumerable<string> Queries(string name)

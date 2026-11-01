@@ -34,16 +34,22 @@ public static partial class InstallFailure
         [2] = "a missing file or bad option",
         [5] = "access was denied",
         [1223] = "the administrator prompt was declined",
+        [32] = "a file is in use by another program",
         [1602] = "the installation was cancelled",
         [1603] = "a fatal error during installation",
+        [1605] = "Windows Installer no longer has this app registered",
+        [1612] = "Windows Installer’s saved copy of the app’s installer is missing",
+        [1614] = "Windows Installer already has this product marked as uninstalled",
         [1618] = "another installation is already in progress",
         [1638] = "another version of this app is already installed",
+        [1714] = "an older update’s installer file is missing",
         [1925] = "administrator rights are required",
+        [unchecked((int)0x80070005)] = "access was denied",
         [unchecked((int)0x80073D28)] = "administrator rights are required"
     };
 
     /// <summary>A short reason for a failed command, or null when the code is not recognized.</summary>
-    public static string? Explain(CommandResult result)
+    public static string? Explain(CommandResult result, bool uninstall = false)
     {
         var known = WinGet.GetValueOrDefault(unchecked((uint)result.ExitCode));
         var inner = InnerCode().Match(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
@@ -51,11 +57,19 @@ public static partial class InstallFailure
         {
             var meaning = Installer.TryGetValue(code, out var text) ? text : null;
             var shown = inner.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? inner.Groups[1].Value : code.ToString();
-            var reason = $"The installer started but reported error {shown}" +(meaning is null ? "." : $" ({meaning}).");
+            var reason = $"The {(uninstall ? "uninstaller" : "installer")} started but reported error {shown}" + (meaning is null ? "." : $" ({meaning}).");
             return known is null ? reason : known + " " + reason;
         }
         return known;
     }
+
+    /// <summary>The code the installer or uninstaller itself reported, as WinGet prints it, or null when the output does not say.</summary>
+    public static int? InnerExitCode(CommandResult result) =>
+        InnerCode().Match(PackageOutputParser.Clean(result.Output + "\n" + result.Error)) is { Success: true } match && TryParseCode(match.Groups[1].Value, out var code) ? code : null;
+
+    /// <summary>The code Chocolatey prints when an installer it ran failed: <c>Exit code was '1618'</c>.</summary>
+    public static int? ManagerExitCode(CommandResult result) =>
+        ChocolateyCode().Match(PackageOutputParser.Clean(result.Output + "\n" + result.Error)) is { Success: true } match && int.TryParse(match.Groups[1].Value, out var code) ? code : null;
 
     private static bool TryParseCode(string value, out int code)
     {
@@ -102,6 +116,10 @@ public static partial class InstallFailure
     private static partial Regex AdministratorRequired();
 
     // Installers report the code in decimal ("exit code: 1603") or, for Store packages, in hex ("exit code: 0x80073d28").
-    [GeneratedRegex(@"(?:installer|install) failed with exit code:?\s*(0x[0-9a-f]+|-?\d+)", RegexOptions.IgnoreCase)]
+    // An uninstall prints "Uninstall failed with exit code: 1605", not "Installer failed".
+    [GeneratedRegex(@"exit code was '(-?\d+)'", RegexOptions.IgnoreCase)]
+    private static partial Regex ChocolateyCode();
+
+    [GeneratedRegex(@"(?:installer|install|uninstall(?:er)?) failed with exit code:?\s*(0x[0-9a-f]+|-?\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex InnerCode();
 }
