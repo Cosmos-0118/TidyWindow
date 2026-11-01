@@ -12,6 +12,18 @@ public sealed partial class RepairView : UserControl
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
     private async void FixClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.FixAsync(); }
     private async void LocateClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.LocateInstallerAsync(); }
+    // Shows or hides the list of steps under the button, and turns the arrow to match.
+    private void StepsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Content: StackPanel { Children: [FontIcon arrow, ..] } } button || button.Parent is not StackPanel { Children: [_, Border card] }) return;
+        var open = card.Visibility != Visibility.Visible;
+        card.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        arrow.Glyph = open ? "" : "";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, open ? "Hide what was tried" : "Show what was tried");
+    }
+
+    private void ClearFoldersClick(object sender, RoutedEventArgs e) => Model?.ClearInstallerFolders();
+    private async void RepairProgramClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is ProgramRow row) await model.RepairProgramAsync(row); }
     private async void UndoRowClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is HistoryRow row) await model.UndoAsync(row); }
     private void QueryChanged(object sender, TextChangedEventArgs e) { if (Model is { } model) model.Query = ((TextBox)sender).Text; }
 

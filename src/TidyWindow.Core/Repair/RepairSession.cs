@@ -11,7 +11,8 @@ public sealed record RepairReply(bool Ok, string? Error = null, KeyBackup? Backu
 
 /// <summary>
 /// The elevated side of repairs. It runs for one repair, asks Windows for permission once, and can only remove or restore the keys on
-/// <see cref="RegistryRepair.Elevated"/>'s allow-list, repair a program from its own installer file or stop the Windows Installer service,
+/// <see cref="RegistryRepair.Elevated"/>'s allow-list, repair a program from its own installer file, put a signed setup program back in (or take it out of) the package cache,
+/// or stop the Windows Installer service,
 /// so it cannot run anything else or touch any other setting. It leaves by itself when idle.
 /// </summary>
 public static class RepairHost
@@ -86,6 +87,8 @@ public static class RepairHost
                 case "footprint" when request.Footprint is { } footprint: return new(true, Plan: editor.Footprint(footprint));
                 case "reinstall" when request.File is { Length: > 0 } file && request.Product is { } product: return new(true, Run: ops.Reinstall(file, product));
                 case "stopservice": return new(true, Flag: ops.StopInstallerService());
+                case "restorebundle" when request.File is { Length: > 0 } setup && request.Name is { Length: > 0 } program && request.Path is { Length: > 0 } target: return new(true, Run: ops.RestoreBundleCopy(setup, program, target));
+                case "removecopy" when request.Path is { Length: > 0 } copy: return new(true, Flag: ops.RemoveCopy(copy));
                 case "exists" or "snapshot" or "delete" or "deletevalue" or "settext" or "restore": return new(false, Refused);
                 default: return new(false, "That request was not understood.");
             }
@@ -168,6 +171,10 @@ public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IElev
     public RunResult Reinstall(string msiPath, MsiProduct product) => Send(new("reinstall", File: msiPath, Product: product)).Run ?? new(1, "The helper gave no answer.");
 
     public bool StopInstallerService() => Send(new("stopservice")).Flag;
+
+    public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) => Send(new("restorebundle", targetPath, Name: programName, File: exePath)).Run ?? new(1, "The helper gave no answer.");
+
+    public bool RemoveCopy(string path) => Send(new("removecopy", path)).Flag;
 
     private RepairReply Send(RepairRequest request)
     {

@@ -2,14 +2,17 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
 
 /// <summary>The real PC: the installed-programs list in the registry, Windows Installer's own database, and the processes that run installs.</summary>
 [SupportedOSPlatform("windows")]
-public sealed class WindowsInstallSystem : IInstallSystem
+public sealed partial class WindowsInstallSystem : IInstallSystem
 {
+    private const string Installer = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer";
+    private const string MachineSid = "S-1-5-18";
     private const string Uninstall = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
     private const string Wow64Uninstall = @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
     private static readonly string[] UpdateTypes = ["Update", "Hotfix", "Security Update", "Update Rollup", "Service Pack"];
@@ -85,41 +88,117 @@ public sealed class WindowsInstallSystem : IInstallSystem
     public IReadOnlyList<MsiProduct> Ghosts()
     {
         var known = new HashSet<string>(Products().Select(x => InstallRepair.Pack(x.Code)), StringComparer.OrdinalIgnoreCase);
-        var ghosts = new List<MsiProduct>();
-        foreach (var (hive, path, context, sid) in new[] { (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products", "Machine", ""), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products", "User", CurrentSid()) })
+        var me = CurrentSid();
+        var found = new Dictionary<string, MsiProduct>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string packed, string context, string sid, string name)
+        {
+            if (!PackedCode().IsMatch(packed) || known.Contains(packed) || found.ContainsKey(packed)) return;
+            found[packed] = new(InstallRepair.Unpack(packed), context, sid, name, null);
+        }
+
+        // Only this account's own records and the machine's are looked at: another user's programs are not listed by Windows Installer without administrator rights,
+        // so they would all look half-registered.
+        var places = new List<(RegistryKey Hive, string Products, string? Features, string Context, string Sid)>
+        {
+            (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products", @"SOFTWARE\Classes\Installer\Features", "Machine", ""),
+            (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products", @"SOFTWARE\Microsoft\Installer\Features", "User", me),
+            (Registry.CurrentUser, @"SOFTWARE\Classes\Installer\Products", @"SOFTWARE\Classes\Installer\Features", "User", me),
+            (Registry.LocalMachine, $@"{Installer}\Managed\{me}\Installer\Products", $@"{Installer}\Managed\{me}\Installer\Features", "Managed", me)
+        };
+        foreach (var (hive, products, features, context, sid) in places)
         {
             try
             {
-                using var list = hive.OpenSubKey(path);
+                using var list = hive.OpenSubKey(products);
                 foreach (var name in list?.GetSubKeyNames() ?? [])
                 {
-                    if (name.Length != 32 || known.Contains(name)) continue;
                     using var key = list!.OpenSubKey(name);
-                    ghosts.Add(new(InstallRepair.Unpack(name), context, sid, key?.GetValue("ProductName") as string ?? "", null));
+                    Add(name, context, sid, key?.GetValue("ProductName") as string ?? "");
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+            // A features key outliving its product's key is what an undo that failed on the key's permissions leaves.
+            try
+            {
+                using var list = features is null ? null : hive.OpenSubKey(features);
+                foreach (var name in list?.GetSubKeyNames() ?? []) Add(name, context, sid, "");
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+
+        // The other half: the product's data survives where its registration is gone, so Windows Installer's own list never shows it.
+        foreach (var (sid, context) in new[] { (MachineSid, "Machine"), (me, "User") })
+        {
+            if (sid.Length == 0) continue;
+            try
+            {
+                using var list = Registry.LocalMachine.OpenSubKey($@"{Installer}\UserData\{sid}\Products");
+                foreach (var name in list?.GetSubKeyNames() ?? [])
+                {
+                    // Only a key that holds the program's install properties was ever a program; some drivers leave a bare features list here that nothing reads.
+                    using var key = list!.OpenSubKey($@"{name}\InstallProperties");
+                    if (key is not null) Add(name, context, context == "Machine" ? "" : sid, key.GetValue("DisplayName") as string ?? "");
                 }
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
         }
-        return ghosts;
+        return [.. found.Values];
+    }
+
+    [GeneratedRegex("^[0-9A-Fa-f]{32}$")]
+    private static partial Regex PackedCode();
+
+    // ---- The component lists, read once per scan ----
+
+    // A machine has tens of thousands of component keys, so each account's list is read once and every check after that is a lookup.
+    private sealed class ComponentLists
+    {
+        /// <summary>Each product's packed code, with the components that name it and the path each one points at.</summary>
+        public readonly Dictionary<string, List<(string Component, string Path)>> ByProduct = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private Dictionary<string, ComponentLists> components = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, bool> orphans = new(StringComparer.OrdinalIgnoreCase);
+
+    public void BeginScan() { components = new(StringComparer.OrdinalIgnoreCase); orphans = new(StringComparer.OrdinalIgnoreCase); }
+
+    private ComponentLists ComponentsOf(string sid)
+    {
+        if (components.TryGetValue(sid, out var cached)) return cached;
+        var lists = new ComponentLists();
+        try
+        {
+            using var list = Registry.LocalMachine.OpenSubKey($@"{Installer}\UserData\{sid}\Components");
+            foreach (var component in list?.GetSubKeyNames() ?? [])
+            {
+                using var key = list!.OpenSubKey(component);
+                foreach (var name in key?.GetValueNames() ?? [])
+                {
+                    if (name.Length != 32) continue;
+                    if (!lists.ByProduct.TryGetValue(name, out var entries)) lists.ByProduct[name] = entries = [];
+                    entries.Add((component, key!.GetValue(name) as string ?? ""));
+                }
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        components[sid] = lists;
+        return lists;
     }
 
     public bool ProductFilesPresent(MsiProduct product)
     {
+        // Windows Installer's own answer first: it is one call, against a registry walk.
+        if (Info(product.Code, product.Sid, ContextOf(product.Context), "InstallLocation") is { Length: > 0 } location && Directory.Exists(location)) return true;
         var packed = InstallRepair.Pack(product.Code);
-        var sid = string.Equals(product.Context, "Machine", StringComparison.OrdinalIgnoreCase) || product.Sid.Length == 0 ? "S-1-5-18" : product.Sid;
-        try
-        {
-            using var list = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\{sid}\Components");
-            foreach (var component in list?.GetSubKeyNames() ?? [])
-            {
-                using var key = list!.OpenSubKey(component);
-                // A component's key path is a file or folder, or a registry path ("01:\...") that says nothing about files.
-                if (key?.GetValue(packed) is string path && path.Length > 3 && path[1] == ':' && path[2] == '\\' && (File.Exists(path) || Directory.Exists(path))) return true;
-            }
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        var sid = string.Equals(product.Context, "Machine", StringComparison.OrdinalIgnoreCase) || product.Sid.Length == 0 ? MachineSid : product.Sid;
+        foreach (var (_, path) in ComponentsOf(sid).ByProduct.GetValueOrDefault(packed) ?? [])
+            // A component's key path is a file or folder, or a registry path ("01:\...") that says nothing about files.
+            if (path.Length > 3 && path[1] == ':' && path[2] == '\\' && (File.Exists(path) || Directory.Exists(path))) return true;
         return false;
     }
+
+    private static int ContextOf(string context) => string.Equals(context, "Machine", StringComparison.OrdinalIgnoreCase) ? MachineContext : string.Equals(context, "User", StringComparison.OrdinalIgnoreCase) ? UserContext : ManagedContext;
 
     public bool BundleHasChildren(string bundleId)
     {
@@ -146,7 +225,18 @@ public sealed class WindowsInstallSystem : IInstallSystem
     public IReadOnlyList<ValueRef> DanglingLinks()
     {
         var links = new List<ValueRef>();
-        foreach (var (hive, name, path) in new[] { (Registry.LocalMachine, "HKLM", @"SOFTWARE\Classes\Installer\UpgradeCodes"), (Registry.CurrentUser, "HKCU", @"SOFTWARE\Microsoft\Installer\UpgradeCodes") })
+        var me = CurrentSid();
+        // Every place an upgrade code lists the products that carry it, for the machine, this account, and the programs an administrator installed for it.
+        var roots = new List<(RegistryKey Hive, string Name, string Path)>
+        {
+            (Registry.LocalMachine, "HKLM", @"SOFTWARE\Classes\Installer\UpgradeCodes"),
+            (Registry.LocalMachine, "HKLM", $@"{Installer}\UpgradeCodes"),
+            (Registry.LocalMachine, "HKLM", $@"{Installer}\Managed\{me}\Installer\UpgradeCodes"),
+            (Registry.CurrentUser, "HKCU", @"SOFTWARE\Microsoft\Installer\UpgradeCodes"),
+            (Registry.CurrentUser, "HKCU", @"SOFTWARE\Classes\Installer\UpgradeCodes"),
+            (Registry.CurrentUser, "HKCU", $@"{Installer}\UpgradeCodes")
+        };
+        foreach (var (hive, name, path) in roots)
         {
             try
             {
@@ -155,18 +245,38 @@ public sealed class WindowsInstallSystem : IInstallSystem
                 {
                     using var key = list!.OpenSubKey(upgrade);
                     foreach (var product in key?.GetValueNames() ?? [])
-                        if (product.Length == 32 && ProductState(InstallRepair.Unpack(product)) == InstallRepair.Unknown && !HasProductKey(product))
-                            links.Add(new($@"{name}\{path}\{upgrade}", product));
+                        if (product.Length == 32 && IsOrphan(product)) links.Add(new($@"{name}\{path}\{upgrade}", product));
                 }
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
         }
+
+        // A product ripped out of the registry without its components leaves its code in them, which keeps their files and keys from ever being cleaned up.
+        foreach (var sid in new[] { MachineSid, me }.Where(x => x.Length > 0))
+            foreach (var (product, entries) in ComponentsOf(sid).ByProduct)
+            {
+                if (product.All(x => x == '0') || !IsOrphan(product)) continue;
+                foreach (var (component, _) in entries) links.Add(new($@"HKLM\{Installer}\UserData\{sid}\Components\{component}", product));
+            }
         return links;
+    }
+
+    /// <summary>A product code that Windows Installer does not know and that has no record in any place this account can see.</summary>
+    private bool IsOrphan(string packed)
+    {
+        if (orphans.TryGetValue(packed, out var known)) return known;
+        var orphan = ProductState(InstallRepair.Unpack(packed)) == InstallRepair.Unknown && !HasProductKey(packed);
+        orphans[packed] = orphan;
+        return orphan;
     }
 
     private static bool HasProductKey(string packed)
     {
-        foreach (var (hive, path) in new[] { (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products"), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products") })
+        foreach (var (hive, path) in new[]
+        {
+            (Registry.LocalMachine, @"SOFTWARE\Classes\Installer\Products"), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Installer\Products"), (Registry.CurrentUser, @"SOFTWARE\Classes\Installer\Products"),
+            (Registry.LocalMachine, $@"{Installer}\UserData\{MachineSid}\Products"), (Registry.LocalMachine, $@"{Installer}\UserData\{CurrentSid()}\Products")
+        })
         {
             try { using var key = hive.OpenSubKey($@"{path}\{packed}"); if (key is not null) return true; }
             catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return true; }
@@ -183,6 +293,60 @@ public sealed class WindowsInstallSystem : IInstallSystem
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return true; }
         return false;
     }
+
+    /// <summary>Updates whose saved .msp file is gone while a program still wears them (error 1612 and 1714 when it is repaired, updated or removed).</summary>
+    public IReadOnlyList<DeadPatch> DeadPatches()
+    {
+        var found = new List<DeadPatch>();
+        var me = CurrentSid();
+        foreach (var sid in new[] { MachineSid, me }.Where(x => x.Length > 0))
+        {
+            var data = $@"{Installer}\UserData\{sid}";
+            try
+            {
+                using var patches = Registry.LocalMachine.OpenSubKey($@"{data}\Patches");
+                foreach (var patch in patches?.GetSubKeyNames() ?? [])
+                {
+                    if (!PackedCode().IsMatch(patch)) continue;
+                    using var record = patches!.OpenSubKey(patch);
+                    if (record?.GetValue("LocalPackage") is not string { Length: > 0 } file || FileExists(file)) continue;
+
+                    var keys = new List<string>(); var programs = new List<string>();
+                    using (var products = Registry.LocalMachine.OpenSubKey($@"{data}\Products"))
+                        foreach (var product in products?.GetSubKeyNames() ?? [])
+                        {
+                            using var worn = products!.OpenSubKey($@"{product}\Patches\{patch}");
+                            if (worn is null) continue;
+                            keys.Add($@"HKLM\{data}\Products\{product}\Patches\{patch}");
+                            using var properties = products.OpenSubKey($@"{product}\InstallProperties");
+                            programs.Add(properties?.GetValue("DisplayName") as string is { Length: > 0 } display ? display : InstallRepair.Unpack(product));
+                        }
+                    // A patch nothing wears is not what stops a program, so it is left alone.
+                    if (keys.Count == 0) continue;
+                    keys.Add($@"HKLM\{data}\Patches\{patch}");
+                    var shared = sid == MachineSid
+                        ? new[] { $@"HKLM\SOFTWARE\Classes\Installer\Patches\{patch}" }
+                        : [$@"HKCU\SOFTWARE\Microsoft\Installer\Patches\{patch}", $@"HKCU\SOFTWARE\Classes\Installer\Patches\{patch}", $@"HKLM\{Installer}\Managed\{sid}\Installer\Patches\{patch}"];
+                    keys.AddRange(shared.Where(KeyExists));
+                    found.Add(new(patch, file, programs, keys));
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+        return found;
+    }
+
+    private static bool KeyExists(string path)
+    {
+        try
+        {
+            using var key = (path.StartsWith("HKCU\\", StringComparison.Ordinal) ? Registry.CurrentUser : Registry.LocalMachine).OpenSubKey(path[(path.IndexOf('\\') + 1)..]);
+            return key is not null;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+    }
+
+    public bool InstallRollbackExists() => KeyExists(InstallRepair.InstallRollbackKey);
 
     /// <summary>Starting or stopping, twice in a row a moment apart, with nothing installing.</summary>
     public bool InstallerServiceStuck()
@@ -296,7 +460,7 @@ public sealed class WindowsInstallSystem : IInstallSystem
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }
 
-    private const int AllContexts = 7, MachineContext = 4, UserContext = 2, NoMoreItems = 259, MoreData = 234;
+    private const int AllContexts = 7, MachineContext = 4, UserContext = 2, ManagedContext = 1, NoMoreItems = 259, MoreData = 234;
 
     [DllImport("msi.dll", CharSet = CharSet.Unicode)]
     private static extern int MsiQueryProductState(string product);

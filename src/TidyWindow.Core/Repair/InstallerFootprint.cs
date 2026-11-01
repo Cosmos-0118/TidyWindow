@@ -54,7 +54,7 @@ public sealed class InstallerFootprint(RegistryRepair registry, string currentSi
             var root = $@"HKLM\{Cv}\Installer\Managed\{sidKey}\Installer";
             own = [$@"{root}\Products\{packed}", $@"{root}\Features\{packed}"];
             upgrade = [$@"{root}\UpgradeCodes"];
-            patchRoots = [];
+            patchRoots = [$@"{root}\Patches"];
         }
         else
         {

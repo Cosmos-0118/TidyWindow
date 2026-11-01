@@ -15,7 +15,7 @@ public sealed record WingetMatch(string Id, string Name, string Version);
 public interface IInstallerFetcher
 {
     /// <summary>The WinGet package for an installed program, only when WinGet lists that exact name at that exact version.</summary>
-    WingetMatch? Match(string name, string version);
+    WingetMatch? Match(string name, string version, CancellationToken cancellationToken = default);
     /// <summary>Downloads that exact version into <paramref name="folder"/> and returns the files. WinGet checks them against the hash in its manifest.</summary>
     IReadOnlyList<string> Download(WingetMatch match, string folder, string? architecture, CancellationToken cancellationToken);
     /// <summary>Runs that version's own installer over the installed one, which gives programs such as Inno Setup and NSIS ones their uninstaller back.</summary>
@@ -25,40 +25,54 @@ public interface IInstallerFetcher
 [SupportedOSPlatform("windows")]
 public sealed partial class WingetFetcher : IInstallerFetcher
 {
-    public WingetMatch? Match(string name, string version)
+    public WingetMatch? Match(string name, string version, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(version)) return null;
-        var result = Run(TimeSpan.FromSeconds(60), default, "list", "--name", name, "--exact", "--source", "winget", "--accept-source-agreements", "--disable-interactivity");
+        var result = Run(TimeSpan.FromSeconds(60), cancellationToken, "list", "--name", name, "--exact", "--source", "winget", "--accept-source-agreements", "--disable-interactivity");
         // WinGet fills the Id column only for a program it has matched to a package, and its Version column is the version it worked out
         // for the installed program (Python's entry says 3.13.16150.0, WinGet says 3.13.16), which is the one its package list uses.
         // It exits non-zero when it has no such installed program, which is when the search below is the only way to a package.
         foreach (var row in result.ExitCode == 0 ? PackageOutputParser.Parse(ManagerKind.Winget, result.Output, 20) : [])
             if (PackageOutputParser.IsSafeId(row.Id) && PackageOutputParser.IsSafeId(row.Version) && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase))
                 return new(row.Id, row.Name, row.Version);
-        return Search(name, version);
+        return Search(name, version, cancellationToken);
     }
 
     /// <summary>
     /// WinGet does not always tie an installed program to its package (a bundle run from python.org's setup is listed as "Python 3.12.8 (64-bit)", the package is "Python 3.12").
     /// Looks for a package whose exact name is the program's name with its architecture, patch or version dropped, and takes it only if that package has the installed version.
     /// </summary>
-    private static WingetMatch? Search(string name, string version)
+    private static WingetMatch? Search(string name, string version, CancellationToken cancellationToken)
     {
         var wanted = VersionToken().Match(name) is { Success: true } token ? token.Value : version;
         if (!PackageOutputParser.IsSafeId(wanted)) return null;
         foreach (var query in Queries(name))
         {
-            var found = Run(TimeSpan.FromSeconds(60), default, "search", "--name", query, "--exact", "--source", "winget", "--accept-source-agreements", "--disable-interactivity");
+            cancellationToken.ThrowIfCancellationRequested();
+            var found = Run(TimeSpan.FromSeconds(60), cancellationToken, "search", "--name", query, "--exact", "--source", "winget", "--accept-source-agreements", "--disable-interactivity");
             if (found.ExitCode != 0) continue;
             foreach (var row in PackageOutputParser.Parse(ManagerKind.Winget, found.Output, 20))
             {
                 if (!PackageOutputParser.IsSafeId(row.Id) || !string.Equals(row.Name, query, StringComparison.OrdinalIgnoreCase)) continue;
-                var versions = Run(TimeSpan.FromSeconds(60), default, "show", "--id", row.Id, "--exact", "--source", "winget", "--versions", "--accept-source-agreements", "--disable-interactivity");
-                if (versions.ExitCode == 0 && versions.Output.Split('\n').Any(x => string.Equals(x.Trim(), wanted, StringComparison.OrdinalIgnoreCase)))
-                    return new(row.Id, row.Name, wanted);
+                cancellationToken.ThrowIfCancellationRequested();
+                var versions = Run(TimeSpan.FromSeconds(60), cancellationToken, "show", "--id", row.Id, "--exact", "--source", "winget", "--versions", "--accept-source-agreements", "--disable-interactivity");
+                if (versions.ExitCode != 0) continue;
+                // The version WinGet lists is the one its download takes, so that spelling is kept ("6.7" for an entry that says 6.7.0.0).
+                if (versions.Output.Split('\n').Select(x => x.Trim()).FirstOrDefault(x => PackageOutputParser.IsSafeId(x) && SameVersion(x, wanted)) is { } listed)
+                    return new(row.Id, row.Name, listed);
             }
         }
         return null;
+    }
+
+    /// <summary>Whether two version texts are the same version: trailing ".0" parts do not count, so 6.7.0.0 is 6.7.</summary>
+    internal static bool SameVersion(string left, string right) => string.Equals(WithoutTrailingZeros(left), WithoutTrailingZeros(right), StringComparison.OrdinalIgnoreCase);
+
+    private static string WithoutTrailingZeros(string version)
+    {
+        var parts = version.Trim().Split('.').ToList();
+        while (parts.Count > 1 && parts[^1] == "0") parts.RemoveAt(parts.Count - 1);
+        return string.Join('.', parts);
     }
 
     /// <summary>The name without its "(64-bit)", then with the last version part dropped one at a time, and then the last word.</summary>
@@ -85,7 +99,7 @@ public sealed partial class WingetFetcher : IInstallerFetcher
         if (!PackageOutputParser.IsSafeId(match.Id) || !PackageOutputParser.IsSafeId(match.Version)) return [];
         Directory.CreateDirectory(folder);
         var arguments = new List<string> { "download", "--id", match.Id, "--version", match.Version, "--exact", "--source", "winget", "--download-directory", folder, "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity" };
-        if (architecture is "x64" or "x86") arguments.AddRange(["--architecture", architecture]);
+        if (architecture is "x64" or "x86" or "arm64") arguments.AddRange(["--architecture", architecture]);
         var result = Run(TimeSpan.FromMinutes(15), cancellationToken, [.. arguments]);
         if (result.ExitCode != 0) return [];
         return Directory.EnumerateFiles(folder).Where(x => Path.GetExtension(x).ToLowerInvariant() is ".msi" or ".exe" or ".msix" or ".zip").ToList();

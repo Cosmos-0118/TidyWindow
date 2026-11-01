@@ -73,11 +73,14 @@ public sealed class RegistryRepair : IKeyEditor
         Rule(@"HKLM\\" + Regex.Escape(Wow64Uninstall) + @"\\[^\\]+"),
         Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\UserData\\S-1-[0-9-]+\\(?:Products|Patches)\\" + Packed),
         Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\UserData\\S-1-[0-9-]+\\Components\\" + Packed),
-        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\Managed\\S-1-[0-9-]+\\Installer\\(?:Products|Features|UpgradeCodes)\\" + Packed),
+        // An update a program wears: the program's own link to a patch whose saved file is gone.
+        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\UserData\\S-1-[0-9-]+\\Products\\" + Packed + @"\\Patches\\" + Packed),
+        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\Managed\\S-1-[0-9-]+\\Installer\\(?:Products|Features|UpgradeCodes|Patches)\\" + Packed),
         Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\(?:Products|Features|UpgradeCodes)\\" + Packed),
         Rule(@"HKLM\\SOFTWARE\\Classes\\Installer\\(?:Products|Features|UpgradeCodes|Patches)\\" + Packed),
         Rule(@"HKLM\\SOFTWARE\\Classes\\Installer\\Dependencies\\[^\\]+(?:\\Dependents\\[^\\]+)?"),
-        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\InProgress")
+        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\InProgress"),
+        Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\Rollback")
     ];
 
     private static readonly (Regex Path, Regex Name)[] SharedValues =

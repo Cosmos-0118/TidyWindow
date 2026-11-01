@@ -1,0 +1,377 @@
+using System.Runtime.Versioning;
+using TidyWindow.Next.Core;
+using Xunit;
+
+namespace TidyWindow.Next.Tests;
+
+/// <summary>What the Repair audit found missing: records with no saved copy named, hidden packages, wrapped uninstallers, per-machine bundles, update registrations and the checks on a setup program.</summary>
+[SupportedOSPlatform("windows")]
+public sealed class RepairHardeningTests : IDisposable
+{
+    private readonly RepairSandbox sandbox = new();
+    private readonly string folder = Path.Combine(Path.GetTempPath(), "tw-hardening-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly RepairHistory history;
+    public RepairHardeningTests() => history = new RepairHistory(folder);
+    public void Dispose() { sandbox.Dispose(); try { Directory.Delete(folder, true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
+
+    private const string Code = "{90140000-0011-0000-0000-0000000FF1CE}";
+    private const string Arp = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\";
+
+    private static UninstallEntry Entry(string name, string key, string uninstall = "", bool msi = false, bool system = false, string location = "", string bundle = "") =>
+        new(Arp + key, name, "1.0", "Maker", uninstall, "", location, "", msi, system, false, false, bundle);
+
+    private RepairService Service(FakePc pc, FakeOps ops, FakeOps? elevated = null, FakeFetcher? fetcher = null, int[]? unlocks = null) =>
+        new(pc, sandbox.User(), sandbox.Elevated(), _ => { if (unlocks is not null) unlocks[0]++; return Task.CompletedTask; }, () => { }, history, ops, elevated ?? ops, fetcher);
+
+    // ---- Windows Installer records ----
+
+    [Fact]
+    public void AnInstalledProgramWhoseSavedCopyIsNotNamedAtAllIsReportedButAnAdvertisedOneIsNot()
+    {
+        var product = new MsiProduct(Code, "Machine", "", "Office", null);
+        var installed = new FakePc { Msi = [product], State = _ => 5 };
+        var advertised = new FakePc { Msi = [product], State = _ => 1 };
+
+        var finding = Assert.Single(InstallRepair.Scan(installed).Findings);
+
+        Assert.Equal(RepairKind.InstallerRecord, finding.Kind);
+        Assert.Contains("no saved copy recorded", finding.Detail);
+        Assert.Empty(InstallRepair.Scan(advertised).Findings);
+    }
+
+    [Fact]
+    public void AHiddenWindowsInstallerPackageThatWindowsInstallerForgotIsReportedButOtherHiddenEntriesAreNot()
+    {
+        var pc = new FakePc
+        {
+            Programs =
+            [
+                Entry("Python 3.13.9 Core Interpreter", Code, $"MsiExec.exe /X{Code}", msi: true, system: true),
+                Entry("Some hidden helper", "Helper", @"C:\gone\helper.exe", system: true)
+            ]
+        };
+
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings);
+
+        Assert.Equal("Python 3.13.9 Core Interpreter", finding.Title);
+        Assert.Equal(RepairKind.BrokenEntry, finding.Kind);
+    }
+
+    [Theory]
+    [InlineData("msiexec.exe /x {90140000-0011-0000-0000-0000000FF1CE}")]
+    [InlineData("msiexec.exe -x {90140000-0011-0000-0000-0000000FF1CE}")]
+    [InlineData("MsiExec.exe /uninstall {90140000-0011-0000-0000-0000000FF1CE} /qn")]
+    [InlineData("msiexec /fa{90140000-0011-0000-0000-0000000FF1CE}")]
+    [InlineData("\"C:\\Windows\\System32\\msiexec.exe\" /qn /I{90140000-0011-0000-0000-0000000FF1CE}")]
+    public void EveryWayMsiexecIsToldWhichProductToActOnNamesTheProduct(string command)
+    {
+        var entry = Entry("App", "Custom", command);
+
+        Assert.Equal(Code, InstallRepair.ProductCode(entry));
+    }
+
+    [Fact]
+    public void ACommandThatIsNotMsiexecNamesNoProduct() =>
+        Assert.Null(InstallRepair.ProductCode(Entry("App", "Custom", "setup.exe /x {90140000-0011-0000-0000-0000000FF1CE}")));
+
+    // ---- Uninstall commands ----
+
+    [Fact]
+    public void AScriptRunByASystemHostCountsNotTheHostItself()
+    {
+        var pc = new FakePc { OnPath = { "cmd.exe", "powershell.exe", "rundll32.exe" } };
+        var cmd = Entry("Bat", "Bat", @"cmd.exe /c ""C:\Gone\uninstall.bat""");
+        var shell = Entry("Script", "Script", @"powershell.exe -NoProfile -File ""C:\Gone\remove.ps1""");
+        var dll = Entry("Library", "Library", @"rundll32.exe ""C:\Gone\setup.dll"",Remove");
+        var builtin = Entry("Builtin", "Builtin", @"cmd.exe /c rd /s /q ""C:\Gone""");
+
+        Assert.False(InstallRepair.HasUninstaller(pc, cmd));
+        Assert.False(InstallRepair.HasUninstaller(pc, shell));
+        Assert.False(InstallRepair.HasUninstaller(pc, dll));
+        // A command the host runs by itself, with no script or library to find, is as healthy as the host.
+        Assert.True(InstallRepair.HasUninstaller(pc, builtin));
+
+        pc.Files.UnionWith([@"C:\Gone\uninstall.bat", @"C:\Gone\remove.ps1", @"C:\Gone\setup.dll"]);
+        Assert.True(InstallRepair.HasUninstaller(pc, cmd));
+        Assert.True(InstallRepair.HasUninstaller(pc, shell));
+        Assert.True(InstallRepair.HasUninstaller(pc, dll));
+    }
+
+    [Fact]
+    public void ADeletedScriptBehindASystemHostMakesTheEntryBroken()
+    {
+        var pc = new FakePc { OnPath = { "cmd.exe" }, Programs = [Entry("Bat", "Bat", @"cmd.exe /c ""C:\Gone\uninstall.bat""", location: @"C:\Gone")] };
+
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings);
+
+        Assert.Equal("Bat", finding.Title);
+    }
+
+    [Fact]
+    public void AnArgumentThatEndsInExeIsNotTakenForTheProgram()
+    {
+        var found = InstallRepair.Candidates(@"C:\Program Files\Vendor\uninst /app=C:\Program Files\Vendor\app.exe");
+
+        Assert.Contains(@"C:\Program Files\Vendor\uninst", found);
+    }
+
+    // ---- Update (patch) registrations and the install marker ----
+
+    [Fact]
+    public void AnUpdateWhoseSavedFileIsGoneIsOfferedForReviewWithItsRegistrations()
+    {
+        var keys = new[] { @"HKLM\X\Products\A\Patches\P", @"HKLM\X\Patches\P" };
+        var pc = new FakePc { Patches = [new("P", @"C:\Windows\Installer\1.msp", ["Office"], keys)] };
+
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings);
+
+        Assert.Equal(RepairKind.MissingPatch, finding.Kind);
+        Assert.Equal(RepairLevel.Review, finding.Level);
+        Assert.Equal(keys, finding.Keys);
+        Assert.True(finding.NeedsAdmin);
+        Assert.Contains("1612", finding.Detail);
+    }
+
+    [Fact]
+    public void TheSavedRollbackInformationGoesWithTheInstallMarkerOnlyWhenThereIsOne()
+    {
+        var with = Assert.Single(InstallRepair.Scan(new FakePc { Lock = true, Rollback = true }).Findings);
+        var without = Assert.Single(InstallRepair.Scan(new FakePc { Lock = true }).Findings);
+        var alone = InstallRepair.Scan(new FakePc { Rollback = true }).Findings;
+
+        Assert.Equal([InstallRepair.InstallLockKey, InstallRepair.InstallRollbackKey], with.Keys);
+        Assert.Equal([InstallRepair.InstallLockKey], without.Keys);
+        Assert.Empty(alone);
+    }
+
+    [Fact]
+    public async Task ADeadUpdateRegistrationIsRemovedAndPutBackByTheUndo()
+    {
+        var sid = "S-1-5-18";
+        var program = $@"{BrokenPython.UserData(sid)}\Products\{BrokenPython.Packed}\Patches\{BrokenPython.PatchPacked}";
+        var record = $@"{BrokenPython.UserData(sid)}\Patches\{BrokenPython.PatchPacked}";
+        sandbox.Put(program, ("State", 1));
+        sandbox.Put(record, ("LocalPackage", @"C:\Windows\Installer\gone.msp"));
+        sandbox.Put($@"{BrokenPython.UserData(sid)}\Products\{BrokenPython.Packed}\InstallProperties", ("DisplayName", "Python"));
+        var before = sandbox.Dump();
+        var pc = new FakePc { Patches = [new(BrokenPython.PatchPacked, @"C:\Windows\Installer\gone.msp", ["Python"], [program, record])] };
+        var service = Service(pc, new FakeOps());
+
+        var outcome = await service.FixAsync(InstallRepair.Scan(pc).Findings.ToList(), "Repaired");
+
+        Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
+        Assert.False(sandbox.Has(program));
+        Assert.False(sandbox.Has(record));
+        // The program's own record stays; only the update's registration went.
+        Assert.True(sandbox.Has($@"{BrokenPython.UserData(sid)}\Products\{BrokenPython.Packed}\InstallProperties"));
+
+        var undo = await service.UndoAsync(outcome.Batch!);
+
+        Assert.True(undo.Complete, string.Join(" ", undo.Problems));
+        RepairSandbox.AssertSame(before, sandbox.Dump());
+    }
+
+    [Theory]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Rollback", true)]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\00004109110000000000000000F01FEC\Patches\00004109110000000000000000F01FEC", true)]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\S-1-5-21-1\Installer\Patches\00004109110000000000000000F01FEC", true)]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Rollback\Scripts", false)]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\00004109110000000000000000F01FEC\Patches", false)]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\00004109110000000000000000F01FEC\Patches\Other", false)]
+    public void TheWindowsWideRulesAllowOnlyTheUpdateAndRollbackKeysThemselves(string path, bool allowed) => Assert.Equal(allowed, RegistryRepair.Machine.IsAllowed(path));
+
+    // ---- A Windows-wide bundle's setup program ----
+
+    private const string MachineBundle = "{7A1B3C5D-1111-4222-8333-444455556666}";
+    private static readonly string MachineCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Package Cache", MachineBundle, "python-3.13.9-amd64.exe");
+
+    private static FakePc MachineBundlePc()
+    {
+        var pc = new FakePc { Folders = { @"C:\Python313" } };
+        pc.Live = () => [new(Arp + MachineBundle, "Python 3.13.9 (64-bit)", "3.13.9", "PSF", $"\"{MachineCache}\" /uninstall", "", @"C:\Python313", "", false, false, false, false, MachineBundle)];
+        return pc;
+    }
+
+    [Fact]
+    public async Task AWindowsWideBundlesSetupIsPutBackByTheAdministratorHelperNotByTheApp()
+    {
+        var pc = MachineBundlePc();
+        var app = new FakeOps();
+        var helper = new FakeOps { OnRepairBundle = () => pc.Files.Add(MachineCache) };
+        var fetcher = new FakeFetcher { Found = new("Python.Python.3.13", "Python 3.13.9 (64-bit)", "3.13.9"), Files = [@"C:\dl\python-3.13.9-amd64.exe"] };
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings) with { Alive = true };
+        var unlocks = new[] { 0 };
+
+        var outcome = await Service(pc, app, helper, fetcher, unlocks).FixAsync([finding], "x", options: new(Download: true));
+
+        Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
+        Assert.Empty(app.Repaired);
+        Assert.Equal([@"C:\dl\python-3.13.9-amd64.exe"], helper.Repaired);
+        Assert.Equal([MachineCache], helper.RestoredTo);
+        Assert.Equal(1, unlocks[0]);
+        Assert.Contains("download Python.Python.3.13 3.13.9 x64", fetcher.Calls);
+    }
+
+    [Fact]
+    public async Task UndoTakesAPutBackMachineSetupAwayThroughTheHelperToo()
+    {
+        var batch = history.Save("x", [], files: [MachineCache]);
+        var app = new FakeOps();
+        var helper = new FakeOps();
+        var unlocks = new[] { 0 };
+
+        var undo = await Service(new FakePc(), app, helper, unlocks: unlocks).UndoAsync(batch);
+
+        Assert.True(undo.Complete);
+        Assert.Equal([MachineCache], helper.Removed);
+        Assert.Empty(app.Removed);
+        Assert.Equal(1, unlocks[0]);
+    }
+
+    [Fact]
+    public async Task AFolderThePersonChoseSuppliesTheBundlesSetupBeforeAnythingIsDownloaded()
+    {
+        var key = $@"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{MachineBundle}";
+        const string cache = @"C:\Users\X\AppData\Local\Package Cache\{7A1B3C5D-1111-4222-8333-444455556666}\python-3.13.9-amd64.exe";
+        var pc = new FakePc { Folders = { @"C:\Python313" } };
+        pc.Live = () => [new(key, "Python 3.13.9 (64-bit)", "3.13.9", "PSF", $"\"{cache}\" /uninstall", "", @"C:\Python313", "", false, false, false, false, MachineBundle)];
+        var ops = new FakeOps { BundleExitFor = file => file.EndsWith("python-3.13.9-amd64.exe", StringComparison.OrdinalIgnoreCase) ? 0 : 87 };
+        ops.OnRepairBundle = () => pc.Files.Add(cache);
+        ops.Folders[@"C:\Downloads"] = [@"C:\Downloads\notepad-setup.exe", @"C:\Downloads\python-3.13.9-amd64.exe"];
+        var fetcher = new FakeFetcher { Found = new("Python.Python.3.13", "Python 3.13.9 (64-bit)", "3.13.9") };
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings) with { Alive = true };
+
+        var outcome = await Service(pc, ops, fetcher: fetcher).FixAsync([finding], "x", options: new(Download: true, Folders: [@"C:\Downloads"]));
+
+        var result = Assert.Single(outcome.Results!);
+        Assert.Equal(RepairStatus.Fixed, result.Status);
+        Assert.Empty(fetcher.Calls);
+        Assert.Equal([@"C:\Downloads\notepad-setup.exe", @"C:\Downloads\python-3.13.9-amd64.exe"], ops.Repaired);
+        // A setup program that is simply another program's is not worth a line.
+        Assert.DoesNotContain("notepad", string.Join(" ", result.Steps));
+    }
+
+    [Theory]
+    [InlineData("Python 3.13.9 (64-bit)", @"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A}", "x64")]
+    [InlineData("Microsoft Visual C++ 2015-2022 Redistributable (x86) - 14.38", @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A}", "x86")]
+    [InlineData("Some Tool", @"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A}", "x86")]
+    [InlineData("Some Tool ARM64", @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A}", "arm64")]
+    [InlineData("Some Tool", @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A}", null)]
+    public void TheArchitectureComesFromWhatTheEntryAndItsSetupSay(string name, string key, string? expected) =>
+        Assert.Equal(expected, RepairService.ArchitectureOf(new(key, name, "1", "", "", "", "", "", false, false, false, false)));
+
+    [Fact]
+    public void TheArchitectureAlsoComesFromTheCachedSetupsName()
+    {
+        var entry = new UninstallEntry(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A}", "Some Redistributable", "1", "", @"""C:\ProgramData\Package Cache\{A}\VC_redist.x64.exe"" /uninstall", "", "", "", false, false, false, false);
+
+        Assert.Equal("x64", RepairService.ArchitectureOf(entry));
+    }
+
+    // ---- Repairing a working program ----
+
+    [Fact]
+    public async Task AWorkingPerUserProgramIsRepairedFromItsSavedCopyWithoutTheHelper()
+    {
+        var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "App", @"C:\Windows\Installer\a.msi");
+        var pc = new FakePc { Files = { @"C:\Windows\Installer\a.msi" } };
+        var ops = new FakeOps();
+        var unlocks = new[] { 0 };
+
+        var result = await Service(pc, ops, unlocks: unlocks).RepairProgramAsync(product, "App");
+
+        Assert.Equal(RepairStatus.Fixed, result.Status);
+        Assert.Equal([@"C:\Windows\Installer\a.msi"], ops.Reinstalled);
+        Assert.Equal(0, unlocks[0]);
+    }
+
+    [Fact]
+    public async Task AWorkingWindowsWideProgramIsRepairedThroughTheHelperAndARestartIsSaidWhenItIsNeeded()
+    {
+        var product = new MsiProduct(Code, "Machine", "", "App", @"C:\Windows\Installer\a.msi");
+        var pc = new FakePc { Files = { @"C:\Windows\Installer\a.msi" } };
+        var app = new FakeOps();
+        var helper = new FakeOps { ExitCode = 3010 };
+        var unlocks = new[] { 0 };
+
+        var result = await Service(pc, app, helper, unlocks: unlocks).RepairProgramAsync(product, "App");
+
+        Assert.Equal(RepairStatus.FixedAfterRestart, result.Status);
+        Assert.Empty(app.Reinstalled);
+        Assert.Single(helper.Reinstalled);
+        Assert.Equal(1, unlocks[0]);
+    }
+
+    [Fact]
+    public async Task AProgramWhoseSavedCopyIsGoneCannotBeRepairedFromHereAndNothingRuns()
+    {
+        var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "App", @"C:\Windows\Installer\gone.msi");
+        var ops = new FakeOps();
+
+        var result = await Service(new FakePc(), ops).RepairProgramAsync(product, "App");
+
+        Assert.Equal(RepairStatus.NotFixed, result.Status);
+        Assert.Empty(ops.Reinstalled);
+    }
+
+    [Fact]
+    public async Task AFailedRepairSaysWhyInPlainWords()
+    {
+        var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "App", @"C:\Windows\Installer\a.msi");
+        var pc = new FakePc { Files = { @"C:\Windows\Installer\a.msi" } };
+
+        var result = await Service(pc, new FakeOps { ExitCode = 1612 }).RepairProgramAsync(product, "App");
+
+        Assert.Equal(RepairStatus.NotFixed, result.Status);
+        Assert.Contains("source files are not all there", result.Summary);
+    }
+
+    // ---- Checking a setup program ----
+
+    [Theory]
+    [InlineData("R for Windows 4.4.2", "R for Windows R-4.4.2-win.exe The R Foundation", true)]
+    [InlineData("R for Windows 4.4.2", "Rider Setup JetBrains rider-setup.exe", false)]
+    [InlineData("HP Support Assistant", "HP Support Assistant HPSupportAssistant.exe HP Inc.", true)]
+    [InlineData("HP Support Assistant", "ShopLogic helper shoplogic.exe", false)]
+    [InlineData("7-Zip 24.08 (x64)", "7-Zip 7z2408-x64.exe Igor Pavlov", true)]
+    [InlineData("Python 3.13.9 (64-bit)", "Python 3.13.9 (64-bit) python-3.13.9-amd64.exe Python Software Foundation", true)]
+    [InlineData("Visual Studio Code", "Python 3.13.9 (64-bit) python-3.13.9-amd64.exe Python Software Foundation", false)]
+    [InlineData("Microsoft Visual C++ 2015-2022 Redistributable (x64)", "Microsoft Visual C++ 2022 Redistributable VC_redist.x64.exe Microsoft Corporation", true)]
+    // Every program from a maker shares its name, so the maker alone is not enough.
+    [InlineData("Microsoft Visual C++ 2015-2022 Redistributable (x64)", "Microsoft Edge Installer MicrosoftEdgeSetup.exe Microsoft Corporation", false)]
+    [InlineData("Windows Software Development Kit", "Microsoft Edge Installer MicrosoftEdgeSetup.exe Microsoft Corporation", false)]
+    [InlineData("", "anything", false)]
+    [InlineData("(64-bit) 1.0", "anything x64", false)]
+    public void AProgramsNameHasToBeInTheSetupProgramsOwnDetails(string program, string details, bool expected) =>
+        Assert.Equal(expected, WindowsInstallerOps.Names(details, program));
+
+    [Fact]
+    public void AnUnsignedFileIsNeverTrustedEvenWhenItsNameMatches()
+    {
+        var file = Path.Combine(folder, "python-setup.exe");
+        Directory.CreateDirectory(folder);
+        File.WriteAllBytes(file, [0x4D, 0x5A, 0, 0]);
+
+        Assert.False(WindowsInstallerOps.IsTrusted(file, "Python 3.13.9 (64-bit)"));
+        Assert.False(WindowsInstallerOps.IsTrusted(Path.Combine(folder, "missing.exe"), "Python"));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\X\AppData\Local\Package Cache\..\..\..\Windows\evil.exe")]
+    [InlineData(@"C:\Users\X\AppData\Local\Package Cache\..\evil.exe")]
+    public void APathThatWalksOutOfThePackageCacheIsRefused(string target)
+    {
+        var ops = new WindowsInstallerOps();
+
+        Assert.Equal(87, ops.RestoreBundleCopy(@"C:\dl\whatever.exe", "Python 3.13.9 (64-bit)", target).ExitCode);
+        Assert.False(ops.RemoveCopy(target));
+    }
+
+    [Theory]
+    [InlineData("6.7.0.0", "6.7", true)]
+    [InlineData("3.13.9", "3.13.9.0", true)]
+    [InlineData("6.7.1", "6.7", false)]
+    [InlineData("10.0", "1.0", false)]
+    [InlineData("1.0", "1", true)]
+    public void TrailingZeroPartsDoNotMakeAnotherVersion(string left, string right, bool same) => Assert.Equal(same, WingetFetcher.SameVersion(left, right));
+}
