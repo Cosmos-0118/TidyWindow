@@ -1,0 +1,271 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.SettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ HorizontalContentAlignment="Stretch">
+ <UserControl.Resources>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" />
+    <ResourceDictionary Source="ms-appx:///Styles/PageStyles.xaml" />
+   </ResourceDictionary.MergedDictionaries>
+   <Style x:Key="Tag" TargetType="Border">
+    <Setter Property="BorderBrush" Value="{ThemeResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="9,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+   </Style>
+  </ResourceDictionary>
+ </UserControl.Resources>
+
+ <Grid RowSpacing="16">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto" />
+   <RowDefinition Height="*" />
+  </Grid.RowDefinitions>
+
+  <StackPanel Spacing="4">
+   <TextBlock Text="Settings" Style="{StaticResource PageTitle}" />
+   <TextBlock Text="Updates, release notes, logs and project links." Style="{StaticResource Muted}" />
+  </StackPanel>
+
+  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
+   <StackPanel Spacing="16" Margin="0,0,0,12">
+
+    <Border Style="{StaticResource Card}" Padding="0">
+     <StackPanel>
+      <Grid Padding="20,18" ColumnSpacing="14">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+       </Grid.ColumnDefinitions>
+       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Center">
+        <FontIcon Glyph="&#xE895;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+       </Border>
+       <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="Updates" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="This PC, and the latest release on GitHub." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Grid Grid.Column="2" VerticalAlignment="Center">
+        <Button Click="CheckClick" Visibility="{Binding CheckVisibility}" Padding="14,7" FontSize="12" Content="Check for updates" AutomationProperties.Name="Check for updates" />
+        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding CheckingVisibility}">
+         <ProgressRing IsActive="True" Width="14" Height="14" />
+         <TextBlock Text="Checking…" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Click="CancelClick" Visibility="{Binding CancelVisibility}" Padding="14,7" FontSize="12" Content="Cancel" AutomationProperties.Name="Cancel the download" />
+       </Grid>
+      </Grid>
+
+      <Grid Padding="20,14" ColumnSpacing="24" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="96" />
+       </Grid.ColumnDefinitions>
+       <StackPanel Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="Current version" Style="{StaticResource ItemTitle}" />
+        <TextBlock Text="{Binding InstallKind}" Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <TextBlock Grid.Column="1" Text="{Binding CurrentVersionText}" FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.Name="Current version" />
+      </Grid>
+
+      <Grid Padding="20,14" ColumnSpacing="24" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="96" />
+       </Grid.ColumnDefinitions>
+       <StackPanel Spacing="4" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+         <TextBlock Text="Latest version" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
+         <Border Style="{StaticResource Tag}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding StatusGoodVisibility}" Fill="{ThemeResource GoodBrush}" />
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding StatusWarnVisibility}" Fill="{ThemeResource WarnBrush}" />
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding StatusMutedVisibility}" Fill="{ThemeResource MutedBrush}" />
+           <TextBlock Text="{Binding StatusTag}" FontSize="11" />
+          </StackPanel>
+         </Border>
+        </StackPanel>
+        <TextBlock Text="{Binding StatusDetail}" Visibility="{Binding NormalDetailVisibility}" Style="{StaticResource Muted}" FontSize="12" />
+        <TextBlock Text="{Binding StatusDetail}" Visibility="{Binding ErrorVisibility}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" />
+       </StackPanel>
+       <TextBlock Grid.Column="1" Text="{Binding LatestVersionText}" FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,0,0" AutomationProperties.Name="Latest version" />
+      </Grid>
+
+      <StackPanel Spacing="12" Padding="20,14" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Visibility="{Binding ActionsVisibility}">
+       <StackPanel Spacing="8" Visibility="{Binding ProgressVisibility}">
+        <TextBlock Text="{Binding ProgressTitle}" FontSize="12" />
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadPercent}" IsIndeterminate="{Binding DownloadIndeterminate}" AutomationProperties.Name="Download progress" />
+        <TextBlock Text="{Binding DownloadProgressText}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+       </StackPanel>
+       <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding ActionButtonsVisibility}">
+        <Button Click="InstallClick" Visibility="{Binding InstallerPrimaryVisibility}" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Update to the latest release">
+         <TextBlock Text="{Binding DownloadText}" />
+        </Button>
+        <Button Click="PortableClick" Visibility="{Binding ZipVisibility}" Style="{StaticResource PrimaryButton}" Content="Download ZIP" AutomationProperties.Name="Download the portable ZIP" />
+        <Button Click="InstallClick" Visibility="{Binding InstallerSecondaryVisibility}" Padding="14,7" FontSize="12" Content="Use installer" AutomationProperties.Name="Install the update with Setup" ToolTipService.ToolTip="Runs Setup and adds a Start menu entry. Settings stay on this PC." />
+        <HyperlinkButton Click="ReleasePageClick" Visibility="{Binding ReleasePageVisibility}" Content="View release" Padding="8,0" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="Open the release page" />
+       </StackPanel>
+      </StackPanel>
+     </StackPanel>
+    </Border>
+
+    <Border Style="{StaticResource Card}" Padding="20">
+     <Grid ColumnSpacing="14">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition Width="Auto" />
+       <ColumnDefinition Width="*" />
+       <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
+       <FontIcon Glyph="&#xEC32;" FontSize="16" Foreground="{ThemeResource LoadingGoldBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+       <TextBlock Text="Buy me a coffee" Style="{StaticResource SectionTitle}" />
+       <TextBlock Text="TidyWindow is free, open source, and built without ads or telemetry. If it saves you time, buying a coffee helps support future updates and maintenance." Style="{StaticResource Muted}" FontSize="12" />
+      </StackPanel>
+      <Button Grid.Column="2" Click="CoffeeClick" Padding="14,7" VerticalAlignment="Center" AutomationProperties.Name="Buy me a coffee">
+       <StackPanel Orientation="Horizontal" Spacing="8">
+        <FontIcon Glyph="&#xEC32;" FontSize="12" />
+        <TextBlock Text="Buy me a coffee" FontSize="12" />
+       </StackPanel>
+      </Button>
+     </Grid>
+    </Border>
+
+    <Border Style="{StaticResource Card}" Padding="0">
+     <StackPanel>
+      <Grid Padding="20,20,20,16" ColumnSpacing="14">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+       </Grid.ColumnDefinitions>
+       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
+        <FontIcon Glyph="&#xE7C3;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+       </Border>
+       <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="Release notes" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="Changes and fixes from recent GitHub releases." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Button Grid.Column="2" Click="ReleasesClick" Padding="14,7" VerticalAlignment="Center" AutomationProperties.Name="All releases on GitHub">
+        <TextBlock Text="All releases on GitHub" FontSize="12" />
+       </Button>
+      </Grid>
+
+      <StackPanel Visibility="{Binding ReleasesLoadingVisibility}" Orientation="Horizontal" Spacing="10" Padding="20,0,20,20">
+       <ProgressRing IsActive="True" Width="14" Height="14" />
+       <TextBlock Text="Checking GitHub…" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding ReleasesEmptyVisibility}" Spacing="4" Padding="20,4,20,20">
+       <TextBlock Text="{Binding ReleasesEmptyTitle}" Style="{StaticResource ItemTitle}" />
+       <TextBlock Text="{Binding ReleasesEmptyDetail}" Style="{StaticResource Muted}" FontSize="12" />
+      </StackPanel>
+
+      <ItemsControl ItemsSource="{Binding Releases}" Visibility="{Binding ReleasesListVisibility}" IsTabStop="False" AutomationProperties.Name="Release notes">
+       <ItemsControl.ItemTemplate>
+        <DataTemplate>
+         <StackPanel BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
+          <Button Click="ReleaseToggleClick" Background="Transparent" BorderThickness="0" Padding="20,14" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" AutomationProperties.Name="{Binding Tag}">
+           <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="*" />
+             <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="4">
+             <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding Tag}" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
+              <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="9,2" VerticalAlignment="Center" Visibility="{Binding CurrentVisibility}"><TextBlock Text="Current" FontSize="11" /></Border>
+              <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="9,2" VerticalAlignment="Center" Visibility="{Binding LatestVisibility}"><TextBlock Text="Latest" FontSize="11" /></Border>
+              <TextBlock Text="{Binding When}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+             </StackPanel>
+             <TextBlock Text="{Binding Title}" Visibility="{Binding TitleVisibility}" Style="{StaticResource RowSub}" TextWrapping="Wrap" TextTrimming="None" />
+            </StackPanel>
+            <FontIcon Grid.Column="1" Glyph="{Binding Chevron}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+           </Grid>
+          </Button>
+          <Border Visibility="{Binding NotesVisibility}" Background="{ThemeResource CanvasBrush}" Margin="20,0,20,16" Padding="14,12" CornerRadius="6" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1">
+           <StackPanel Spacing="8">
+            <TextBlock Text="{Binding Notes}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            <HyperlinkButton Content="Open this release" Click="OpenReleaseClick" Padding="0" FontSize="12" HorizontalAlignment="Left" AutomationProperties.Name="Open this release" />
+           </StackPanel>
+          </Border>
+         </StackPanel>
+        </DataTemplate>
+       </ItemsControl.ItemTemplate>
+      </ItemsControl>
+     </StackPanel>
+    </Border>
+
+    <Border Style="{StaticResource Card}" Padding="20">
+     <StackPanel Spacing="14">
+      <Grid ColumnSpacing="14">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+       </Grid.ColumnDefinitions>
+       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
+        <FontIcon Glyph="&#xE8B7;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+       </Border>
+       <StackPanel Grid.Column="1" Spacing="4">
+        <TextBlock Text="Logs folder" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="{Binding LogSummary}" Style="{StaticResource Muted}" FontSize="12" />
+        <TextBlock Text="Activity worth keeping is saved as activity.jsonl. The Windows account name is replaced with %USERPROFILE%. Package names and paths can still appear, so review a log before you share it." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+      </Grid>
+      <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="12,8">
+       <TextBlock Text="{Binding LogFolder}" FontFamily="{StaticResource MonoFont}" FontSize="12" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+       <Button Click="OpenLogsClick" IsEnabled="{Binding CanOpenLogs}" Padding="14,7" AutomationProperties.Name="Open log folder">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Open folder" FontSize="12" /></StackPanel>
+       </Button>
+       <Button Click="CopyPathClick" IsEnabled="{Binding CanOpenLogs}" Padding="14,7" AutomationProperties.Name="Copy log folder path">
+        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock x:Name="CopyPathLabel" Text="Copy path" FontSize="12" /></StackPanel>
+       </Button>
+       <Button Click="ViewLogsClick" Padding="14,7" FontSize="12" Content="View in Logs" AutomationProperties.Name="View logs" />
+      </StackPanel>
+     </StackPanel>
+    </Border>
+
+    <Border Style="{StaticResource Card}" Padding="0">
+     <StackPanel>
+      <Grid Padding="20,16" ColumnSpacing="16" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Source repository" Style="{StaticResource ItemTitle}" />
+        <TextBlock Text="Browse the code, architecture docs and research notes on GitHub." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Button Grid.Column="1" Tag="repository" Click="LinkClick" Content="Open GitHub" Padding="14,7" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="Open GitHub" />
+      </Grid>
+      <Grid Padding="20,16" ColumnSpacing="16" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Issues and feedback" Style="{StaticResource ItemTitle}" />
+        <TextBlock Text="Report a bug or request an improvement." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Button Grid.Column="1" Tag="issues" Click="LinkClick" Content="Report an issue" Padding="14,7" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="Report an issue" />
+      </Grid>
+      <Grid Padding="20,16" ColumnSpacing="16" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Releases" Style="{StaticResource ItemTitle}" />
+        <TextBlock Text="Download installers, portable archives and read the release notes." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Button Grid.Column="1" Tag="releases" Click="LinkClick" Content="View releases" Padding="14,7" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="View releases" />
+      </Grid>
+      <Grid Padding="20,16" ColumnSpacing="16">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <StackPanel Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="License" Style="{StaticResource ItemTitle}" />
+        <TextBlock Text="Released under the MIT License." Style="{StaticResource Muted}" FontSize="12" />
+       </StackPanel>
+       <Button Grid.Column="1" Tag="license" Click="LinkClick" Content="Read license" Padding="14,7" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="Read license" />
+      </Grid>
+     </StackPanel>
+    </Border>
+
+   </StackPanel>
+  </ScrollViewer>
+ </Grid>
+</UserControl>

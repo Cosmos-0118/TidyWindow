@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Lab, Queue, Logs }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Lab, Queue, Logs, Settings }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     private readonly FixesViewModel fixes;
     private readonly FixSession fixSession;
     private readonly LabViewModel lab;
+    private readonly SettingsViewModel settings;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -129,11 +130,13 @@ public sealed partial class MainWindow : Window
         LabPage.DataContext = lab;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
+        settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), action => DispatcherQueue.TryEnqueue(() => action()));
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
         model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(model.Errors) && model.Errors.Length > 0) ReportProblem("search-errors", "Search needs attention", model.Errors); };
         installations.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(installations.Errors) && installations.Errors.Length > 0) ReportProblem("installed-errors", "Some apps or updates could not be checked", installations.Errors); };
         scout.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(scout.Error) && scout.Error.Length > 0) ReportProblem("scout-error", "Search needs attention", scout.Error); };
         LogsPage.DataContext = logs;
+        SettingsPage.DataContext = settings;
         InstalledPage.DataContext = installations;
         QueueButton.DataContext = operationQueue;
         QueuePage.DataContext = operationQueue;
@@ -177,7 +180,7 @@ public sealed partial class MainWindow : Window
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); lab.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private readonly TaskCompletionSource firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -231,7 +234,7 @@ public sealed partial class MainWindow : Window
 
     private void ApplyResponsiveLayout()
     {
-        var layout = AdaptiveLayout.ForWidth(Root.ActualWidth);
+        var layout = AdaptiveLayout.ForWidth(Root.ActualWidth, sidebarReserved);
         SidebarColumn.Width = new GridLength(layout.SidebarWidth);
         ContentArea.Padding = new Thickness(layout.Padding, 24, layout.Padding, 24);
         model.ApplyLayout(layout);
@@ -268,7 +271,7 @@ public sealed partial class MainWindow : Window
 
     // The sidebar opens a moment after the pointer arrives and closes a little after it leaves, so crossing the edge of the window does not make it flicker.
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? sidebarTimer;
-    private bool sidebarOpen, sidebarPointer, sidebarKeyboard, sidebarMenu, keyboardUsed;
+    private bool sidebarOpen, sidebarReserved, sidebarPointer, sidebarKeyboard, sidebarMenu, keyboardUsed;
     private Microsoft.UI.Composition.CompositionPropertySet? sidebarState;
     private readonly bool sidebarAnimations = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
 
@@ -326,12 +329,18 @@ public sealed partial class MainWindow : Window
         if (open == sidebarOpen || sidebarState is null) return;
         sidebarOpen = open;
         // The width changes once, while the clip still shows only the rail (opening) or has just finished hiding the rest (closing).
-        if (open) Sidebar.Width = AdaptiveLayout.OpenWidth;
+        // On a narrower window the page moves aside with that width, and stays there until the close animation has covered the labels.
+        if (open)
+        {
+            Sidebar.Width = AdaptiveLayout.OpenWidth;
+            sidebarReserved = true;
+            ApplyResponsiveLayout();
+        }
         var target = (float)(open ? AdaptiveLayout.OpenWidth : AdaptiveLayout.RailWidth);
         if (!sidebarAnimations)
         {
             sidebarState.InsertScalar("Reveal", target);
-            if (!open) Sidebar.Width = AdaptiveLayout.RailWidth;
+            if (!open) CollapseSidebar();
             return;
         }
         var compositor = sidebarState.Compositor;
@@ -342,12 +351,19 @@ public sealed partial class MainWindow : Window
         sidebarState.StartAnimation("Reveal", slide);
         batch.End();
         // Closed again only once the clip has covered everything past the rail, and not if the pointer came back in the meantime.
-        batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() => { if (!sidebarOpen) Sidebar.Width = AdaptiveLayout.RailWidth; });
+        batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() => { if (!sidebarOpen) CollapseSidebar(); });
+    }
+
+    private void CollapseSidebar()
+    {
+        Sidebar.Width = AdaptiveLayout.RailWidth;
+        sidebarReserved = false;
+        ApplyResponsiveLayout();
     }
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -399,7 +415,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -715,6 +731,11 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
     }
     private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
+    private void SettingsClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Settings);
+        _ = settings.EnsureLoadedAsync();
+    }
 
     private void ReportProblem(string key, string title, string detail) =>
         toasts.Show(key, ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
