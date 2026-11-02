@@ -150,14 +150,21 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             _ => ["install", package.Id]
         };
         if (interactive && package.Manager != ManagerKind.Scoop) args = [.. args, package.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
-        return BuildCommand(package.Manager, manager.Executable, args, interactive ? TimeSpan.FromHours(2) : TimeSpan.FromMinutes(20)) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
+        return BuildCommand(package.Manager, manager.Executable, args, OperationTimeout) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
     }
+
+    /// <summary>
+    /// How long an install, update or uninstall may run. Reaching it ends the command and everything it started, so it is a budget for the slowest honest case (a multi-gigabyte
+    /// download on a slow link, a large product's own setup), not a guess at the typical one. Reads (list, search, version) keep their own short limits.
+    /// </summary>
+    internal static readonly TimeSpan OperationTimeout = TimeSpan.FromHours(2);
 
     public async Task<CommandResult> InstallAsync(ManagerStatus manager, Package package, CancellationToken token = default, IProgress<CommandOutput>? progress = null, bool interactive = false)
     {
-        var command = InstallCommand(manager, package, interactive) with { Progress = progress };
+        // A command that asks for administrator rights is refused unless its program lives where only administrators can change it (see ElevatedProgram).
+        var command = ElevatedProgram.Checked(InstallCommand(manager, package, interactive) with { Progress = progress }, locator);
         if (!await installGate.WaitAsync(0, token).ConfigureAwait(false)) throw new InvalidOperationException("An installation is already running.");
-        try { return package.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, package.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false); }
+        try { return package.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, package.Name, token, locator).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false); }
         finally { installGate.Release(); }
     }
 

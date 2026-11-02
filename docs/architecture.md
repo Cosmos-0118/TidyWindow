@@ -32,11 +32,13 @@ Installed status comes from each manager's local inventory plus the Windows unin
 
 Installs, updates and uninstalls share one queue across pages. It runs one operation at a time, rejects duplicate or conflicting requests for the same manager, package and scope, and continues after a failure. Output streams as it arrives, and each card keeps the newest 64 KiB.
 
-Windows administrator prompts and installer dialogs stay native windows that the person responds to. The queue waits for the command to exit, then checks the inventory; if the expected change cannot be verified, the card says so rather than reporting success.
+Windows administrator prompts and installer dialogs stay native windows that the person responds to. The queue waits for the command to exit (an install, update or uninstall gets two hours before it is ended; reads keep short limits), then checks the inventory; if the expected change cannot be verified, the card says so rather than reporting success.
+
+A command runs with administrator rights only when its program lives where accounts without those rights cannot change it (`ElevatedProgram`): nothing under a profile, the temporary folder or a folder whose permissions let ordinary accounts write, and nothing whose permissions cannot be read. WinGet's command is an alias in the profile, so the packaged program it stands for under Program Files\WindowsApps is what is checked and run. A program that fails the check is not run elevated and the card says why; because Scoop keeps its script in the profile, its all-users operations are refused. The same rule covers an app's own uninstaller when the ladder runs one for a per-machine entry, whose command is expanded with the PC's variables only, never the person's.
 
 Chocolatey and global Scoop operations use a separate elevated window, so their output cannot be shown in TidyWindow; their cards point to that window. Declining elevation reports a failure and the queue moves on.
 
-The queue belongs to the current session and does not resume after a crash. Closing while work remains asks first: Keep open is the default, and Close anyway stops the running command and drops what is waiting. A running package operation can also be stopped from the Queue page, and the queue moves on if a stop is ignored. A note kept on disk while an operation runs lets the next launch say that the last session ended partway.
+The queue belongs to the current session and does not resume after a crash. Closing while work remains asks first: Keep open is the default, and Close anyway stops the running command and drops what is waiting. A running package operation can also be stopped from the Queue page, and the queue moves on if a stop is ignored; the next operation then waits for the ignored command to end before it starts, and can itself be stopped. A note kept on disk while an operation runs lets the next launch say that the last session ended partway.
 
 ## Scout
 

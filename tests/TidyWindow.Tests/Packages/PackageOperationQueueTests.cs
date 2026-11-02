@@ -151,10 +151,60 @@ public sealed class PackageOperationQueueTests
         Assert.All(queue.Snapshot().Entries, x => Assert.Equal(ActionOutcome.Completed, x.Result!.Outcome));
     }
 
+    [Fact]
+    public async Task AnEntryWaitsForTheOperationGateInsteadOfFailingWhileAStoppedCommandStillHoldsIt()
+    {
+        var runner = new InventoryRunner(); var locator = new Locator();
+        var packages = new PackageService(runner, locator);
+        var executor = new PackageOperationExecutor(packages, new(packages, runner, locator), locator);
+        // A command that ignored its stop still owns the gate.
+        await packages.OperationGate.WaitAsync();
+        var notices = new List<string>();
+        var running = executor.ExecuteAsync(Install("new-app"), new Notices(notices), CancellationToken.None);
+        Assert.False(running.IsCompleted);
+        Assert.Contains(notices, x => x.Contains("Waiting for the previous operation", StringComparison.Ordinal));
+        Assert.Empty(runner.Mutations);
+        packages.OperationGate.Release();
+        Assert.Equal(ActionOutcome.Completed, (await running.WaitAsync(TimeSpan.FromSeconds(5))).Outcome);
+        Assert.Equal(["install:new-app"], runner.Mutations);
+    }
+
+    [Fact]
+    public async Task AnEntryWaitingForTheGateCanStillBeStopped()
+    {
+        var runner = new InventoryRunner(); var locator = new Locator();
+        var packages = new PackageService(runner, locator);
+        var executor = new PackageOperationExecutor(packages, new(packages, runner, locator), locator);
+        await packages.OperationGate.WaitAsync();
+        using var stop = new CancellationTokenSource();
+        var running = executor.ExecuteAsync(Install("new-app"), null, stop.Token);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Empty(runner.Mutations);
+        packages.OperationGate.Release();
+    }
+
+    [Fact]
+    public async Task ACommandThatRanOutOfTimeIsReportedAsEndedNotAsAConnectionProblem()
+    {
+        var queue = new PackageOperationQueue((_, _) => throw new TimeoutException("The package manager did not respond in time. Check your connection and try again."));
+        queue.Enqueue([Install("slow")]);
+        await queue.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        var result = Assert.Single(queue.Snapshot().Entries).Result!;
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        Assert.Contains("did not finish within the time TidyWindow allows", result.Detail);
+        Assert.DoesNotContain("connection", result.Detail);
+    }
+
+    private sealed class Notices(List<string> notices) : IProgress<CommandOutput>
+    {
+        public void Report(CommandOutput value) { if (value.Kind == CommandOutputKind.Notice) lock (notices) notices.Add(value.Text); }
+    }
     private sealed class Locator : IExecutableLocator
     {
         public string? Find(ManagerKind manager) => "manager.exe";
         public string PowerShell => "powershell.exe";
+        public (string FileName, string? Problem) Elevated(string fileName) => (fileName, null);
     }
     private sealed class InventoryRunner : ICommandRunner
     {
