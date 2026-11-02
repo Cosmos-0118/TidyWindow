@@ -39,7 +39,7 @@ public sealed class TuneVaultTests : IDisposable
         Assert.True(store.Exists("item"));
 
         // The app's record has been edited to make memory integrity come back as text, which Windows would not read as "on".
-        var back = changer.Change(PutBack(new(Hvci, "Enabled", true, TuneKind.String, "x", false)));
+        var back = changer.Change(PutBack(new TuneSaved(Hvci, "Enabled", true, TuneKind.String, "x", false)));
         Assert.True(back.Ok, back.Error);
         Assert.Equal(new TuneValue(TuneKind.Dword, "1"), Read(pc, Hvci, "Enabled"));
         Assert.False(store.Exists("item"));
@@ -53,12 +53,12 @@ public sealed class TuneVaultTests : IDisposable
         Assert.True(changer.Change(Apply).Ok);
 
         // "It was already applied before TidyWindow touched it" would leave memory integrity off for good.
-        Assert.True(changer.Change(PutBack(new(Hvci, "Enabled", true, TuneKind.Dword, "0", true))).Ok);
+        Assert.True(changer.Change(PutBack(new TuneSaved(Hvci, "Enabled", true, TuneKind.Dword, "0", true))).Ok);
         Assert.Equal("1", Read(pc, Hvci, "Enabled")!.Text);
 
         Assert.True(changer.Change(Apply).Ok);
         // A number of the right kind is ignored just the same.
-        Assert.True(changer.Change(PutBack(new(Hvci, "Enabled", true, TuneKind.Dword, "4294967295", false))).Ok);
+        Assert.True(changer.Change(PutBack(new TuneSaved(Hvci, "Enabled", true, TuneKind.Dword, "4294967295", false))).Ok);
         Assert.Equal("1", Read(pc, Hvci, "Enabled")!.Text);
     }
 
@@ -69,7 +69,7 @@ public sealed class TuneVaultTests : IDisposable
         var pc = new FakeTunePc().Has(TuneScope.Machine, Hvci, "Enabled", "0");
         var changer = Helper(pc, Item(MemoryIntegrity()), Store());
 
-        var back = changer.Change(PutBack(new(Hvci, "Enabled", true, TuneKind.Dword, "4294967295", false)));
+        var back = changer.Change(PutBack(new TuneSaved(Hvci, "Enabled", true, TuneKind.Dword, "4294967295", false)));
 
         Assert.True(back.Ok, back.Error);
         Assert.Equal("1", Read(pc, Hvci, "Enabled")!.Text);
@@ -144,7 +144,7 @@ public sealed class TuneVaultTests : IDisposable
         Assert.True(session.Change(Apply).Ok);
         Assert.Equal("0", Read(pc, Hvci, "Enabled")!.Text);
 
-        var back = session.Change(PutBack(new(Hvci, "Enabled", true, TuneKind.String, "x", false)));
+        var back = session.Change(PutBack(new TuneSaved(Hvci, "Enabled", true, TuneKind.String, "x", false)));
 
         Assert.True(back.Ok, back.Error);
         Assert.Equal(new TuneValue(TuneKind.Dword, "1"), Read(pc, Hvci, "Enabled"));
