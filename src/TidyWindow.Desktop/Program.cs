@@ -61,15 +61,20 @@ public static class Program
             AllowSetForegroundWindow((uint)owner.ProcessId);
             var args = AppInstance.GetCurrent().GetActivatedEventArgs();
             var done = new ManualResetEventSlim();
-            var handedOver = false;
+            var handedOver = false; var gaveUp = 0;
             // The call must not run on this thread: waiting on it here would block the message loop the hand-over needs.
             Task.Run(async () =>
             {
                 try { await owner.RedirectActivationToAsync(args); handedOver = true; }
                 catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException) { }
                 finally { done.Set(); }
+                // Answered only after this launch stopped waiting: the open window has come forward, so this copy must not also open one.
+                if (handedOver && Interlocked.CompareExchange(ref gaveUp, 0, 0) == 1) App.HandedOverLate();
             });
-            return done.Wait(HandOverWait) && handedOver;
+            if (done.Wait(HandOverWait)) return handedOver;
+            Interlocked.Exchange(ref gaveUp, 1);
+            // Settled in the moment between the wait running out and this line: that still counts as handed over.
+            return done.IsSet && handedOver;
         }
         // The open copy could not be reached (for example it runs with different rights), so this launch carries on rather than silently doing nothing.
         catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException) { return false; }

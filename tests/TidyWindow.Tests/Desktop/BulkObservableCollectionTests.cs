@@ -149,4 +149,18 @@ public sealed class BulkObservableCollectionTests
         Assert.True(list.Reset([]));
         Assert.Empty(list);
     }
+
+    [Fact]
+    public void ResetRefusesToRunFromInsideItsOwnNotification()
+    {
+        var list = new BulkObservableCollection<int>();
+        list.Reset([1]);
+        var reentered = false;
+        // Two listeners, as a bound list control makes: the reentrancy guard only applies then, the same as for an ordinary add.
+        list.CollectionChanged += (_, _) => { if (reentered) return; reentered = true; Assert.Throws<InvalidOperationException>(() => list.Reset([2, 3])); };
+        list.CollectionChanged += (_, _) => { };
+        list.Reset([4]);
+        Assert.True(reentered);
+        Assert.Equal([4], list);
+    }
 }
