@@ -21,10 +21,14 @@ internal sealed class FakeDebloatPc : IDebloatSystem, IAppxStore, IAppxOps
     public bool ThrowDuringRemoval;
     /// <summary>When set, a removed package stays listed with no account and this folder, as when Windows refuses the last step and keeps the files.</summary>
     public string? KeptFolder;
+    /// <summary>When set, Windows registers the package again under a new version while it is being removed, as a Store update racing the removal does.</summary>
+    public bool Reregisters;
+    /// <summary>The account each playbook check was asked about.</summary>
+    public List<string?> AskedFor = [];
 
     public IReadOnlyList<AppxFact> Packages() => Installed.ToList();
     public IReadOnlyList<ProvisionedFact> Provisioned() => Staged.ToList();
-    public PlaybookFacts Playbooks() => Facts;
+    public PlaybookFacts Playbooks(string? userSid = null) { AskedFor.Add(userSid); return Facts; }
 
     public IReadOnlyList<string> UserSids() => Sids;
     public bool DeleteInbox(string fullName) { Log.Add("inbox-" + fullName); return Inbox.Remove(fullName); }
@@ -35,6 +39,7 @@ internal sealed class FakeDebloatPc : IDebloatSystem, IAppxStore, IAppxOps
     public void DeleteDeprovisioned(string family) { Log.Add("deprov- " + family); Deprovisioned.Remove(family); }
 
     public string? ClearNonRemovable(string family) { Log.Add("unlock " + family); return null; }
+    public string? RestoreNonRemovable(string family) { Log.Add("lock " + family); return null; }
 
     public string? RemovePackage(string fullName, IReadOnlyList<string> sids)
     {
@@ -42,6 +47,7 @@ internal sealed class FakeDebloatPc : IDebloatSystem, IAppxStore, IAppxOps
         if (ThrowDuringRemoval) throw new InvalidOperationException("boom");
         if (Stubborn.Contains(fullName)) return "0x80073CFA";
         if (KeptFolder is not null) Installed = Installed.Select(x => x.FullName == fullName ? x with { Users = [], InstallLocation = KeptFolder } : x).ToList();
+        else if (Reregisters) Installed = Installed.Select(x => x.FullName == fullName ? x with { FullName = $"{x.Name}_2.0.0.0_x64__{x.FamilyName.Split('_')[^1]}" } : x).ToList();
         else Installed.RemoveAll(x => x.FullName == fullName);
         return null;
     }
@@ -588,8 +594,8 @@ public sealed class AppxRemoverTests
 
     internal sealed class NoPlaybooks : IDebloatPlaybooks
     {
-        public string? Remove(DebloatKind kind) => null;
-        public string? Restore(DebloatKind kind) => null;
+        public DebloatOutcome Remove(DebloatKind kind, string? userSid) => new(true);
+        public DebloatOutcome Restore(DebloatKind kind) => new(true);
     }
 }
 
@@ -600,8 +606,51 @@ public sealed class DebloatPlaybookTests
     private sealed class Recording(Action<DebloatKind>? onRemove = null, string? error = null) : IDebloatPlaybooks
     {
         public List<string> Calls = [];
-        public string? Remove(DebloatKind kind) { Calls.Add("remove " + kind); onRemove?.Invoke(kind); return error; }
-        public string? Restore(DebloatKind kind) { Calls.Add("restore " + kind); return null; }
+        public List<string?> AskedFor = [];
+        public DebloatOutcome Remove(DebloatKind kind, string? userSid) { Calls.Add("remove " + kind); AskedFor.Add(userSid); onRemove?.Invoke(kind); return error is null ? new(true) : new(false, error); }
+        public DebloatOutcome Restore(DebloatKind kind) { Calls.Add("restore " + kind); return new(true); }
+    }
+
+    [Fact]
+    public void TheAccountThatAskedReachesTheStepsButOnlyWhenItIsAPersonsAccount()
+    {
+        var pc = new FakeDebloatPc { Facts = new(true, [], false, true, false) };
+        var books = new Recording(_ => pc.Facts = pc.Facts with { OneDrive = false });
+
+        Changer(pc, books).Change(new("onedrive", UserSid: "S-1-5-21-1-2-3-1001"));
+        pc.Facts = pc.Facts with { OneDrive = true };
+        Changer(pc, books).Change(new("onedrive", UserSid: "S-1-5-18"));
+
+        Assert.Equal(["S-1-5-21-1-2-3-1001", null], books.AskedFor);
+        Assert.Contains("S-1-5-21-1-2-3-1001", pc.AskedFor);
+    }
+
+    [Fact]
+    public void AnItemThatIsAlreadyGoneIsAnAnswerNotAnError()
+    {
+        var pc = new FakeDebloatPc();
+
+        var outcome = Changer(pc, new Recording()).Change(new("clipchamp"));
+
+        Assert.True(outcome.Ok);
+        Assert.Null(outcome.Error);
+        Assert.Contains("already gone", outcome.Note);
+    }
+
+    [Fact]
+    public void ARestartTheStepsAskForIsPassedOn()
+    {
+        var pc = new FakeDebloatPc { Facts = new(false, [], false, true, true) };
+        var books = new RestartingPlaybooks();
+
+        Assert.Equal("Restart Windows to finish.", Changer(pc, books).Change(new("recall")).Note);
+        Assert.Equal("Restart Windows to finish.", Changer(pc, books).Change(new("recall", true)).Note);
+    }
+
+    private sealed class RestartingPlaybooks : IDebloatPlaybooks
+    {
+        public DebloatOutcome Remove(DebloatKind kind, string? userSid) => new(true, null, "Restart Windows to finish.");
+        public DebloatOutcome Restore(DebloatKind kind) => new(true, null, "Restart Windows to finish.");
     }
 
     private static LocalDebloatChanger Changer(FakeDebloatPc pc, IDebloatPlaybooks books) => new(pc, new AppxRemover(pc, pc, pc), books, Catalog);

@@ -2,8 +2,8 @@ using System.Diagnostics;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>What an elevated clean did: the totals, plus plain-language notes about anything unusual.</summary>
-public sealed record SystemCleanReport(CleanupResult Result, string[] Notes);
+/// <summary>What an elevated clean did: the totals, plus plain-language notes about anything unusual. <paramref name="Declined"/> is set when the person said no to the permission prompt, so nothing ran.</summary>
+public sealed record SystemCleanReport(CleanupResult Result, string[] Notes, bool Declined = false);
 
 /// <summary>The size the elevated helper found for one rule. <see cref="Unmeasured"/> means Windows reports the size only after it has cleaned; <see cref="Estimated"/> means Windows' own guess, not a count.</summary>
 public sealed record MeasuredItem(string Id, long Bytes, int Files, int Unreadable, bool Unmeasured, string? Note = null, bool Estimated = false);
@@ -80,6 +80,7 @@ public sealed class WindowsSystemTools : ISystemTools
 /// <summary>
 /// Runs the administrator-only part of a clean: files in protected Windows folders go through the normal cleaner, and the
 /// areas Windows must manage itself go through Windows' own tools. Nothing here takes ownership of files or edits permissions.
+/// A stop request (the person, or the app going away) ends the run between steps and returns what was done by then.
 /// </summary>
 public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
 {
@@ -87,6 +88,8 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
     private static readonly TimeSpan ComponentStoreLimit = TimeSpan.FromMinutes(45);
     private static readonly TimeSpan CleanmgrLimit = TimeSpan.FromMinutes(60);
     private static readonly TimeSpan ComponentStoreAnalysisLimit = TimeSpan.FromMinutes(10);
+    internal const string StoppedNote = "Cleaning was stopped before it finished. Anything already removed stays removed.";
+    private const string FreeSpaceNote = "The space freed here is approximate: it is measured from the change in free space on the system drive while Windows worked.";
 
     public async Task<SystemCleanReport> RunAsync(IReadOnlyList<CleanupRule> catalog, IReadOnlyCollection<string> ruleIds, IProgress<CleanupProgress>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -97,13 +100,16 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
         if (!context.IsAdministrator)
             return new(new CleanupResult(0, 0, 0, 0, rules.Count, null, 0, timer.Elapsed), ["Administrator rights were not available, so nothing was cleaned."]);
 
-        var findings = await new CleanupScanner(context).ScanAsync(rules, null, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<CleanupFinding> findings;
+        try { findings = await new CleanupScanner(context).ScanAsync(rules, null, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) { return new(new CleanupResult(0, 0, 0, 0, 0, null, 0, timer.Elapsed, Stopped: true), [StoppedNote]); }
         var files = await new CleanupCleaner(context).CleanAsync(findings.Where(x => !x.Rule.IsSystemAction && x.HasContent).ToList(), progress, cancellationToken).ConfigureAwait(false);
         long freed = files.FreedBytes; int removed = files.Removed, failed = files.Failed;
+        var stopped = files.Stopped;
 
         foreach (var finding in findings.Where(x => x.Rule.IsSystemAction && x.HasContent))
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (stopped || cancellationToken.IsCancellationRequested) { stopped = true; break; }
             // Windows' own tools can run for minutes without output, so say which one has started.
             progress?.Report(new CleanupProgress(finding.Rule.Name, freed, removed, Starting: true));
             try
@@ -113,14 +119,15 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
                 if (note is not null) notes.Add(note);
                 progress?.Report(new CleanupProgress(finding.Rule.Name, freed, removed));
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) { stopped = true; break; }
             catch (Exception ex)
             {
                 failed++;
                 notes.Add($"{finding.Rule.Name} could not be cleaned: {ex.Message}");
             }
         }
-        return new(new CleanupResult(freed, removed, files.InUse, files.Denied, failed, null, 0, timer.Elapsed), notes.ToArray());
+        if (stopped) notes.Add(StoppedNote);
+        return new(new CleanupResult(freed, removed, files.InUse, files.Denied, failed, null, 0, timer.Elapsed, stopped), notes.ToArray());
     }
 
     /// <summary>
@@ -180,10 +187,14 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
             {
                 // The component store is mostly hard links, so its size cannot be added up; free space before and after is the honest measure.
                 var before = tools.FreeBytes(drive);
-                var exit = await tools.RunAsync(Path.Combine(system32, "Dism.exe"), ["/Online", "/Cleanup-Image", "/StartComponentCleanup"], ComponentStoreLimit, token).ConfigureAwait(false);
+                // DISM stopped part-way through its cleanup can leave the component store with a pending operation that only a restart resolves, so a stop
+                // request lets it finish and takes effect before the next action. Only the time limit ends it early, and then the note says what to do.
+                int exit;
+                try { exit = await tools.RunAsync(Path.Combine(system32, "Dism.exe"), ["/Online", "/Cleanup-Image", "/StartComponentCleanup"], ComponentStoreLimit, CancellationToken.None).ConfigureAwait(false); }
+                catch (TimeoutException) { throw new InvalidOperationException($"Windows was still cleaning its update files after {ComponentStoreLimit.TotalMinutes:0} minutes and was stopped. If Windows Update reports a pending operation, restart the PC."); }
                 if (exit is not (0 or 3010)) throw new InvalidOperationException($"Windows reported error code {exit}.");
                 var gained = Math.Max(0, tools.FreeBytes(drive) - before);
-                return (gained, gained > 0 ? 1 : 0, (exit == 3010 ? "Windows needs a restart to finish cleaning its update files. " : "") + "Space freed is measured from the change in free space on the system drive.");
+                return (gained, gained > 0 ? 1 : 0, (exit == 3010 ? "Windows needs a restart to finish cleaning its update files. " : "") + FreeSpaceNote);
             }
             case CleanupAction.PreviousWindows:
             {
@@ -218,13 +229,17 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
                 }
                 if (exit != 0) throw new InvalidOperationException($"Windows Disk Cleanup reported error code {exit}.");
                 var gained = Math.Max(0, tools.FreeBytes(drive) - before);
-                return (gained, gained > 0 ? 1 : 0, "Space freed is measured from the change in free space on the system drive.");
+                return (gained, gained > 0 ? 1 : 0, FreeSpaceNote);
             }
             case CleanupAction.Hibernation:
             {
                 var exit = await tools.RunAsync(Path.Combine(system32, "powercfg.exe"), ["/hibernate", "off"], TimeSpan.FromMinutes(2), token).ConfigureAwait(false);
                 if (exit != 0) throw new InvalidOperationException($"powercfg reported error code {exit}.");
-                return (finding.Bytes, 1, "Hibernate and Fast Startup are now off. Turn them back on with: powercfg /hibernate on");
+                // Windows removes hiberfil.sys when hibernate goes off. The file is looked at again rather than the size from the scan being taken on trust.
+                var file = Path.Combine(drive + Path.DirectorySeparatorChar, "hiberfil.sys");
+                return File.Exists(file)
+                    ? (0, 0, "Hibernate is off, but Windows has not removed the hibernation file yet; it may go after a restart. Turn hibernate back on any time with: powercfg /hibernate on")
+                    : (finding.Bytes, 1, "Hibernate and Fast Startup are now off. Turn them back on with: powercfg /hibernate on");
             }
             default: throw new InvalidOperationException("This is not a system action.");
         }
@@ -239,7 +254,8 @@ public static partial class ComponentStoreAnalysis
 
     /// <summary>
     /// Space Windows can give back: "Backups and Disabled Features" plus "Cache and Temporary Data", the 4th and 5th sizes in the report.
-    /// The labels are translated, so the sizes are taken by position. Null when the report does not look as expected.
+    /// The labels are translated, so the sizes are taken by position. Null when the report does not look as expected: too few sizes, or parts that add up
+    /// to more than the store itself (the 2nd size), which means the lines are not laid out the way this expects.
     /// </summary>
     public static long? Reclaimable(string output)
     {
@@ -252,6 +268,8 @@ public static partial class ComponentStoreAnalysis
             var scale = char.ToUpperInvariant(match.Groups["u"].Value[0]) switch { 'K' => 1024d, 'M' => 1048576d, 'G' => 1073741824d, _ => 1099511627776d };
             sizes.Add((long)(number * scale));
         }
-        return sizes.Count >= 5 ? sizes[3] + sizes[4] : null;
+        if (sizes.Count < 5) return null;
+        var reclaimable = sizes[3] + sizes[4];
+        return reclaimable <= sizes[1] ? reclaimable : null;
     }
 }

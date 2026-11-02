@@ -161,6 +161,6 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
     public static SystemCleanLauncher Elevated(string helperPath) =>
         new((pipe, ids) => HelperPipe.LaunchElevated(helperPath, SystemCleanHost.Command, pipe, string.Join(",", ids)));
 
-    private static SystemCleanReport Declined(int count) => new(new CleanupResult(0, 0, 0, 0, 0, null, 0, TimeSpan.Zero), ["Administrator permission was declined, so the Windows system areas were not cleaned."]);
+    private static SystemCleanReport Declined(int count) => new(new CleanupResult(0, 0, 0, 0, 0, null, 0, TimeSpan.Zero), ["Administrator permission was declined, so the Windows system areas were not cleaned."], Declined: true);
     private static SystemCleanReport Failed(int count, string message) => new(new CleanupResult(0, 0, 0, 0, count, null, 0, TimeSpan.Zero), [message]);
 }

@@ -392,17 +392,25 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
             var progress = new Reporter<CleanupProgress>(step => post(() => { if (cleaning) OnStep(rows, step); }));
             result = await cleaner.CleanAsync(normal, progress, token);
             var notes = new List<string>();
-            if (elevated.Count > 0)
+            var declined = false;
+            // A clean that was stopped during its own part does not go on to ask for administrator permission.
+            if (elevated.Count > 0 && !result.Stopped)
             {
                 // The permission prompt and Windows' own tools give no steady output, so the bar keeps moving on its own meanwhile.
                 BeginProgress("Waiting for administrator permission…", PermissionHint, indeterminate: true);
                 var report = await system.RunAsync(elevated.Select(x => x.Rule.Id).ToList(), progress, token);
-                result = result with { FreedBytes = result.FreedBytes + report.Result.FreedBytes, Removed = result.Removed + report.Result.Removed, InUse = result.InUse + report.Result.InUse, Denied = result.Denied + report.Result.Denied, Failed = result.Failed + report.Result.Failed };
+                result = result with { FreedBytes = result.FreedBytes + report.Result.FreedBytes, Removed = result.Removed + report.Result.Removed, InUse = result.InUse + report.Result.InUse, Denied = result.Denied + report.Result.Denied, Failed = result.Failed + report.Result.Failed, Stopped = report.Result.Stopped };
+                declined = report.Declined;
                 notes.AddRange(report.Notes);
             }
             result = result with { Elapsed = timer.Elapsed };
-            ShowResult(result, notes);
-            log.Write(result.Skipped > 0 ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Cleanup freed {ByteSize.Format(result.FreedBytes)}",
+            ShowResult(result, notes, declined);
+            // A declined prompt or a stop is not a success, whatever the in-process part freed.
+            var level = result.Stopped ? ActivityLevel.Info : declined || result.Skipped > 0 ? ActivityLevel.Warning : ActivityLevel.Success;
+            var headline = result.Stopped ? $"Cleanup stopped after freeing {ByteSize.Format(result.FreedBytes)}"
+                : declined ? $"Cleanup freed {ByteSize.Format(result.FreedBytes)}; administrator permission was declined"
+                : $"Cleanup freed {ByteSize.Format(result.FreedBytes)}";
+            log.Write(level, ActivityArea.App, headline,
                 $"{result.Removed:N0} files removed in {result.Elapsed.TotalSeconds:0.0} s. {result.InUse} in use, {result.Denied} protected, {result.Failed} failed." + (result.HeldBytes > 0 ? $" {ByteSize.Format(result.HeldBytes)} held for undo." : ""));
         }
         catch (OperationCanceledException) { toasts.Show("clean", ToastKind.Info, "Cleaning stopped", "Anything already removed stays removed."); }
@@ -458,10 +466,10 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private void ShowResult(CleanupResult result, IReadOnlyList<string> resultNotes)
+    private void ShowResult(CleanupResult result, IReadOnlyList<string> resultNotes, bool declined)
     {
         var took = result.Elapsed.TotalMinutes >= 1 ? $"{(int)result.Elapsed.TotalMinutes} min {result.Elapsed.Seconds} s" : $"{result.Elapsed.TotalSeconds:0.0} s";
-        var parts = new List<string> { $"Finished in {took}" };
+        var parts = new List<string> { result.Stopped ? $"Stopped after {took}" : $"Finished in {took}" };
         if (result.HeldBytes > 0 && result.FreedBytes > 0) parts.Add($"{ByteSize.Format(result.HeldBytes)} held for 14 days");
         else if (result.HeldBytes > 0) parts.Add("Space is freed when the 14 days are over");
         if (result.InUse > 0) parts.Add(result.InUse == 1 ? "1 file in use, skipped" : $"{result.InUse:N0} files in use, skipped");
@@ -469,8 +477,12 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         if (missed > 0) parts.Add($"{missed:N0} could not be removed");
         var detail = string.Join(" · ", parts) + (resultNotes.Count > 0 ? "\n" + string.Join("\n", resultNotes) : "");
         // Files moved to the undo folder free nothing yet, so a clean of only those would read "0 B freed" next to a Success tick.
-        var headline = result.FreedBytes == 0 && result.HeldBytes > 0 ? ByteSize.Format(result.HeldBytes) + " held for undo" : ByteSize.Format(result.FreedBytes) + " freed";
-        toasts.Show("clean", missed > 0 ? ToastKind.Warning : ToastKind.Success, headline, detail, result.HeldBytes > 0 ? "Undo" : "", result.HeldBytes > 0 ? UndoAsync : null, 14);
+        // A stop or a declined permission prompt is said in the headline too: "0 B freed" next to a green tick would be the wrong message.
+        var headline = result.Stopped ? $"Cleaning stopped · {ByteSize.Format(result.FreedBytes)} freed"
+            : declined ? $"{ByteSize.Format(result.FreedBytes)} freed · Windows areas not cleaned"
+            : result.FreedBytes == 0 && result.HeldBytes > 0 ? ByteSize.Format(result.HeldBytes) + " held for undo" : ByteSize.Format(result.FreedBytes) + " freed";
+        var kind = result.Stopped ? ToastKind.Info : declined || missed > 0 ? ToastKind.Warning : ToastKind.Success;
+        toasts.Show("clean", kind, headline, detail, result.HeldBytes > 0 ? "Undo" : "", result.HeldBytes > 0 ? UndoAsync : null, 14);
     }
 
     public async Task UndoAsync()
@@ -479,6 +491,13 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         cleaning = true; Notify();
         RestoreResult restored;
         try { restored = await Task.Run(() => quarantine.Restore(batch.Id)); }
+        // An undo folder a scanner is holding, or one that lost its permissions, is a warning, not the end of the app.
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            toasts.Show("clean", ToastKind.Warning, "Undo could not finish", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup undo could not finish", ex.ToString());
+            return;
+        }
         finally { cleaning = false; Notify(); }
         var summary = restored.Conflicts > 0 ? $"Restored {restored.Restored:N0} files. {restored.Conflicts:N0} were left held because a file already exists there." : $"Restored {restored.Restored:N0} files.";
         toasts.Show("clean", restored.Conflicts > 0 ? ToastKind.Warning : ToastKind.Success, "Cleanup undone", summary);

@@ -8,8 +8,12 @@ internal static class CleanupNative
 {
     private const uint NoConfirmation = 1, NoProgress = 2, NoSound = 4;
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    private struct RecycleBinInfo { public uint Size; public long Bytes; public long Items; }
+    /// <summary>
+    /// SHQUERYRBINFO: cbSize, then two 64-bit counts, laid out as the shell declares it (natural alignment, 24 bytes on 64-bit Windows).
+    /// A packed layout made it 20 bytes, and the shell then either refused the call, hiding the Recycle Bin, or wrote past the end of it.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RecycleBinInfo { public uint Size; public long Bytes; public long Items; }
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHQueryRecycleBinW(string? root, ref RecycleBinInfo info);
