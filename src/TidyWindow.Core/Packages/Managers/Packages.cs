@@ -9,7 +9,7 @@ namespace TidyWindow.Next.Core;
 
 public enum ManagerKind { Winget, Chocolatey, Scoop }
 public enum ManagerHealth { Ready, Missing, Unavailable, ConnectionIssue, Restricted }
-public enum ManagerProblem { None, NotInstalled, Executable, Configuration, Source, Network, Policy }
+public enum ManagerProblem { None, NotInstalled, Executable, Configuration, Source, Network, Policy, Timeout }
 
 public sealed record ManagerDefinition(ManagerKind Kind, string Name, string Description, string SetupUrl)
 {
@@ -56,7 +56,7 @@ public interface IExecutableLocator
 /// is refused: a program planted there by anything running as the person would otherwise run as an administrator on TidyWindow's say-so. WinGet's command is an App Execution
 /// Alias in the profile that stands for the packaged program under Program Files\WindowsApps; that program is what is checked and run.
 /// </summary>
-public static class ElevatedProgram
+public static partial class ElevatedProgram
 {
     internal enum FolderAccess { Protected, Open, Unknown }
 
@@ -88,7 +88,7 @@ public static class ElevatedProgram
             found = Path.GetFullPath(target);
         }
         var folder = Path.GetDirectoryName(found) ?? found;
-        if (UserPlaces().Any(place => IsUnder(folder, place))) return (found, Open(name, folder));
+        if (UserPlaces().Any(place => IsWithin(folder, place))) return (found, Open(name, folder));
         return access(folder) switch
         {
             FolderAccess.Protected => (found, null),
@@ -162,7 +162,7 @@ public static class ElevatedProgram
             try { security = directory.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access); }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException)
             {
-                if (IsUnder(directory.FullName, windowsApps) && IsUnder(windowsApps, directory.FullName)) continue;
+                if (IsWithin(directory.FullName, windowsApps) && IsWithin(windowsApps, directory.FullName)) continue;
                 return FolderAccess.Unknown;
             }
             if (MachinePathGuard.Opens(security, target)) return FolderAccess.Open;
@@ -170,7 +170,7 @@ public static class ElevatedProgram
         return FolderAccess.Protected;
     }
 
-    private static bool IsUnder(string path, string root)
+    private static bool IsWithin(string path, string root)
     {
         var trimmed = Path.TrimEndingDirectorySeparator(root);
         var full = Path.TrimEndingDirectorySeparator(path);
