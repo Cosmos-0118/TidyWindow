@@ -35,7 +35,7 @@ public sealed class BackgroundVaultTests : IDisposable
         Assert.True(store.Exists("item"));
 
         // The app's record has been edited to say the service was manual and not delayed. The helper puts back what it saw itself.
-        var on = changer.Change(On(new(BackgroundTargetKind.Service, "Diag", true, 3)));
+        var on = changer.Change(On(new BackgroundSaved(BackgroundTargetKind.Service, "Diag", true, 3)));
         Assert.True(on.Ok, on.Error);
         Assert.Equal(2, pc.ServiceList["Diag"].Start); Assert.True(pc.ServiceList["Diag"].Delayed); Assert.True(pc.ServiceList["Diag"].Running);
         Assert.False(store.Exists("item"));
@@ -49,7 +49,7 @@ public sealed class BackgroundVaultTests : IDisposable
         Assert.True(changer.Change(Off).Ok);
 
         // "It was already off before TidyWindow touched it" would leave the task off for good.
-        Assert.True(changer.Change(On(new(BackgroundTargetKind.Task, @"\Microsoft\a\b", false))).Ok);
+        Assert.True(changer.Change(On(new BackgroundSaved(BackgroundTargetKind.Task, @"\Microsoft\a\b", false))).Ok);
         Assert.True(pc.TaskList[@"\Microsoft\a\b"].Enabled);
     }
 
@@ -61,7 +61,7 @@ public sealed class BackgroundVaultTests : IDisposable
         pc.Policies[PeeringKey] = 0;
         var changer = new LocalBackgroundChanger(pc, pc, [Item(Svc("RemoteRegistry", 3), Peering())], Store());
 
-        var outcome = changer.Change(On(new(BackgroundTargetKind.Service, "RemoteRegistry", true, 2), new(BackgroundTargetKind.Policy, "DODownloadMode", true, Value: 3)));
+        var outcome = changer.Change(On(new BackgroundSaved(BackgroundTargetKind.Service, "RemoteRegistry", true, 2), new(BackgroundTargetKind.Policy, "DODownloadMode", true, Value: 3)));
 
         Assert.True(outcome.Ok, outcome.Error);
         Assert.Equal(3, pc.ServiceList["RemoteRegistry"].Start);
@@ -140,7 +140,7 @@ public sealed class BackgroundVaultTests : IDisposable
         Assert.True(session.Change(Off).Ok);
         Assert.Equal(4, pc.ServiceList["Diag"].Start); Assert.Equal(0, pc.Policies[PeeringKey]);
 
-        var on = session.Change(On(new(BackgroundTargetKind.Service, "Diag", false), new(BackgroundTargetKind.Policy, "DODownloadMode", true, Value: 3)));
+        var on = session.Change(On(new BackgroundSaved(BackgroundTargetKind.Service, "Diag", false), new(BackgroundTargetKind.Policy, "DODownloadMode", true, Value: 3)));
 
         Assert.True(on.Ok, on.Error);
         Assert.Equal(2, pc.ServiceList["Diag"].Start); Assert.True(pc.ServiceList["Diag"].Delayed);
