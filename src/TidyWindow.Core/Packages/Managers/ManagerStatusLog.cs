@@ -23,6 +23,7 @@ public static class ManagerStatusLog
                 {
                     ManagerHealth.ConnectionIssue => $"{name} can't reach its package source",
                     ManagerHealth.Restricted => $"{name} is restricted by policy",
+                    _ when after.Problem == ManagerProblem.Timeout => $"{name} did not respond in time",
                     _ => $"{name} needs repair"
                 };
                 log.Write(ActivityLevel.Warning, ActivityArea.Managers, message, after.Detail);

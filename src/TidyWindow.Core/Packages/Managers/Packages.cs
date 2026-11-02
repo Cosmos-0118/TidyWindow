@@ -2,7 +2,7 @@ namespace TidyWindow.Next.Core;
 
 public enum ManagerKind { Winget, Chocolatey, Scoop }
 public enum ManagerHealth { Ready, Missing, Unavailable, ConnectionIssue, Restricted }
-public enum ManagerProblem { None, NotInstalled, Executable, Configuration, Source, Network, Policy }
+public enum ManagerProblem { None, NotInstalled, Executable, Configuration, Source, Network, Policy, Timeout }
 
 public sealed record ManagerDefinition(ManagerKind Kind, string Name, string Description, string SetupUrl)
 {
