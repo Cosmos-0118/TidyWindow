@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -17,8 +16,8 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
     public bool HasDetail => Entry.Detail is not null;
     public Visibility DetailVisibility => HasDetail && expanded ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ChevronVisibility => HasDetail ? Visibility.Visible : Visibility.Collapsed;
-    public string CopyGlyph => copied ? "" : "";
-    public string Chevron => expanded ? "" : "";
+    public string CopyGlyph => copied ? "" : "";
+    public string Chevron => expanded ? "" : "";
     public string Exact => Entry.Time.ToLocalTime().ToString("F");
     public string Meta => string.Join(" · ", new[] { Entry.Level is ActivityLevel.Warning or ActivityLevel.Error ? Entry.Level.ToString() : "", Entry.Area.ToString(), Stamp(Entry.Time), Entry.Count > 1 ? $"{Entry.Count} times" : "" }.Where(x => x.Length > 0));
     public Brush DotBrush => BrushCache.Rgb(Entry.Level switch
@@ -50,17 +49,23 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
 
 public sealed class LogsViewModel : ObservableState, IDisposable
 {
+    /// <summary>How long typing in the search box is left to settle before the rows are rebuilt.</summary>
+    public static readonly TimeSpan TypingSettle = TimeSpan.FromMilliseconds(150);
     private readonly ActivityLog log;
     private readonly Action<Action> post;
-    private readonly Dictionary<string, LogRow> byId = [];
+    private readonly TimeSpan settle;
+    private Dictionary<string, LogRow> byId = [];
     private ActivityFilter filter = new();
+    private CancellationTokenSource? typing;
     private bool light;
-    public ObservableCollection<LogRow> Rows { get; } = [];
+    /// <summary>Newest first. Swapped as a whole when the filter changes, so the list control hears one change rather than one per row.</summary>
+    public BulkObservableCollection<LogRow> Rows { get; } = [];
 
     /// <param name="post">Runs an action on the UI thread; the log can be written from any thread.</param>
-    public LogsViewModel(ActivityLog log, Action<Action> post)
+    /// <param name="settle">How long typed text waits before the list is rebuilt; zero rebuilds at once. <see cref="TypingSettle"/> when not given.</param>
+    public LogsViewModel(ActivityLog log, Action<Action> post, TimeSpan? settle = null)
     {
-        this.log = log; this.post = post;
+        this.log = log; this.post = post; this.settle = settle ?? TypingSettle;
         log.Written += OnWritten; log.Cleared += OnCleared;
         Reload();
     }
@@ -74,21 +79,39 @@ public sealed class LogsViewModel : ObservableState, IDisposable
     public string EmptyDetail => log.Count == 0 ? "Installs, setup results and problems appear here. Routine activity is not recorded." : "Change the filters to see more.";
     public IReadOnlyList<ActivityEntry> Visible => Rows.Select(x => x.Entry).Reverse().ToArray();
 
-    public void SetFilter(ActivityFilter value) { filter = value; Reload(); }
+    /// <summary>
+    /// Narrows the list. A change of level or area applies at once. Typed text waits until typing pauses, because rebuilding hundreds of
+    /// rows on every keystroke is what makes a search box feel stuck; the last text typed is the one that is applied.
+    /// </summary>
+    public void SetFilter(ActivityFilter value)
+    {
+        typing?.Cancel(); typing = null;
+        var typed = value with { Text = filter.Text } == filter;
+        filter = value;
+        if (!typed || settle <= TimeSpan.Zero) { Reload(); return; }
+        var wait = typing = new CancellationTokenSource();
+        _ = Task.Delay(settle, wait.Token).ContinueWith(_ => post(() => { if (ReferenceEquals(typing, wait)) { typing = null; Reload(); } }), TaskContinuationOptions.OnlyOnRanToCompletion);
+    }
+
     public void SetLightTheme(bool value) { if (light == value) return; light = value; foreach (var row in Rows) row.SetLightTheme(value); }
 
     private static string Plural(int count) => count == 1 ? "1 entry" : $"{count} entries";
     private void OnWritten(ActivityEntry entry) => post(() => Apply(entry));
     private void OnCleared() => post(Reload);
 
+    // A row that is still shown keeps its instance, so an entry the person opened stays open while the filter changes around it.
     private void Reload()
     {
-        Rows.Clear(); byId.Clear();
+        var kept = new Dictionary<string, LogRow>();
+        var rows = new List<LogRow>();
         foreach (var entry in log.Snapshot().Reverse().Where(filter.Matches))
         {
-            var row = new LogRow(entry, light);
-            byId[entry.Id] = row; Rows.Add(row);
+            if (byId.TryGetValue(entry.Id, out var row)) { if (!ReferenceEquals(row.Entry, entry)) row.Update(entry); }
+            else row = new LogRow(entry, light);
+            kept[entry.Id] = row; rows.Add(row);
         }
+        byId = kept;
+        Rows.Reset(rows);
         Refreshed();
     }
 
@@ -119,5 +142,5 @@ public sealed class LogsViewModel : ObservableState, IDisposable
         foreach (var name in new[] { nameof(Summary), nameof(StorageWarning), nameof(StorageWarningVisibility), nameof(EmptyVisibility), nameof(ListVisibility), nameof(EmptyTitle), nameof(EmptyDetail) }) Changed(name);
     }
 
-    public void Dispose() { log.Written -= OnWritten; log.Cleared -= OnCleared; }
+    public void Dispose() { typing?.Cancel(); log.Written -= OnWritten; log.Cleared -= OnCleared; }
 }

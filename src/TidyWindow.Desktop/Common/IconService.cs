@@ -54,7 +54,11 @@ public sealed class IconService(IconFinder finder, IIconReader reader) : IDispos
         var key = Key(query);
         if (answers.TryGetValue(key, out var known)) return known;
         // The work belongs to the service rather than to whoever asked first, so leaving a page never throws away what others are waiting for.
-        var found = await picked.GetOrAdd(key, _ => Task.Run(() => PickAsync(query))).WaitAsync(cancel);
+        var work = picked.GetOrAdd(key, _ => Task.Run(() => PickAsync(query)));
+        Picked? found;
+        try { found = await work.WaitAsync(cancel); }
+        // A lookup that failed is forgotten, so the next request for the same program looks again instead of failing the same way for good.
+        catch (Exception) when (work.IsFaulted) { picked.TryRemove(KeyValuePair.Create(key, work)); throw; }
         ImageSource? image = null;
         if (found is not null && !images.TryGetValue(found.Key, out image)) images[found.Key] = image = Draw(found.Bitmap);
         return answers[key] = image;
@@ -73,7 +77,8 @@ public sealed class IconService(IconFinder finder, IIconReader reader) : IDispos
             }
             finally { gate.Release(); }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException) { return null; }
+        // Whatever went wrong finding or reading the icon, the row keeps its plain glyph: a picture is never worth an error.
+        catch (Exception) { return null; }
     }
 
     private async Task<IconBitmap?> ReadAsync(IconRef icon)

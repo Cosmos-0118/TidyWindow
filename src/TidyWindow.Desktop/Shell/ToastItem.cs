@@ -6,11 +6,13 @@ namespace TidyWindow.Next.Desktop;
 public sealed class ToastItem : ObservableState
 {
     private readonly Action<ToastItem> close;
+    private readonly Action<ToastItem, Exception> failed;
     private Func<Task>? action;
 
-    public ToastItem(string key, ToastKind kind, string title, string detail, string actionLabel, Func<Task>? action, Action<ToastItem> close, double seconds, Func<long> now)
+    /// <param name="failed">Told when the action throws, so a button on a toast can never end the app from the click that pressed it.</param>
+    public ToastItem(string key, ToastKind kind, string title, string detail, string actionLabel, Func<Task>? action, Action<ToastItem> close, Action<ToastItem, Exception> failed, double seconds, Func<long> now)
     {
-        Key = key; this.close = close; Kind = kind; Title = title; Detail = detail; ActionLabel = actionLabel; this.action = action;
+        Key = key; this.close = close; this.failed = failed; Kind = kind; Title = title; Detail = detail; ActionLabel = actionLabel; this.action = action;
         Countdown = new(TimeSpan.FromSeconds(seconds), now);
     }
 
@@ -66,10 +68,14 @@ public sealed class ToastItem : ObservableState
 
     public void Dismiss() => close(this);
 
+    /// <summary>Takes the toast away and runs its action. What the action throws is reported through the center, never to the caller.</summary>
     public async Task RunAsync()
     {
         var run = action;
         close(this);
-        if (run is not null) await run();
+        if (run is null) return;
+        try { await run(); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { failed(this, ex); }
     }
 }
