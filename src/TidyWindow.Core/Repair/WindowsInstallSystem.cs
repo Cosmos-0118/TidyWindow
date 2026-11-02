@@ -363,6 +363,118 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
     }
 
+    // ---- Installer files ----
+
+    private static IEnumerable<string> Matching(string folder, string pattern)
+    {
+        try { return Directory.Exists(folder) ? Directory.EnumerateDirectories(folder, pattern).ToList() : []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
+    }
+
+    private static string Windows => Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+
+    public IReadOnlyList<string> InstallerLeftovers(string code, bool packageCache)
+    {
+        var found = new List<string>();
+        found.AddRange(Matching(Path.Combine(Windows, "Installer"), code));
+        found.AddRange(Matching(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Installer"), code));
+        if (packageCache)
+        {
+            found.AddRange(Matching(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Package Cache"), code + "*"));
+            found.AddRange(Matching(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Package Cache"), code + "*"));
+        }
+        // Only folders of the shapes a repair is allowed to set aside, and never a link to somewhere else.
+        return found.Where(x => RepairFolders.Classify(x) == FolderKind.InstallerCache && (new DirectoryInfo(x).Attributes & FileAttributes.ReparsePoint) == 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public IReadOnlyList<string> OrphanInstallerFolders()
+    {
+        // While an install runs, the folder it is filling is new and the product is not registered yet.
+        if (InstallerBusy()) return [];
+        var found = new List<string>();
+        foreach (var root in new[] { Path.Combine(Windows, "Installer"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Installer") })
+            foreach (var folder in Matching(root, "{*}"))
+            {
+                var name = Path.GetFileName(folder);
+                if (RepairFolders.Classify(folder) != FolderKind.InstallerCache || !Guid.TryParse(name, out _)) continue;
+                try
+                {
+                    if (DateTime.UtcNow - Directory.GetLastWriteTimeUtc(folder) < TimeSpan.FromDays(2) || (new DirectoryInfo(folder).Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                    if (ProductState(name.ToUpperInvariant()) != InstallRepair.Unknown || HasProductKey(InstallRepair.Pack(name))) continue;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { continue; }
+                found.Add(folder);
+            }
+        return found;
+    }
+
+    public string? RollbackFolder()
+    {
+        var path = Path.Combine((Environment.GetEnvironmentVariable("SystemDrive") ?? "C:") + @"\", "Config.Msi");
+        return Directory.Exists(path) && RepairFolders.Classify(path) == FolderKind.RollbackFolder ? path : null;
+    }
+
+    // ---- Shortcuts ----
+
+    private static readonly EnumerationOptions Everything = new() { RecurseSubdirectories = true, IgnoreInaccessible = true, MaxRecursionDepth = 8, AttributesToSkip = 0 };
+
+    public IReadOnlyList<ShortcutRoot> ShortcutRoots() => ShortcutPlaces.Roots();
+
+    public IReadOnlyList<ShortcutFile> Shortcuts()
+    {
+        var paths = new List<string>();
+        foreach (var root in ShortcutPlaces.Roots())
+        {
+            try
+            {
+                // Only the Start menu has program folders worth walking into; the others hold the shortcuts themselves.
+                var options = root.Area == ShortcutArea.StartMenu ? Everything : new EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = 0 };
+                paths.AddRange(Directory.EnumerateFiles(root.Path, "*", options).Where(x => x.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".url", StringComparison.OrdinalIgnoreCase)));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        }
+        return ShortcutReader.ReadAll(paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
+    public IReadOnlyList<ShortcutFolder> ShortcutFolders()
+    {
+        var found = new List<ShortcutFolder>();
+        void Walk(string folder, int depth)
+        {
+            try
+            {
+                if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return;
+                var children = Directory.EnumerateDirectories(folder).ToList();
+                found.Add(new(folder, Directory.EnumerateFiles(folder).ToList(), children));
+                if (depth < 8) foreach (var child in children) Walk(child, depth + 1);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        }
+        foreach (var root in ShortcutPlaces.Roots().Where(x => x.Area == ShortcutArea.StartMenu)) Walk(root.Path, 0);
+        return found;
+    }
+
+    public void ShellChanged(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            var pointer = Marshal.StringToHGlobalUni(path);
+            try
+            {
+                var link = path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".url", StringComparison.OrdinalIgnoreCase);
+                var here = File.Exists(path) || Directory.Exists(path);
+                // SHCNE_DELETE / RMDIR for what is gone, UPDATEITEM / UPDATEDIR for what an undo put back.
+                SHChangeNotify(here ? (link ? 0x2000 : 0x1000) : (link ? 0x4 : 0x10), 0x5, pointer, IntPtr.Zero);
+            }
+            finally { Marshal.FreeHGlobal(pointer); }
+        }
+        // The Start menu and search read their lists again when the shell says associations changed.
+        if (paths.Count > 0) SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int events, uint flags, IntPtr item1, IntPtr item2);
+
     public bool RemoveEmptyFolder(string path)
     {
         try

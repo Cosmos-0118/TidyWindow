@@ -263,7 +263,7 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
         try
         {
             Say(progress, "Checking Windows’ install records for this app…");
-            var scan = await Task.Run(() => InstallRepair.Scan(system), token).ConfigureAwait(false);
+            var scan = await Task.Run(() => InstallRepair.Scan(system, shortcuts: false), token).ConfigureAwait(false);
             var code = InstallRepair.ProductCode(entry);
             var related = scan.Findings.Where(x => Related(x, entry, code, patches)).ToList();
             if (related.Count == 0) { trail.Add("Looked at Windows’ install records for it; none of them needs repairing."); return (false, false); }

@@ -45,6 +45,17 @@ public static partial class CommandOutputFormatter
         if (Step().IsMatch(text)) return OutputTone.Progress;
         return kind is CommandOutputKind.Information or CommandOutputKind.Notice ? OutputTone.Information : OutputTone.Normal;
     }
+    /// <summary>Like <see cref="Classify"/> for a finished step written in plain words: a non-zero exit code ("it returned 1603") is a failure, and the restart codes are a warning.</summary>
+    public static OutputTone ClassifyStep(string text)
+    {
+        var tone = Classify(text);
+        if (tone is not (OutputTone.Normal or OutputTone.Information or OutputTone.Progress)) return tone;
+        var exit = ExitCode().Match(text);
+        if (!exit.Success) return tone;
+        return exit.Groups[1].Value is "3010" or "1641" ? OutputTone.Warning : OutputTone.Error;
+    }
+    [GeneratedRegex(@"\b(?:returned|exit code|exited with(?: code)?)\s+(?!0\b)(\d+)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ExitCode();
     [GeneratedRegex(@"\b(error|failed|failure|fatal|exception|access denied|permission denied|could not|couldn.t)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Failure();
     [GeneratedRegex(@"\b(no errors?|0 errors?|without errors?|no failures?|0 failures?)\b", RegexOptions.IgnoreCase)]
