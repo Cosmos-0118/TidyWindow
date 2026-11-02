@@ -301,10 +301,9 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
         Directory.Delete(Path.Combine(linked, "apps", "scoop", "current"));
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveManagersAreHealthyAndRecoveryIsIdempotentWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var runner = new ProcessRunner(); var locator = new ExecutableLocator(); var packages = new PackageService(runner, locator);
         var health = new ManagerHealthService(packages, runner, locator);
         var recovery = new ManagerRecoveryService(packages, runner, locator);

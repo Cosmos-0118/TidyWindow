@@ -35,10 +35,9 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
 
     private static readonly Regex CacheLike = new(@"^(cache|caches|code cache|gpucache|grshadercache|shadercache|dawn.*cache|crashpad|crashdumps|crash reports|logs?|temp|cache2|startupcache|cachestorage|cache_data|cacheddata|cachedextensionvsix.*|media ?cache|blob_storage|component_crx_cache|webcache.*|htmlcache|d3dscache|dxcache|glcache|http-cache|browsercache|.*[-_]cache)$", RegexOptions.IgnoreCase);
 
-    [Fact]
+    [LiveFact]
     public void TheCatalogFindsMostOfTheReclaimableSpaceOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var context = CleanupContext.Current;
         var rules = CleanupCatalog.Load();
         var plan = CleanupPaths.Plan(rules, context);
@@ -64,10 +63,9 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
         Assert.True(big.Count == 0 || bigCovered >= big.Count * MinimumLocationCoverage, $"Only {bigCovered}/{big.Count} large locations are covered.\n{report}");
     }
 
-    [Fact]
+    [LiveFact]
     public async Task EveryRuleScansWithoutErrorsOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var rules = CleanupCatalog.Load();
         var findings = await new CleanupScanner(CleanupContext.Current).ScanAsync(rules);
         Assert.Equal(rules.Count, findings.Count);
@@ -77,10 +75,9 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
         Assert.All(findings, finding => Assert.True(finding.Bytes >= 0));
     }
 
-    [Fact]
+    [LiveFact]
     public async Task ScannedSizesMatchAnIndependentCountAndNothingIsCountedTwiceOrUnsafe()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var context = CleanupContext.Current;
         var rules = CleanupCatalog.Load();
         var findings = await new CleanupScanner(context).ScanAsync(rules);
@@ -113,10 +110,9 @@ public sealed class CleanupCoverageTests(ITestOutputHelper output)
     }
 
     // Cleans copies of real cache folders from this PC (never the originals), so real file shapes are exercised: read-only files, odd names, deep trees.
-    [Fact]
+    [LiveFact]
     public async Task ACleanOfCopiedRealFoldersFreesWhatTheScanPromisedAndNothingElse()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var real = CleanupContext.Current;
         var sandbox = Path.Combine(Path.GetTempPath(), "tw-live-" + Guid.NewGuid().ToString("N")[..8]);
         try

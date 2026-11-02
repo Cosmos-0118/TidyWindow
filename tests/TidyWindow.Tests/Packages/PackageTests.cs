@@ -197,10 +197,9 @@ public sealed class PackageTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<TimeoutException>(() => new ProcessRunner().RunAsync(PowerShell("Start-Sleep -Seconds 30", TimeSpan.FromMilliseconds(300))));
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveWingetSmokeTestWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var service = new PackageService(new ProcessRunner(), new ExecutableLocator());
         var status = (await service.DetectAsync()).Single(x => x.Definition.Kind == ManagerKind.Winget);
         Assert.Equal(ManagerHealth.Ready, status.Health);
@@ -209,10 +208,9 @@ public sealed class PackageTests(ITestOutputHelper output)
         Assert.Contains(result.Packages, x => x.Id == "Microsoft.VisualStudioCode");
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveInstalledSourcesSearchWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var service = new PackageService(new ProcessRunner(), new ExecutableLocator());
         var statuses = await service.DetectAsync();
         foreach (var status in statuses)

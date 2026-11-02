@@ -7,10 +7,9 @@ namespace TidyWindow.Next.Tests;
 
 public sealed class LiveScoopRecoveryTests(ITestOutputHelper output)
 {
-    [Fact]
+    [LiveFact(LiveGate.Recovery)]
     public async Task RepairBrokenShimAndCoreInIsolatedRealScoopWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_RECOVERY_TESTS") != "1") return;
         var artifacts = Environment.GetEnvironmentVariable("TIDYWINDOW_TEST_ARTIFACTS") ?? throw new InvalidOperationException("Set TIDYWINDOW_TEST_ARTIFACTS to a test artifacts directory.");
         var fixture = Path.Combine(Path.GetFullPath(artifacts), Guid.NewGuid().ToString("N"));
         var root = Path.Combine(fixture, "isolated-scoop");

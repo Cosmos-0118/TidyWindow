@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         toasts = new(Post, log);
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator, new ChocolateyFeed(), new ScoopCatalog());
+        packages.Log = log;
         // Repairs to Windows-wide records go through a helper that only runs after the person approves the Windows permission prompt.
         // An uninstall that fails uses the same repair engine, so the helper is shared.
         var installSystem = new WindowsInstallSystem();
@@ -1007,7 +1008,7 @@ public sealed partial class MainWindow : Window
         if (what.Count == 0 && model.Busy) what.Add("A package manager task is in progress.");
         // The pages that change the PC, by the state each exposes. A page whose first scan is still running is left alone: a scan only reads.
         if (cleanup.CleaningVisibility == Visibility.Visible) what.Add("Cleanup is still cleaning.");
-        if (repair.FixOverlay) what.Add("Repair is still fixing a program.");
+        if (repair.FixOverlay || repair.Changing) what.Add("Repair is still fixing a program.");
         if (debloat.WorkOverlay && !debloat.ScanOverlay) what.Add("Debloat is still removing an app or putting one back.");
         if (startup.Busy && !startup.ScanOverlay) what.Add("Startup is still working on a change.");
         if (quiet.Busy && !quiet.ScanOverlay) what.Add("Quiet is still working on a change.");

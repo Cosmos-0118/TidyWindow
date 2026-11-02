@@ -1037,10 +1037,9 @@ public sealed class BackgroundHostTests
 public sealed class BackgroundLiveTests
 {
     // Read-only: scans the real PC with the shipped catalog. Opt in like the other live checks.
-    [Fact]
+    [LiveFact]
     public void TheShippedCatalogCanBeReadOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var result = BackgroundScan.Run(new WindowsBackgroundSystem(), BackgroundCatalog.Load());
         Assert.NotEmpty(result.Entries);
         Assert.Equal(BackgroundCatalog.Load().Count, result.Entries.Count + result.NotOnThisPc);

@@ -227,10 +227,9 @@ public sealed class InstallationTests(ITestOutputHelper output)
         await service.RunAsync(Ready(ManagerKind.Chocolatey), App(), PackageAction.Uninstall);
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveInstalledPageReadsRealPackagesAndUpdatesWhenEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator);
         var service = new InstallationService(packages, runner, locator);

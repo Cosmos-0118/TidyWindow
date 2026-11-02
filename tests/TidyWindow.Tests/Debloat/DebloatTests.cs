@@ -1247,10 +1247,9 @@ public sealed class DebloatRestoreAllTests
 public sealed class DebloatLiveTests
 {
     // Read-only: scans the real PC with the shipped catalog. Nothing is removed. Opt in like the other live checks.
-    [Fact]
+    [LiveFact]
     public void TheShippedCatalogCanBeScannedOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var catalog = DebloatCatalog.Load();
         var result = DebloatScan.Run(new WindowsDebloatSystem(elevated: false), catalog);
         Assert.Equal(catalog.Count, result.Entries.Count + result.NotOnThisPc);

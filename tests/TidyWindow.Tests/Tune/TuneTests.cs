@@ -939,10 +939,9 @@ public sealed class TuneHostTests
 public sealed class TuneLiveTests
 {
     // Read-only: scans the real PC with the shipped catalog. Opt in like the other live checks.
-    [Fact]
+    [LiveFact]
     public void TheShippedCatalogCanBeReadOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var result = TuneScan.Run(new WindowsTuneSystem(), TuneCatalog.Load());
         Assert.NotEmpty(result.Entries);
         Assert.Equal(TuneCatalog.Load().Count, result.Entries.Count + result.NotOnThisPc);
