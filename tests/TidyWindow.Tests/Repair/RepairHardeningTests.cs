@@ -584,10 +584,34 @@ public sealed class RepairHardeningTests : IDisposable
     // Every program from a maker shares its name, so the maker alone is not enough.
     [InlineData("Microsoft Visual C++ 2015-2022 Redistributable (x64)", "Microsoft Edge Installer MicrosoftEdgeSetup.exe Microsoft Corporation", false)]
     [InlineData("Windows Software Development Kit", "Microsoft Edge Installer MicrosoftEdgeSetup.exe Microsoft Corporation", false)]
+    // Every word of the name before its version has to be there, not only the first: a signed setup of another program by the same maker does not pass.
+    [InlineData("HP Support Assistant", "HP Smart hpsmart.exe HP Inc.", false)]
+    [InlineData("Visual Studio Code", "Microsoft Visual C++ 2022 Redistributable VC_redist.x64.exe Microsoft Corporation", false)]
+    [InlineData("Mozilla Firefox (x64 en-US)", "Firefox Setup 131.0.exe Mozilla Corporation Firefox", true)]
     [InlineData("", "anything", false)]
     [InlineData("(64-bit) 1.0", "anything x64", false)]
-    public void AProgramsNameHasToBeInTheSetupProgramsOwnDetails(string program, string details, bool expected) =>
-        Assert.Equal(expected, WindowsInstallerOps.Names(details, program));
+    public void AProgramsWholeNameHasToBeInTheSetupProgramsOwnDetails(string program, string details, bool expected) =>
+        Assert.Equal(expected, InstallerTrust.Names(details, program, wholeName: true));
+
+    [Fact]
+    public void ASetupProgramThatInstallsSeveralPartsOnlyHasToCarryTheProgramsFirstWord()
+    {
+        const string bundle = "Python 3.13.9 (64-bit) python-3.13.9-amd64.exe Python Software Foundation";
+        Assert.True(InstallerTrust.Names(bundle, "Python Launcher", wholeName: false));
+        Assert.False(InstallerTrust.Names(bundle, "Python Launcher", wholeName: true));
+        Assert.False(InstallerTrust.Names(bundle, "Visual Studio Code", wholeName: false));
+    }
+
+    [Theory]
+    [InlineData("Python Software Foundation", "Python Software Foundation", true)]
+    [InlineData("Microsoft Corporation", "Microsoft Corporation", true)]
+    [InlineData("Oracle America, Inc.", "Oracle Corporation", true)]
+    [InlineData("JetBrains s.r.o.", "JetBrains", true)]
+    [InlineData("OpenJS Foundation", "Node.js Foundation", false)]
+    [InlineData("Contoso Ltd", "Python Software Foundation", false)]
+    [InlineData("", "Python Software Foundation", false)]
+    public void TheSignerHasToBeTheProgramsPublisherGiveOrTakeTheLegalSuffix(string signer, string publisher, bool same) =>
+        Assert.Equal(same, InstallerTrust.SamePublisher(signer, publisher));
 
     [Fact]
     public void AnUnsignedFileIsNeverTrustedEvenWhenItsNameMatches()
@@ -596,19 +620,23 @@ public sealed class RepairHardeningTests : IDisposable
         Directory.CreateDirectory(folder);
         File.WriteAllBytes(file, [0x4D, 0x5A, 0, 0]);
 
-        Assert.False(WindowsInstallerOps.IsTrusted(file, "Python 3.13.9 (64-bit)"));
-        Assert.False(WindowsInstallerOps.IsTrusted(Path.Combine(folder, "missing.exe"), "Python"));
+        Assert.Equal(InstallerSignature.Unsigned, InstallerTrust.Verify(file).Signature);
+        Assert.Contains("not signed", InstallerTrust.Problem(file, "Python 3.13.9 (64-bit)", "Python Software Foundation", wholeName: true));
+        Assert.NotNull(InstallerTrust.Problem(Path.Combine(folder, "missing.exe"), "Python", "", wholeName: false));
+        Assert.Equal(87, new WindowsInstallerOps().RestoreBundleCopy(file, "Python 3.13.9 (64-bit)", "Python Software Foundation", Path.Combine(WindowsInstallerOps.DefaultCacheRoots()[1], "{A}", "python-setup.exe")).ExitCode);
     }
 
     [Theory]
     [InlineData(@"C:\Users\X\AppData\Local\Package Cache\..\..\..\Windows\evil.exe")]
     [InlineData(@"C:\Users\X\AppData\Local\Package Cache\..\evil.exe")]
-    public void APathThatWalksOutOfThePackageCacheIsRefused(string target)
+    [InlineData(@"D:\Somewhere\Package Cache\{A}\evil.exe")]
+    public void APathThatWalksOutOfThePackageCacheOrIsNotInOneOfTheTwoRealOnesIsRefused(string target)
     {
         var ops = new WindowsInstallerOps();
 
-        Assert.Equal(87, ops.RestoreBundleCopy(@"C:\dl\whatever.exe", "Python 3.13.9 (64-bit)", target).ExitCode);
+        Assert.Equal(87, ops.RestoreBundleCopy(@"C:\dl\whatever.exe", "Python 3.13.9 (64-bit)", "", target).ExitCode);
         Assert.False(ops.RemoveCopy(target));
+        Assert.Null(ops.CachePath(target));
     }
 
     [Theory]
