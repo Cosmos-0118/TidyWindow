@@ -17,7 +17,9 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
 
     public string WindowsFolder { get; } = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
 
-    public string Edition { get; } = ReadEdition();
+    public string Edition { get; } = ReadEdition("EditionID");
+
+    public int Build { get; } = int.TryParse(ReadEdition("CurrentBuild"), out var build) ? build : 0;
 
     public string Expand(string text) => Environment.ExpandEnvironmentVariables(text);
 
@@ -35,13 +37,13 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return false; }
     }
 
-    private static string ReadEdition()
+    private static string ReadEdition(string name)
     {
         try
         {
             using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = root.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            return key?.GetValue("EditionID") as string ?? "";
+            return key?.GetValue(name) as string ?? "";
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return ""; }
     }
@@ -184,6 +186,16 @@ public sealed class WindowsBackgroundSystem : IBackgroundSystem
     private static extern bool CloseServiceHandle(IntPtr handle);
 }
 
+/// <summary>What Windows means when it refuses to stop a service. The start type is already set by then, so most refusals only mean "until the next restart".</summary>
+public static class ServiceStopReply
+{
+    /// <returns>
+    /// True: it is not running (1062). False: it keeps running until Windows restarts, because other running services depend on it (1051),
+    /// it does not accept a stop request (1052), or it is busy starting or stopping right now (1061). Null: a real failure.
+    /// </returns>
+    public static bool? Stopped(int error) => error switch { 1062 => true, 1051 or 1052 or 1061 => false, _ => null };
+}
+
 /// <summary>The only writes the background page makes: a service's start type and a stop or start, a task's Enabled flag, and a policy value.</summary>
 [SupportedOSPlatform("windows")]
 public sealed partial class WindowsBackgroundWriter : IBackgroundWriter
@@ -239,9 +251,7 @@ public sealed partial class WindowsBackgroundWriter : IBackgroundWriter
                 if (!ControlService(service, 1, out status))
                 {
                     var code = Marshal.GetLastWin32Error();
-                    if (code == 1062) return true;
-                    // 1051: other services that depend on it are running. They are left alone.
-                    if (code == 1051) return false;
+                    if (ServiceStopReply.Stopped(code) is { } stopped) return stopped;
                     throw Failure();
                 }
                 var clock = Stopwatch.StartNew();

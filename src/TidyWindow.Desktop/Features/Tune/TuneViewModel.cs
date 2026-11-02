@@ -6,7 +6,8 @@ namespace TidyWindow.Next.Desktop;
 public enum TuneTab { Speed, Cleaner, Comfort, Changes }
 public enum TuneFilter { All, On, Off }
 
-public sealed class TuneRow(TuneEntry entry) : ObservableState
+/// <param name="pageBusy">Whether the page is in the middle of a change. Every switch waits for it, so a second flip cannot be lost while the first is still being made.</param>
+public sealed class TuneRow(TuneEntry entry, Func<bool>? pageBusy = null) : ObservableState
 {
     private TuneEntry current = entry;
     private bool busy, expanded, reverted;
@@ -19,8 +20,10 @@ public sealed class TuneRow(TuneEntry entry) : ObservableState
     public bool Enabled { get => current.Applied; set { } }
     /// <summary>Rows that are off step back, so what is on stands out at a glance.</summary>
     public double Dim => current.Applied || current.Partly ? 1 : 0.55;
-    public bool CanToggle => current.CanChange && !busy;
+    public bool CanToggle => current.CanChange && !busy && pageBusy?.Invoke() != true;
     public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanToggle)); } }
+    /// <summary>The page started or finished a change; the switch follows.</summary>
+    public void PageBusyChanged() => Changed(nameof(CanToggle));
 
     public string Glyph => GlyphFor(current.Item);
 
@@ -198,6 +201,12 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     public Visibility ExplorerVisibility => NeedsExplorerRestart ? Visibility.Visible : Visibility.Collapsed;
     public bool CanRestartExplorer => !Busy && NeedsExplorerRestart;
 
+    /// <summary>
+    /// Asks before File Explorer is restarted, from the banner and from a toast alike: every Explorer window closes and a copy running in one of
+    /// them is cut short. The view provides it, because only the view can show a dialog; without one the restart goes ahead.
+    /// </summary>
+    public Func<Task<bool>>? ConfirmRestart { get; set; }
+
     public string Query { get => query; set { if (Set(ref query, value)) ApplyFilter(); } }
     public TuneTab Tab { get => tab; set { if (Set(ref tab, value)) ApplyFilter(); } }
     public TuneFilter Filter { get => filter; set { if (Set(ref filter, value)) ApplyFilter(); } }
@@ -209,6 +218,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
             nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(CanTurnOnAgain), nameof(CanRestartExplorer), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility),
             nameof(RevertedCount), nameof(RevertedVisibility), nameof(RevertedTitle), nameof(NeedsExplorerRestart), nameof(ExplorerVisibility)
         }) Changed(name);
+        foreach (var row in all) row.PageBusyChanged();
     }
 
     public async Task ScanAsync()
@@ -218,14 +228,16 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         try
         {
             var scan = await Task.Run(() => TuneScan.Run(system, catalog), lifetime.Token);
-            all = scan.Entries.Select(x => new TuneRow(x)).ToList();
+            all = scan.Entries.Select(x => new TuneRow(x, () => Busy)).ToList();
             notOnThisPc = scan.NotOnThisPc;
             scanned = true;
             foreach (var change in manager.History.All())
             {
                 // Gone from this PC (a Windows version without it): nothing to put back.
-                if (all.FirstOrDefault(x => x.Id == change.Id) is not { } row) manager.History.Remove(change.Id);
-                else row.Reverted = !row.Entry.Applied && !row.Entry.Partly;
+                if (all.FirstOrDefault(x => x.Id == change.Id) is { } row) { row.Reverted = !row.Entry.Applied && !row.Entry.Partly; continue; }
+                // The scan itself succeeded; a record that cannot be dropped right now is tried again next time.
+                try { manager.History.Remove(change.Id); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Tune history could not be tidied", $"{change.Name}: {ex.Message}"); }
             }
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
             ApplyFilter(keepPosition: true);
@@ -288,11 +300,19 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     /// <summary>Turns one tweak on or off. Returns false if nothing changed, so the switch can go back to where it was.</summary>
     public async Task<bool> SetAsync(TuneRow row, bool enable)
     {
-        if (Busy || !row.Entry.CanChange || row.Enabled == enable) return false;
+        if (Busy) return false;
+        // A locked item has no switch, but its Changes entry still has a Put back button; say why nothing happens.
+        if (!row.Entry.CanChange) { if (row.Entry.Lock is { } why) toasts.Show("tune", ToastKind.Info, $"{row.Name} is left alone", why); return false; }
+        // Nothing to do when it is already fully on, or already off everywhere; a partly applied item can still be put back in full.
+        if (enable ? row.Entry.Applied : !row.Entry.Applied && !row.Entry.Partly) return false;
         working = true; Notify();
         try { return await ChangeAsync(row, enable, announce: true) == Attempt.Done; }
         finally { Finish(); }
     }
+
+    /// <summary>The row an item has now; a toast or a Changes entry may hold one from before a refresh.</summary>
+    private Task<bool> SetByIdAsync(string id, bool enable) =>
+        all.FirstOrDefault(x => x.Id == id) is { } row ? SetAsync(row, enable) : Task.FromResult(false);
 
     private enum Attempt { Done, Failed, Declined }
 
@@ -321,8 +341,9 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
                 var restart = item.Takes == TuneEffect.Explorer && restartExplorer is not null;
                 if (announce)
                 {
-                    if (enable) toasts.Show("tune", ToastKind.Success, $"{row.Name} is on", outcome.Note ?? "You can turn it off any time.", restart ? "Restart Explorer" : "Turn off", restart ? RestartExplorerAsync : () => SetAsync(row, false), 12);
-                    else toasts.Show("tune", ToastKind.Success, $"{row.Name} is off", outcome.Note ?? "Put back the way it was.", restart ? "Restart Explorer" : "", restart ? RestartExplorerAsync : null, 12);
+                    // The toast outlives a refresh, so it finds the row again by id rather than keeping one that may since have been replaced.
+                    if (enable) toasts.Show("tune", ToastKind.Success, $"{row.Name} is on", outcome.Note ?? "You can turn it off any time.", restart ? "Restart Explorer…" : "Turn off", restart ? RestartExplorerAsync : () => SetByIdAsync(row.Id, false), 12);
+                    else toasts.Show("tune", ToastKind.Success, $"{row.Name} is off", outcome.Note ?? "Put back the way it was.", restart ? "Restart Explorer…" : "", restart ? RestartExplorerAsync : null, 12);
                 }
                 log.Write(ActivityLevel.Success, ActivityArea.App, enable ? "Tweak turned on" : "Tweak turned off", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
                 return Attempt.Done;
@@ -342,6 +363,13 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         {
             toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Tweak could not be changed", ex.Message);
+            return Attempt.Failed;
+        }
+        catch (Exception ex)
+        {
+            // Anything else is a fault in the app, not in Windows. It is reported like a failure rather than ending the app from a switch.
+            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Tweak could not be changed", ex.ToString());
             return Attempt.Failed;
         }
         finally { row.Busy = false; }
@@ -370,25 +398,27 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         finally { Finish(); }
     }
 
-    /// <summary>Restarts File Explorer so the changes that need it show up.</summary>
+    /// <summary>Restarts File Explorer so the changes that need it show up, after the person has agreed to every Explorer window closing.</summary>
     public async Task RestartExplorerAsync()
     {
-        if (restartExplorer is null) return;
+        if (restartExplorer is null || Busy) return;
         try
         {
+            if (ConfirmRestart is { } confirm && !await confirm()) return;
+            working = true; Notify();
             await restartExplorer();
             explorerStale = false;
-            Notify();
+            log.Write(ActivityLevel.Info, ActivityArea.App, "File Explorer restarted", "From the Tune page.");
         }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+        catch (Exception ex)
         {
             toasts.Show("tune-explorer", ToastKind.Warning, "File Explorer could not be restarted", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "File Explorer could not be restarted", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "File Explorer could not be restarted", ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException ? ex.Message : ex.ToString());
         }
+        finally { working = false; Notify(); }
     }
 
-    public Task<bool> PutBackAsync(TuneChangeRow change) =>
-        all.FirstOrDefault(x => x.Id == change.Change.Id) is { } row ? SetAsync(row, false) : Task.FromResult(false);
+    public Task<bool> PutBackAsync(TuneChangeRow change) => SetByIdAsync(change.Change.Id, false);
 
     /// <summary>Puts back everything TidyWindow changed.</summary>
     public async Task RestoreAllAsync()
@@ -406,10 +436,10 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
             log.Write(ActivityLevel.Info, ActivityArea.App, "Tweaks put back", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("tune", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
             toasts.Show("tune", ToastKind.Warning, "Could not put everything back", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Tweaks could not all be put back", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Tweaks could not all be put back", ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString());
         }
         finally { working = false; Notify(); }
         await ScanAsync();

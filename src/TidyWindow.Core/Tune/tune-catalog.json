@@ -144,7 +144,7 @@
       "scope": "machine",
       "topic": "Windows Store",
       "summary": "Windows stops installing promoted apps and games on new accounts and after updates, for everyone who uses this PC.",
-      "effect": "Nothing you use. Apps already installed stay.",
+      "effect": "Windows Spotlight pictures stop on the lock screen and desktop, and the lock screen page in Settings shows as managed by your organization. Apps already installed stay.",
       "needsPro": true,
       "takes": "signOut",
       "sources": ["WinUtil", "Microsoft Learn: CloudContent policy"],

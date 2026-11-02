@@ -7,7 +7,8 @@ namespace TidyWindow.Next.Desktop;
 public enum BackgroundTab { Telemetry, Ai, Optional, Changes }
 public enum BackgroundFilter { All, Running, On, Off }
 
-public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
+/// <param name="pageBusy">Whether the page is in the middle of a change. Every switch waits for it, so a second flip cannot be lost while the first is still being made.</param>
+public sealed class BackgroundRow(BackgroundEntry entry, Func<bool>? pageBusy = null) : ObservableState
 {
     private BackgroundEntry current = entry;
     private bool busy, expanded, reverted;
@@ -18,8 +19,10 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
     public string Name => current.Item.Name;
     // Two-way only so the switch stays attached to this value after the person flips it; the change itself is made by the page, and the switch snaps to the real state when this is raised.
     public bool Enabled { get => current.On; set { } }
-    public bool CanToggle => current.CanChange && !busy;
+    public bool CanToggle => current.CanChange && !busy && pageBusy?.Invoke() != true;
     public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanToggle)); } }
+    /// <summary>The page started or finished a change; the switch follows.</summary>
+    public void PageBusyChanged() => Changed(nameof(CanToggle));
     // Items that are off stay in the list, but step back so the ones still active are easy to spot.
     public double Dim => current.On ? 1 : 0.55;
 
@@ -80,6 +83,7 @@ public sealed class BackgroundRow(BackgroundEntry entry) : ObservableState
         Add("What it does", item.Summary);
         Add("If you turn it off", item.Effect);
         Add("Right now", current.Running ? RunningText() : current.On ? (current.FullyOn ? "Allowed, but not running" : "Partly turned off") : "Turned off");
+        Add("Changes", "Settings for every user of this PC. Needs administrator permission.");
         if (current.WakesPc) Add("Wakes the PC", "A scheduled task here is set to wake this PC from sleep to run.");
         Add("Seen as", string.Join(", ", item.Processes));
         Add("Includes", string.Join("\n", current.Targets.Where(x => x.Present).Select(Describe)), true);
@@ -221,6 +225,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
     private void Notify()
     {
         foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(CanTurnOffAgain), nameof(CanTurnOffSafe), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var row in all) row.PageBusyChanged();
     }
 
     public async Task ScanAsync()
@@ -230,14 +235,16 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         try
         {
             var scan = await Task.Run(() => BackgroundScan.Run(system, catalog), lifetime.Token);
-            all = scan.Entries.Select(x => new BackgroundRow(x)).ToList();
+            all = scan.Entries.Select(x => new BackgroundRow(x, () => Busy)).ToList();
             notOnThisPc = scan.NotOnThisPc;
             scanned = true;
             foreach (var change in manager.History.All())
             {
                 // Gone from this PC (a Windows feature was removed): nothing to turn back on.
-                if (all.FirstOrDefault(x => x.Id == change.Id) is not { } row) manager.History.Remove(change.Id);
-                else row.Reverted = row.Entry.FullyOn;
+                if (all.FirstOrDefault(x => x.Id == change.Id) is { } row) { row.Reverted = row.Entry.FullyOn; continue; }
+                // The scan itself succeeded; a record that cannot be dropped right now is tried again next time.
+                try { manager.History.Remove(change.Id); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Background history could not be tidied", $"{change.Name}: {ex.Message}"); }
             }
             checkedAt = $"Checked {DateTime.Now:h:mm tt}";
             ApplyFilter(keepPosition: true);
@@ -333,7 +340,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
     /// <summary>Turns one item on or off. Returns false if nothing changed, so the switch can go back to where it was.</summary>
     public async Task<bool> SetAsync(BackgroundRow row, bool enable)
     {
-        if (Busy || !row.Entry.CanChange || row.Enabled == enable) return false;
+        // Nothing to do when it is already fully on, or already off everywhere; a partly turned-off item can still be brought back in full.
+        if (Busy || !row.Entry.CanChange || (enable ? row.Entry.FullyOn : !row.Entry.On)) return false;
         working = true; row.Busy = true; Notify();
         var changed = false;
         try
@@ -345,7 +353,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
                 if (await Task.Run(() => BackgroundScan.Find(system, catalog, row.Id)) is { } after) row.Update(after);
                 row.Reverted = false;
                 if (enable) toasts.Show("background", ToastKind.Success, $"{row.Name} turned back on", outcome.Note ?? "");
-                else toasts.Show("background", ToastKind.Success, $"{row.Name} turned off", outcome.Note ?? "You can turn it back on any time.", "Turn back on", () => SetAsync(row, true), 12);
+                // The toast outlives a refresh, so it finds the row again by id rather than keeping one that may since have been replaced.
+                else toasts.Show("background", ToastKind.Success, $"{row.Name} turned off", outcome.Note ?? "You can turn it back on any time.", "Turn back on", () => SetByIdAsync(row.Id, true), 12);
                 log.Write(ActivityLevel.Success, ActivityArea.App, enable ? "Background item turned on" : "Background item turned off", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
             }
             else
@@ -365,6 +374,12 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Background item could not be changed", ex.Message);
         }
+        catch (Exception ex)
+        {
+            // Anything else is a fault in the app, not in Windows. It is reported like a failure rather than ending the app from a switch.
+            toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Background item could not be changed", ex.ToString());
+        }
         finally
         {
             row.Busy = false; working = false;
@@ -374,6 +389,10 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         }
         return changed;
     }
+
+    /// <summary>The row an item has now; a toast or a Changes entry may hold one from before a refresh.</summary>
+    private Task<bool> SetByIdAsync(string id, bool enable) =>
+        all.FirstOrDefault(x => x.Id == id) is { } row ? SetAsync(row, enable) : Task.FromResult(false);
 
     /// <summary>Turns off again everything that Windows switched back on, in one go. They were turned off by the person before, so they are not asked about one by one.</summary>
     public Task TurnOffAgainAsync() => TurnOffManyAsync(RevertedRows, "turned off again");
@@ -388,19 +407,26 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         working = true; foreach (var row in todo) row.Busy = true; Notify();
         BackgroundBatch? batch = null;
         try { batch = await manager.SetManyAsync(todo.Select(x => x.Entry), false); }
+        catch (Exception ex)
+        {
+            // Each item's own failure is in the batch, so only a fault in the app gets here. It runs from a toast as well as a button, so it must never end the app.
+            toasts.Show("background", ToastKind.Warning, $"Items could not be {what}", ToastCenter.Brief(ex.Message), seconds: 15);
+            log.Write(ActivityLevel.Error, ActivityArea.App, $"Background items could not be {what}", ex.ToString());
+        }
         finally
         {
             // Read each item again, so the rows show what Windows really did even if the batch stopped part-way.
             foreach (var row in todo)
             {
-                if (await Task.Run(() => BackgroundScan.Find(system, catalog, row.Id)) is { } now) row.Update(now);
+                try { if (await Task.Run(() => BackgroundScan.Find(system, catalog, row.Id)) is { } now) row.Update(now); }
+                catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Background item could not be read back", $"{row.Name}: {ex.Message}"); }
                 row.Busy = false;
                 if (batch?.Results.Any(x => x.Entry.Id == row.Id && x.Outcome.Ok) == true) row.Reverted = false;
             }
             working = false;
             RefreshChanges(); Notify(); ApplyFilter(keepPosition: true);
         }
-        Report(batch!, todo.Count, what);
+        if (batch is not null) Report(batch, todo.Count, what);
     }
 
     private void Report(BackgroundBatch batch, int asked, string what)
@@ -415,8 +441,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         log.Write(failed.Count == 0 && !batch.Declined ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, $"Background items {what}", $"{done} of {asked}.{(batch.Declined ? " Administrator permission was declined." : "")}{(failed.Count > 0 ? " Not changed: " + string.Join(", ", failed.Select(x => x.Entry.Item.Name)) + "." : "")}");
     }
 
-    public Task<bool> TurnBackOnAsync(BackgroundChangeRow change) =>
-        all.FirstOrDefault(x => x.Id == change.Change.Id) is { } row ? SetAsync(row, true) : Task.FromResult(false);
+    public Task<bool> TurnBackOnAsync(BackgroundChangeRow change) => SetByIdAsync(change.Change.Id, true);
 
     /// <summary>Turns back on everything TidyWindow turned off.</summary>
     public async Task RestoreAllAsync()
@@ -433,10 +458,10 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             log.Write(ActivityLevel.Info, ActivityArea.App, "Background items turned back on", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("background", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
             toasts.Show("background", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Background restore could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Background restore could not finish", ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString());
         }
         finally { working = false; Notify(); }
         await ScanAsync();

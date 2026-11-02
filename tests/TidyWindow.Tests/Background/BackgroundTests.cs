@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TidyWindow.Next.Core;
 using Xunit;
 
@@ -7,7 +8,8 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
 {
     public string WindowsFolder => @"C:\Windows";
     public string Edition { get; set; } = "Professional";
-    public string Expand(string text) => text.Replace("%ProgramFiles%", @"C:\Program Files", StringComparison.OrdinalIgnoreCase);
+    public int Build { get; set; } = 26100;
+    public string Expand(string text) => text.Replace("%ProgramFiles(x86)%", @"C:\Program Files (x86)", StringComparison.OrdinalIgnoreCase).Replace("%ProgramFiles%", @"C:\Program Files", StringComparison.OrdinalIgnoreCase);
     public Dictionary<string, ServiceFact> ServiceList = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, TaskFact> TaskList = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> Policies = new(StringComparer.OrdinalIgnoreCase);
@@ -18,6 +20,8 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public string? FailOn;
     /// <summary>The write that needs administrator rights, such as "stop", while every other write is allowed.</summary>
     public string? DenyOn;
+    /// <summary>The write that Windows accepts but quietly does not make, such as "task", to test the read-back of one target among several.</summary>
+    public string? IgnoreOn;
     public HashSet<string> WillNotStop = new(StringComparer.OrdinalIgnoreCase);
 
     public void Refresh() { }
@@ -47,7 +51,7 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public void SetServiceStart(string name, int start, bool delayed)
     {
         Guard("service"); Writes.Add($"start {name} {start} {delayed}");
-        if (!IgnoreWrites) ServiceList[name] = ServiceList[name] with { Start = start, Delayed = delayed };
+        if (!IgnoreWrites && IgnoreOn != "service") ServiceList[name] = ServiceList[name] with { Start = start, Delayed = delayed };
     }
 
     public bool StopService(string name)
@@ -67,13 +71,13 @@ internal sealed class FakeBackgroundPc : IBackgroundSystem, IBackgroundWriter
     public void SetTask(string path, bool enabled)
     {
         Guard("task"); Writes.Add($"task {path} {enabled}");
-        if (!IgnoreWrites) TaskList[path] = TaskList[path] with { Enabled = enabled, Running = enabled && TaskList[path].Running };
+        if (!IgnoreWrites && IgnoreOn != "task") TaskList[path] = TaskList[path] with { Enabled = enabled, Running = enabled && TaskList[path].Running };
     }
 
     public void SetPolicy(string key, string name, int? value)
     {
         Guard("policy"); Writes.Add($"policy {name} {(value is null ? "removed" : value.ToString())}");
-        if (IgnoreWrites) return;
+        if (IgnoreWrites || IgnoreOn == "policy") return;
         if (value is null) Policies.Remove(key + "|" + name); else Policies[key + "|" + name] = value.Value;
     }
 }
@@ -174,6 +178,65 @@ public sealed class BackgroundCatalogTests
             Assert.Equal(BackgroundRisk.Careful, catalog[id].Risk);
         Assert.Equal(BackgroundGroup.Ai, catalog["notepad-ai"].Group);
         Assert.Equal(BackgroundGroup.Ai, catalog["paint-ai"].Group);
+    }
+
+    private const string Minimal = """{"items":[{"id":"x","name":"X","group":"optional","summary":"s","effect":"e","targets":[{"kind":"service","name":"Fine"}]}]}""";
+
+    [Fact]
+    public void AMisspelledRuleInTheCatalogIsRefusedNotIgnored()
+    {
+        Assert.Single(BackgroundCatalog.Parse(Minimal));
+        // "needsPr" would silently become "no edition rule"; the loader must refuse it instead.
+        Assert.Throws<JsonException>(() => BackgroundCatalog.Parse(Minimal.Replace("\"name\":\"Fine\"", "\"name\":\"Fine\",\"needsPr\":true")));
+        Assert.Throws<JsonException>(() => BackgroundCatalog.Parse(Minimal.Replace("\"id\":\"x\"", "\"id\":\"x\",\"risky\":\"careful\"")));
+    }
+
+    [Fact]
+    public void APolicyMayOnlyBlockWithOneOfItsDocumentedValues()
+    {
+        BackgroundTarget Policy(int block, params int[] values) => new() { Kind = BackgroundTargetKind.Policy, Key = @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", Name = "DODownloadMode", Block = block, Values = values.Length == 0 ? [0, 1] : values };
+        Assert.Empty(BackgroundGuard.Validate([Item(Policy(0, 0, 1, 2, 3, 99, 100))]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(Policy(5))]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Policy, Key = @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", Name = "DODownloadMode", Block = 0, Values = [] })]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(Policy(0, 0, -1))]));
+        Assert.Equal([0, 1, 2, 3, 99, 100], BackgroundCatalog.Load().Single(x => x.Id == "delivery-optimization-sharing").Targets.Single().Values);
+    }
+
+    [Fact]
+    public void AServiceThatTurnsOffAsManualMustNormallyStartByItself()
+    {
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(Service("Maps", "manual", 3))]));
+        Assert.Empty(BackgroundGuard.Validate([Item(Service("Maps", "manual", 2))]));
+    }
+
+    [Fact]
+    public void AServiceMayLiveUnderEitherProgramFilesFolderButOnlyByItsVariable()
+    {
+        BackgroundTarget At(string image) => new() { Kind = BackgroundTargetKind.Service, Name = "GameInputSvc", Image = image };
+        Assert.Empty(BackgroundGuard.Validate([Item(At(@"%ProgramFiles(x86)%\Microsoft GameInput\"))]));
+        Assert.Empty(BackgroundGuard.Validate([Item(At(@"%ProgramFiles%\Windows Media Player\"))]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(At(@"C:\Program Files (x86)\Microsoft GameInput\"))]));
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(At(@"%ProgramFiles(x86)%\..\Evil\"))]));
+    }
+
+    [Fact]
+    public void TheServicesOthersRelyOnWithoutSayingSoAreNamedAsServices()
+    {
+        Assert.NotEmpty(BackgroundGuard.Validate([Item(new BackgroundTarget { Kind = BackgroundTargetKind.Service, Name = "SharedAccess", AlsoNeededBy = ["h*s"] })]));
+        Assert.Equal(["hns", "vmcompute"], BackgroundCatalog.Load().Single(x => x.Id == "connection-sharing").Targets.Single(x => x.Name == "SharedAccess").AlsoNeededBy);
+    }
+
+    [Fact]
+    public void TheItemsMadeOnlyOfPoliciesNameTheWindowsThatHasTheirFeature()
+    {
+        var catalog = BackgroundCatalog.Load().ToDictionary(x => x.Id);
+        Assert.Equal(26100, catalog["recall-snapshots"].MinBuild);
+        Assert.Equal(26100, catalog["click-to-do"].MinBuild);
+        Assert.Equal(22621, catalog["notepad-ai"].MinBuild);
+        Assert.Equal(22621, catalog["paint-ai"].MinBuild);
+        // On Windows 10 none of them exists, so none shows as "allowed, but not running".
+        var scan = BackgroundScan.Run(new FakeBackgroundPc { Build = 19045 }, [catalog["recall-snapshots"], catalog["click-to-do"], catalog["notepad-ai"], catalog["paint-ai"]]);
+        Assert.Empty(scan.Entries); Assert.Equal(4, scan.NotOnThisPc);
     }
 }
 
@@ -370,6 +433,46 @@ public sealed class BackgroundScanTests
         var entry = One(pc, Svc("A"), Svc("B"));
         Assert.True(entry.On); Assert.False(entry.FullyOn);
     }
+
+    [Fact]
+    public void AServiceOthersRelyOnWithoutSayingSoIsLockedWhileTheyAreOnThisPc()
+    {
+        var target = new BackgroundTarget { Kind = BackgroundTargetKind.Service, Name = "SharedAccess", AlsoNeededBy = ["hns", "vmcompute"] };
+        var pc = new FakeBackgroundPc().Svc("SharedAccess").Svc("hns", display: "Host Network Service");
+        var entry = One(pc, target);
+        Assert.False(entry.CanChange); Assert.Contains("Host Network Service relies on it", entry.Lock);
+
+        // Disabled, or gone: nothing relies on it any more.
+        pc.Svc("hns", start: 4, display: "Host Network Service");
+        Assert.True(One(pc, target).CanChange);
+        pc.ServiceList.Remove("hns");
+        Assert.True(One(pc, target).CanChange);
+        // Once off, it can always be turned back on.
+        pc.Svc("hns", display: "Host Network Service").Svc("SharedAccess", start: 4);
+        Assert.True(One(pc, target).CanChange);
+    }
+
+    [Fact]
+    public void AnItemForANewerWindowsIsLeftOutAndCounted()
+    {
+        var item = new BackgroundItem { Id = "new", Name = "New", Group = BackgroundGroup.Ai, Summary = "s", Effect = "e", MinBuild = 26100, Targets = [Policy()] };
+        var result = BackgroundScan.Run(new FakeBackgroundPc { Build = 22631 }, [item]);
+        Assert.Empty(result.Entries); Assert.Equal(1, result.NotOnThisPc);
+        Assert.Single(BackgroundScan.Run(new FakeBackgroundPc { Build = 26100 }, [item]).Entries);
+        Assert.Null(BackgroundScan.Find(new FakeBackgroundPc { Build = 22631 }, [item], "new"));
+    }
+
+    [Fact]
+    public void TheGameInputServiceIsAcceptedFromWindowsAndFromTheCopyGamesInstall()
+    {
+        var item = BackgroundCatalog.Load().Single(x => x.Id == "game-input");
+        var pc = new FakeBackgroundPc().Svc("GameInputSvc", image: @"%SystemRoot%\System32\GameInputSvc.exe");
+        Assert.True(Assert.Single(BackgroundScan.Run(pc, [item]).Entries).CanChange);
+        pc.Svc("GameInputSvc", image: @"""C:\Program Files (x86)\Microsoft GameInput\v1.0.0\x64\GameInputSvc.exe""");
+        Assert.True(Assert.Single(BackgroundScan.Run(pc, [item]).Entries).CanChange);
+        pc.Svc("GameInputSvc", image: @"C:\Program Files (x86)\Evil\GameInputSvc.exe");
+        Assert.False(Assert.Single(BackgroundScan.Run(pc, [item]).Entries).CanChange);
+    }
 }
 
 public sealed class BackgroundChangeTests : IDisposable
@@ -548,6 +651,58 @@ public sealed class BackgroundChangeTests : IDisposable
         Assert.Empty(pc.Writes);
     }
 
+    [Fact]
+    public void TurningOnSomethingAlreadyFullyOnDoesNothing()
+    {
+        var pc = new FakeBackgroundPc().Svc("S", start: 3).Job(@"\Microsoft\a\b");
+        Assert.True(Changer(pc, Item(Svc("S"), Job(@"\Microsoft\a\b"))).Change(new("item", true, [new(BackgroundTargetKind.Service, "S", true, 2)])).Ok);
+        Assert.Empty(pc.Writes);
+    }
+
+    [Fact]
+    public void TurningOnChecksEveryTargetNotJustThatSomethingIsOn()
+    {
+        var pc = new FakeBackgroundPc { IgnoreOn = "task" }.Svc("S", start: 4).Job(@"\Microsoft\a\b", enabled: false);
+        var outcome = Changer(pc, Item(Svc("S"), Job(@"\Microsoft\a\b"))).Change(new("item", true));
+        Assert.False(outcome.Ok);
+        Assert.Contains("did not accept", outcome.Error);
+    }
+
+    [Fact]
+    public void ATargetThatIsAlreadyOnIsLeftAloneWhenTheRestIsTurnedOn()
+    {
+        var pc = new FakeBackgroundPc().Svc("A", start: 2, running: true).Svc("B", start: 4);
+        // A copy claims A was manual: A is on already, so nothing about it is touched.
+        var outcome = Changer(pc, Item(Svc("A", start: 2), Svc("B"))).Change(new("item", true, [new(BackgroundTargetKind.Service, "A", true, 3), new(BackgroundTargetKind.Service, "B", true, 3)]));
+        Assert.True(outcome.Ok);
+        Assert.Equal(["start B 3 False"], pc.Writes);
+        Assert.Equal(2, pc.ServiceList["A"].Start);
+    }
+
+    [Fact]
+    public void APolicyValueOutsideWhatWindowsDocumentsIsNotWrittenBack()
+    {
+        var pc = new FakeBackgroundPc();
+        pc.Policies[PolicyKey] = 7;
+        var changer = Changer(pc, Item(Block()));
+        var off = changer.Change(Off);
+        Assert.Equal(7, Assert.Single(off.Before!).Value);
+
+        Assert.True(changer.Change(new("item", true, off.Before)).Ok);
+        Assert.False(pc.Policies.ContainsKey(PolicyKey));
+        Assert.Contains("policy DisableAIDataAnalysis removed", pc.Writes);
+    }
+
+    [Theory]
+    [InlineData(1062, true)]
+    [InlineData(1051, false)]
+    [InlineData(1052, false)]
+    [InlineData(1061, false)]
+    [InlineData(5, null)]
+    [InlineData(1053, null)]
+    public void OnlyARealFailureToStopAServiceFailsTheChange(int error, bool? expected) =>
+        Assert.Equal(expected, ServiceStopReply.Stopped(error));
+
     // ---- the page's service: who makes the change, and the history that makes it reversible ----
 
     private sealed class Counter : IBackgroundChanger
@@ -685,6 +840,24 @@ public sealed class BackgroundChangeTests : IDisposable
     }
 
     [Fact]
+    public async Task WhateverGoesWrongWithOneItemInABatchIsThatItemsFailureAndTheRestCarryOn()
+    {
+        var pc = new FakeBackgroundPc().Svc("A", start: 2).Svc("B", start: 2);
+        BackgroundItem[] items = [Named("one", Svc("A", start: 2)), Named("two", Svc("B", start: 2))];
+        var entries = BackgroundScan.Run(pc, items).Entries;
+        var real = new LocalBackgroundChanger(pc, pc, items);
+        var user = new Counter { Run = r => r.Id == "one" ? throw new NullReferenceException("a fault in the app") : real.Change(r) };
+        var manager = new BackgroundManager(user, new Counter(), () => Task.CompletedTask, new(folder));
+
+        var batch = await manager.SetManyAsync(entries, false);
+
+        Assert.False(batch.Declined);
+        Assert.Equal([false, true], batch.Results.Select(x => x.Outcome.Ok));
+        Assert.Equal("a fault in the app", batch.Results[0].Outcome.Error);
+        Assert.Equal(4, pc.ServiceList["B"].Start);
+    }
+
+    [Fact]
     public async Task AnItemWindowsTurnedBackOnCanBeTurnedOffAgainAndStillComesBackTheSameWay()
     {
         var (pc, item, entry) = Machine();
@@ -815,6 +988,48 @@ public sealed class BackgroundHostTests
         session.Close();
 
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(session.IsOpen);
+    }
+
+    /// <summary>A helper that answers hello and then goes quiet on the first change, as a stuck helper would, until the app lets go of the pipe.</summary>
+    private static Func<string, Task> StuckHelper(TaskCompletionSource asked) => async pipe =>
+    {
+        using var client = await HelperPipe.ConnectAsync(pipe);
+        var reader = new PipeLineReader(client);
+        var writer = new StreamWriter(client) { AutoFlush = true };
+        await reader.ReadLineAsync();
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new BackgroundOutcome(true)));
+        await reader.ReadLineAsync();
+        asked.TrySetResult();
+        try { while (await reader.ReadLineAsync() is not null) { } } catch (IOException) { }
+    };
+
+    [Fact]
+    public async Task AHelperThatStopsAnsweringIsLetGoInsteadOfFreezingThePage()
+    {
+        using var session = new BackgroundSession(StuckHelper(new()), replyTimeout: TimeSpan.FromMilliseconds(500));
+        await session.OpenAsync();
+
+        var ex = Assert.Throws<IOException>(() => session.Change(new("x", false)));
+
+        Assert.Contains("did not answer", ex.Message);
+        Assert.False(session.IsOpen);
+    }
+
+    [Fact]
+    public async Task ClosingWhileAChangeIsInFlightDoesNotWaitForTheHelper()
+    {
+        var asked = new TaskCompletionSource();
+        using var session = new BackgroundSession(StuckHelper(asked));
+        await session.OpenAsync();
+        var change = Task.Run(() => session.Change(new("x", false)));
+        await asked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Well within the two minutes the change itself would wait.
+        await Task.Run(session.Close).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var ex = await Assert.ThrowsAsync<IOException>(() => change);
+        Assert.Contains("stopped", ex.Message);
         Assert.False(session.IsOpen);
     }
 }
