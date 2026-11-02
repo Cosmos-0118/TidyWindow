@@ -8,9 +8,31 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class TuneView : UserControl
 {
-    public TuneView() => InitializeComponent();
+    public TuneView()
+    {
+        InitializeComponent();
+        // Only the view can show a dialog, so it lends the page the question that goes before an Explorer restart, from the banner and from toasts alike.
+        DataContextChanged += (_, _) => { if (Model is { } model) model.ConfirmRestart = ConfirmRestartAsync; };
+    }
 
     private TuneViewModel? Model => DataContext as TuneViewModel;
+
+    private async Task<bool> ConfirmRestartAsync()
+    {
+        // Without a place to show the dialog the restart goes ahead: it was still asked for by a click.
+        if (XamlRoot is null) return true;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Restart File Explorer?",
+            Content = new TextBlock { Text = "Every File Explorer window closes, and the taskbar goes away for a moment while it restarts. A copy or move running in one of those windows is cut short, so finish those first.", TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = "Restart Explorer",
+            CloseButtonText = "Not now",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ActualTheme
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
     private async void RestoreAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestoreAllAsync(); }

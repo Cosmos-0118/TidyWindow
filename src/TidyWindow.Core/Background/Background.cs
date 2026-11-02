@@ -92,6 +92,7 @@ public static partial class BackgroundGuard
             if (!seen.Add(item.Id)) problems.Add($"{who} is listed twice.");
             if (string.IsNullOrWhiteSpace(item.Name) || string.IsNullOrWhiteSpace(item.Summary) || string.IsNullOrWhiteSpace(item.Effect)) problems.Add($"{who} needs a name, a summary and an effect.");
             if (item.Targets.Length == 0) problems.Add($"{who} switches nothing.");
+            if (item.MinBuild < 0) problems.Add($"{who} has a negative build number.");
             foreach (var target in item.Targets)
             {
                 switch (target.Kind)
@@ -102,7 +103,11 @@ public static partial class BackgroundGuard
                         if (UserServiceSuffix().IsMatch(target.Name)) problems.Add($"{who}: {target.Name} is a per-user service.");
                         if (target.Off is not ("disabled" or "manual")) problems.Add($"{who}: {target.Name} must turn off as “disabled” or “manual”.");
                         if (target.DefaultStart is not (2 or 3)) problems.Add($"{who}: {target.Name} must normally start automatically (2) or manually (3).");
-                        if (target.Image.Length > 0 && (!target.Image.StartsWith(@"%ProgramFiles%\", StringComparison.OrdinalIgnoreCase) || target.Image.Contains(".."))) problems.Add($"{who}: {target.Name} may only live in a folder under Program Files.");
+                        // "Manual" only counts as off for a service that normally starts by itself; for one that is manual already there would be nothing to switch.
+                        if (target.Off == "manual" && target.DefaultStart != 2) problems.Add($"{who}: {target.Name} turns off as “manual”, so it must normally start automatically (2).");
+                        if (target.Image.Length > 0 && (!IsProgramFilesFolder(target.Image) || target.Image.Contains(".."))) problems.Add($"{who}: {target.Name} may only live in a folder under Program Files.");
+                        foreach (var other in target.AlsoNeededBy)
+                            if (!ServiceName().IsMatch(other) || other.Contains('*')) problems.Add($"{who}: “{other}” is not a service name.");
                         break;
                     case BackgroundTargetKind.Task:
                         if (!target.Name.StartsWith('\\') || target.Name.Count(c => c == '\\') < 2 || target.Name.EndsWith('\\') || target.Name.IndexOfAny(['*', '?']) >= 0) problems.Add($"{who}: “{target.Name}” is not the full path of one task.");
@@ -112,12 +117,17 @@ public static partial class BackgroundGuard
                         if (!ValueName().IsMatch(target.Name)) problems.Add($"{who}: “{target.Name}” is not a policy value name.");
                         else if (!AllowedPolicies.ContainsKey(target.Key)) problems.Add($"{who}: policy key “{target.Key}” is not one this page may write to.");
                         else if (!IsAllowedPolicy(target.Key, target.Name)) problems.Add($"{who}: “{target.Name}” is not a value this page may write in “{target.Key}”.");
+                        if (target.Values.Length == 0 || target.Values.Any(x => x < 0) || !target.Values.Contains(target.Block)) problems.Add($"{who}: {target.Name} needs the documented values, and its blocking value must be one of them.");
                         break;
                 }
             }
         }
         return problems;
     }
+
+    /// <summary>True for a catalog folder under either Program Files folder, written with the variable so the drive does not matter.</summary>
+    private static bool IsProgramFilesFolder(string image) =>
+        image.StartsWith(@"%ProgramFiles%\", StringComparison.OrdinalIgnoreCase) || image.StartsWith(@"%ProgramFiles(x86)%\", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>True when a service's program is inside <paramref name="folder"/>.</summary>
     public static bool IsInFolder(string imagePath, string folder)
@@ -163,6 +173,8 @@ public static class BackgroundScan
 
     private static BackgroundEntry Evaluate(IBackgroundSystem system, BackgroundItem item)
     {
+        // A feature this Windows does not have is "not on this PC", even though its policy value could be written.
+        if (item.MinBuild > 0 && system.Build < item.MinBuild) return new(item, false, false, false, false, null, []);
         var sameItem = item.Targets.Where(x => x.Kind == BackgroundTargetKind.Service).Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var states = item.Targets.Select(target => target.Kind switch
         {
@@ -187,7 +199,10 @@ public static class BackgroundScan
         else if (on)
         {
             var needs = system.Dependents(target.Name).Where(x => !sameItem.Contains(x.Name) && (target.Off == "disabled" || x.Running)).ToList();
+            // Some things rely on a service without declaring it, so the catalog names them; one that is on this PC and allowed to run locks the item.
+            var quiet = target.AlsoNeededBy.Select(system.Service).FirstOrDefault(x => x is not null && x.Start != 4 && !sameItem.Contains(x.Name));
             if (needs.Count > 0) rule = $"{Name(needs[0])} relies on it, so turning it off could stop that from working.";
+            else if (quiet is not null) rule = $"{Name(quiet)} relies on it, so turning it off could stop that from working.";
         }
         return new(target, true, on, service.Running, rule, service.Running ? service.ProcessId : 0);
     }
