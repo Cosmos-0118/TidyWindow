@@ -165,14 +165,14 @@
       "group": "windows",
       "scope": "machine",
       "icon": "E721",
-      "summary": "For Windows search that finds nothing, shows old files, or uses a lot of the disk. Deletes the search database so Windows builds a fresh one.",
+      "summary": "For Windows search that finds nothing, shows old files, or uses a lot of the disk. Deletes the search database (Windows.edb, or Windows.db and its journal files on Windows 11) so Windows builds a fresh one.",
       "effect": "Search results are incomplete while Windows re-indexes, which can take from a few minutes to over an hour and is quicker when you leave the PC alone.",
       "risk": "careful",
       "duration": "A minute, then Windows indexes in the background",
-      "sources": ["Microsoft Q&A: Windows Search troubleshooting (delete Windows.edb)"],
+      "sources": ["Microsoft Q&A: Windows Search troubleshooting (delete the search database)"],
       "steps": [
         { "title": "Stop Windows Search", "file": "net.exe", "args": ["stop", "WSearch", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Delete the old search database", "kind": "deleteFiles", "path": "%ProgramData%\\Microsoft\\Search\\Data\\Applications\\Windows", "patterns": ["Windows.edb"], "warn": [1], "optional": true },
+        { "title": "Delete the old search database", "kind": "deleteFiles", "path": "%ProgramData%\\Microsoft\\Search\\Data\\Applications\\Windows", "patterns": ["Windows.edb", "Windows.db", "Windows.db-wal", "Windows.db-shm", "Windows-gather.db*", "Windows-usn.db*"], "warn": [1], "optional": true },
         { "title": "Start Windows Search", "file": "net.exe", "args": ["start", "WSearch"], "ok": [0, 2], "minutes": 3, "always": true }
       ]
     },

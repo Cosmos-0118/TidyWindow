@@ -140,7 +140,7 @@ public static partial class FixGuard
     [
         (FixScope.Machine, @"%ALLUSERSPROFILE%\Microsoft\Network\Downloader", ["qmgr*.dat"]),
         (FixScope.Machine, @"%SystemRoot%\System32\spool\PRINTERS", ["*"]),
-        (FixScope.Machine, @"%ProgramData%\Microsoft\Search\Data\Applications\Windows", ["Windows.edb"]),
+        (FixScope.Machine, @"%ProgramData%\Microsoft\Search\Data\Applications\Windows", ["Windows.edb", "Windows.db", "Windows.db-wal", "Windows.db-shm", "Windows-gather.db*", "Windows-usn.db*"]),
         (FixScope.Machine, @"%SystemRoot%\ServiceProfiles\LocalService\AppData\Local\FontCache", ["*.dat"]),
         (FixScope.Machine, @"%SystemRoot%\System32", ["FNTCACHE.DAT"]),
         (FixScope.User, @"%LOCALAPPDATA%", ["IconCache.db"]),

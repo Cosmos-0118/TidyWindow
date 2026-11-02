@@ -29,10 +29,43 @@ public sealed partial class RepairView : UserControl
 
     private void TabChecked(object sender, RoutedEventArgs e)
     {
-        if (UndoTab is null) return;
+        if (UndoTab is null || QuarantineTab is null) return;
         ProblemsTab.Visibility = ReferenceEquals(sender, ProblemsItem) ? Visibility.Visible : Visibility.Collapsed;
         ProgramsTab.Visibility = ReferenceEquals(sender, ProgramsItem) ? Visibility.Visible : Visibility.Collapsed;
         UndoTab.Visibility = ReferenceEquals(sender, UndoItem) ? Visibility.Visible : Visibility.Collapsed;
+        QuarantineTab.Visibility = ReferenceEquals(sender, QuarantineItem) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void KeepRowClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is QuarantineRow row) await model.ResolveAsync(row, keep: true); }
+
+    private async void RemoveRowClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model || (sender as FrameworkElement)?.DataContext is not QuarantineRow row) return;
+        if (await Confirm($"Remove {row.Name} for good?", $"{row.Original} will be deleted and cannot be put back afterwards.")) await model.ResolveAsync(row, keep: false);
+    }
+
+    private async void KeepSelectedClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ResolveSelectedAsync(keep: true); }
+
+    private async void RemoveSelectedClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model || model.SelectedCount == 0) return;
+        if (await Confirm($"Remove {model.SelectionText.Replace(" selected", "")} for good?", "They will be deleted and cannot be put back afterwards.")) await model.ResolveSelectedAsync(keep: false);
+    }
+
+    private void ClearSelectionClick(object sender, RoutedEventArgs e) { if (Model is { } model) model.AllShownSelected = false; }
+    private void ClearUndoSearchClick(object sender, RoutedEventArgs e) => Model?.UndoState.Clear();
+    private void ClearQuarantineSearchClick(object sender, RoutedEventArgs e) => Model?.QuarantineState.Clear();
+    // A tap anywhere on a row opens or closes it; the buttons and the tick box inside keep doing their own job.
+    private static bool OnControl(Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) => e.OriginalSource is DependencyObject source && (FindParent<Microsoft.UI.Xaml.Controls.Primitives.ButtonBase>(source) is not null || FindParent<CheckBox>(source) is not null);
+
+    private void UndoRowTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) { if (!OnControl(e) && (sender as FrameworkElement)?.DataContext is HistoryRow row) row.IsOpen = !row.IsOpen; }
+    private void QuarantineRowTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) { if (!OnControl(e) && (sender as FrameworkElement)?.DataContext is QuarantineRow row) row.IsOpen = !row.IsOpen; }
+    private void OptionsTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) { if (!OnControl(e) && Model is { } model) model.OptionsOpen = !model.OptionsOpen; }
+
+    private async Task<bool> Confirm(string title, string text)
+    {
+        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = text, PrimaryButtonText = "Remove for good", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, RequestedTheme = ActualTheme };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     // The whole row is the target, not only the small box.

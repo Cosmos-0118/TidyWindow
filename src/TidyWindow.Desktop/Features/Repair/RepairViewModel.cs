@@ -38,7 +38,7 @@ public sealed class ResultRow(RepairResult result)
 /// <summary>One step of a repair, marked when it did not work out so the list reads at a glance.</summary>
 public sealed class StepRow(string text)
 {
-    private static readonly string[] Setbacks = ["could not", "not allowed", "none matches", "does not list", "is not this", "still missing", "still names", "still does not", "nothing there", "none is there", "no setup program"];
+    private static readonly string[] Setbacks = ["could not", "not allowed", "none matches", "does not list", "is not this", "still missing", "still names", "still does not", "nothing there", "none is there", "no setup program", "Windows Installer said:"];
     public string Text => text;
     private bool Problem => Setbacks.Any(x => text.Contains(x, StringComparison.OrdinalIgnoreCase));
     public Visibility OkVisibility => Problem ? Visibility.Collapsed : Visibility.Visible;
@@ -76,7 +76,9 @@ public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys,
     public bool Hidden => Entry.SystemComponent;
     /// <summary>The Windows Installer product this row can be repaired as, when it still has its saved installer copy.</summary>
     public MsiProduct? RepairProduct { get; } = repairable;
-    public Visibility RepairVisibility => RepairProduct is null ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>Programs installed by Visual Studio refuse to run on their own ("use the Visual Studio Installer and select Modify"), so there is nothing to offer for them here.</summary>
+    public bool ManagedByVisualStudio => Entry.Name.Contains(" from Visual Studio", StringComparison.OrdinalIgnoreCase);
+    public Visibility RepairVisibility => RepairProduct is null || ManagedByVisualStudio ? Visibility.Collapsed : Visibility.Visible;
     public string Sub => string.Join(" · ", new[] { Entry.Publisher, Entry.Version, Hidden ? "Hidden sub-package" : "" }.Where(x => x.Length > 0));
     public string Where => Entry.Key.StartsWith("HKCU", StringComparison.OrdinalIgnoreCase) ? "Just for you" : "All users";
     public Visibility AdminVisibility => Keys.Any(InstallRepair.IsMachine) ? Visibility.Visible : Visibility.Collapsed;
@@ -84,43 +86,15 @@ public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys,
     public string RepairAutomationName => $"Repair {Name}, {Where}";
 }
 
-/// <summary>One finished repair, kept so it can be undone later.</summary>
-public sealed class HistoryRow(RepairBatch batch)
-{
-    public RepairBatch Batch { get; } = batch;
-    public string Title => Batch.Title;
-    public string When => Batch.Created.ToLocalTime().ToString("d MMM yyyy, h:mm tt");
-    public string Keys
-    {
-        get
-        {
-            var names = Batch.Keys.Select(x => x.Path[(x.Path.LastIndexOf('\\') + 1)..]).ToList();
-            return names.Count <= 2 ? string.Join(", ", names) : $"{names[0]}, {names[1]} and {names.Count - 2} more";
-        }
-    }
-    public string Count => Describe(Batch.Keys.Count, Batch.PutBack.Count);
-
-    /// <summary>"3 registry keys", "1 setup program" or both: what a repair changed, or what an undo put back.</summary>
-    public static string Describe(int keys, int files)
-    {
-        var parts = new List<string>();
-        if (keys > 0) parts.Add(keys == 1 ? "1 registry key" : $"{keys} registry keys");
-        if (files > 0) parts.Add(files == 1 ? "1 setup program" : $"{files} setup programs");
-        return parts.Count == 0 ? "nothing" : string.Join(" and ", parts);
-    }
-    public Visibility AdminVisibility => Batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)) ? Visibility.Visible : Visibility.Collapsed;
-    public string AutomationName => $"Undo {Title}, {When}";
-}
-
 public sealed class RepairViewModel(IInstallSystem system, RepairService service, RepairHistory history, ActivityLog log, ToastCenter toasts, IconService? iconService = null, Func<Task<string?>>? chooseFolder = null) : ObservableState, IDisposable
 {
     private readonly IconService icons = iconService ?? IconService.Shared;
-    private static readonly string[] GroupOrder = ["Programs Windows still lists but cannot remove", "Windows Installer records", "Installs that got stuck", "Waiting on Windows"];
+    private static readonly string[] GroupOrder = ["Programs Windows still lists but cannot remove", "Windows Installer records", "Installs that got stuck", "Shortcuts and Start menu leftovers", "Leftover installer files", "Waiting on Windows"];
     private readonly CancellationTokenSource lifetime = new();
     private IReadOnlyList<ProgramRow> allPrograms = [], everyProgram = [];
     private bool showHidden;
     private IReadOnlyList<MsiProduct> scanProducts = [];
-    private bool restartNeeded, allowDownload = true;
+    private bool restartNeeded, allowDownload = true, removeProgramFolders, optionsOpen;
     private readonly List<string> installerFolders = [];
     private bool scanning, fixing, scanned, listening;
     private int selectedCount;
@@ -128,10 +102,41 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
 
     public ObservableCollection<RepairGroup> Groups { get; } = [];
     public BulkObservableCollection<ProgramRow> Programs { get; } = new();
-    public BulkObservableCollection<HistoryRow> History { get; } = new();
+    // The Undo and Quarantine lists: each has its own search, filters and sort, and is rebuilt from what is saved on disk.
+    private readonly ArchiveState undoState = new("repairs", ["Newest first", "Oldest first", "Most changes", "Name"]);
+    private readonly ArchiveState quarantineState = new("items", ["Newest first", "Oldest first", "Largest", "Name"]);
+    private IReadOnlyList<HistoryRow> allHistory = [];
+    private IReadOnlyList<QuarantineRow> allQuarantine = [];
+    private List<QuarantineRow> shownQuarantine = [];
+    private readonly SemaphoreSlim measuring = new(4);
+    private bool wired, bulkSelecting;
+    private int refreshes;
+
+    public ArchiveState UndoState { get { Wire(); return undoState; } }
+    public ArchiveState QuarantineState { get { Wire(); return quarantineState; } }
+    public BulkObservableCollection<object> UndoList { get; } = new();
+    public BulkObservableCollection<object> QuarantineList { get; } = new();
+
+    private void Wire()
+    {
+        if (wired) return;
+        wired = true;
+        undoState.Refiltered += ApplyUndo;
+        quarantineState.Refiltered += ApplyQuarantine;
+    }
     public BulkObservableCollection<ResultRow> Results { get; } = new();
     /// <summary>Whether a program's original installer may be fetched from WinGet when its own copy is gone.</summary>
-    public bool AllowDownload { get => allowDownload; set => Set(ref allowDownload, value); }
+    public bool AllowDownload { get => allowDownload; set { if (Set(ref allowDownload, value)) Changed(nameof(OptionsSummary)); } }
+    /// <summary>When a program's record is removed, also set aside the program's own folder under Program Files. Off by default: the folder may hold the person's own files. It goes to the Quarantine tab, not the bin.</summary>
+    public bool RemoveProgramFolders { get => removeProgramFolders; set { if (Set(ref removeProgramFolders, value)) Changed(nameof(OptionsSummary)); } }
+
+    /// <summary>Whether the options card is open. Folded away it leaves one line saying how the two switches are set.</summary>
+    public bool OptionsOpen { get => optionsOpen; set { if (Set(ref optionsOpen, value)) { Changed(nameof(OptionsVisibility)); Changed(nameof(OptionsSummaryVisibility)); Changed(nameof(OptionsChevron)); Changed(nameof(OptionsToggleName)); } } }
+    public Visibility OptionsVisibility => optionsOpen ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility OptionsSummaryVisibility => optionsOpen ? Visibility.Collapsed : Visibility.Visible;
+    public string OptionsChevron => optionsOpen ? DetailLine.Up : DetailLine.Down;
+    public string OptionsToggleName => optionsOpen ? "Hide repair options" : "Show repair options";
+    public string OptionsSummary => $"Download installers {(allowDownload ? "on" : "off")}  ·  Move program folders to Quarantine {(removeProgramFolders ? "on" : "off")}";
     /// <summary>Also list the packages other programs install for themselves, which Windows hides: one of them can block an install with "another version is already installed".</summary>
     public bool ShowHidden { get => showHidden; set { if (Set(ref showHidden, value)) Relist(); } }
     public Visibility ClearFoldersVisibility => installerFolders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -163,8 +168,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public bool CanFix => !Busy && selectedCount > 0;
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
     public string FixLabel => fixing ? "Fixing…" : selectedCount > 0 ? $"Fix {selectedCount} {(selectedCount == 1 ? "issue" : "issues")}" : "Fix";
-    public string UndoTabTitle => History.Count > 0 ? $"Undo ({History.Count})" : "Undo";
-    public Visibility NoHistoryVisibility => History.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string QuarantineTabTitle => allQuarantine.Count > 0 ? $"Quarantine ({allQuarantine.Count:N0})" : "Quarantine";
+    public string UndoTabTitle => allHistory.Count > 0 ? $"Undo ({allHistory.Count:N0})" : "Undo";
 
     public bool ScanOverlay => scanning && Groups.Count == 0 && allPrograms.Count == 0;
 
@@ -246,7 +251,9 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
                 RepairKind.BrokenEntry => 0,
                 RepairKind.InstallerRecord or RepairKind.BundleRecord or RepairKind.DanglingLinks or RepairKind.MissingPatch => 1,
                 RepairKind.InstallLock or RepairKind.RunningInstaller or RepairKind.InstallerService => 2,
-                _ => 3
+                RepairKind.BrokenShortcut or RepairKind.EmptyFolder => 3,
+                RepairKind.InstallerFiles => 4,
+                _ => 5
             }];
             var group = Groups.FirstOrDefault(x => x.Name == title);
             if (group is null)
@@ -324,13 +331,13 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         {
             // A program Windows Installer knows is removed with its whole record, found in every place, and in every context it is registered in.
             foreach (var product in products)
-                findings.Add(new(findings.Count == 0 ? id : $"{id}:{product.Context}", RepairKind.InstallerRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("product", product.Code, product.Context, product.Sid, [row.Entry.Key]), Product: product));
+                findings.Add(new(findings.Count == 0 ? id : $"{id}:{product.Context}", RepairKind.InstallerRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("product", product.Code, product.Context, product.Sid, [row.Entry.Key]), Product: product, Entry: row.Entry));
         }
         else if (row.Entry.BundleProvider.Length > 0)
             // A Burn bundle (Python, Visual C++ and many more) keeps dependency records that name it, and they go with its entry.
-            findings.Add(new(id, RepairKind.BundleRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("bundle", Keys: [row.Entry.Key])));
+            findings.Add(new(id, RepairKind.BundleRecord, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Footprint: new("bundle", Keys: [row.Entry.Key]), Entry: row.Entry));
         else
-            findings.Add(new(id, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys));
+            findings.Add(new(id, RepairKind.BrokenEntry, row.Name, "", row.Entry.Key, RepairLevel.Review, row.Keys, Entry: row.Entry));
         await RunAsync(findings, $"Removed {row.Name} from the list", rescan: true);
     }
 
@@ -342,7 +349,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         fixing = true; Notify();
         try
         {
-            var result = await service.RepairProgramAsync(product, row.Name, lifetime.Token, new Progress<RepairProgress>(OnProgress));
+            var result = await service.RepairProgramAsync(product, row.Name, lifetime.Token, new Progress<RepairProgress>(OnProgress), new RepairOptions(allowDownload, installerFolders.ToList(), RemoveProgramFolders: removeProgramFolders));
             ShowResults([result], result.Status == RepairStatus.FixedAfterRestart);
             if (result.Status == RepairStatus.NotFixed) toasts.Show("repair", ToastKind.Warning, $"{row.Name} could not be repaired", ToastCenter.Brief(result.Summary));
             else toasts.Show("repair", ToastKind.Success, $"Repaired {row.Name}", result.Status == RepairStatus.FixedAfterRestart ? "Restart Windows to finish." : "See Last repair on the Problems tab for what was done.");
@@ -409,6 +416,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
                 ShowResults([], false);
                 var said = new List<string>();
                 if (outcome.Restored > 0) said.Add($"{HistoryRow.Describe(outcome.Restored, 0)} put back");
+                if (outcome.FoldersRestored > 0) said.Add($"{HistoryRow.Describe(0, 0, 0, 0, outcome.FoldersRestored)} moved back");
+                if (outcome.ShortcutsRestored > 0) said.Add($"{HistoryRow.Describe(0, 0, outcome.ShortcutsRestored)} put back");
                 if (outcome.FilesRemoved > 0) said.Add($"{HistoryRow.Describe(0, outcome.FilesRemoved)} removed again");
                 toasts.Show("repair", ToastKind.Success, "Undone", $"{batch.Title}. {string.Join(" and ", said)}.");
                 log.Write(ActivityLevel.Info, ActivityArea.App, "Repair undone", batch.Title);
@@ -433,12 +442,136 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
 
     public Task UndoAsync(HistoryRow row) => UndoAsync(row.Batch);
 
-    /// <summary>Reads the saved repairs again, newest first.</summary>
-    public void RefreshHistory()
+    /// <summary>Reads the saved repairs again and builds both lists. This happens off the screen thread: a long history is thousands of files.</summary>
+    public void RefreshHistory() => _ = RefreshHistoryAsync();
+
+    private static string KeyOf(QuarantineItem item) => $"{item.BatchId}|{item.Kind}|{item.Original}";
+
+    private async Task RefreshHistoryAsync()
     {
-        History.Reset(history.All().Select(x => new HistoryRow(x)).ToList());
-        Changed(nameof(UndoTabTitle)); Changed(nameof(NoHistoryVisibility));
+        if (lifetime.IsCancellationRequested) return;
+        var mine = ++refreshes;
+        try
+        {
+            var (repairs, items) = await Task.Run(() =>
+            {
+                history.Expire();
+                return (history.All().Select(x => new HistoryRow(x)).ToList(), service.Quarantine());
+            }, lifetime.Token);
+            if (mine != refreshes) return;
+            allHistory = repairs;
+            // A row that is already on screen keeps its selection and its measured size.
+            var before = new Dictionary<string, QuarantineRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in allQuarantine) before.TryAdd(KeyOf(row.Item), row);
+            allQuarantine = items.Select(x => before.TryGetValue(KeyOf(x), out var kept) ? kept : new QuarantineRow(x, SelectionChanged)).ToList();
+            ApplyUndo();
+            ApplyQuarantine();
+            _ = MeasureAsync(allQuarantine.Where(x => x.Bytes < 0).ToList());
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "The saved repairs could not be read", ex.Message);
+        }
     }
+
+    private void ApplyUndo()
+    {
+        var shown = allHistory.Where(x => undoState.Matches(x.Entry)).ToList();
+        UndoList.Sync(ArchiveList.Build(shown, undoState.Sort, DateTimeOffset.Now, x => x.Batch.Created, x => x.Weight, x => x.Title, _ => ""), RowKey);
+        undoState.Report(allHistory.Count, shown.Count, "");
+        Changed(nameof(UndoTabTitle));
+    }
+
+    private void ApplyQuarantine()
+    {
+        var shown = allQuarantine.Where(x => quarantineState.Matches(x.Entry)).ToList();
+        // Something that is selected but filtered out is no longer in front of the person, so it is not part of what they act on.
+        foreach (var hidden in allQuarantine.Where(x => x.IsSelected && !shown.Contains(x)).ToList()) hidden.IsSelected = false;
+        shownQuarantine = shown;
+        QuarantineList.Sync(ArchiveList.Build(shown, quarantineState.Sort, DateTimeOffset.Now, x => x.Item.Created, x => Math.Max(x.Bytes, 0), x => x.Name,
+            group => group.Sum(x => Math.Max(x.Bytes, 0)) is var total and > 0 ? QuarantineRow.Format(total) : ""), RowKey);
+        var size = shown.Sum(x => Math.Max(x.Bytes, 0));
+        quarantineState.Report(allQuarantine.Count, shown.Count, size > 0 ? QuarantineRow.Format(size) + " on disk" : "");
+        Changed(nameof(QuarantineTabTitle)); SelectionChanged();
+    }
+
+    private static object RowKey(object row) => row is ArchiveHeader header ? "header:" + header.Label : row;
+
+    private async Task MeasureAsync(IReadOnlyList<QuarantineRow> rows)
+    {
+        if (rows.Count == 0) return;
+        try
+        {
+            await Task.WhenAll(rows.Select(async row =>
+            {
+                await measuring.WaitAsync(lifetime.Token);
+                try
+                {
+                    var size = row.Item.Folder is { } folder ? await Task.Run(() => FolderSize.Of(folder.Stored), lifetime.Token) : row.Item.Link?.Data is { } data ? data.Length / 4 * 3 : 0;
+                    row.SetBytes(Math.Max(size, 0));
+                }
+                finally { measuring.Release(); }
+            }));
+            ApplyQuarantine();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    // ---- Choosing things in the quarantine ----
+
+    public int SelectedCount => shownQuarantine.Count(x => x.IsSelected);
+    public Visibility SelectionVisibility => SelectedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string SelectionText => SelectedCount == 1 ? "1 selected" : $"{SelectedCount:N0} selected";
+    public Visibility SelectAllShownVisibility => shownQuarantine.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Ticks or clears every item that is shown, however many a search has narrowed the list to.</summary>
+    public bool AllShownSelected
+    {
+        get => shownQuarantine.Count > 0 && shownQuarantine.All(x => x.IsSelected);
+        set
+        {
+            bulkSelecting = true;
+            try { foreach (var row in shownQuarantine) row.IsSelected = value; }
+            finally { bulkSelecting = false; }
+            SelectionChanged();
+        }
+    }
+
+    private void SelectionChanged()
+    {
+        if (bulkSelecting) return;
+        Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(SelectionText)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility));
+    }
+
+    public Task ResolveSelectedAsync(bool keep) => ResolveAsync(shownQuarantine.Where(x => x.IsSelected).ToList(), keep);
+
+    /// <summary>Keeps (puts back where it was) or removes for good the chosen things from the quarantine.</summary>
+    public async Task ResolveAsync(IReadOnlyList<QuarantineRow> rows, bool keep)
+    {
+        if (Busy || rows.Count == 0) return;
+        ResetProgress();
+        fixing = true; Notify();
+        var verb = keep ? "put back" : "removed";
+        try
+        {
+            var outcome = await service.ResolveAsync(rows.Select(x => x.Item).ToList(), keep, lifetime.Token, new Progress<RepairProgress>(OnProgress));
+            if (outcome.Problems.Count == 0)
+                toasts.Show("repair", ToastKind.Success, keep ? "Put back" : "Removed for good", rows.Count == 1 ? $"{rows[0].Name} was {verb}." : $"{outcome.Done} items were {verb}.");
+            else
+                toasts.Show("repair", ToastKind.Warning, $"{outcome.Done} of {rows.Count} {verb}", ToastCenter.Brief(string.Join(" ", outcome.Problems)));
+            log.Write(outcome.Problems.Count == 0 ? ActivityLevel.Info : ActivityLevel.Warning, ActivityArea.App, keep ? "Quarantine: put back" : "Quarantine: removed", $"{outcome.Done} of {rows.Count} {verb}. " + string.Join(" ", outcome.Problems));
+        }
+        catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            toasts.Show("repair", ToastKind.Warning, "That could not finish", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Quarantine could not finish", ex.Message);
+        }
+        finally { fixing = false; RefreshHistory(); Notify(); }
+    }
+
+    public Task ResolveAsync(QuarantineRow row, bool keep) => ResolveAsync([row], keep);
 
     public void Dispose() { IconService.DarkChanged -= ReloadIcons; lifetime.Cancel(); lifetime.Dispose(); }
 }

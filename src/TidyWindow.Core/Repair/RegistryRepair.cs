@@ -464,27 +464,38 @@ public sealed class RegistryRoots(Func<string, RegistryKey?> open)
 }
 
 /// <summary>Everything one repair changed, kept so the whole repair can be undone in one go: the registry keys it removed or changed, and the files it put back (a setup program in the package cache).</summary>
-public sealed record RepairBatch(string Id, DateTimeOffset Created, string Title, IReadOnlyList<KeyBackup> Keys, IReadOnlyList<string>? Files = null)
+public sealed record RepairBatch(string Id, DateTimeOffset Created, string Title, IReadOnlyList<KeyBackup> Keys, IReadOnlyList<string>? Files = null, IReadOnlyList<ShortcutBackup>? Links = null, IReadOnlyList<FolderBackup>? Moved = null)
 {
     public IReadOnlyList<string> PutBack => Files ?? [];
+    /// <summary>The folders the repair set aside (installer caches, a program's own folder), in the order they were set aside.</summary>
+    public IReadOnlyList<FolderBackup> SetAside => Moved ?? [];
+    /// <summary>The shortcut files and empty folders the repair removed, in the order they were removed.</summary>
+    public IReadOnlyList<ShortcutBackup> Shortcuts => Links ?? [];
 }
 
-/// <summary>Remembers the last few repairs on disk, as plain JSON files.</summary>
-public sealed class RepairHistory(string folder, int keep = 10)
+/// <summary>
+/// Remembers repairs on disk, as plain JSON files: the latest <c>keep</c> of them, and any that still hold folders in the quarantine for 30 days.
+/// What is read is kept in memory until its file changes, so a list of thousands is read from disk once.
+/// </summary>
+public sealed class RepairHistory(string folder, int keep = 1000)
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private readonly Dictionary<string, (long Stamp, long Length, RepairBatch Batch)> cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object gate = new();
 
-    public RepairBatch Save(string title, IReadOnlyList<KeyBackup> keys, DateTimeOffset? now = null, IReadOnlyList<string>? files = null)
+    public RepairBatch Save(string title, IReadOnlyList<KeyBackup> keys, DateTimeOffset? now = null, IReadOnlyList<string>? files = null, IReadOnlyList<ShortcutBackup>? shortcuts = null, IReadOnlyList<FolderBackup>? folders = null)
     {
         Directory.CreateDirectory(folder);
         var created = now ?? DateTimeOffset.Now;
-        var batch = new RepairBatch(created.ToString("yyyyMMdd-HHmmss-fff"), created, title, keys, files is { Count: > 0 } ? files : null);
+        var batch = new RepairBatch(created.ToString("yyyyMMdd-HHmmss-fff"), created, title, keys, files is { Count: > 0 } ? files : null, shortcuts is { Count: > 0 } ? shortcuts : null, folders is { Count: > 0 } ? folders : null);
         // Written to the side first, so a crash or a full disk never leaves a copy that cannot be read.
         var file = FileFor(batch.Id);
         var temporary = file + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(batch, Json));
         File.Move(temporary, file, overwrite: true);
-        foreach (var old in All().Skip(keep)) Remove(old.Id);
+        // The oldest repairs beyond the limit go; one that still holds folders leaves by the clock instead (see Expire), so the quarantine is never cut short by newer repairs.
+        foreach (var old in All().Skip(keep).Where(x => x.SetAside.Count == 0)) Remove(old.Id);
+        Expire(created);
         return batch;
     }
 
@@ -492,18 +503,97 @@ public sealed class RepairHistory(string folder, int keep = 10)
     {
         if (!Directory.Exists(folder)) return [];
         var batches = new List<RepairBatch>();
-        foreach (var file in Directory.EnumerateFiles(folder, "*.json"))
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        lock (gate)
         {
-            try { if (JsonSerializer.Deserialize<RepairBatch>(File.ReadAllText(file), Json) is { } batch) batches.Add(batch); }
-            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
+            foreach (var file in Directory.EnumerateFiles(folder, "*.json"))
+            {
+                try
+                {
+                    var info = new FileInfo(file);
+                    seen.Add(file);
+                    if (cache.TryGetValue(file, out var known) && known.Stamp == info.LastWriteTimeUtc.Ticks && known.Length == info.Length) { batches.Add(known.Batch); continue; }
+                    if (JsonSerializer.Deserialize<RepairBatch>(File.ReadAllText(file), Json) is not { } batch) continue;
+                    cache[file] = (info.LastWriteTimeUtc.Ticks, info.Length, batch);
+                    batches.Add(batch);
+                }
+                catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
+            }
+            foreach (var gone in cache.Keys.Where(x => !seen.Contains(x)).ToList()) cache.Remove(gone);
         }
         return batches.OrderByDescending(x => x.Created).ToList();
     }
 
+    /// <summary>
+    /// Deletes the folders a repair set aside once it is 30 days old, and says how many went. The repair itself stays in the Undo list for what else it changed.
+    /// A folder that cannot be deleted from here (it keeps the permissions it had in Program Files) is left, and tried again next time.
+    /// </summary>
+    public int Expire(DateTimeOffset? now = null)
+    {
+        var at = now ?? DateTimeOffset.Now;
+        var expired = 0;
+        foreach (var batch in All().Where(x => x.SetAside.Count > 0 && at - x.Created > QuarantineRetention))
+        {
+            var gone = batch.SetAside.Where(DeleteStored).ToList();
+            if (gone.Count == 0) continue;
+            Update(batch.Id, current => current with { Moved = current.SetAside.Where(x => !gone.Contains(x)).ToList() });
+            expired += gone.Count;
+        }
+        return expired;
+    }
+
+    // True once the kept copy is gone (or was never there).
+    private static bool DeleteStored(FolderBackup kept)
+    {
+        try
+        {
+            if (!kept.Stored.Contains(@"\SetAside\", StringComparison.OrdinalIgnoreCase) || Path.GetDirectoryName(kept.Stored) is not { } holder) return false;
+            if (Directory.Exists(kept.Stored)) Directory.Delete(holder, true);
+            else if (Directory.Exists(holder) && !Directory.EnumerateFileSystemEntries(holder).Any()) Directory.Delete(holder);
+            return !Directory.Exists(kept.Stored);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>When a quarantined item is deleted automatically.</summary>
+    public static DateTimeOffset ExpiresAt(DateTimeOffset created) => created + QuarantineRetention;
+
     public RepairBatch? Latest() => All().FirstOrDefault();
+
+    public static readonly TimeSpan QuarantineRetention = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// Rewrites one saved repair, as when the person kept or removed one of the things it set aside. A repair with nothing left to undo is removed.
+    /// </summary>
+    public void Update(string id, Func<RepairBatch, RepairBatch> change)
+    {
+        var batch = All().FirstOrDefault(x => x.Id == id);
+        if (batch is null) return;
+        var next = change(batch);
+        if (next.Keys.Count == 0 && next.PutBack.Count == 0 && next.Shortcuts.Count(x => x.Data is not null) == 0 && next.SetAside.Count == 0) { Remove(id); return; }
+        var file = FileFor(id);
+        var temporary = file + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(next, Json));
+        File.Move(temporary, file, overwrite: true);
+    }
+
+    /// <summary>Where the folders a repair sets aside are kept until the repair leaves the Undo tab.</summary>
+    public string SetAsideFolder => Path.Combine(folder, "SetAside");
 
     public void Remove(string id)
     {
+        // A repair that leaves the Undo tab (an undone one, or the oldest of ten) takes with it the folders it kept; one an undo put back is no longer there to delete.
+        try
+        {
+            if (File.Exists(FileFor(id)) && JsonSerializer.Deserialize<RepairBatch>(File.ReadAllText(FileFor(id)), Json) is { } batch)
+                foreach (var kept in batch.SetAside)
+                    if (kept.Stored.Contains(@"\SetAside\", StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(kept.Stored) is { } holder && Directory.Exists(holder))
+                    {
+                        if (Directory.Exists(kept.Stored)) Directory.Delete(holder, true);
+                        else if (!Directory.EnumerateFileSystemEntries(holder).Any()) Directory.Delete(holder);
+                    }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         try { File.Delete(FileFor(id)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }

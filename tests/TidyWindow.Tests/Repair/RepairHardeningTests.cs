@@ -326,6 +326,250 @@ public sealed class RepairHardeningTests : IDisposable
         Assert.Contains("source files are not all there", result.Summary);
     }
 
+    private static string LogWith(string line)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(path, $"MSI (s) (DC:28) [22:55:14:432]: Product: App -- {line}\r\nAction ended 22:55:14: INSTALL. Return value 3.\r\n", System.Text.Encoding.Unicode);
+        return path;
+    }
+
+    private const string Missing = "Error 1706. An installation package for the product App cannot be found. Try the installation again using a valid copy of the installation package 'App.msi'.";
+    private const string Saved = @"C:\Windows\Installer\a.msi", Original = @"C:\Downloads\App.msi";
+
+    [Fact]
+    public async Task ARepairThatNeedsTheOriginalInstallerLooksForItAndRepairsWithIt()
+    {
+        var log = LogWith(Missing);
+        try
+        {
+            var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "App", Saved);
+            var pc = new FakePc { Files = { Saved }, Msi = [product] };
+            var ops = new FakeOps { Output = "Log: " + log, Candidates = [Original] };
+            ops.Exits.Enqueue(1603);
+            ops.Packages[Original] = new(Code, "", "1", "App");
+
+            var result = await Service(pc, ops).RepairProgramAsync(product, "App");
+
+            Assert.Equal(RepairStatus.Fixed, result.Status);
+            Assert.Equal([Saved, Original], ops.Reinstalled);
+            Assert.Contains(result.Steps, x => x.Contains("Error 1706"));
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public async Task ARepairThatNeedsTheOriginalInstallerSaysSoInPlainWordsWhenItCannotBeFound()
+    {
+        var log = LogWith(Missing);
+        try
+        {
+            var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "App", Saved);
+            var pc = new FakePc { Files = { Saved }, Msi = [product] };
+            var ops = new FakeOps { Output = "Log: " + log, ExitCode = 1603 };
+
+            var result = await Service(pc, ops).RepairProgramAsync(product, "App");
+
+            Assert.Equal(RepairStatus.NotFixed, result.Status);
+            Assert.Contains("Error 1706", result.Summary);
+            Assert.Contains("original installer", result.Summary);
+            Assert.Single(ops.Reinstalled);
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public async Task ASourceManagementFailureWithoutAModalErrorLineStillTriggersOriginalInstallerRecovery()
+    {
+        var log = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(log,
+            "MSI (s) (DC:68) [23:04:35:486]: Note: 1: 1706 2:  3: iisexpress_amd64_en-us.msi \r\n" +
+            "MSI (s) (DC:68) [23:04:35:486]: SOURCEMGMT: Failed to resolve source\r\n" +
+            "MSI (s) (DC:68) [23:04:35:486]: Repair: Could not resolve source\r\n",
+            System.Text.Encoding.Unicode);
+        try
+        {
+            var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "IIS 10.0 Express", Saved);
+            var pc = new FakePc { Files = { Saved }, Msi = [product] };
+            var ops = new FakeOps { Output = "Log: " + log, Candidates = [Original] };
+            ops.Exits.Enqueue(1603);
+            ops.Packages[Original] = new(Code, "", "10.0", "IIS 10.0 Express");
+
+            var result = await Service(pc, ops).RepairProgramAsync(product, "IIS 10.0 Express");
+
+            Assert.Equal(RepairStatus.Fixed, result.Status);
+            Assert.Equal([Saved, Original], ops.Reinstalled);
+            Assert.Contains(result.Steps, x => x.Contains("iisexpress_amd64_en-us.msi"));
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public async Task WhenRecoveryFindsTheOriginalInstallerAndThatRunAlsoFailsTheSecondReasonIsReported()
+    {
+        var firstLog = LogWith(Missing);
+        var secondLog = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(secondLog,
+            "MSI (s) (DC:84) [23:04:10:851]: Note: 1: 1316 2: C:\\Temp\\download1\\EpicInstaller-20.3.3.msi \r\n" +
+            "MSI (s) (DC:84) [23:04:10:851]: SECUREREPAIR: SecureRepair Failed. Error code: 524BDD0F468\r\n",
+            System.Text.Encoding.Unicode);
+        try
+        {
+            var product = new MsiProduct(Code, "User", RepairSandbox.Sid, "Epic Games Launcher", Saved);
+            var pc = new FakePc { Files = { Saved }, Msi = [product] };
+            var ops = new FakeOps { Candidates = [Original] };
+            ops.Exits.Enqueue(1603);
+            ops.Exits.Enqueue(1603);
+            ops.Outputs.Enqueue("Log: " + firstLog);
+            ops.Outputs.Enqueue("Log: " + secondLog);
+            ops.Packages[Original] = new(Code, "", "1.3.210.0", "Epic Games Launcher");
+
+            var result = await Service(pc, ops).RepairProgramAsync(product, "Epic Games Launcher");
+
+            Assert.Equal(RepairStatus.NotFixed, result.Status);
+            Assert.Equal([Saved, Original], ops.Reinstalled);
+            Assert.Contains("Error 1316", result.Summary);
+            Assert.Contains("EpicInstaller-20.3.3.msi", result.Summary);
+            Assert.DoesNotContain("Locate installer folder", result.Summary);
+        }
+        finally
+        {
+            File.Delete(firstLog);
+            File.Delete(secondLog);
+        }
+    }
+
+    [Fact]
+    public void LockedRollbackFolderInLogIsDetectedAndExplained()
+    {
+        var log = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(log,
+            "MSI (s) (DC:68) [23:04:36:161]: Note: 1: 2265 2:  3: -2147287035 \r\n" +
+            "MSI (s) (DC:68) [23:04:36:163]: Backup folder is created by user\r\n" +
+            "MSI (s) (DC:70) [23:04:37:665]: Error in rollback skipped.\tReturn: 5\r\n",
+            System.Text.Encoding.Unicode);
+        try
+        {
+            Assert.True(WindowsInstallerOps.FailedOnRollbackFolder(log));
+            var reason = RepairService.WhyItFailed("Log: " + log);
+            Assert.NotNull(reason);
+            Assert.Contains("Config.Msi", reason);
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Theory]
+    [InlineData(3010, 3010, true)]
+    [InlineData(0, 0, true)]
+    [InlineData(0, 0, false)]
+    [InlineData(1603, 1603, true)]
+    public void ServerFinishedCleanlyOnlyWhenTheServerSucceededWithoutARollback(int server, int expected, bool reconfigured)
+    {
+        var log = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(log,
+            "MSI (s) (04:70) [23:52:21:923]: Executing op: RollbackInfo(,RollbackAction=Rollback,RollbackDescription=Rolling back action:)\r\n" +
+            (reconfigured ? "MSI (s) (04:70) [23:52:27:334]: Windows Installer reconfigured the product. Product Name: Epic Games Launcher. Reconfiguration success or error status: 0.\r\n" : "") +
+            $"MSI (s) (04:70) [23:52:29:379]: MainEngineThread is returning {server}\r\n" +
+            "MSI (c) (04:E0) [23:52:34:835]: MainEngineThread is returning 1603\r\n",
+            System.Text.Encoding.Unicode);
+        try
+        {
+            var found = WindowsInstallerOps.ServerFinishedCleanly(log);
+            if (reconfigured && server is 0 or 3010) Assert.Equal(expected, found);
+            else Assert.Null(found);
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public void ALaunchConditionThatRefusesTheRunIsReportedInThePackagesOwnWords()
+    {
+        var log = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(log,
+            "MSI (s) (FC:28) [00:10:52:613]: Doing action: LaunchConditions\r\n" +
+            "Action start 0:10:52: LaunchConditions.\r\n" +
+            "MSI (s) (FC:28) [00:10:52:614]: Product: Microsoft .NET SDK 10.0.403 (x64) from Visual Studio -- Microsoft .NET SDK 10.0.403 (x64) was installed with Visual Studio. If you wish to uninstall it, use the Visual Studio Installer and select 'Modify'\r\n\r\n" +
+            "Action ended 0:10:52: LaunchConditions. Return value 3.\r\n" +
+            "MSI (c) (2C:3C) [00:10:52:625]: MainEngineThread is returning 1603\r\n",
+            System.Text.Encoding.Unicode);
+        try
+        {
+            var reason = RepairService.WhyItFailed("Log: " + log);
+            Assert.NotNull(reason);
+            Assert.Contains("Visual Studio Installer", reason);
+            Assert.StartsWith("the program's own installer refused to run", reason);
+        }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public void ServerFinishedCleanlyIsRefusedWhenTheRollbackFailed()
+    {
+        var log = Path.Combine(Path.GetTempPath(), "tw-msi-" + Guid.NewGuid().ToString("N")[..8] + ".log");
+        File.WriteAllText(log,
+            "MSI (s) (DC:68) [23:04:37:244]: Windows Installer reconfigured the product. Reconfiguration success or error status: 0.\r\n" +
+            "MSI (s) (DC:68) [23:04:37:246]: MainEngineThread is returning 0\r\n" +
+            "MSI (s) (DC:70) [23:04:37:665]: Error in rollback skipped.\tReturn: 5\r\n" +
+            "MSI (c) (A0:D8) [23:04:37:834]: MainEngineThread is returning 1603\r\n",
+            System.Text.Encoding.Unicode);
+        try { Assert.Null(WindowsInstallerOps.ServerFinishedCleanly(log)); }
+        finally { File.Delete(log); }
+    }
+
+    [Fact]
+    public void EmbeddedCabinetsAndEqualReinstallModeAreDetectedFromMsiTables()
+    {
+        Directory.CreateDirectory(folder);
+        var embedded = Path.Combine(folder, "embedded.msi");
+        var external = Path.Combine(folder, "external.msi");
+        var cabPayload = Path.Combine(folder, "payload.bin");
+        File.WriteAllBytes(cabPayload, [0x4D, 0x53, 0x43, 0x46]);
+
+        BuildTestMsi(embedded, "#app.cab", cabPayload, "amus");
+        BuildTestMsi(external, "ext.cab", null, null);
+
+        Assert.True(WindowsInstallerOps.HasEmbeddedCabinets(embedded));
+        Assert.True(WindowsInstallerOps.NeedsEqualReinstall(embedded));
+        Assert.False(WindowsInstallerOps.HasEmbeddedCabinets(external));
+        Assert.False(WindowsInstallerOps.NeedsEqualReinstall(external));
+    }
+
+    private static void BuildTestMsi(string msiPath, string cabinet, string? streamFile, string? reinstallMode)
+    {
+        var installerType = Type.GetTypeFromProgID("WindowsInstaller.Installer")!;
+        var installer = Activator.CreateInstance(installerType)!;
+        var db = installerType.InvokeMember("OpenDatabase", System.Reflection.BindingFlags.InvokeMethod, null, installer, [msiPath, 4])!;
+        var dbType = db.GetType();
+        void Exec(string sql, object? record = null)
+        {
+            var view = dbType.InvokeMember("OpenView", System.Reflection.BindingFlags.InvokeMethod, null, db, [sql])!;
+            try
+            {
+                view.GetType().InvokeMember("Execute", System.Reflection.BindingFlags.InvokeMethod, null, view, record is null ? null : [record]);
+                view.GetType().InvokeMember("Close", System.Reflection.BindingFlags.InvokeMethod, null, view, null);
+            }
+            finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(view); }
+        }
+        Exec("CREATE TABLE `Property` (`Property` CHAR(72) NOT NULL, `Value` CHAR(0) NOT NULL PRIMARY KEY `Property`)");
+        Exec("CREATE TABLE `Media` (`DiskId` SHORT NOT NULL, `LastSequence` SHORT NOT NULL, `Cabinet` CHAR(255) PRIMARY KEY `DiskId`)");
+        Exec($"INSERT INTO `Media` (`DiskId`, `LastSequence`, `Cabinet`) VALUES (1, 1, '{cabinet}')");
+        if (reinstallMode is not null)
+            Exec($"INSERT INTO `Property` (`Property`, `Value`) VALUES ('REINSTALLMODE', '{reinstallMode}')");
+        if (streamFile is not null)
+        {
+            var rec = installerType.InvokeMember("CreateRecord", System.Reflection.BindingFlags.InvokeMethod, null, installer, [2])!;
+            try
+            {
+                rec.GetType().InvokeMember("StringData", System.Reflection.BindingFlags.SetProperty, null, rec, [1, cabinet.TrimStart('#')]);
+                rec.GetType().InvokeMember("SetStream", System.Reflection.BindingFlags.InvokeMethod, null, rec, [2, streamFile]);
+                Exec("INSERT INTO `_Streams` (`Name`, `Data`) VALUES (?, ?)", rec);
+            }
+            finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(rec); }
+        }
+        dbType.InvokeMember("Commit", System.Reflection.BindingFlags.InvokeMethod, null, db, null);
+        System.Runtime.InteropServices.Marshal.FinalReleaseComObject(db);
+        System.Runtime.InteropServices.Marshal.FinalReleaseComObject(installer);
+    }
+
     // ---- Checking a setup program ----
 
     [Theory]
