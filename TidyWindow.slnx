@@ -4,4 +4,5 @@
   <Project Path="src/TidyWindow.CleanHost/TidyWindow.CleanHost.csproj" />
   <Project Path="src/TidyWindow.Desktop/TidyWindow.Desktop.csproj" />
   <Project Path="tests/TidyWindow.Tests/TidyWindow.Tests.csproj" />
+  <Project Path="tests/TidyWindow.UiSmoke/TidyWindow.UiSmoke.csproj" />
 </Solution>

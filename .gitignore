@@ -1,20 +1,21 @@
+# Build output (artifacts/ is ArtifactsDir in Directory.Build.props; TestResults/ is where dotnet test writes)
 bin/
 obj/
-.vs/
-data/cache/registry/
-*.user
-*.suo
-*.userprefs
-*.DS_Store
-Thumbs.db
-makeitperfect.txt
-.fake
-.venv
-.vscode
-
-# Ignore Windows ETW/perf trace captures that can land in repo root
-*.etl
-
-# New app build output
 artifacts/
 TestResults/
+*.binlog
+
+# Editors and tools
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Operating system noise
+Thumbs.db
+*.DS_Store
+
+# Windows ETW/perf trace captures that can land in the repo root
+*.etl

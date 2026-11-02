@@ -1,12 +1,15 @@
 # Builds TidyWindow-Setup-<version>.exe from a self-contained publish folder.
 #   pwsh installer/build.ps1 -Version 5.0.0 -PublishDir artifacts/publish
-# Needs Inno Setup 6 (winget install JRSoftware.InnoSetup, or choco install innosetup).
+# Needs Inno Setup 6 (winget install JRSoftware.InnoSetup, or choco install innosetup --version=6.7.1, the version CI uses).
 param(
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$PublishDir,
     [string]$OutDir = 'artifacts'
 )
 $ErrorActionPreference = 'Stop'
+
+# The script stamps the version into Setup's version resource as <Version>.0, which needs exactly three numbers.
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$Version' must be three numbers, such as 5.0.0." }
 
 $candidates = @(
     (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),

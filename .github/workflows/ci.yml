@@ -7,52 +7,73 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
+# Every job states its own permissions; nothing is granted at the workflow level.
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Actions are pinned to full commit SHAs, with the version they came from in the comment, so a moved tag cannot change what runs here.
+# Dependabot (.github/dependabot.yml) moves the SHA and the comment together.
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
       - name: Restore locked dependencies
         run: dotnet restore TidyWindow.slnx --locked-mode
       - name: Build
         run: dotnet build TidyWindow.slnx -c Release --no-restore
       - name: Test
-        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
+        # A test that hangs is named after five minutes (with a small dump of the test host) instead of the job timing out in silence.
+        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type mini --logger trx --results-directory artifacts/TestResults
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: TestResults
+          path: artifacts/TestResults
+          if-no-files-found: ignore
+          retention-days: 7
 
   installer:
     runs-on: windows-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
+      - name: Restore locked dependencies
+        # SelfContained is set here as well, so the runtime packs the self-contained build needs arrive in this locked restore and the
+        # build below does not restore again on its own (an implicit restore would rewrite a drifted lock file instead of failing).
+        run: dotnet restore src/TidyWindow.Desktop/TidyWindow.Desktop.csproj --locked-mode -p:SelfContained=true
       - name: Build self-contained app
-        run: dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
+        # Release builds carry their debug information inside the assemblies (Directory.Build.props), so crash logs keep line numbers.
+        run: dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --no-restore --self-contained true -o artifacts/publish
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+        # Pinned so the compiler that makes Setup.exe changes only on purpose. Bump it together with the note in installer/TidyWindow.iss.
+        run: choco install innosetup --version=6.7.1 --no-progress -y
       - name: Build installer
         shell: pwsh
         run: ./installer/build.ps1 -Version 0.0.0 -PublishDir artifacts/publish
       - name: Check the installer installs and uninstalls
         shell: pwsh
         run: ./installer/smoke-test.ps1 -Setup artifacts/TidyWindow-Setup-0.0.0.exe
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: TidyWindow-Setup-test
           path: artifacts/TidyWindow-Setup-0.0.0.exe
