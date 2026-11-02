@@ -11,6 +11,14 @@ public sealed class OutputFormattingTests
     private const string Progress = "<Obj S=\"progress\"><MS><PR><AV>Downloading Java</AV><PC>50</PC><T>Processing</T><SD>Getting archive</SD></PR></MS></Obj>";
     private const string Records = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\">" + Host + Progress + "<S S=\"warning\">Restart required_x000D__x000A_</S><S S=\"Error\">Actual error &amp; detail_x000A_</S></Objs>";
 
+    [Theory]
+    [InlineData("Repaired it with Windows Installer; it returned 1603. Log: C:\\Temp\\x.log", OutputTone.Error)]
+    [InlineData("Windows Installer said: Error 1706. An installation package cannot be found.", OutputTone.Error)]
+    [InlineData("The installer returned 3010", OutputTone.Warning)]
+    [InlineData("Windows Installer returned 0", OutputTone.Normal)]
+    [InlineData("Removed the broken shortcut", OutputTone.Normal)]
+    public void FinishedStepsAreToneByWhatHappened(string text, OutputTone expected) => Assert.Equal(expected, CommandOutputFormatter.ClassifyStep(text));
+
     [Fact]
     public void SerializedMessagesAreReadableAndKeepTheirRealTypes()
     {

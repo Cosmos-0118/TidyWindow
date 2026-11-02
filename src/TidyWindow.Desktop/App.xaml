@@ -12,6 +12,8 @@
      <SolidColorBrush x:Key="RowHoverBrush" Color="#0A000000" />
      <SolidColorBrush x:Key="GoodBrush" Color="#15803D" /><SolidColorBrush x:Key="GoodSoftBrush" Color="#E6F4EA" />
      <SolidColorBrush x:Key="WarnBrush" Color="#B45309" /><SolidColorBrush x:Key="WarnSoftBrush" Color="#FDF1DC" />
+     <SolidColorBrush x:Key="InfoBrush" Color="#1D4ED8" /><SolidColorBrush x:Key="InfoSoftBrush" Color="#E3EBFC" />
+     <SolidColorBrush x:Key="VioletBrush" Color="#6D28D9" /><SolidColorBrush x:Key="VioletSoftBrush" Color="#EEE8FB" />
      <SolidColorBrush x:Key="CanvasBrush" Color="#FFFFFF" /><SolidColorBrush x:Key="PanelBrush" Color="#F6F6F6" />
      <SolidColorBrush x:Key="LineBrush" Color="#DADADA" /><SolidColorBrush x:Key="MutedBrush" Color="#555555" />
      <SolidColorBrush x:Key="BadgeBrush" Color="#EBEBEB" /><SolidColorBrush x:Key="ErrorBrush" Color="#865500" />
@@ -26,6 +28,8 @@
      <SolidColorBrush x:Key="RowHoverBrush" Color="#10FFFFFF" />
      <SolidColorBrush x:Key="GoodBrush" Color="#4ADE80" /><SolidColorBrush x:Key="GoodSoftBrush" Color="#10281A" />
      <SolidColorBrush x:Key="WarnBrush" Color="#FBBF24" /><SolidColorBrush x:Key="WarnSoftBrush" Color="#2E2208" />
+     <SolidColorBrush x:Key="InfoBrush" Color="#7DA7FF" /><SolidColorBrush x:Key="InfoSoftBrush" Color="#111C33" />
+     <SolidColorBrush x:Key="VioletBrush" Color="#B79CFF" /><SolidColorBrush x:Key="VioletSoftBrush" Color="#1D1533" />
      <SolidColorBrush x:Key="CanvasBrush" Color="#0A0A0A" /><SolidColorBrush x:Key="PanelBrush" Color="#141414" />
      <SolidColorBrush x:Key="LineBrush" Color="#2E2E2E" /><SolidColorBrush x:Key="MutedBrush" Color="#ADADAD" />
      <SolidColorBrush x:Key="BadgeBrush" Color="#202020" /><SolidColorBrush x:Key="ErrorBrush" Color="#E3BB80" />
@@ -40,6 +44,8 @@
      <SolidColorBrush x:Key="RowHoverBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
      <SolidColorBrush x:Key="GoodBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="GoodSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
      <SolidColorBrush x:Key="WarnBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="WarnSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+     <SolidColorBrush x:Key="InfoBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="InfoSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+     <SolidColorBrush x:Key="VioletBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="VioletSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
      <SolidColorBrush x:Key="CanvasBrush" Color="{ThemeResource SystemColorWindowColor}" /><SolidColorBrush x:Key="PanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
      <SolidColorBrush x:Key="LineBrush" Color="{ThemeResource SystemColorWindowTextColor}" /><SolidColorBrush x:Key="MutedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
      <SolidColorBrush x:Key="BadgeBrush" Color="{ThemeResource SystemColorButtonFaceColor}" /><SolidColorBrush x:Key="ErrorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

@@ -9,7 +9,8 @@ namespace TidyWindow.Next.Core;
 /// What the person allowed for one repair: fetching the original installer from WinGet, and folders to look in for it.
 /// <paramref name="RestoreOnly"/> never gives up on a program that is still on the PC by removing its record: it either puts back what that record needs or leaves it alone.
 /// </summary>
-public sealed record RepairOptions(bool Download = false, IReadOnlyList<string>? Folders = null, bool RestoreOnly = false);
+/// <param name="RemoveProgramFolders">When a program's record is removed, also set aside the program's own folder (under Program Files or the per-user Programs folder). Off unless the person asks: the folder may hold their own files.</param>
+public sealed record RepairOptions(bool Download = false, IReadOnlyList<string>? Folders = null, bool RestoreOnly = false, bool RemoveProgramFolders = false);
 
 /// <summary>A package WinGet itself matched to a program that is installed, at the version that is installed.</summary>
 public sealed record WingetMatch(string Id, string Name, string Version);
