@@ -105,6 +105,12 @@ public sealed class FakePc : IInstallSystem
     public bool BundleHasChildren(string bundleId) => BundlesWithChildren.Contains(bundleId);
     public Dictionary<string, string[]> FolderFiles = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FilesIn(string folder) => FolderFiles.GetValueOrDefault(folder) ?? [];
+    public Dictionary<string, string[]> Icons = new(StringComparer.OrdinalIgnoreCase), Caches = new(StringComparer.OrdinalIgnoreCase);
+    public string[] Orphans = [];
+    public string? RollbackPath;
+    public IReadOnlyList<string> InstallerLeftovers(string code, bool packageCache) => [.. Icons.GetValueOrDefault(code) ?? [], .. packageCache ? Caches.GetValueOrDefault(code) ?? [] : []];
+    public IReadOnlyList<string> OrphanInstallerFolders() => Orphans;
+    public string? RollbackFolder() => RollbackPath;
 }
 
 public sealed class FakeFetcher : IInstallerFetcher
@@ -148,7 +154,10 @@ public sealed class FakeOps : IInstallerOps
     public IReadOnlyList<string> CandidatePackages(MsiProduct product) => Candidates;
     public MsiPackageInfo? ReadPackage(string path) => Packages.GetValueOrDefault(path);
     public string? RegisteredPackageCode(MsiProduct product) => Registered;
-    public RunResult Reinstall(string msiPath, MsiProduct product) { Reinstalled.Add(msiPath); OnReinstall?.Invoke(); return new(ExitCode, "Log: fake.log"); }
+    public Queue<int> Exits = new();
+    public Queue<string> Outputs = new();
+    public string Output = "Log: fake.log";
+    public RunResult Reinstall(string msiPath, MsiProduct product) { Reinstalled.Add(msiPath); OnReinstall?.Invoke(); return new(Exits.Count > 0 ? Exits.Dequeue() : ExitCode, Outputs.Count > 0 ? Outputs.Dequeue() : Output); }
     public bool StopInstallerService() { ServiceStopped = true; return StopWorks; }
 }
 

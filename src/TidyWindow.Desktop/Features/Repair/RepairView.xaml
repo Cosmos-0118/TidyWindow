@@ -6,6 +6,108 @@
  <UserControl.Resources>
   <ResourceDictionary>
    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+   <!-- A line of an opened row: a label in the colour of its kind, then the path. -->
+   <DataTemplate x:Key="BlueLineTemplate">
+    <Grid ColumnSpacing="10" Margin="0,2">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="108" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+     <Border Background="{ThemeResource InfoSoftBrush}" CornerRadius="4" Padding="7,1" HorizontalAlignment="Left" VerticalAlignment="Top"><TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource InfoBrush}" /></Border>
+     <TextBlock Grid.Column="1" Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="11" LineHeight="18" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+    </Grid>
+   </DataTemplate>
+   <DataTemplate x:Key="VioletLineTemplate">
+    <Grid ColumnSpacing="10" Margin="0,2">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="108" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+     <Border Background="{ThemeResource VioletSoftBrush}" CornerRadius="4" Padding="7,1" HorizontalAlignment="Left" VerticalAlignment="Top"><TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource VioletBrush}" /></Border>
+     <TextBlock Grid.Column="1" Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="11" LineHeight="18" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+    </Grid>
+   </DataTemplate>
+   <DataTemplate x:Key="GreenLineTemplate">
+    <Grid ColumnSpacing="10" Margin="0,2">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="108" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+     <Border Background="{ThemeResource GoodSoftBrush}" CornerRadius="4" Padding="7,1" HorizontalAlignment="Left" VerticalAlignment="Top"><TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource GoodBrush}" /></Border>
+     <TextBlock Grid.Column="1" Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="11" LineHeight="18" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+    </Grid>
+   </DataTemplate>
+   <DataTemplate x:Key="AmberLineTemplate">
+    <Grid ColumnSpacing="10" Margin="0,2">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="108" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+     <Border Background="{ThemeResource WarnSoftBrush}" CornerRadius="4" Padding="7,1" HorizontalAlignment="Left" VerticalAlignment="Top"><TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource WarnBrush}" /></Border>
+     <TextBlock Grid.Column="1" Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="11" LineHeight="18" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+    </Grid>
+   </DataTemplate>
+   <DataTemplate x:Key="PlainLineTemplate"><TextBlock Text="{Binding Text}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Margin="0,2" /></DataTemplate>
+   <local:DetailTemplateSelector x:Key="DetailRows" Plain="{StaticResource PlainLineTemplate}" Blue="{StaticResource BlueLineTemplate}" Violet="{StaticResource VioletLineTemplate}" Green="{StaticResource GreenLineTemplate}" Amber="{StaticResource AmberLineTemplate}" />
+   <!-- The rows of the Undo and Quarantine lists. They live here, not inside the list, so their buttons are wired to this page. -->
+<DataTemplate x:Key="ArchiveHeaderTemplate">
+           <Grid Padding="16,14,16,6" ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource GroupLabel}" />
+            <TextBlock Grid.Column="1" Text="{Binding Right}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+           </Grid>
+          </DataTemplate>
+<DataTemplate x:Key="RepairRowTemplate">
+           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+            <StackPanel Spacing="10">
+             <Grid ColumnSpacing="12" Background="Transparent" Tapped="UndoRowTapped" AutomationProperties.Name="{Binding ToggleName}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <Border Width="32" Height="32" CornerRadius="8" Background="{ThemeResource BadgeBrush}" VerticalAlignment="Center"><FontIcon Glyph="&#xE81C;" FontSize="14" Foreground="{ThemeResource MutedBrush}" /></Border>
+              <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+               <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+                <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
+               </StackPanel>
+               <TextBlock Text="{Binding Sub}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+               <FontIcon Glyph="{Binding Chevron}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" Margin="4,0" />
+               <Button Click="UndoRowClick" Padding="14,7" FontSize="12" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Put back everything this repair removed">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Undo" FontSize="12" /></StackPanel>
+               </Button>
+              </StackPanel>
+             </Grid>
+             <Border Visibility="{Binding DetailsVisibility}" Margin="44,0,0,2" Padding="12,10" CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource PanelBrush}">
+              <ItemsControl ItemsSource="{Binding Lines}" ItemTemplateSelector="{StaticResource DetailRows}" AutomationProperties.Name="What this repair changed" />
+             </Border>
+            </StackPanel>
+           </Border>
+          </DataTemplate>
+<DataTemplate x:Key="QuarantineRowTemplate">
+           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+            <StackPanel Spacing="10">
+            <Grid ColumnSpacing="12" Background="Transparent" Tapped="QuarantineRowTapped" AutomationProperties.Name="{Binding ToggleName}">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding SelectAutomationName}" />
+             <Border Grid.Column="1" Width="32" Height="32" CornerRadius="8" Background="{ThemeResource BadgeBrush}" VerticalAlignment="Center"><FontIcon Glyph="{Binding Glyph}" FontSize="14" Foreground="{ThemeResource MutedBrush}" /></Border>
+             <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+               <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
+               <TextBlock Text="{Binding Size}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+               <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
+              </StackPanel>
+              <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+              <TextBlock Text="{Binding Original}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Opacity="0.8" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+             </StackPanel>
+             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Text="{Binding ExpiresText}" FontSize="12" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+              <FontIcon Glyph="{Binding Chevron}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+             </StackPanel>
+             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Click="KeepRowClick" Padding="14,7" FontSize="12" AutomationProperties.Name="{Binding KeepAutomationName}" ToolTipService.ToolTip="Put it back where it was">
+               <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Put back" FontSize="12" /></StackPanel>
+              </Button>
+              <Button Click="RemoveRowClick" Padding="14,7" FontSize="12" AutomationProperties.Name="{Binding RemoveAutomationName}" ToolTipService.ToolTip="Delete it for good">
+               <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock Text="Remove" FontSize="12" /></StackPanel>
+              </Button>
+             </StackPanel>
+            </Grid>
+            <Border Visibility="{Binding DetailsVisibility}" Margin="44,0,0,2" Padding="12,10" CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource PanelBrush}">
+             <ItemsControl ItemsSource="{Binding Lines}" ItemTemplateSelector="{StaticResource DetailRows}" AutomationProperties.Name="Details" />
+            </Border>
+            </StackPanel>
+           </Border>
+          </DataTemplate>
+   <local:ArchiveTemplateSelector x:Key="UndoRows" Header="{StaticResource ArchiveHeaderTemplate}" Repair="{StaticResource RepairRowTemplate}" />
+   <local:ArchiveTemplateSelector x:Key="QuarantineRows" Header="{StaticResource ArchiveHeaderTemplate}" Quarantined="{StaticResource QuarantineRowTemplate}" />
   </ResourceDictionary>
  </UserControl.Resources>
  <Grid RowSpacing="16">
@@ -30,6 +132,7 @@
     <RadioButton x:Name="ProblemsItem" GroupName="RepairTabs" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Problems"><TextBlock Text="Problems" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
     <RadioButton x:Name="ProgramsItem" GroupName="RepairTabs" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="All programs"><TextBlock Text="All programs" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
     <RadioButton x:Name="UndoItem" GroupName="RepairTabs" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="{Binding UndoTabTitle}"><TextBlock Text="{Binding UndoTabTitle}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
+    <RadioButton x:Name="QuarantineItem" GroupName="RepairTabs" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="{Binding QuarantineTabTitle}"><TextBlock Text="{Binding QuarantineTabTitle}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /></RadioButton>
    </StackPanel>
   </Grid>
 
@@ -38,17 +141,41 @@
    <Grid x:Name="ProblemsTab">
     <ScrollViewer Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel Spacing="18" Padding="0,8,0,12">
-      <Grid ColumnSpacing="12" RowSpacing="4">
-       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-       <StackPanel Spacing="2">
-        <CheckBox IsChecked="{Binding AllowDownload, Mode=TwoWay}" Content="Get a program's original installer from WinGet when its own copy is missing" FontSize="12" MinWidth="0" AutomationProperties.Name="Allow downloading the original installer" />
-        <TextBlock Text="{Binding InstallerFolderText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Margin="32,0,0,0" local:TrimTip.Enabled="True" />
-       </StackPanel>
-       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-        <Button Click="ClearFoldersClick" Visibility="{Binding ClearFoldersVisibility}" Padding="12,7" FontSize="12" Content="Clear" IsEnabled="{Binding CanScan}" AutomationProperties.Name="Forget the chosen installer folders" ToolTipService.ToolTip="Forget the folders chosen for the installer." />
-        <Button Click="LocateClick" Visibility="{Binding LocateVisibility}" Padding="12,7" FontSize="12" Content="Locate installer folder…" IsEnabled="{Binding CanScan}" ToolTipService.ToolTip="Point at a folder that holds the program's installer, such as Downloads. Every file there is checked against the program before it is used." />
-       </StackPanel>
-      </Grid>
+      <!-- Two settings, each a row: what it does in plain words, then a switch. Nothing here is a surprise; both can be turned off. -->
+      <StackPanel Spacing="8">
+       <Grid Background="Transparent" Tapped="OptionsTapped" ColumnSpacing="12" MinHeight="32" AutomationProperties.Name="{Binding OptionsToggleName}" ToolTipService.ToolTip="{Binding OptionsToggleName}">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock Text="Repair options" Style="{StaticResource GroupLabel}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding OptionsSummary}" Visibility="{Binding OptionsSummaryVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <FontIcon Grid.Column="2" Glyph="{Binding OptionsChevron}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" Margin="8,0" />
+       </Grid>
+       <Border Style="{StaticResource Card}" Padding="0" Visibility="{Binding OptionsVisibility}">
+        <StackPanel>
+         <Grid Padding="18,16" ColumnSpacing="24">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel Spacing="4">
+           <TextBlock Text="Download missing installers" Style="{StaticResource ItemTitle}" />
+           <TextBlock Style="{StaticResource Muted}" FontSize="12" Text="When a program's own installer copy is gone, get the original from WinGet to repair it. Each file is checked against the program before it is used." />
+           <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+            <Button Click="LocateClick" Visibility="{Binding LocateVisibility}" Padding="10,5" FontSize="12" Content="Choose an installer folder…" IsEnabled="{Binding CanScan}" ToolTipService.ToolTip="Point at a folder that holds the program's installer, such as Downloads. Every file there is checked against the program before it is used." />
+            <Button Click="ClearFoldersClick" Visibility="{Binding ClearFoldersVisibility}" Padding="10,5" FontSize="12" Content="Forget folders" IsEnabled="{Binding CanScan}" ToolTipService.ToolTip="Forget the folders chosen for the installer." />
+            <TextBlock Text="{Binding InstallerFolderText}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" local:TrimTip.Enabled="True" />
+           </StackPanel>
+          </StackPanel>
+          <ToggleSwitch Grid.Column="1" IsOn="{Binding AllowDownload, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Top" Margin="0,0,-8,0" AutomationProperties.Name="Download missing installers" />
+         </Grid>
+         <Border Height="1" Background="{ThemeResource LineBrush}" />
+         <Grid Padding="18,16" ColumnSpacing="24">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel Spacing="4">
+           <TextBlock Text="Move a removed program's folder to Quarantine" Style="{StaticResource ItemTitle}" />
+           <TextBlock Style="{StaticResource Muted}" FontSize="12" Text="When you remove a program's entry, also move its own folder under Program Files to the Quarantine tab. Nothing is deleted at once: you can put it back, and it is deleted by itself after 30 days. Shared folders such as Common Files and WindowsApps are never touched." />
+          </StackPanel>
+          <ToggleSwitch Grid.Column="1" IsOn="{Binding RemoveProgramFolders, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Top" Margin="0,0,-8,0" AutomationProperties.Name="Move a removed program's folder to Quarantine" />
+         </Grid>
+        </StackPanel>
+       </Border>
+      </StackPanel>
       <StackPanel Spacing="8" Visibility="{Binding ResultsVisibility}">
        <TextBlock Text="Last repair" Style="{StaticResource GroupLabel}" />
        <Border Style="{StaticResource Card}" Padding="0">
@@ -162,7 +289,7 @@
           </StackPanel>
           <TextBlock Grid.Column="2" Text="{Binding Where}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
           <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-           <Button Click="RepairProgramClick" Visibility="{Binding RepairVisibility}" FontSize="12" Padding="10,6" Width="90" Content="Repair" AutomationProperties.Name="{Binding RepairAutomationName}" ToolTipService.ToolTip="Repair this program from the saved copy of its own installer, the way Windows' Repair does. Nothing is removed." />
+           <Button Click="RepairProgramClick" Visibility="{Binding RepairVisibility}" FontSize="12" Padding="10,6" Width="90" Content="Repair" Background="Transparent" BorderThickness="0" Foreground="{ThemeResource MutedBrush}" AutomationProperties.Name="{Binding RepairAutomationName}" ToolTipService.ToolTip="Re-runs this program's own installer in repair mode, the way Windows' Repair does. Use it if the program misbehaves: it does not mean anything is wrong with it, and nothing is removed. It can fail for programs another installer manages." />
            <Button Click="RemoveProgramClick" FontSize="12" Padding="10,6" Width="120" Content="Remove entry" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Take this program off the list, with its Windows Installer record if it has one. Its files are not deleted." />
           </StackPanel>
          </Grid>
@@ -174,35 +301,64 @@
     </Border>
    </Grid>
 
-   <!-- Tab 3: every repair that can still be undone, newest first -->
-   <Grid x:Name="UndoTab" Visibility="Collapsed" RowSpacing="10">
+   <!-- Tab 3: every repair that can still be undone, grouped by when it happened -->
+   <Grid x:Name="UndoTab" Visibility="Collapsed" RowSpacing="12">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-    <TextBlock Text="Every repair is saved here with a full copy of what it removed, so you can put it back whenever you like, even after closing TidyWindow." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" />
-    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12" VerticalAlignment="Top">
+    <StackPanel Spacing="12" Margin="0,8,0,0">
+     <TextBlock Text="Every repair is saved with a full copy of what it removed, so you can put it back whenever you like, even after closing TidyWindow." Style="{StaticResource Muted}" TextWrapping="Wrap" />
+     <local:ArchiveToolbar DataContext="{Binding UndoState}" />
+    </StackPanel>
+    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12">
      <Grid>
-      <ItemsControl ItemsSource="{Binding History}" IsEnabled="{Binding CanScan}" AutomationProperties.Name="Repairs that can be undone">
-       <ItemsControl.ItemTemplate><DataTemplate>
-        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,12">
-         <Grid ColumnSpacing="14">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <StackPanel Spacing="3" VerticalAlignment="Center">
-           <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" local:TrimTip.Enabled="True" />
-            <Border Visibility="{Binding AdminVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"><TextBlock Text="Needs admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
-           </StackPanel>
-           <TextBlock Style="{StaticResource RowSub}" local:TrimTip.Enabled="True"><Run Text="{Binding When}" /><Run Text=" · " /><Run Text="{Binding Count}" /></TextBlock>
-           <TextBlock Text="{Binding Keys}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" Opacity="0.8" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-          </StackPanel>
-          <Button Grid.Column="1" Click="UndoRowClick" VerticalAlignment="Center" Padding="14,7" FontSize="12" AutomationProperties.Name="{Binding AutomationName}" ToolTipService.ToolTip="Put back everything this repair removed">
-           <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE7A7;" FontSize="12" /><TextBlock Text="Undo" FontSize="12" /></StackPanel>
-          </Button>
-         </Grid>
-        </Border>
-       </DataTemplate></ItemsControl.ItemTemplate>
-      </ItemsControl>
-      <StackPanel Visibility="{Binding NoHistoryVisibility}" HorizontalAlignment="Center" Padding="24,40" Spacing="6">
+      <ListView ItemsSource="{Binding UndoList}" ItemTemplateSelector="{StaticResource UndoRows}" IsEnabled="{Binding CanScan}" SelectionMode="None" IsItemClickEnabled="False" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Repairs that can be undone">
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
+       
+      </ListView>
+      <StackPanel Visibility="{Binding UndoState.EmptyVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="6">
        <TextBlock Text="Nothing to undo yet" Style="{StaticResource EmptyTitle}" />
        <TextBlock Text="When you repair something, it will be listed here." Style="{StaticResource Muted}" TextAlignment="Center" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding UndoState.NoMatchVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="8">
+       <TextBlock Text="{Binding UndoState.NoMatchText}" Style="{StaticResource EmptyTitle}" />
+       <TextBlock Text="Try fewer words, another date range, or search by what was changed." Style="{StaticResource Muted}" TextAlignment="Center" />
+       <Button Click="ClearUndoSearchClick" Content="Clear search and filters" HorizontalAlignment="Center" Padding="12,7" FontSize="12" />
+      </StackPanel>
+     </Grid>
+    </Border>
+   </Grid>
+
+   <!-- Tab 4: what repairs removed and kept, grouped by when it happened, for the person to put back or remove for good -->
+   <Grid x:Name="QuarantineTab" Visibility="Collapsed" RowSpacing="12">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <StackPanel Spacing="12" Margin="0,8,0,0">
+     <TextBlock Text="Folders and shortcuts that repairs removed are kept here, not deleted. Put one back where it was, or remove it for good. A folder is deleted by itself 30 days after it was set aside." Style="{StaticResource Muted}" TextWrapping="Wrap" />
+     <local:ArchiveToolbar DataContext="{Binding QuarantineState}" />
+     <!-- Choosing several: the tick selects everything that is shown, and the bar appears with what can be done to the chosen ones. -->
+     <Grid ColumnSpacing="12" MinHeight="34">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <CheckBox IsChecked="{Binding AllShownSelected, Mode=TwoWay}" Visibility="{Binding SelectAllShownVisibility}" Content="Select all shown" FontSize="12" MinWidth="0" AutomationProperties.Name="Select every item that is shown" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding SelectionVisibility}" VerticalAlignment="Center">
+       <TextBlock Text="{Binding SelectionText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,4,0" />
+       <Button Click="KeepSelectedClick" IsEnabled="{Binding CanScan}" Padding="12,6" FontSize="12" Content="Put back" AutomationProperties.Name="Put the selected items back where they were" />
+       <Button Click="RemoveSelectedClick" IsEnabled="{Binding CanScan}" Padding="12,6" FontSize="12" Content="Remove for good" AutomationProperties.Name="Remove the selected items for good" />
+       <HyperlinkButton Click="ClearSelectionClick" Padding="6,0" FontSize="12" Content="Clear selection" />
+      </StackPanel>
+     </Grid>
+    </StackPanel>
+    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12">
+     <Grid>
+      <ListView ItemsSource="{Binding QuarantineList}" ItemTemplateSelector="{StaticResource QuarantineRows}" IsEnabled="{Binding CanScan}" SelectionMode="None" IsItemClickEnabled="False" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Things repairs removed and kept">
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
+       
+      </ListView>
+      <StackPanel Visibility="{Binding QuarantineState.EmptyVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="6">
+       <TextBlock Text="Nothing in quarantine" Style="{StaticResource EmptyTitle}" />
+       <TextBlock Text="Folders and shortcuts that a repair removes will wait here until you decide." Style="{StaticResource Muted}" TextAlignment="Center" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding QuarantineState.NoMatchVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="8">
+       <TextBlock Text="{Binding QuarantineState.NoMatchText}" Style="{StaticResource EmptyTitle}" />
+       <TextBlock Text="Try fewer words, another date range, or search by path." Style="{StaticResource Muted}" TextAlignment="Center" />
+       <Button Click="ClearQuarantineSearchClick" Content="Clear search and filters" HorizontalAlignment="Center" Padding="12,7" FontSize="12" />
       </StackPanel>
      </Grid>
     </Border>
