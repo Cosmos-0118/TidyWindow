@@ -135,7 +135,12 @@ public sealed class LiveOutputTests
     private static CommandSpec PowerShell(string script) => new(new ExecutableLocator().PowerShell,
         ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], TimeSpan.FromSeconds(15));
     private sealed class CallbackProgress(Action<CommandOutput> report) : IProgress<CommandOutput> { public void Report(CommandOutput value) => report(value); }
-    private sealed class Locator : IExecutableLocator { public string? Find(ManagerKind manager) => "manager.exe"; public string PowerShell => "powershell.exe"; }
+    private sealed class Locator : IExecutableLocator
+    {
+        public string? Find(ManagerKind manager) => "manager.exe";
+        public string PowerShell => "powershell.exe";
+        public (string FileName, string? Problem) Elevated(string fileName) => (fileName, null);
+    }
     private sealed class Runner : ICommandRunner
     {
         public CommandSpec? Install { get; private set; }

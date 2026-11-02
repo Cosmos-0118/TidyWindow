@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
 
@@ -20,6 +21,8 @@ public interface IUninstallHost
     Task<ClosedPrograms> CloseProgramsInAsync(string folder, CancellationToken token);
     /// <summary>The first bytes of a file as text, to tell which installer built an uninstaller. Empty when the file cannot be read.</summary>
     string ReadHead(string path, int bytes);
+    /// <summary>The program to run when <paramref name="fileName"/> is to run with administrator rights, and the reason it must not be, if any: see <see cref="ElevatedProgram"/>.</summary>
+    (string FileName, string? Problem) Elevated(string fileName) => ElevatedProgram.Resolve(fileName);
 }
 
 /// <summary>A program's own uninstaller, run directly with the switches that make it silent.</summary>
@@ -31,7 +34,8 @@ public sealed partial record NativeUninstall(string FileName, IReadOnlyList<stri
     /// How to run the uninstaller a list entry names, silently. An engine that is not recognized gets null: its silent switches are not guessed.
     /// A Windows Installer product is removed by its code, whatever the entry says (many entries say <c>MsiExec /I</c>, which would open the installer, not remove it).
     /// </summary>
-    public static NativeUninstall? Plan(UninstallEntry entry, IInstallSystem system, Func<string, int, string> readHead)
+    /// <param name="machineExpand">Expands the variables in a command registered for the whole PC. Such a command runs with administrator rights, so only the variables every account sees take part (<see cref="MachineEnvironment"/>), never the person's own.</param>
+    public static NativeUninstall? Plan(UninstallEntry entry, IInstallSystem system, Func<string, int, string> readHead, Func<string, string>? machineExpand = null)
     {
         var machine = InstallRepair.IsMachine(entry.Key);
         if (InstallRepair.ProductCode(entry) is { } code)
@@ -40,7 +44,8 @@ public sealed partial record NativeUninstall(string FileName, IReadOnlyList<stri
 
         var quiet = entry.QuietUninstallString.Trim();
         var command = quiet.Length > 0 ? quiet : entry.UninstallString.Trim();
-        if (command.Length == 0 || !TryParse(system.Expand(command), system, out var program, out var arguments)) return null;
+        var expanded = machine ? (machineExpand ?? MachineEnvironment.Expand)(command) : system.Expand(command);
+        if (command.Length == 0 || !TryParse(expanded, system, out var program, out var arguments)) return null;
         if (quiet.Length > 0) return new(program, arguments, "its quiet uninstall command", machine);
 
         var name = Path.GetFileName(program);
@@ -95,6 +100,69 @@ public sealed partial record NativeUninstall(string FileName, IReadOnlyList<stri
     private static partial Regex NsisUninstaller();
 }
 
+/// <summary>
+/// Environment variables as every account on the PC has them before signing in: those Windows keeps for the whole PC (HKLM, Session Manager\Environment) and the folders Windows
+/// itself fixes. A per-user variable, which any program running as the person can set, never takes part, so a command registered for the whole PC resolves to the program it was registered with.
+/// </summary>
+public static class MachineEnvironment
+{
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> variables = new(Read);
+
+    public static string Expand(string text) => Expand(text, variables.Value);
+
+    /// <summary>Replaces each %NAME% with its value from <paramref name="variables"/>, values being expanded in turn; a name that is not there is left as it is, as Windows leaves it.</summary>
+    internal static string Expand(string text, IReadOnlyDictionary<string, string> variables, int depth = 0)
+    {
+        if (depth > 8 || text.IndexOf('%') < 0) return text;
+        var result = new StringBuilder();
+        var i = 0;
+        while (i < text.Length)
+        {
+            var start = text.IndexOf('%', i);
+            var end = start < 0 ? -1 : text.IndexOf('%', start + 1);
+            if (end < 0) { result.Append(text, i, text.Length - i); break; }
+            result.Append(text, i, start - i);
+            var name = text[(start + 1)..end];
+            if (name.Length > 0 && variables.TryGetValue(name, out var value)) { result.Append(Expand(value, variables, depth + 1)); i = end + 1; }
+            else { result.Append('%'); i = start + 1; }
+        }
+        return result.ToString();
+    }
+
+    private static IReadOnlyDictionary<string, string> Read()
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (OperatingSystem.IsWindows()) ReadRegistry(found);
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var programs = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var common = Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles);
+        var data = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        foreach (var (name, value) in new[]
+        {
+            ("SystemRoot", windows), ("windir", windows), ("SystemDrive", Path.GetPathRoot(windows)?.TrimEnd('\\') ?? ""),
+            ("ProgramFiles", programs), ("ProgramW6432", programs), ("ProgramFiles(x86)", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)),
+            ("CommonProgramFiles", common), ("CommonProgramW6432", common), ("CommonProgramFiles(x86)", Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFilesX86)),
+            ("ProgramData", data), ("ALLUSERSPROFILE", data)
+        })
+            if (value.Length > 0) found[name] = value;
+        return found;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void ReadRegistry(Dictionary<string, string> found)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment");
+            if (key is null) return;
+            // Values are read unexpanded: Windows would otherwise fill them in from this process's environment, the person's included.
+            foreach (var name in key.GetValueNames())
+                if (name.Length > 0 && key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is string value) found[name] = value;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+    }
+}
+
 /// <param name="Result">The last command that ran, which decides whether the uninstall worked.</param>
 /// <param name="Trail">Each thing that was tried, in order, as a sentence a person can read.</param>
 /// <param name="EntryRemoved">The app's leftover list entry was removed by the repair engine instead of an uninstaller running.</param>
@@ -113,7 +181,10 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
 
     public TimeSpan BusyWait { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan BusyPoll { get; init; } = TimeSpan.FromSeconds(2);
-    public TimeSpan NativeTimeout { get; init; } = TimeSpan.FromMinutes(20);
+    /// <summary>How long an app's own uninstaller may run before it is ended: the same budget as any package operation (<see cref="PackageService.OperationTimeout"/>).</summary>
+    public TimeSpan NativeTimeout { get; init; } = PackageService.OperationTimeout;
+    /// <summary>Expands the variables in a command registered for the whole PC (see <see cref="MachineEnvironment"/>). Replaceable in tests.</summary>
+    public Func<string, string> MachineExpand { get; init; } = MachineEnvironment.Expand;
     /// <summary>Whether restoring a broken record may fetch the program's original installer from WinGet (checked against the exact program before use), as the Repair page does by default.</summary>
     public bool AllowDownload { get; init; }
     public Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = (time, token) => Task.Delay(time, token);
@@ -136,6 +207,9 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
         app.Id.StartsWith(@"MSIX\", StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(app.Id[5..], @"^[A-Za-z0-9._\-]+$") ? app.Id[5..] : null;
 
     private static bool Succeeded(CommandResult result) => result.ExitCode is 0 or 1641 or 3010;
+    /// <summary>A command that never started: the runner's answer to a declined permission prompt, and the ladder's to a program that must not run with administrator rights.</summary>
+    private static bool NotStarted(CommandResult result) => result.ExitCode == -1 && result.Output.Length == 0 && result.Error.Length > 0;
+    private static bool Declined(CommandResult result) => result.Error.Contains("declined", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// A command run through the Windows permission prompt cannot have its output captured. When it fails, keep what the run before it said, so the reason and
@@ -159,7 +233,8 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
         {
             Say(progress, what);
             var next = await rerun(variant).ConfigureAwait(false);
-            trail.Add($"Ran the uninstall again{(variant.Elevated ? " as administrator" : "")}{(variant.WithoutSource ? " without naming a WinGet source" : "")}; it returned {next.ExitCode}.");
+            var how = $"{(variant.Elevated ? " as administrator" : "")}{(variant.WithoutSource ? " without naming a WinGet source" : "")}";
+            trail.Add(NotStarted(next) ? $"Did not run the uninstall again{how}: {next.Error.Trim()}" : $"Ran the uninstall again{how}; it returned {next.ExitCode}.");
             return variant.Elevated ? Keep(result, next) : next;
         }
 
@@ -186,7 +261,10 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
             if (winget && !host.IsAdministrator && !variant.Elevated && machine != false && NeedsAdministrator(result, inner, machine) && tried.Add("admin"))
             {
                 variant = variant with { Elevated = true };
-                result = await Again("The uninstaller needs administrator permission. Asking Windows for it…").ConfigureAwait(false);
+                var again = await Again("The uninstaller needs administrator permission. Asking Windows for it…").ConfigureAwait(false);
+                // A run that was not started because WinGet's program must not be given administrator rights leaves the first failure in place; the other remedies are still worth trying.
+                if (NotStarted(again) && !Declined(again)) { variant = variant with { Elevated = false }; continue; }
+                result = again;
                 continue;
             }
 
@@ -233,11 +311,20 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
             // 6. Skip WinGet and run the app's own uninstaller.
             if (entry is not null && tried.Add("native"))
             {
-                var plan = Safe(() => NativeUninstall.Plan(entry, system, host.ReadHead));
+                var plan = Safe(() => NativeUninstall.Plan(entry, system, host.ReadHead, MachineExpand));
                 if (plan is null) { trail.Add("TidyWindow does not know a silent way to run this app’s own uninstaller, so it did not guess one."); continue; }
-                Say(progress, $"Running {app.Name}’s own uninstaller ({plan.Engine}) directly…");
-                var direct = await runner.RunAsync(new CommandSpec(plan.FileName, plan.Arguments, NativeTimeout, plan.Machine && !host.IsAdministrator) { Progress = progress, MayShowInstaller = true }, token).ConfigureAwait(false);
-                trail.Add($"Ran its own uninstaller directly ({plan.Engine}); it returned {direct.ExitCode}.");
+                // An uninstaller registered for the whole PC runs with administrator rights (asked for, or TidyWindow's own), so where it lives decides whether it runs at all.
+                var file = plan.FileName;
+                if (plan.Machine)
+                {
+                    var (resolved, problem) = host.Elevated(plan.FileName);
+                    if (problem is not null) { trail.Add($"Did not run its own uninstaller ({plan.FileName}): {problem}"); continue; }
+                    file = resolved;
+                }
+                trail.Add($"Running its own uninstaller directly ({plan.Engine}): {file}{(plan.Arguments.Count > 0 ? " " + string.Join(' ', plan.Arguments) : "")}");
+                Say(progress, $"Running {app.Name}’s own uninstaller ({plan.Engine}) directly: {file}…");
+                var direct = await runner.RunAsync(new CommandSpec(file, plan.Arguments, NativeTimeout, plan.Machine && !host.IsAdministrator) { Progress = progress, MayShowInstaller = true }, token).ConfigureAwait(false);
+                trail.Add($"Its own uninstaller returned {direct.ExitCode}.");
                 // The uninstaller's own exit code is the installer code WinGet would have printed, so say it in the same words and the rest of the ladder and the explanation read it.
                 if (!Succeeded(direct) && !direct.Error.Contains("declined", StringComparison.OrdinalIgnoreCase))
                     direct = direct with { Output = (direct.Output + $"\nUninstaller failed with exit code: {direct.ExitCode}").Trim() };
@@ -337,11 +424,13 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
     /// <summary>The folder an app runs from, when its entry says where that is and it exists.</summary>
     private string? ProgramFolder(UninstallEntry entry)
     {
-        var folders = new List<string> { system.Expand(entry.InstallLocation.Trim().Trim('"')) };
+        // An entry registered for the whole PC is read with the PC's own variables, never the person's (see MachineEnvironment).
+        Func<string, string> expand = InstallRepair.IsMachine(entry.Key) ? MachineExpand : system.Expand;
+        var folders = new List<string> { expand(entry.InstallLocation.Trim().Trim('"')) };
         var icon = entry.DisplayIcon.Trim();
         icon = icon.StartsWith('"') && icon.IndexOf('"', 1) is > 0 and var end ? icon[1..end] : icon;
         if (icon.LastIndexOf(',') is > 0 and var comma && int.TryParse(icon[(comma + 1)..], out _)) icon = icon[..comma];
-        if (Path.GetDirectoryName(system.Expand(icon.Trim().Trim('"'))) is { Length: > 0 } iconFolder) folders.Add(iconFolder);
+        if (Path.GetDirectoryName(expand(icon.Trim().Trim('"'))) is { Length: > 0 } iconFolder) folders.Add(iconFolder);
         return folders.FirstOrDefault(x => x.Length > 0 && Path.IsPathRooted(x) && system.FolderExists(x)
             && !x.Contains(@"\Installer", StringComparison.OrdinalIgnoreCase) && !x.Contains(@"\Package Cache", StringComparison.OrdinalIgnoreCase));
     }

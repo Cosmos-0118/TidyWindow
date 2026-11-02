@@ -69,9 +69,32 @@ public sealed class InstallRobustnessTests
         var runs = new List<CommandSpec>();
         var runner = new ScriptedRunner(command => { runs.Add(command); return command.Elevate ? new(0, "", "") : new(-1978335226, StoreAdminOutput, ""); });
         var notices = new List<CommandOutput>();
-        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)) { Progress = new Progress<CommandOutput>(notices.Add) }, "Claude", CancellationToken.None);
+        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)) { Progress = new Progress<CommandOutput>(notices.Add) }, "Claude", CancellationToken.None, new Locator());
         Assert.Equal(0, result.ExitCode);
         Assert.Equal([false, true], runs.Select(x => x.Elevate));
+    }
+
+    [Fact]
+    public async Task TheElevatedAttemptRunsTheProgramTheLocatorResolvesNotTheAlias()
+    {
+        var runs = new List<CommandSpec>();
+        var runner = new ScriptedRunner(command => { runs.Add(command); return command.Elevate ? new(0, "", "") : new(-1978335226, StoreAdminOutput, ""); });
+        const string packaged = @"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.0_x64__8wekyb3d8bbwe\winget.exe";
+        await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)), "Claude", CancellationToken.None, new Locator { Resolved = packaged });
+        Assert.Equal(["winget", packaged], runs.Select(x => x.FileName));
+    }
+
+    [Fact]
+    public async Task AProgramThatMustNotRunAsAdministratorIsNotRunAgainAndTheReasonIsKept()
+    {
+        var runs = 0;
+        var runner = new ScriptedRunner(_ => { runs++; return new(-1978335226, StoreAdminOutput, ""); });
+        const string reason = @"winget.exe is installed in a folder that any program on this PC could change (C:\Users\me\x), so TidyWindow will not run it with administrator rights.";
+        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)), "Claude", CancellationToken.None, new Locator { Problem = reason });
+        Assert.Equal(1, runs);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains(reason, result.Error);
+        Assert.Contains("was not asked for", result.Error);
     }
 
     [Fact]
@@ -79,9 +102,38 @@ public sealed class InstallRobustnessTests
     {
         var runs = 0;
         var runner = new ScriptedRunner(_ => { runs++; return new(-1978335226, StoreAdminOutput, ""); });
-        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)), "Claude", CancellationToken.None);
+        var result = await InstallFailure.RunAsync(runner, new("winget", ["install"], TimeSpan.FromMinutes(1)), "Claude", CancellationToken.None, new Locator());
         Assert.Equal(2, runs);
         Assert.NotEqual(0, result.ExitCode);
+    }
+
+    [Fact]
+    public async Task AnInstallThatAsksForAdministratorRightsIsRefusedWhenItsProgramLivesWhereAnyoneCouldReplaceIt()
+    {
+        var runner = new Runner();
+        const string reason = @"choco.exe is installed in a folder that any program on this PC could change (C:\Users\me\choco), so TidyWindow will not run it with administrator rights.";
+        var packages = new PackageService(runner, new Locator { Problem = reason });
+        var manager = new ManagerStatus(ManagerDefinition.All[1], ManagerHealth.Ready, "2", "choco.exe", "Ready");
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => packages.InstallAsync(manager, Msys2));
+        Assert.Equal(reason, refused.Message);
+        Assert.Empty(runner.Installs);
+    }
+
+    [Fact]
+    public void InstallsUpdatesAndUninstallsGetTheLongBudgetWhetherOrNotAnInstallerWindowIsShown()
+    {
+        var packages = new PackageService(new Runner(), new Locator());
+        var manager = new ManagerStatus(ManagerDefinition.All[1], ManagerHealth.Ready, "2", "choco.exe", "Ready");
+        Assert.Equal(TimeSpan.FromHours(2), packages.InstallCommand(manager, Msys2).Timeout);
+        Assert.Equal(TimeSpan.FromHours(2), new InstallationService(packages, new Runner(), new Locator()).ActionCommand(manager, new(ManagerKind.Chocolatey, "msys2", "MSYS2", "1.0", "2.0"), PackageAction.Update).Timeout);
+        Assert.Equal(TimeSpan.FromHours(2), new UninstallRecovery(new FakePc(), new NoHost(), new Runner()).NativeTimeout);
+    }
+
+    private sealed class NoHost : IUninstallHost
+    {
+        public bool IsAdministrator => false;
+        public Task<ClosedPrograms> CloseProgramsInAsync(string folder, CancellationToken token) => Task.FromResult(ClosedPrograms.None);
+        public string ReadHead(string path, int bytes) => "";
     }
 
     private sealed class ScriptedRunner(Func<CommandSpec, CommandResult> handler) : ICommandRunner
@@ -198,8 +250,11 @@ public sealed class InstallRobustnessTests
 
     private sealed class Locator : IExecutableLocator
     {
+        public string? Problem { get; init; }
+        public string? Resolved { get; init; }
         public string? Find(ManagerKind manager) => "choco.exe";
         public string PowerShell => "powershell.exe";
+        public (string FileName, string? Problem) Elevated(string fileName) => (Resolved ?? fileName, Problem);
     }
 
     private sealed class Runner : ICommandRunner

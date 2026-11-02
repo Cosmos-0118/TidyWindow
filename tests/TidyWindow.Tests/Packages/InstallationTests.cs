@@ -252,6 +252,8 @@ public sealed class InstallationTests(ITestOutputHelper output)
     {
         public string? Find(ManagerKind manager) => "manager.exe";
         public string PowerShell => "powershell.exe";
+        // The fake manager is nowhere on disk; where a real one may run as administrator is ElevatedProgramTests' subject.
+        public (string FileName, string? Problem) Elevated(string fileName) => (fileName, null);
     }
     private sealed class FakeRunner : ICommandRunner
     {

@@ -137,8 +137,19 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             _ => app.Global ? [uninstall ? "uninstall" : "update", app.Id, "--global"] : [uninstall ? "uninstall" : "update", app.Id]
         };
         if (interactive && !uninstall && app.Manager != ManagerKind.Scoop) args = [.. args, app.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
-        return packages.BuildCommand(app.Manager, manager.Executable, args, interactive ? TimeSpan.FromHours(2) : TimeSpan.FromMinutes(20)) with
+        return packages.BuildCommand(app.Manager, manager.Executable, args, PackageService.OperationTimeout) with
         { Elevate = app.Manager == ManagerKind.Chocolatey || app.Manager == ManagerKind.Scoop && app.Global, MayShowInstaller = true };
+    }
+
+    /// <summary>
+    /// The command ready to run. One that asks for administrator rights is refused unless its program lives where only administrators can change it (see <see cref="ElevatedProgram"/>);
+    /// for Scoop that includes the script the PowerShell host would run, which Scoop keeps in the person's profile, so Scoop's all-users operations are refused here.
+    /// </summary>
+    private CommandSpec Launchable(CommandSpec command, ManagerStatus manager)
+    {
+        try { return ElevatedProgram.Checked(command, locator, manager.Definition.Kind == ManagerKind.Scoop ? manager.Executable : null); }
+        catch (InvalidOperationException ex) when (manager.Definition.Kind == ManagerKind.Scoop)
+        { throw new InvalidOperationException(ex.Message + " Use an administrator PowerShell window for Scoop apps installed for all users.", ex); }
     }
 
     public async Task<PackageActionResult> RunAsync(ManagerStatus manager, ManagedPackage app, PackageAction action, CancellationToken token = default, IProgress<CommandOutput>? progress = null, bool interactive = false)
@@ -154,16 +165,23 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             if (current is null) return new(ActionOutcome.Unverified, "This app is no longer listed", "Refresh the list before trying again. No command was started.");
             if (action == PackageAction.Update && app.AvailableVersion is { Length: > 0 } target && current.Version == target)
                 return new(ActionOutcome.Completed, $"{app.Name} is already up to date", "The queued target version is already installed. No update was started.");
-            var command = ActionCommand(manager, current, action, interactive) with { Progress = progress };
+            var command = Launchable(ActionCommand(manager, current, action, interactive) with { Progress = progress }, manager);
             // With recovery, the ladder owns asking for administrator rights, so the first try is a plain run.
             var ladder = action == PackageAction.Uninstall ? recovery : null;
-            var result = app.Manager == ManagerKind.Winget && ladder is null ? await InstallFailure.RunAsync(runner, command, app.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
+            var result = app.Manager == ManagerKind.Winget && ladder is null ? await InstallFailure.RunAsync(runner, command, app.Name, token, locator).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
             IReadOnlyList<string> trail = [];
             var entryRemoved = false;
             Task<CommandResult> Rerun(UninstallRecovery.Variant variant)
             {
-                var again = ActionCommand(manager, current, action, false, variant.WithoutSource);
-                return runner.RunAsync(again with { Progress = progress, Elevate = again.Elevate || variant.Elevated }, token);
+                var again = Launchable(ActionCommand(manager, current, action, false, variant.WithoutSource) with { Progress = progress }, manager);
+                if (variant.Elevated && !again.Elevate)
+                {
+                    // Nothing starts when the program must not be given administrator rights, the same way nothing starts when the prompt is declined; the ladder reads the reason from the error text.
+                    var (file, problem) = locator.Elevated(again.FileName);
+                    if (problem is not null) return Task.FromResult(new CommandResult(-1, "", problem));
+                    again = again with { FileName = file, Elevate = true };
+                }
+                return runner.RunAsync(again, token);
             }
             if (ladder is not null && result.ExitCode is not (0 or 1641 or 3010))
             {
