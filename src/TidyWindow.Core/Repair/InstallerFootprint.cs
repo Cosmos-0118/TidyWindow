@@ -123,7 +123,8 @@ public sealed class InstallerFootprint(RegistryRepair registry, string currentSi
         var keys = new List<string>(); var unreadable = new List<string>(); var notes = new List<string>();
         foreach (var arp in request.Keys ?? [])
         {
-            if (!Check(arp, unreadable)) continue;
+            // The entry has to be one a repair may remove, as in a product's plan: a key outside the allow-list is not even looked at.
+            if (!registry.IsAllowed(arp) || !Check(arp, unreadable)) continue;
             keys.Add(arp);
             var provider = Text(arp, "BundleProviderKey", unreadable);
             if (string.IsNullOrWhiteSpace(provider)) provider = arp[(arp.LastIndexOf('\\') + 1)..];

@@ -5,7 +5,8 @@ public enum RepairStatus { Fixed, FixedAfterRestart, NotFixed }
 /// <summary>What happened to one finding: the outcome, a plain sentence about it, and every step that was tried in order.</summary>
 public sealed record RepairResult(string Id, string Title, RepairStatus Status, string Summary, IReadOnlyList<string> Steps);
 
-public sealed record RepairOutcome(int Fixed, IReadOnlyList<string> Problems, RepairBatch? Batch, IReadOnlyList<RepairResult>? Results = null)
+/// <param name="Stopped">Why the repair stopped before every item was tried (the permission prompt was declined part way, or it was cancelled), after something had already been changed; null when it ran to the end.</param>
+public sealed record RepairOutcome(int Fixed, IReadOnlyList<string> Problems, RepairBatch? Batch, IReadOnlyList<RepairResult>? Results = null, string? Stopped = null)
 {
     public bool RestartNeeded => Results?.Any(x => x.Status == RepairStatus.FixedAfterRestart) ?? false;
 }
@@ -50,6 +51,10 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         public bool Removed;
         public readonly List<RepairResult> Results = [];
         public CancellationToken Token = token;
+        /// <summary>Set when the run stopped before every item was tried: the permission prompt was declined part way, or the run was cancelled.</summary>
+        public string? Stopped;
+        /// <summary>Whether anything on the PC has been changed so far, which is what there is to undo.</summary>
+        public bool Changed => Backups.Count > 0 || Files.Count > 0 || Links.Count > 0 || Moved.Count > 0;
 
         // What the person sees while it runs: which item, what is being done this moment, and what already finished for this item.
         public int Total;
@@ -78,16 +83,31 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             run.Doing("Asking Windows for administrator permission. Approve the prompt when it appears.");
             await unlock(cancellationToken).ConfigureAwait(false); run.Elevated = true;
         }
+        // The copies of what was removed are written to the Undo history after every item, under one batch, so a run that is cut short (the prompt declined part way,
+        // the window closed) leaves Undo for what it had already changed. A repair that changed nothing leaves nothing to undo.
+        RepairBatch? batch = null;
+        var created = DateTimeOffset.Now;
+        void Persist() { if (run.Changed) batch = history.Save(title, run.Backups, created, run.Files, run.Links, run.Moved); }
         try
         {
             // The registry work waits on the helper for every key, so it runs off the caller's thread.
-            await Task.Run(() => { foreach (var finding in findings) { cancellationToken.ThrowIfCancellationRequested(); run.Results.Add(FixOne(finding, run)); } }, CancellationToken.None).ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                foreach (var finding in findings)
+                {
+                    if (cancellationToken.IsCancellationRequested) { run.Stopped = "The repair was stopped."; break; }
+                    run.Results.Add(FixOne(finding, run));
+                    try { Persist(); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* Written again after the next item, and once more at the end. */ }
+                    if (run.Stopped is not null) break;
+                }
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         finally { relock(); }
-        // A repair that changed nothing leaves nothing to undo.
-        var batch = run.Backups.Count > 0 || run.Files.Count > 0 || run.Links.Count > 0 || run.Moved.Count > 0 ? history.Save(title, run.Backups, files: run.Files, shortcuts: run.Links, folders: run.Moved) : null;
+        Persist();
+        // Stopped before anything was changed: the caller hears that nothing happened, as it always did.
+        if (run.Stopped is not null && !run.Changed && run.Results.All(x => x.Status == RepairStatus.NotFixed)) throw new OperationCanceledException(run.Stopped);
         var problems = run.Results.Where(x => x.Status == RepairStatus.NotFixed).Select(x => $"{x.Title}: {x.Summary}").ToList();
-        return new(run.Results.Count(x => x.Status != RepairStatus.NotFixed), problems, batch, run.Results);
+        return new(run.Results.Count(x => x.Status != RepairStatus.NotFixed), problems, batch, run.Results, run.Stopped);
     }
 
     /// <summary>
@@ -113,8 +133,9 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         try
         {
             run.Doing("Repairing the program with Windows Installer, from its saved installer file…");
-            var result = await Task.Run(() => elevate ? elevated!.Reinstall(package, product) : ops.Reinstall(package, product), CancellationToken.None).ConfigureAwait(false);
+            var result = await Task.Run(() => elevate ? elevated!.Reinstall(package, product, run.Token) : ops.Reinstall(package, product, run.Token), CancellationToken.None).ConfigureAwait(false);
             steps.Add($"Repaired it with Windows Installer; it returned {result.ExitCode}. {result.Output}".TrimEnd());
+            if (run.Token.IsCancellationRequested) { await Task.Run(() => ClearStaleLock(run, steps), CancellationToken.None).ConfigureAwait(false); return Failed(finding, "The repair was stopped before Windows Installer finished.", steps); }
             if (result.ExitCode is 0 or 3010 or 1641)
                 return Done(finding, "Windows Installer checked the program and put back what was missing or changed.", steps, restart: result.ExitCode != 0);
             var said = WhyItFailed(result.Output);
@@ -207,7 +228,12 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             if (finding.Links is { Count: > 0 } links) return RemoveLinks(finding, links, run, steps);
             return Swept(finding, RemoveKeys(finding, run, steps), run, steps);
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException)
+        {
+            // The item it stopped on is reported as not fixed, with what was tried; the run ends here and the caller says so.
+            run.Stopped = run.Token.IsCancellationRequested ? "The repair was stopped." : "Administrator permission was declined.";
+            return Failed(finding, run.Stopped, steps);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
         {
             return Failed(finding, ex.Message, steps);
@@ -322,8 +348,8 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         {
             run.Doing("Checking the setup program's signature and putting it back in Windows' package cache…");
             RunResult result;
-            if (InstallRepair.IsMachine(entry.Key) && elevated is not null) { Elevate(run); result = elevated.RestoreBundleCopy(file, entry.Name, target); }
-            else result = ops!.RestoreBundleCopy(file, entry.Name, target);
+            if (InstallRepair.IsMachine(entry.Key) && elevated is not null) { Elevate(run); result = elevated.RestoreBundleCopy(file, entry.Name, entry.Publisher, target); }
+            else result = ops!.RestoreBundleCopy(file, entry.Name, entry.Publisher, target);
             // 87 is "not this program's"; a folder of downloads is full of those.
             if (quiet && result.ExitCode == 87) continue;
             steps.Add(result.ExitCode == 0 ? $"Put the setup program back as {target}." : $"Could not put the setup program back as {target}: {result.Output}".TrimEnd());
@@ -429,7 +455,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
                 var count = 0;
                 foreach (var file in files)
                 {
-                    var candidates = file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? ops.ExpandBundle(file, Path.Combine(work, "layout" + count++), product.Name) : [file];
+                    var candidates = file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? ops.ExpandBundle(file, Path.Combine(work, "layout" + count++), product.Name, product.Publisher) : [file];
                     foreach (var candidate in candidates)
                     {
                         var info = ops.ReadPackage(candidate);
@@ -491,10 +517,11 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
     {
         RunResult result;
         run.Doing("Repairing the program with Windows Installer, from its own installer file…");
-        if (product.Context == "User") result = ops!.Reinstall(match, product);
-        else if (elevated is not null) { Elevate(run); result = elevated.Reinstall(match, product); }
+        if (product.Context == "User") result = ops!.Reinstall(match, product, run.Token);
+        else if (elevated is not null) { Elevate(run); result = elevated.Reinstall(match, product, run.Token); }
         else { steps.Add("Repairing a Windows-wide program needs the administrator helper, which is not available."); return null; }
         steps.Add($"Repaired it with Windows Installer; it returned {result.ExitCode}. {result.Output}".TrimEnd());
+        if (run.Token.IsCancellationRequested) { ClearStaleLock(run, steps); throw new OperationCanceledException(run.Token); }
 
         if (result.ExitCode is 0 or 3010 or 1641)
         {
@@ -509,6 +536,25 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             steps.Add(said is null ? $"Windows Installer could not repair it ({Describe(result.ExitCode)})." : $"Windows Installer could not repair it ({said.TrimEnd('.')}).");
         }
         return null;
+    }
+
+    /// <summary>
+    /// After a repair was stopped part way: Windows Installer unwinds it in its service, and once that is quiet a marker it left behind would block every install,
+    /// so the marker is removed (and kept for Undo) when the helper is already approved. Without the helper the next scan offers it.
+    /// </summary>
+    private void ClearStaleLock(Run run, Steps steps)
+    {
+        for (var i = 0; i < 20 && system.InstallerBusy(); i++) Thread.Sleep(500);
+        if (!system.InstallLockExists() || system.InstallerBusy()) return;
+        if (!run.Elevated) { steps.Add("The stopped repair left Windows' install marker behind; the next scan offers to remove it."); return; }
+        try
+        {
+            if (machine.Delete(InstallRepair.InstallLockKey) is { } copy) { run.Backups.Add(copy); steps.Add("Removed the install marker the stopped repair left behind."); }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            steps.Add($"The install marker the stopped repair left behind could not be removed ({ex.Message}); the next scan offers it.");
+        }
     }
 
     private static string Describe(int code) => code switch

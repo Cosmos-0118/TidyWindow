@@ -10,7 +10,27 @@ public sealed partial class RepairView : UserControl
     private RepairViewModel? Model => DataContext as RepairViewModel;
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
-    private async void FixClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.FixAsync(); }
+    // What is ticked is listed before anything is removed: the recommended items come ticked, and a removal is only undone from the Undo tab.
+    private async void FixClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model) return;
+        var titles = model.SelectedTitles;
+        if (titles.Count == 0) return;
+        var list = new StackPanel { Spacing = 4 };
+        list.Children.Add(new TextBlock { Text = "These records are repaired or removed. Every registry key, shortcut and folder that is removed is kept, so the repair can be undone from the Undo tab.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        foreach (var title in titles) list.Children.Add(new TextBlock { Text = "•  " + title, TextWrapping = TextWrapping.Wrap });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = titles.Count == 1 ? "Fix 1 issue?" : $"Fix {titles.Count} issues?",
+            Content = new ScrollViewer { Content = list, MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
+            PrimaryButtonText = "Fix",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ActualTheme
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.FixAsync();
+    }
     private async void LocateClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.LocateInstallerAsync(); }
     // Shows or hides the list of steps under the button, and turns the arrow to match.
     private void StepsClick(object sender, RoutedEventArgs e)

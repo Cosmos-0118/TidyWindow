@@ -300,7 +300,7 @@ public sealed class RegistrySetTextTests : IDisposable
     [InlineData(@"C:\Users\X\AppData\Local\Package Cache\{A}\notes.txt")]
     public void ASetupProgramIsOnlyEverCopiedIntoWindowsPackageCacheAsAnExecutable(string target)
     {
-        var result = new WindowsInstallerOps().RestoreBundleCopy(@"C:\dl\whatever.exe", "Python 3.13.9 (64-bit)", target);
+        var result = new WindowsInstallerOps().RestoreBundleCopy(@"C:\dl\whatever.exe", "Python 3.13.9 (64-bit)", "Python Software Foundation", target);
         Assert.Equal(87, result.ExitCode);
     }
 

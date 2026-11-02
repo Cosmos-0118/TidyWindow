@@ -14,16 +14,20 @@ public sealed record RunResult(int ExitCode, string Output);
 /// <summary>The jobs that need the elevated helper for a Windows-wide program, apart from changing the registry.</summary>
 public interface IElevatedOps
 {
-    /// <summary>Repairs one product from its own installer file with <c>msiexec /fvomus</c> (<c>/fomus</c> when the file is the program's own saved copy), which puts a lost saved copy back. Refuses a file that is not that product's.</summary>
-    RunResult Reinstall(string msiPath, MsiProduct product);
+    /// <summary>
+    /// Repairs one product from its own installer file with <c>msiexec /fvomus</c> (<c>/fomus</c> when the file is the program's own saved copy), which puts a lost saved copy back.
+    /// Refuses a file that is not that product's; with administrator rights, also one that is neither signed by the program's publisher nor in a place only administrators can write to.
+    /// Cancelling ends Windows Installer and answers 1602; the marker it may leave behind is the caller's to check.
+    /// </summary>
+    RunResult Reinstall(string msiPath, MsiProduct product, CancellationToken cancellationToken = default);
     /// <summary>Stops the Windows Installer service, ending it by force if it does not stop. Nothing else is ever stopped.</summary>
     bool StopInstallerService();
     /// <summary>
-    /// Puts a bundle's cached setup program back where its list entry says it is, from a downloaded copy that is signed, names the program and is the very file the entry expects.
+    /// Puts a bundle's cached setup program back where its list entry says it is, from a downloaded copy that is signed by the program's publisher, names the program and is the very file the entry expects.
     /// A Windows-wide bundle's cache (C:\ProgramData\Package Cache) only administrators can write to, so this runs in the helper for those.
     /// The bundle's own <c>/repair</c> is not used: with its saved choices gone it installs the default parts (Python's documentation and test suite) as well.
     /// </summary>
-    RunResult RestoreBundleCopy(string exePath, string programName, string targetPath);
+    RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath);
     /// <summary>Takes back a setup program <see cref="RestoreBundleCopy"/> put in the package cache, and its folder when that is empty. True once the file is gone.</summary>
     bool RemoveCopy(string path);
 }
@@ -38,13 +42,41 @@ public interface IInstallerOps : IElevatedOps
     string? RegisteredPackageCode(MsiProduct product);
     /// <summary>The installer files (.msi and .exe) in a folder the person pointed at, and in the folders directly under it.</summary>
     IReadOnlyList<string> FilesIn(string folder);
-    /// <summary>Unpacks every package out of a program's own setup program (a WiX Burn bundle, with <c>/layout</c>) and returns the .msi files. Only a setup program with a valid signature that names the program is run.</summary>
-    IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName);
+    /// <summary>Unpacks every package out of a program's own setup program (a WiX Burn bundle, with <c>/layout</c>) and returns the .msi files. Only a setup program with a valid signature, from the program's publisher, that names the program is run.</summary>
+    IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName, string publisher);
 }
 
+/// <param name="vault">In the administrator helper: where it notes the setup programs it put in the package cache, and stages installer files before running them. The app's own instance has none.</param>
+/// <param name="cacheRoots">The only folders a setup program is put into or taken out of: the Windows-wide Package Cache and the account's own. The app's instance takes this account's; the helper is told the account it was started for.</param>
+/// <param name="elevated">Running with administrator rights: an installer file is then run only from a copy in a folder only administrators can write to, and only when it is trusted.</param>
 [SupportedOSPlatform("windows")]
-public sealed partial class WindowsInstallerOps : IInstallerOps
+public sealed partial class WindowsInstallerOps(RepairVault? vault = null, IReadOnlyList<string>? cacheRoots = null, bool elevated = false) : IInstallerOps
 {
+    private readonly IReadOnlyList<string> cacheRoots = cacheRoots ?? DefaultCacheRoots();
+
+    /// <summary>The Windows-wide Package Cache and this account's own.</summary>
+    public static IReadOnlyList<string> DefaultCacheRoots() =>
+    [
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Package Cache"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Package Cache")
+    ];
+
+    /// <summary>
+    /// The Package Cache folders the helper may change for the account it was started for: the Windows-wide one and the one in that account's profile, found through
+    /// Windows' own list of profiles (which only administrators can change), not through anything the account itself could point elsewhere.
+    /// </summary>
+    public static IReadOnlyList<string> CacheRootsFor(string userSid)
+    {
+        var roots = new List<string> { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Package Cache") };
+        try
+        {
+            using var profile = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{userSid}");
+            if (userSid.StartsWith("S-1-", StringComparison.Ordinal) && !userSid.Contains('\\') && profile?.GetValue("ProfileImagePath") is string { Length: > 0 } home && Path.IsPathFullyQualified(home))
+                roots.Add(Path.Combine(home, "AppData", "Local", "Package Cache"));
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { }
+        return roots;
+    }
 
     private const string InstallerKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer";
 
@@ -260,18 +292,20 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         return found.Take(400).ToList();
     }
 
-    public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName)
+    public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName, string publisher)
     {
-        if (!IsTrusted(exePath, programName)) return [];
+        // A setup program installs several parts with names of their own, so its details only have to carry the program's first word; its signer has to be the program's publisher.
+        if (InstallerTrust.Problem(exePath, programName, publisher, wholeName: false) is not null) return [];
         Directory.CreateDirectory(folder);
         var result = RunSetup(exePath, TimeSpan.FromMinutes(10), false, "/layout", folder, "/quiet");
         return result.ExitCode == 0 ? Safe(() => Directory.EnumerateFiles(folder, "*.msi", SearchOption.AllDirectories)).ToList() : [];
     }
 
-    public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath)
+    public RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath)
     {
-        if (PackageCachePath(targetPath) is not { } target) return new(87, "That is not a place Windows keeps a setup program.");
-        if (!IsTrusted(exePath, programName)) return new(87, "That setup program is not signed, or does not belong to this program.");
+        if (CachePath(targetPath) is not { } target) return new(87, "That is not a place Windows keeps a setup program.");
+        // The whole name of the bundle has to be in the setup program's own details: this file will be run with administrator rights by Windows' own repair and uninstall of the bundle.
+        if (InstallerTrust.Problem(exePath, programName, publisher, wholeName: true) is { } problem) return new(87, $"That setup program {problem}.");
         string original;
         try { original = FileVersionInfo.GetVersionInfo(exePath).OriginalFilename ?? ""; }
         catch (IOException) { return new(2, "The downloaded setup program could not be read."); }
@@ -285,7 +319,9 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(exePath, staged, true);
             // The copy now sits in a folder only administrators can write to (for a Windows-wide bundle), so nobody can swap it between this check and the move below.
-            if (!IsTrusted(staged, programName)) { File.Delete(staged); return new(87, "That setup program is not signed, or does not belong to this program."); }
+            if (InstallerTrust.Problem(staged, programName, publisher, wholeName: true) is { } again) { File.Delete(staged); return new(87, $"That setup program {again}."); }
+            // The helper notes what it put there before it is there, so a copy it did not make is never one it takes out.
+            vault?.MarkStaged(target);
             File.Move(staged, target, true);
             return new(0, "");
         }
@@ -298,64 +334,50 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
 
     public bool RemoveCopy(string path)
     {
-        if (PackageCachePath(path) is not { } target) return false;
+        if (CachePath(path) is not { } target) return false;
+        // The helper takes out only the setup programs it put in; the app's own instance reaches only this account's cache.
+        if (vault is not null && !vault.WasStaged(target)) return false;
         try
         {
             File.Delete(target);
             var folder = Path.GetDirectoryName(target);
             if (folder is not null && Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
-            return !File.Exists(target);
+            if (File.Exists(target)) return false;
+            vault?.Unstage(target);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 
-    /// <summary>The full path of a setup program inside a "Package Cache" folder, or null for anything else. Resolving the path first keeps "..\" from walking out of the cache.</summary>
-    private static string? PackageCachePath(string path)
+    /// <summary>
+    /// The full path of a setup program inside one of the Package Cache folders this instance may change, or null for anything else: a path that resolves elsewhere
+    /// ("..\" is resolved first), a folder merely named "Package Cache" somewhere else, or a path that goes through a link to somewhere else.
+    /// </summary>
+    internal string? CachePath(string path)
     {
         try
         {
             var full = Path.GetFullPath(path);
-            return full.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && full.Contains(@"\Package Cache\", StringComparison.OrdinalIgnoreCase) ? full : null;
+            if (!full.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(full).Length <= 4) return null;
+            var root = cacheRoots.Select(x => Path.TrimEndingDirectorySeparator(Path.GetFullPath(x))).FirstOrDefault(x => full.StartsWith(x + "\\", StringComparison.OrdinalIgnoreCase));
+            return root is not null && !CrossesLink(full, root) ? full : null;
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException or UnauthorizedAccessException) { return null; }
     }
 
-    /// <summary>A setup program is only run when Windows says its signature is valid and its own details name the program it is meant to repair.</summary>
-    internal static bool IsTrusted(string exePath, string programName)
+    /// <summary>Whether the file, or any folder from the cache root down to it, is a link (a junction, a symbolic link, a mount point) that would carry a change somewhere else.</summary>
+    private static bool CrossesLink(string full, string root)
     {
-        try
+        var file = new FileInfo(full);
+        if (file.Exists && (file.LinkTarget is not null || (file.Attributes & FileAttributes.ReparsePoint) != 0)) return true;
+        for (var folder = Path.GetDirectoryName(full); folder is not null && folder.Length >= root.Length; folder = Path.GetDirectoryName(folder))
         {
-            var info = FileVersionInfo.GetVersionInfo(exePath);
-            var text = string.Join(' ', info.ProductName, info.FileDescription, info.InternalName, info.OriginalFilename, info.CompanyName, Path.GetFileName(exePath));
-            if (!Names(text, programName)) return false;
-            // The same in-process check Startup uses: Windows' own WinVerifyTrust, with no PowerShell started per file.
-            return WindowsStartupSystem.Verify(exePath).Trust == StartupTrust.Verified;
+            var info = new DirectoryInfo(folder);
+            if (info.Exists && (info.LinkTarget is not null || (info.Attributes & FileAttributes.ReparsePoint) != 0)) return true;
+            if (string.Equals(Path.TrimEndingDirectorySeparator(folder), root, StringComparison.OrdinalIgnoreCase)) break;
         }
-        catch (Exception ex) when (ex is IOException or ArgumentException) { return false; }
+        return false;
     }
-
-    private static readonly HashSet<string> Filler = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "microsoft", "windows", "corporation", "inc", "ltd", "llc", "the", "for", "and", "of", "app", "setup", "installer", "bit", "x64", "x86", "amd64", "arm64"
-    };
-
-    /// <summary>
-    /// Whether a file's own details (product, description, company, file name) name the program. The words that tell programs apart have to be there:
-    /// the program's first one, and its second as well when the name opens with a word every program from that maker or platform shares ("Microsoft", "Windows").
-    /// A short word (R, HP, LG, EA) has to stand alone as a word, so it is not found inside any other.
-    /// </summary>
-    internal static bool Names(string details, string programName)
-    {
-        var words = Words().Matches(programName).Select(x => x.Value).ToList();
-        var distinct = words.Where(x => !x.All(char.IsDigit) && !Filler.Contains(x)).ToList();
-        if (distinct.Count == 0) return false;
-        var whole = Words().Matches(details).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var needed = words.Count > 0 && Filler.Contains(words[0]) ? Math.Min(2, distinct.Count) : 1;
-        return distinct.Take(needed).All(word => word.Length < 3 ? whole.Contains(word) : details.Contains(word, StringComparison.OrdinalIgnoreCase));
-    }
-
-    [System.Text.RegularExpressions.GeneratedRegex("[A-Za-z0-9]+")]
-    private static partial System.Text.RegularExpressions.Regex Words();
 
     private static RunResult RunSetup(string exePath, TimeSpan timeout, bool shell, params string[] arguments)
     {
@@ -370,10 +392,20 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return new(1223, ex.Message); }
     }
 
-    public RunResult Reinstall(string msiPath, MsiProduct product)
+    public RunResult Reinstall(string msiPath, MsiProduct product, CancellationToken cancellationToken = default)
     {
         if (!string.Equals(Path.GetExtension(msiPath), ".msi", StringComparison.OrdinalIgnoreCase) || !File.Exists(msiPath)) return new(87, "That is not an installer file.");
-        var info = ReadPackage(msiPath);
+        string full;
+        try { full = Path.GetFullPath(msiPath); } catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return new(87, "That is not an installer file."); }
+        // With administrator rights, a file is run only when nobody but an administrator could have put it where it is, or when it is signed by the program's publisher;
+        // one in a folder the ordinary account can write to is copied into the helper's own folder and checked there before Windows Installer sees it (see RunStagedMsiExec).
+        var guarded = elevated && !InstallerTrust.InProtectedPlace(full);
+        if (guarded)
+        {
+            if (HasExternalCabinets(full)) return new(87, "That installer file keeps its files in separate cabinet files beside it, in a folder anyone could change, so it is not used with administrator rights.");
+            if (InstallerTrust.SignatureProblem(full, product.Publisher) is { } problem) return new(87, $"That installer file {problem}, so it is not used with administrator rights.");
+        }
+        var info = ReadPackage(full);
         if (info is null || !string.Equals(info.ProductCode, product.Code, StringComparison.OrdinalIgnoreCase)) return new(87, "That installer file is for a different program.");
         // Windows Installer may have no package code for it; when it has one, the file has to be the very same build.
         if (RegisteredPackageCode(product) is { } registered && info.PackageCode.Length > 0 && !string.Equals(registered, info.PackageCode, StringComparison.OrdinalIgnoreCase))
@@ -384,31 +416,42 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         // "v" runs from the original source and re-caches the package, which is what puts a lost saved copy back. The program's own saved copy is already the cache, and with "v"
         // Windows Installer insists on the original source (error 1706) that is usually gone, so a repair from the saved copy tries "/fomus" first.
         // If that fails and the cached MSI carries its own embedded cabinets (#cab), staging it under its registered PackageName lets "/fvomus" (or "/fvemus" for GAC packages) repair self-contained.
-        var saved = !string.IsNullOrWhiteSpace(product.LocalPackage) && string.Equals(Path.GetFullPath(msiPath), Path.GetFullPath(product.LocalPackage), StringComparison.OrdinalIgnoreCase);
-        if (saved)
+        var saved = !string.IsNullOrWhiteSpace(product.LocalPackage) && string.Equals(full, Path.GetFullPath(product.LocalPackage), StringComparison.OrdinalIgnoreCase);
+        if (saved && !guarded)
         {
-            var first = RunMsiExec("/fomus", msiPath);
-            if (first.ExitCode is 0 or 3010 or 1641 || !HasEmbeddedCabinets(msiPath))
+            var first = RunMsiExec("/fomus", full, cancellationToken);
+            if (first.ExitCode is 0 or 3010 or 1641 or 1602 || !HasEmbeddedCabinets(full))
                 return first;
         }
 
-        var flags = NeedsEqualReinstall(msiPath) ? "/fvemus" : "/fvomus";
-        return RunStagedMsiExec(flags, msiPath, product);
+        var flags = NeedsEqualReinstall(full) ? "/fvemus" : "/fvomus";
+        return RunStagedMsiExec(flags, full, product, guarded, cancellationToken);
     }
 
-    private static RunResult RunMsiExec(string flags, string msiPath, params string[] properties)
+    /// <summary>Whether the MSI names cabinet files that sit beside it rather than inside it; what those hold is never checked by a signature on the MSI.</summary>
+    internal static bool HasExternalCabinets(string path)
+    {
+        if (MsiOpenDatabase(path, IntPtr.Zero, out var database) != 0) return false;
+        try { return ColumnValues(database, "SELECT `Cabinet` FROM `Media`").Any(x => x.Length > 0 && x[0] != '#'); }
+        finally { MsiCloseHandle(database); }
+    }
+
+    private static RunResult RunMsiExec(string flags, string msiPath, CancellationToken cancellationToken, params string[] properties)
     {
         var log = Path.Combine(Path.GetTempPath(), "TidyWindow-repair-" + Guid.NewGuid().ToString("N")[..8] + ".log");
         var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "msiexec.exe")) { UseShellExecute = false, CreateNoWindow = true };
         foreach (var argument in new[] { flags, msiPath, "/qn", "/norestart", "/l*v", log }) start.ArgumentList.Add(argument);
         foreach (var prop in properties) start.ArgumentList.Add(prop);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Windows Installer could not be started.");
-        if (!process.WaitForExit(TimeSpan.FromMinutes(20))) { try { process.Kill(); } catch (InvalidOperationException) { } return new(1460, "Windows Installer did not finish in 20 minutes.\nLog: " + log); }
+        // Windows Installer does the work in its service and unwinds it when its client goes; ending the client and everything it started is how a stop is asked for.
+        using var stop = cancellationToken.Register(() => End(process));
+        if (!process.WaitForExit(TimeSpan.FromMinutes(20))) { End(process); return new(1460, "Windows Installer did not finish in 20 minutes.\nLog: " + log); }
+        if (cancellationToken.IsCancellationRequested) return new(1602, "The repair was stopped before Windows Installer finished.\nLog: " + log);
         var result = new RunResult(process.ExitCode, "Log: " + log);
         if (result.ExitCode is not (0 or 3010 or 1641) && properties.Length == 0 && FailedOnRollbackFolder(log))
         {
             ClearStaleRollbackFolders();
-            return RunMsiExec(flags, msiPath, "DISABLEROLLBACK=1");
+            return RunMsiExec(flags, msiPath, cancellationToken, "DISABLEROLLBACK=1");
         }
         // msiexec's own exit code is the client's. When the install server finished and reconfigured the product without rolling anything back, the repair worked.
         if (result.ExitCode == 1603 && ServerFinishedCleanly(log) is { } code)
@@ -451,22 +494,29 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
     /// Runs <c>msiexec</c> with <c>v</c> against a copy staged under the product's registered <c>PackageName</c> when the file is in <c>C:\Windows\Installer</c>
     /// or has a different name on disk (such as a WinGet download), so Windows Installer's SecureRepair (<c>Error 1316</c>) and custom actions see the exact filename expected.
     /// </summary>
-    private RunResult RunStagedMsiExec(string flags, string msiPath, MsiProduct product)
+    /// <param name="guarded">The file lies where the ordinary account can write: it is always staged, into the helper's own folder, and the staged copy is checked again before it runs.</param>
+    private RunResult RunStagedMsiExec(string flags, string msiPath, MsiProduct product, bool guarded, CancellationToken cancellationToken)
     {
         var full = Path.GetFullPath(msiPath);
         var wanted = RegisteredPackageName(product);
         var installerCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer").TrimEnd('\\') + "\\";
         var inCache = full.StartsWith(installerCache, StringComparison.OrdinalIgnoreCase);
         var needsRename = wanted is not null && !string.Equals(Path.GetFileName(full), wanted, StringComparison.OrdinalIgnoreCase);
-        if (!inCache && !needsRename) return RunMsiExec(flags, full);
+        if (!inCache && !needsRename && !guarded) return RunMsiExec(flags, full, cancellationToken);
 
-        var stageDir = Path.Combine(Path.GetTempPath(), "TidyWindow-stage-" + Guid.NewGuid().ToString("N")[..8]);
+        var stageDir = Path.Combine(guarded && vault is not null ? vault.Stage : Path.GetTempPath(), "TidyWindow-stage-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
             Directory.CreateDirectory(stageDir);
             var staged = Path.Combine(stageDir, wanted ?? Path.GetFileName(full));
             File.Copy(full, staged, true);
-            if (!inCache && Path.GetDirectoryName(full) is { Length: > 0 } sourceDir)
+            if (guarded)
+            {
+                // The copy now sits where only administrators can write, so what was checked is what runs.
+                if (InstallerTrust.SignatureProblem(staged, product.Publisher) is { } problem) return new(87, $"That installer file {problem}, so it is not used with administrator rights.");
+                if (ReadPackage(staged) is not { } copy || !string.Equals(copy.ProductCode, product.Code, StringComparison.OrdinalIgnoreCase)) return new(87, "That installer file is for a different program.");
+            }
+            else if (!inCache && Path.GetDirectoryName(full) is { Length: > 0 } sourceDir)
             {
                 foreach (var cab in Safe(() => Directory.EnumerateFiles(sourceDir, "*.cab")))
                 {
@@ -474,7 +524,7 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
                     if (!CreateHardLink(destCab, cab, IntPtr.Zero)) File.Copy(cab, destCab, true);
                 }
             }
-            return RunMsiExec(flags, staged);
+            return RunMsiExec(flags, staged, cancellationToken);
         }
         finally
         {
@@ -510,6 +560,8 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
                     Directory.Delete(folder, false);
                     continue;
                 }
+                // A tree with a link in it is left for the person: deleting through it could reach somewhere else.
+                if (HoldsLink(folder)) continue;
                 File.SetAttributes(folder, FileAttributes.Normal);
                 Directory.Delete(folder, true);
             }
@@ -520,17 +572,38 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
             try
             {
                 if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) { Directory.Delete(folder, false); continue; }
+                if (HoldsLink(folder)) continue;
                 Directory.Delete(folder, true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 
+    /// <summary>Whether the folder, or anything under it, is a link to somewhere else. Nothing is followed to find out, and a folder that cannot be looked into counts as holding one.</summary>
+    internal static bool HoldsLink(string folder)
+    {
+        try
+        {
+            var info = new DirectoryInfo(folder);
+            if (info.LinkTarget is not null || (info.Attributes & FileAttributes.ReparsePoint) != 0) return true;
+            return info.EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = false, AttributesToSkip = 0 })
+                .Any(x => x.LinkTarget is not null || (x.Attributes & FileAttributes.ReparsePoint) != 0);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return true; }
+    }
+
+    private static void End(Process process)
+    {
+        try { process.Kill(entireProcessTree: true); }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or AggregateException) { }
+    }
+
     internal static void UnlockRollbackFolder(string folder)
     {
         if (!Directory.Exists(folder)) return;
-        try { if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        // Anyone can make a folder at the root of the drive. Ownership and permissions are only ever changed below one that is a plain tree: a link anywhere
+        // in it would carry the change to wherever the link points.
+        if (HoldsLink(folder)) return;
         if (OperatingSystem.IsWindows()) RegistryNative.EnablePrivileges();
         Run("takeown.exe", "/F", folder, "/A");
         Run("icacls.exe", folder, "/grant", "*S-1-5-32-544:F", "*S-1-5-18:F", "/C", "/Q");

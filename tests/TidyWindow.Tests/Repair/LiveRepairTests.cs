@@ -116,8 +116,10 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         var entry = new WindowsInstallSystem().Entries().First(x => x.BundleProvider.Length > 0 && x.Name.StartsWith("Python 3.13", StringComparison.OrdinalIgnoreCase));
         var setup = InstallRepair.Candidates(entry.UninstallString).First();
         output.WriteLine($"{entry.Name}: {setup}");
-        Assert.True(WindowsInstallerOps.IsTrusted(setup.Trim('"'), entry.Name));
-        Assert.False(WindowsInstallerOps.IsTrusted(setup.Trim('"'), "Visual Studio Code"));
+        // The real cached setup: signed by its publisher (with revocation checked, which may go online), named after the bundle.
+        Assert.Null(InstallerTrust.Problem(setup.Trim('"'), entry.Name, entry.Publisher, wholeName: true));
+        Assert.NotNull(InstallerTrust.Problem(setup.Trim('"'), "Visual Studio Code", entry.Publisher, wholeName: true));
+        Assert.NotNull(InstallerTrust.Problem(setup.Trim('"'), entry.Name, "Contoso Ltd", wholeName: true));
     }
 
     [Fact]
@@ -143,8 +145,8 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
             var files = fetcher.Download(match, Path.Combine(work, "download"), "x64", CancellationToken.None);
             output.WriteLine($"downloaded: {string.Join(", ", files.Select(Path.GetFileName))}");
             var setup = Assert.Single(files, x => x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
-            Assert.True(WindowsInstallerOps.IsTrusted(setup, entry.Name), "The downloaded setup program is not validly signed or does not name the program.");
-            var packages = ops.ExpandBundle(setup, Path.Combine(work, "layout"), entry.Name);
+            Assert.Null(InstallerTrust.Problem(setup, entry.Name, entry.Publisher, wholeName: true));
+            var packages = ops.ExpandBundle(setup, Path.Combine(work, "layout"), entry.Name, entry.Publisher);
             output.WriteLine($"{packages.Count} packages unpacked");
             var products = system.Products();
             var matched = packages.Select(ops.ReadPackage).Where(x => x is not null).Where(x => products.Any(p => string.Equals(p.Code, x!.ProductCode, StringComparison.OrdinalIgnoreCase))).ToList();

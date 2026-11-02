@@ -18,8 +18,9 @@ public sealed record ValueBackup(string Name, string Kind, string? Text = null, 
 /// A registry key with all its values, its subkeys and its permissions (as SDDL). This is what an undo restores.
 /// <see cref="ValuesOnly"/> means only some values were removed or changed in a key other programs also use, so only those values are put back;
 /// <see cref="Absent"/> names values that did not exist before a change, which an undo removes again.
+/// <see cref="Token"/> names the administrator helper's own protected copy of the same key, when the helper made the change: an undo through the helper puts back that copy, never this one.
 /// </summary>
-public sealed record KeyBackup(string Path, IReadOnlyList<ValueBackup> Values, IReadOnlyList<KeyBackup> Children, string? Sddl = null, bool ValuesOnly = false, IReadOnlyList<string>? Absent = null);
+public sealed record KeyBackup(string Path, IReadOnlyList<ValueBackup> Values, IReadOnlyList<KeyBackup> Children, string? Sddl = null, bool ValuesOnly = false, IReadOnlyList<string>? Absent = null, string? Token = null);
 
 /// <summary>
 /// Removes and restores the few registry keys that leftovers of a failed install live in. It only ever touches keys that match an allow-list,
@@ -33,7 +34,6 @@ public sealed class RegistryRepair : IKeyEditor
     private const string Wow64Uninstall = @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
     private const string Installer = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer";
     private const string Packed = @"[0-9A-F]{32}";
-    private const string UserKey = @"(?:HKCU|HKU\\S-1-[0-9-]+)";
 
     private readonly IReadOnlyList<Regex> allowed;
     private readonly IReadOnlyList<(Regex Path, Regex Name)> values;
@@ -67,6 +67,9 @@ public sealed class RegistryRepair : IKeyEditor
         Rule(hive + @"\\SOFTWARE\\Classes\\Installer\\Dependencies\\[^\\]+(?:\\Dependents\\[^\\]+)?")
     ];
 
+    /// <summary>The hive pattern for the elevated helper: HKCU, or the one user's hive under HKU that the helper was started for; never another account's.</summary>
+    private static string HiveOf(string userSid) => userSid.Length > 0 ? @"(?:HKCU|HKU\\" + Regex.Escape(userSid) + ")" : "HKCU";
+
     private static IEnumerable<Regex> MachineRules() =>
     [
         Rule(@"HKLM\\" + Regex.Escape(Uninstall) + @"\\[^\\]+"),
@@ -83,33 +86,40 @@ public sealed class RegistryRepair : IKeyEditor
         Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\Rollback")
     ];
 
-    private static readonly (Regex Path, Regex Name)[] SharedValues =
+    // A product's link in a key every product with that upgrade code or component shares: only that one value goes.
+    // The command a list entry runs to uninstall: pointed at an uninstaller that is still there when the one it names is gone.
+    private static IEnumerable<(Regex Path, Regex Name)> MachineValueRules() =>
     [
-        // A product's link in a key every product with that upgrade code or component shares: only that one value goes.
-        (Rule(UserKey + @"\\SOFTWARE\\(?:Microsoft|Classes)\\Installer\\UpgradeCodes\\" + Packed), Rule(Packed)),
-        (Rule(UserKey + @"\\" + Regex.Escape(Installer) + @"\\UpgradeCodes\\" + Packed), Rule(Packed)),
         (Rule(@"HKLM\\SOFTWARE\\Classes\\Installer\\UpgradeCodes\\" + Packed), Rule(Packed)),
         (Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\UpgradeCodes\\" + Packed), Rule(Packed)),
         (Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\Managed\\S-1-[0-9-]+\\Installer\\UpgradeCodes\\" + Packed), Rule(Packed)),
         (Rule(@"HKLM\\" + Regex.Escape(Installer) + @"\\UserData\\S-1-[0-9-]+\\Components\\" + Packed), Rule(Packed)),
-        // The command a list entry runs to uninstall: pointed at an uninstaller that is still there when the one it names is gone.
-        (Rule(@"HKLM\\(?:" + Regex.Escape(Uninstall) + "|" + Regex.Escape(Wow64Uninstall) + @")\\[^\\]+"), Rule("UninstallString|QuietUninstallString")),
-        (Rule(UserKey + @"\\(?:" + Regex.Escape(Uninstall) + "|" + Regex.Escape(Wow64Uninstall) + @")\\[^\\]+"), Rule("UninstallString|QuietUninstallString"))
+        (Rule(@"HKLM\\(?:" + Regex.Escape(Uninstall) + "|" + Regex.Escape(Wow64Uninstall) + @")\\[^\\]+"), Rule("UninstallString|QuietUninstallString"))
+    ];
+
+    private static IEnumerable<(Regex Path, Regex Name)> UserValueRules(string hive) =>
+    [
+        (Rule(hive + @"\\SOFTWARE\\(?:Microsoft|Classes)\\Installer\\UpgradeCodes\\" + Packed), Rule(Packed)),
+        (Rule(hive + @"\\" + Regex.Escape(Installer) + @"\\UpgradeCodes\\" + Packed), Rule(Packed)),
+        (Rule(hive + @"\\(?:" + Regex.Escape(Uninstall) + "|" + Regex.Escape(Wow64Uninstall) + @")\\[^\\]+"), Rule("UninstallString|QuietUninstallString"))
     ];
 
     /// <summary>Windows-wide keys. Only the elevated helper uses these.</summary>
-    public static RegistryRepair Machine { get; } = new([.. MachineRules()], values: [.. SharedValues.Where(x => x.Path.ToString().Contains("HKLM"))]);
+    public static RegistryRepair Machine { get; } = new([.. MachineRules()], values: [.. MachineValueRules()]);
 
     /// <summary>Keys of the signed-in user, which need no administrator permission.</summary>
-    public static RegistryRepair User { get; } = new([.. UserRules("HKCU")], values: [.. SharedValues.Where(x => x.Path.ToString().Contains("HKCU"))]);
+    public static RegistryRepair User { get; } = new([.. UserRules("HKCU")], values: [.. UserValueRules("HKCU")]);
 
     /// <summary>The rules of <see cref="User"/> on hives of the caller's choosing, so the same code can run against a throwaway registry tree.</summary>
     public static RegistryRepair UserFor(RegistryRoots roots, string? userSid = null) =>
-        new([.. UserRules("HKCU")], roots, userSid, [.. SharedValues.Where(x => x.Path.ToString().Contains("HKCU"))]);
+        new([.. UserRules("HKCU")], roots, userSid, [.. UserValueRules("HKCU")]);
 
-    /// <summary>What the elevated helper may change: the Windows-wide keys and the signed-in user's own, reached through that user's hive.</summary>
+    /// <summary>
+    /// What the elevated helper may change: the Windows-wide keys and the one user's own, reached through that user's hive (HKCU, or HKU\<paramref name="userSid"/> spelled out).
+    /// Another account's hive, loaded under HKU, is never on the list: the helper was started for this one account.
+    /// </summary>
     public static RegistryRepair Elevated(string userSid, RegistryRoots? roots = null) =>
-        new([.. MachineRules(), .. UserRules(UserKey)], roots, userSid, SharedValues, privileged: true);
+        new([.. MachineRules(), .. UserRules(HiveOf(userSid))], roots, userSid, [.. MachineValueRules(), .. UserValueRules(HiveOf(userSid))], privileged: true);
 
     public bool IsAllowed(string path) => !path.Contains("..") && allowed.Any(x => x.IsMatch(path));
     public bool IsValueAllowed(string path, string name) => !path.Contains("..") && values.Any(x => x.Path.IsMatch(path) && x.Name.IsMatch(name));
@@ -542,12 +552,14 @@ public sealed class RepairHistory(string folder, int keep = 1000)
         return expired;
     }
 
-    // True once the kept copy is gone (or was never there).
-    private static bool DeleteStored(FolderBackup kept)
+    // True once the kept copy is gone (or was never there). Only the app's own quarantine is deleted from here; the helper's (where only administrators can write) is the helper's to clear,
+    // and a folder of its that is gone counts as expired.
+    private bool DeleteStored(FolderBackup kept)
     {
         try
         {
-            if (!kept.Stored.Contains(@"\SetAside\", StringComparison.OrdinalIgnoreCase) || Path.GetDirectoryName(kept.Stored) is not { } holder) return false;
+            if (Path.GetDirectoryName(kept.Stored) is not { } holder) return false;
+            if (!kept.Stored.StartsWith(SetAsideFolder.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)) return !Directory.Exists(kept.Stored);
             if (Directory.Exists(kept.Stored)) Directory.Delete(holder, true);
             else if (Directory.Exists(holder) && !Directory.EnumerateFileSystemEntries(holder).Any()) Directory.Delete(holder);
             return !Directory.Exists(kept.Stored);

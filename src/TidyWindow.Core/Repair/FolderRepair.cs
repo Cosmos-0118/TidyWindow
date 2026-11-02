@@ -2,8 +2,11 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>A folder as it stood before a repair set it aside: where it was, and where it is kept so Undo can move it back.</summary>
-public sealed record FolderBackup(string Original, string Stored);
+/// <summary>
+/// A folder as it stood before a repair set it aside: where it was, and where it is kept so Undo can move it back.
+/// <see cref="Token"/> names the administrator helper's own record of the move, when the helper made it: the helper moves back, or deletes, only what its record says.
+/// </summary>
+public sealed record FolderBackup(string Original, string Stored, string? Token = null);
 
 /// <summary>
 /// Sets folders aside and puts them back: the signed-in user's own, or the elevated helper. Setting aside is a move into the repair's own backup folder, not a delete,
@@ -91,12 +94,15 @@ public static partial class RepairFolders
     }
 }
 
-public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
+/// <param name="allowed">Which folders this editor may set aside or put back.</param>
+/// <param name="vaultRoot">The one folder set aside folders may be kept in. The app's editor uses its own quarantine under the profile; the helper's, a folder only administrators can write to.</param>
+public sealed class FileFolderEditor(Func<string, bool> allowed, string? vaultRoot = null) : IFolderEditor
 {
     private const string Vault = @"\TidyWindow.Next\RepairBackups\SetAside\";
 
     public static FileFolderEditor User() => new(path => RepairFolders.Classify(path) != FolderKind.None && !RepairFolders.IsMachine(path));
-    public static FileFolderEditor Machine() => new(path => RepairFolders.Classify(path) != FolderKind.None && RepairFolders.IsMachine(path));
+    /// <param name="quarantine">Where the helper keeps what it sets aside: a place the ordinary account cannot write to, so what goes back to Program Files is what was taken out of it.</param>
+    public static FileFolderEditor Machine(string? quarantine = null) => new(path => RepairFolders.Classify(path) != FolderKind.None && RepairFolders.IsMachine(path), quarantine);
 
     public bool Allows(string path)
     {
@@ -111,10 +117,13 @@ public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
         return full;
     }
 
-    private static string InVault(string path)
+    private string InVault(string path)
     {
         var full = Path.GetFullPath(path);
-        if (!full.Contains(Vault, StringComparison.OrdinalIgnoreCase)) throw new IOException("That is not where TidyWindow keeps what it sets aside.");
+        var inside = vaultRoot is not null
+            ? full.StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(vaultRoot)) + "\\", StringComparison.OrdinalIgnoreCase)
+            : full.Contains(Vault, StringComparison.OrdinalIgnoreCase);
+        if (!inside) throw new IOException("That is not where TidyWindow keeps what it sets aside.");
         return Path.TrimEndingDirectorySeparator(full);
     }
 
@@ -123,7 +132,8 @@ public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
         var full = Checked(path);
         if (!Directory.Exists(full)) return null;
         if ((new DirectoryInfo(full).Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException("That folder is a link to somewhere else, so it was left alone.");
-        var stored = InVault(Path.Combine(vault, System.Guid.NewGuid().ToString("N")[..8], Path.GetFileName(full)));
+        // The helper keeps everything in its own quarantine, whatever folder the request named.
+        var stored = InVault(Path.Combine(vaultRoot ?? vault, System.Guid.NewGuid().ToString("N")[..8], Path.GetFileName(full)));
         Directory.CreateDirectory(Path.GetDirectoryName(stored)!);
         try { Move(full, stored); }
         catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows() && RepairFolders.Classify(full) == FolderKind.RollbackFolder)
@@ -139,7 +149,9 @@ public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
         var original = Checked(backup.Original);
         var stored = InVault(backup.Stored);
         if (!Directory.Exists(stored)) throw new IOException($"{Path.GetFileName(original)} is no longer where it was kept.");
-        if (Directory.Exists(original)) throw new IOException($"A folder named {Path.GetFileName(original)} is there again, so it was not overwritten.");
+        if (Directory.Exists(original) || File.Exists(original)) throw new IOException($"A folder named {Path.GetFileName(original)} is there again, so it was not overwritten.");
+        NoLinks(stored, Path.GetFileName(original));
+        NoLinkAbove(Path.GetDirectoryName(original)!);
         Directory.CreateDirectory(Path.GetDirectoryName(original)!);
         Move(stored, original);
     }
@@ -149,6 +161,8 @@ public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
         var original = Checked(backup.Original);
         var stored = InVault(backup.Stored);
         if (!Directory.Exists(original)) return;
+        NoLinks(original, Path.GetFileName(original));
+        if (Directory.Exists(stored) || File.Exists(stored)) throw new IOException($"Something is already where {Path.GetFileName(original)} was kept.");
         Directory.CreateDirectory(Path.GetDirectoryName(stored)!);
         Move(original, stored);
     }
@@ -159,12 +173,34 @@ public sealed class FileFolderEditor(Func<string, bool> allowed) : IFolderEditor
         Checked(backup.Original);
         var stored = InVault(backup.Stored);
         if (!Directory.Exists(stored)) return;
-        // The folder keeps the permissions it had in Program Files, so files read-only for everyone are made writable first.
-        foreach (var file in new DirectoryInfo(stored).EnumerateFiles("*", SearchOption.AllDirectories))
+        NoLinks(stored, Path.GetFileName(stored));
+        // The folder keeps the permissions it had in Program Files, so files read-only for everyone are made writable first. Links are not looked into.
+        foreach (var file in new DirectoryInfo(stored).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }))
             if ((file.Attributes & FileAttributes.ReadOnly) != 0) file.Attributes &= ~FileAttributes.ReadOnly;
         Directory.Delete(stored, true);
         if (Path.GetDirectoryName(stored) is { } holder && Directory.Exists(holder) && !Directory.EnumerateFileSystemEntries(holder).Any()) Directory.Delete(holder);
     }
+
+    /// <summary>A folder about to be moved or deleted must not be a link, nor hold one anywhere under it: a link would carry the change somewhere else.</summary>
+    private static void NoLinks(string folder, string name)
+    {
+        var info = new DirectoryInfo(folder);
+        if (IsLink(info)) throw new IOException($"{name} is a link to somewhere else, so it was left alone.");
+        foreach (var entry in info.EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 }))
+            if (IsLink(entry)) throw new IOException($"{name} holds a link to somewhere else ({entry.Name}), so it was left alone.");
+    }
+
+    /// <summary>The folder a put-back lands in must be reached without going through a link.</summary>
+    private static void NoLinkAbove(string folder)
+    {
+        for (var current = folder; current is not null && Path.GetPathRoot(current) != current; current = Path.GetDirectoryName(current))
+        {
+            var info = new DirectoryInfo(current);
+            if (info.Exists && IsLink(info)) throw new IOException($"{Path.GetFileName(current)} is a link to somewhere else, so nothing was put back under it.");
+        }
+    }
+
+    private static bool IsLink(FileSystemInfo info) => info.LinkTarget is not null || (info.Attributes & FileAttributes.ReparsePoint) != 0;
 
     /// <summary>A rename on one drive (permissions stay); a copy and delete across drives, where a folder cannot be renamed.</summary>
     private static void Move(string from, string to)

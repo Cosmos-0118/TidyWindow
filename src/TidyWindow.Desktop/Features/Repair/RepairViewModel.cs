@@ -164,6 +164,10 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
 
     public bool Scanned => scanned;
     public bool Busy => scanning || fixing;
+    /// <summary>True while a repair, an undo or a quarantine change is being applied to the PC (a scan does not count): the shell must not close the window then.</summary>
+    public bool Changing => fixing;
+    /// <summary>The titles of the findings ticked on the Problems tab, for the confirmation before they are fixed.</summary>
+    public IReadOnlyList<string> SelectedTitles => SelectedRows().Select(x => x.Title).ToList();
     public bool CanScan => !Busy;
     public bool CanFix => !Busy && selectedCount > 0;
     public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
@@ -355,11 +359,12 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             else toasts.Show("repair", ToastKind.Success, $"Repaired {row.Name}", result.Status == RepairStatus.FixedAfterRestart ? "Restart Windows to finish." : "See Last repair on the Problems tab for what was done.");
             log.Write(result.Status == RepairStatus.NotFixed ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Repaired {row.Name}", result.Summary + " " + string.Join(" ", result.Steps));
         }
-        catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
         {
             toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.ToString());
         }
         finally { fixing = false; Notify(); }
     }
@@ -374,22 +379,27 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             var batch = outcome.Batch;
             ShowResults(outcome.Results ?? [], outcome.RestartNeeded);
             var undo = batch is null ? null : (Func<Task>)(() => UndoAsync(batch));
-            if (outcome.Problems.Count == 0)
+            if (outcome.Stopped is not null)
+                // It stopped part way (the prompt was declined, or the window closed) after something had been changed: what was changed is in the Undo tab.
+                toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired before it stopped", outcome.Stopped + (batch is null ? "" : " What was changed can be undone from the Undo tab."), batch is null ? "" : "Undo", undo, 15);
+            else if (outcome.Problems.Count == 0)
                 toasts.Show("repair", ToastKind.Success, title, outcome.RestartNeeded ? "Restart Windows to finish." : batch is null ? "" : "You can undo this any time from the Undo tab.", batch is null ? "" : "Undo", undo, 12);
             else
                 toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired", ToastCenter.Brief(string.Join(" ", outcome.Problems)), batch is null ? "" : "Undo", undo, 15);
             log.Write(outcome.Problems.Count == 0 ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, title,
-                $"{outcome.Fixed} of {findings.Count} repaired. " + string.Join(" ", outcome.Problems) + string.Concat((outcome.Results ?? []).Select(x => $"\n{x.Title}: {x.Status}. " + string.Join(" ", x.Steps))));
+                $"{outcome.Fixed} of {findings.Count} repaired. " + (outcome.Stopped ?? "") + string.Join(" ", outcome.Problems) + string.Concat((outcome.Results ?? []).Select(x => $"\n{x.Title}: {x.Status}. " + string.Join(" ", x.Steps))));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
         {
             toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed.");
             log.Write(ActivityLevel.Info, ActivityArea.App, "Repair stopped", "Administrator permission was declined.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
         {
+            // Whatever went wrong (the helper could not be started, a file was in the way), the page says so and stays usable rather than taking the app down.
             toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.ToString());
         }
         finally { fixing = false; RefreshHistory(); Notify(); }
         if (rescan) await ScanAsync();
@@ -430,11 +440,12 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
                 log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", string.Join(" ", outcome.Problems));
             }
         }
-        catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was restored."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was restored."); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
         {
             toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", ex.ToString());
         }
         finally { fixing = false; RefreshHistory(); Notify(); }
         await ScanAsync();
