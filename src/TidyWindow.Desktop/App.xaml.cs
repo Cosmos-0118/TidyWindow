@@ -19,8 +19,8 @@ public partial class App : Application
         // Record the failure before the process ends; these handlers do not suppress the crash. The app's version and the Windows build go in
         // with it, because a report rarely says which they were.
         // Crash file: once ActivityLog can write one, hand it the full text here and keep this entry as the pointer to it.
-        UnhandledException += (_, e) => log.Write(ActivityLevel.Error, ActivityArea.App, "TidyWindow hit an unexpected error", Describe(e.Exception?.ToString() ?? e.Message));
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => log.Write(ActivityLevel.Error, ActivityArea.App, "TidyWindow stopped unexpectedly", Describe(e.ExceptionObject.ToString()));
+        UnhandledException += (_, e) => log.WriteCrash("TidyWindow hit an unexpected error", Describe(e.Exception?.ToString() ?? e.Message));
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => log.WriteCrash("TidyWindow stopped unexpectedly", Describe(e.ExceptionObject.ToString()));
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             // Cancellation of abandoned work is expected and not worth recording.
@@ -48,7 +48,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             // An exception leaving here ends the process with no usable record; and a launch that could not make its window has nothing to keep open.
-            log.Write(ActivityLevel.Error, ActivityArea.App, "TidyWindow could not open its window", Describe(ex.ToString()));
+            log.WriteCrash("TidyWindow could not open its window", Describe(ex.ToString()));
             if (window is null) Exit();
         }
         finally { Program.Splash?.Dismiss(); }

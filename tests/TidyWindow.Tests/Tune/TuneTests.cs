@@ -942,6 +942,7 @@ public sealed class TuneLiveTests
     [LiveFact]
     public void TheShippedCatalogCanBeReadOnThisPc()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var result = TuneScan.Run(new WindowsTuneSystem(), TuneCatalog.Load());
         Assert.NotEmpty(result.Entries);
         Assert.Equal(TuneCatalog.Load().Count, result.Entries.Count + result.NotOnThisPc);

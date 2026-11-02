@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TidyWindow.Next.Tests;
 
+[Collection("Processes")]
 public sealed class LiveOutputTests
 {
     [Fact]

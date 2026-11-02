@@ -490,6 +490,7 @@ public sealed class LabStoreTests : IDisposable
 
 /// <summary>Reads this PC without changing anything: real powercfg listing and the real list of running apps.</summary>
 [SupportedOSPlatform("windows")]
+[Collection("Processes")]
 public sealed class LabLiveTests
 {
     [Fact]

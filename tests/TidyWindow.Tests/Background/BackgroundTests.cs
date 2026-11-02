@@ -1040,6 +1040,7 @@ public sealed class BackgroundLiveTests
     [LiveFact]
     public void TheShippedCatalogCanBeReadOnThisPc()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var result = BackgroundScan.Run(new WindowsBackgroundSystem(), BackgroundCatalog.Load());
         Assert.NotEmpty(result.Entries);
         Assert.Equal(BackgroundCatalog.Load().Count, result.Entries.Count + result.NotOnThisPc);

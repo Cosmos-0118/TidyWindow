@@ -1250,6 +1250,7 @@ public sealed class DebloatLiveTests
     [LiveFact]
     public void TheShippedCatalogCanBeScannedOnThisPc()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var catalog = DebloatCatalog.Load();
         var result = DebloatScan.Run(new WindowsDebloatSystem(elevated: false), catalog);
         Assert.Equal(catalog.Count, result.Entries.Count + result.NotOnThisPc);

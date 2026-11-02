@@ -6,6 +6,7 @@ using Xunit;
 namespace TidyWindow.Next.Tests;
 
 /// <summary>A command or an installer that stops answering must never leave the queue, and so the whole app, waiting for it forever.</summary>
+[Collection("Processes")]
 public sealed class HangResilienceTests
 {
     private static PackageOperation Install(string id) => PackageOperation.Install(new(ManagerKind.Scoop, id, id, "1", "main"));

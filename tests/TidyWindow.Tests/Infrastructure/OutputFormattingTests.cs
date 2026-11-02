@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TidyWindow.Next.Tests;
 
+[Collection("Processes")]
 public sealed class OutputFormattingTests
 {
     private const string Host = "<Obj S=\"information\"><ToString>openjdk27 installed successfully!</ToString><Props><S N=\"Source\">private-script-path.ps1</S><Obj N=\"Tags\"><LST><S>PSHOST</S></LST></Obj></Props></Obj>";

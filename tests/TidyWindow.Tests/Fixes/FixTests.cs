@@ -971,6 +971,7 @@ public sealed class OutputSplitterTests
 }
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+[Collection("Processes")]
 public sealed class FixExecutorLiveTests
 {
     // These start real, harmless, read-only Windows programs to check that output really is read as it arrives and in the right text encoding.
@@ -1116,6 +1117,7 @@ public sealed class FixExecutorLiveTests
 }
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+[Collection("Processes")]
 public sealed class FixQueueLiveTests
 {
     [Fact]

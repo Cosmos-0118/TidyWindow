@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace TidyWindow.Next.Tests;
 
+[Collection("Processes")]
 public sealed class ManagerRecoveryTests(ITestOutputHelper output)
 {
     [Fact]
