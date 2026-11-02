@@ -17,7 +17,7 @@ public sealed class LabStore(string folder)
     private string PowerPath => Path.Combine(folder, "power.json");
     private string RunsPath => Path.Combine(folder, "checks.json");
 
-    public PowerNote? GetPower() { lock (gate) return Read<PowerNote>(PowerPath); }
+    public PowerNote? GetPower() { lock (gate) return Read<PowerNote>(PowerPath) is { PreviousId: not null, PreviousName: not null, SwitchedToId: not null, SwitchedToName: not null } note ? note : null; }
     public void SetPower(PowerNote note) { lock (gate) Write(PowerPath, note); }
 
     public void ClearPower()
@@ -30,17 +30,21 @@ public sealed class LabStore(string folder)
     }
 
     /// <summary>Newest first.</summary>
-    public IReadOnlyList<ProbeRun> Runs() { lock (gate) return (Read<List<ProbeRun>>(RunsPath) ?? []).OrderByDescending(x => x.When).ToList(); }
+    public IReadOnlyList<ProbeRun> Runs() { lock (gate) return Sound(Read<List<ProbeRun>>(RunsPath)).OrderByDescending(x => x.When).ToList(); }
 
     public void AddRun(ProbeRun run)
     {
         lock (gate)
         {
-            var list = Read<List<ProbeRun>>(RunsPath) ?? [];
+            var list = Sound(Read<List<ProbeRun>>(RunsPath));
             list.Add(run);
             Write(RunsPath, list.OrderByDescending(x => x.When).Take(KeepRuns).ToList());
         }
     }
+
+    /// <summary>Only the checks that have every part. The file is the app's own, but an edited or half-written one must not take the page down.</summary>
+    private static List<ProbeRun> Sound(List<ProbeRun>? runs) =>
+        runs?.Where(x => x is { Plan: not null, MemoryIntegrity: not null, Metrics: not null } && x.Metrics.All(m => m is { Id: not null })).ToList() ?? [];
 
     public void ClearRuns()
     {

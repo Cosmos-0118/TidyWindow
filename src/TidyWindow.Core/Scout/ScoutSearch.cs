@@ -5,15 +5,28 @@ using System.Text.RegularExpressions;
 namespace TidyWindow.Next.Core;
 
 public enum ScoutItemKind { All, Files, Folders }
+/// <param name="IsReparse">A symbolic link, junction or mount point, which folder discovery never follows. A cloud placeholder (OneDrive) is a reparse point too, but not a link, so it is walked like any folder.</param>
 public sealed record ScoutEntry(string FullPath, bool IsFolder, long? Size, DateTimeOffset? Modified, bool IsReparse = false)
 {
     public string Name => Path.GetFileName(FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     private string? searchName;
     [System.Text.Json.Serialization.JsonIgnore] public string SearchName => searchName ??= ScoutQuery.Normalize(Name);
+    private string? searchPath; private bool searchPathKnown;
+    /// <summary>The full path folded like <see cref="SearchName"/>, kept only for paths with letters outside ASCII (Café, full-width names); null when plain case-insensitive matching is already exact.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? SearchPath
+    {
+        get
+        {
+            if (!searchPathKnown) { searchPath = Ascii.IsValid(FullPath) ? null : ScoutQuery.Normalize(FullPath); searchPathKnown = true; }
+            return searchPath;
+        }
+    }
 }
 public sealed record ScoutRequest(string Query, string? Root, ScoutItemKind Kind = ScoutItemKind.All);
 public sealed record ScoutReply(bool Ready, IReadOnlyList<ScoutEntry> Entries, long Total = 0, bool Limited = false, string? Error = null, bool Indexing = false);
-public sealed record ScoutResult(IReadOnlyList<ScoutEntry> Entries, string Engine, long Checked, int Skipped, bool Complete, bool Limited = false, string? Error = null);
+/// <param name="Error">Why the search failed; the page treats it as a problem that needs attention.</param>
+/// <param name="Notice">Something worth knowing about an otherwise good result, such as changes the folder index could not track. Shown quietly, never as a problem.</param>
+public sealed record ScoutResult(IReadOnlyList<ScoutEntry> Entries, string Engine, long Checked, int Skipped, bool Complete, bool Limited = false, string? Error = null, string? Notice = null);
 
 public sealed partial class ScoutQuery
 {
@@ -26,12 +39,18 @@ public sealed partial class ScoutQuery
     /// <param name="home">The user's profile folder. Files there rank above equally good matches in system folders.</param>
     public ScoutQuery(string text, string? home = null)
     {
-        this.home = string.IsNullOrWhiteSpace(home) ? null : Path.TrimEndingDirectorySeparator(home);
+        // A drive root keeps its separator in TrimEndingDirectorySeparator; trimming it by hand makes "C:" + "\" line up with every path on that drive.
+        this.home = string.IsNullOrWhiteSpace(home) ? null : home.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         Text = text.Trim();
         if (Text.Length is < 1 or > 200 || Text.Any(char.IsControl)) throw new ArgumentException("Enter a name or path between 1 and 200 characters.");
         Terms = Words().Matches(Text).Select(x => Normalize(x.Value.Trim('"'))).Where(x => x.Length > 0).Select(Shorthand).ToArray();
         foreach (var term in Terms)
-            if (term.AsSpan().IndexOfAny('*', '?') >= 0) globs[term] = new Regex("^" + GlobPattern(term) + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+        {
+            if (term.AsSpan().IndexOfAny('*', '?') < 0) continue;
+            // A wildcard term goes to Everything unquoted, so the characters it reads as commands (functions, OR, grouping, NOT) must not be in it. None but ! can be in a file name anyway.
+            if (term.AsSpan().IndexOfAny(":|<>") >= 0 || term[0] == '!') throw new ArgumentException("A wildcard term can use * and ?, but not : | < > or a leading !, which the index would read as search commands.");
+            globs[term] = new Regex("^" + GlobPattern(term) + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+        }
         if (Terms.Count is < 1 or > 12) throw new ArgumentException("Enter between 1 and 12 search terms; quote a phrase to keep it together.");
         whole = Normalize(Text.Trim('"'));
     }
@@ -45,9 +64,10 @@ public sealed partial class ScoutQuery
     private static string Prefix(ScoutItemKind kind) => kind == ScoutItemKind.Files ? "file: " : kind == ScoutItemKind.Folders ? "folder: " : "";
     // File names cannot contain a quote, so dropping one never loses a match and keeps user text from escaping its quotes.
     private static string Literal(string term) => "\"" + term.Replace("\"", "") + "\"";
-    private static string Scope(string? root) => root is null ? "" : " " + Literal(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + "\\");
+    // Written the way the helper builds its own prefix filter, so a drive root becomes C:\ and not C:\\.
+    private static string Scope(string? root) => root is null ? "" : " " + Literal(Path.GetFullPath(root).TrimEnd('\\') + "\\");
 
-    // All user input is quoted literal text or a wildcard, never an Everything operator.
+    // All user input is quoted literal text or a wildcard checked by the constructor, never an Everything operator.
     private IEnumerable<string> Pieces(bool inPath) => Terms.Select(term => globs.ContainsKey(term)
         ? (inPath ? "nopath:" : "") + term.Replace("\"", "")
         : "nowildcards:" + Literal(term));
@@ -61,6 +81,27 @@ public sealed partial class ScoutQuery
     /// <summary>The whole text as one exact file or folder name; null when the text cannot be a name.</summary>
     public string? ExactExpression(ScoutItemKind kind) =>
         globs.Count > 0 || Text.Contains('"') ? null : Prefix(kind) + "wholefilename:" + Literal(Text.Trim('"'));
+
+    /// <summary>The whole text as a file name with any one extension, so readme fetches readme.txt. Everything's broad name passes are capped, filled in
+    /// name order, and cannot be told to put such a name first, so without this pass a person's own readme.txt can hide behind a thousand README.md.
+    /// Null when the text cannot be such a name.</summary>
+    public string? ExactStemExpression(ScoutItemKind kind) =>
+        globs.Count > 0 || Text.Contains('"') || RegexLiteral(Text) is not { } literal ? null : Prefix(kind) + "regex:\"^" + literal + "([.][^.]+)?$\"";
+
+    // Written without a backslash: Everything takes one in a term as a path separator. A character class stands in for each escape; the few characters
+    // that would still need one cannot be in a file name or are too rare to matter.
+    private static string? RegexLiteral(string text)
+    {
+        var builder = new StringBuilder(text.Length + 8);
+        foreach (var c in text)
+        {
+            if (c is '\\' or '/' or '^') return null;
+            if (c == ']') builder.Append("[]]");
+            else if (".*+?()[{}|$#".Contains(c)) builder.Append('[').Append(c).Append(']');
+            else builder.Append(c);
+        }
+        return builder.ToString();
+    }
 
     /// <summary>Close matches: missing, extra, wrong or swapped letters, and abbreviations. Null when the query is not suited to it.
     /// Variants are native wildcards, which Everything evaluates far faster than one large pattern.</summary>
@@ -94,7 +135,7 @@ public sealed partial class ScoutQuery
     {
         var name = entry.SearchName; var stem = Path.GetFileNameWithoutExtension(name);
         if (name == whole || !entry.IsFolder && stem == whole) return ExactScore + Bonus(entry.FullPath);
-        var path = ""; var score = 0;
+        var score = 0;
         foreach (var term in Terms)
         {
             if (globs.TryGetValue(term, out var glob))
@@ -104,8 +145,8 @@ public sealed partial class ScoutQuery
             }
             var at = name.IndexOf(term, StringComparison.Ordinal);
             if (at >= 0) { score += at == 0 ? 1000 : at > 0 && !char.IsLetterOrDigit(name[at - 1]) ? 800 : 600; continue; }
-            path = path.Length == 0 ? entry.FullPath : path;
-            if (path.Contains(term, StringComparison.OrdinalIgnoreCase)) { score += 100; continue; }
+            // The term is folded (no accents, lower case, narrow), so a path with such letters is compared folded too, or Café never matches cafe.
+            if (entry.SearchPath is { } folded ? folded.Contains(term, StringComparison.Ordinal) : entry.FullPath.Contains(term, StringComparison.OrdinalIgnoreCase)) { score += 100; continue; }
             if (term.Length >= 3 && IsSubsequence(term, stem)) { score += 60; continue; }
             if (term.Length >= 4 && stem.Length <= 80 && TypoWord(term, stem)) { score += 40; continue; }
             return -1;

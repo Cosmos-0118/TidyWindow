@@ -84,3 +84,8 @@ Nothing is copied from these. The tests, text and code are written for this app.
 - That the four tests rank every kind of PC the same way. They were tried on one desktop.
 - The priority list was driven only through code and a throw-away program; no real app was eased or boosted from the page.
 - How the page looks on screen. It was built, opened, clicked and read through Windows UI Automation (the text, buttons and results all showed correctly), but not seen.
+
+## Hardening, 3 November 2026
+
+- `powercfg` output is decoded in the console's OEM code page (`GetOEMCP`, UTF-8 as a last resort), shared with Fixes, not in the user locale's: Hindi, Tamil, Georgian and other Unicode-only locales have none, and asking for it threw before powercfg started, which closed the app from *Run check*.
+- `checks.json` and `power.json` are checked on load: an entry with a missing plan, metric list or metric id is dropped, so an edited or half-written file cannot crash the page. The Lab page now catches every failure from the check, the load and the power switch (a read-only data folder and running out of memory included) and shows it as a toast.
