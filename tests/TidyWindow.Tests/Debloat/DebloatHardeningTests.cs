@@ -265,9 +265,9 @@ public sealed class DebloatCatalogHardeningTests
     [Fact]
     public void AnExceptionThatNoPackageWouldRemoveIsAMistake()
     {
-        Assert.NotEmpty(DebloatGuard.Validate([Item(packages: ["Acme.*"], except: ["Other.Thing"])]));
-        Assert.NotEmpty(DebloatGuard.Validate([Item(packages: ["Acme.*"], except: ["a b"])]));
-        Assert.Empty(DebloatGuard.Validate([Item(packages: ["Acme.*"], except: ["Acme.Keeper"])]));
+        Assert.NotEmpty(DebloatGuard.Validate([Item(packages: ["AcmeCorp.*"], except: ["Other.Thing"])]));
+        Assert.NotEmpty(DebloatGuard.Validate([Item(packages: ["AcmeCorp.*"], except: ["a b"])]));
+        Assert.Empty(DebloatGuard.Validate([Item(packages: ["AcmeCorp.*"], except: ["AcmeCorp.Keeper"])]));
     }
 
     [Fact]
