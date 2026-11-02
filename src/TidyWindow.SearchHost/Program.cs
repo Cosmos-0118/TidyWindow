@@ -92,6 +92,8 @@ internal static class ScoutHost
         {
             // Cheapest queries first. Name matches take about 10 ms; matching inside full paths costs several times that, so it runs only when it can add something.
             if (query.ExactExpression(request.Kind) is { } exact) { Run(exact, matchPath: false, 128, rootPrefix, out _); Trace("exact name"); }
+            // The name with any extension (readme -> readme.txt), before the capped broad passes can crowd it out with a thousand README.md.
+            if (query.ExactStemExpression(request.Kind) is { } stem) { Run(stem, matchPath: false, 128, rootPrefix, out _); Trace("exact stem"); }
             // Your own files first: a search of the profile cannot be crowded out by millions of system files.
             if (rootPrefix is null && homePrefix is not null) { Run(query.NameExpression(request.Kind, Home), matchPath: false, 1000, homePrefix, out _); Trace("your files"); }
             Run(query.NameExpression(request.Kind, request.Root), matchPath: false, 2000, rootPrefix, out total);

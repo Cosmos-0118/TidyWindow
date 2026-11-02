@@ -147,10 +147,11 @@ public sealed class LabViewModel : ObservableState, IDisposable
             ShowApps(read.Apps);
             loaded = true;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException)
+        // Anything at all: this runs unobserved when the page opens, so an unexpected failure must show on the page instead of leaving it empty.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             toasts.Show("lab-read", ToastKind.Warning, "The Lab could not read this PC", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "Lab could not read this PC", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Lab could not read this PC", ex.ToString());
         }
         foreach (var name in new[] { nameof(PowerName), nameof(PowerFastVisibility), nameof(PowerNormalVisibility), nameof(MemoryOnVisibility), nameof(MemoryOffVisibility), nameof(PowerText), nameof(PowerButton), nameof(PowerCanClick), nameof(PowerGoesBack), nameof(MemoryIntegrityText), nameof(MemoryIntegrityState), nameof(AppsNote), nameof(PutBackVisibility) }) Changed(name);
     }
@@ -181,10 +182,16 @@ public sealed class LabViewModel : ObservableState, IDisposable
             toasts.Show("lab-check", ToastKind.Success, "Check finished", Metrics.Any(x => x.HasChange) ? "The numbers are below, next to your last check." : "Change one setting and run it again to compare.");
         }
         catch (OperationCanceledException) { toasts.Show("lab-check", ToastKind.Info, "Check stopped", "Nothing was saved."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (OutOfMemoryException)
+        {
+            toasts.Show("lab-check", ToastKind.Warning, "Not enough free memory for the check", "It needs about 400 MB free. Close some apps and try again.");
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Performance check could not finish", "Not enough free memory.");
+        }
+        // The button that starts this cannot catch anything itself, so every other failure ends here rather than closing the app.
+        catch (Exception ex)
         {
             toasts.Show("lab-check", ToastKind.Warning, "The check could not finish", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "Performance check could not finish", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Performance check could not finish", ex.ToString());
         }
         finally
         {
@@ -234,10 +241,11 @@ public sealed class LabViewModel : ObservableState, IDisposable
             toasts.Show("lab-power", result.Ok ? ToastKind.Success : ToastKind.Warning, goBack ? "Power plan changed back" : "Power plan changed", result.Message, goBack ? "" : "Check now", goBack ? null : () => RunCheckAsync(), 12);
             log.Write(result.Ok ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, goBack ? "Power plan put back" : "Power plan switched", result.Message);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException)
+        // Includes the note on disk being unwritable (a read-only Lab folder), which used to escape and close the app.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             toasts.Show("lab-power", ToastKind.Warning, "The power plan could not be changed", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "Power plan could not be changed", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Power plan could not be changed", ex.ToString());
         }
         finally { powerBusy = false; await LoadAsync(); }
     }

@@ -10,6 +10,9 @@ namespace TidyWindow.Next.Core;
 public sealed class WindowsUnstickSystem : IUnstickSystem
 {
     private static readonly int Session = Process.GetCurrentProcess().SessionId;
+    private static readonly Lazy<bool> elevated = new(CleanupNative.IsAdministrator);
+
+    public bool Elevated => elevated.Value;
 
     public EndResult End(IReadOnlyList<string> programs, string? commandLine = null)
     {

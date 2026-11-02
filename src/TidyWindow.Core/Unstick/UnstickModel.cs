@@ -151,6 +151,8 @@ public interface IUnstickSystem
     /// <summary>Starts a program from the Windows folder. False when it could not start.</summary>
     bool Start(string file);
     bool HasProgram(string file);
+    /// <summary>True when TidyWindow itself runs as administrator. A program it starts then runs that way too, for the rest of the session, so the runner starts none.</summary>
+    bool Elevated { get; }
     Task RestartExplorerAsync();
     void RefreshDisplay();
     void RefreshAssociations();
@@ -188,6 +190,8 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
             switch (action.Id)
             {
                 case "restart-explorer":
+                    // Started from an elevated app, File Explorer, and everything opened from Start and the taskbar after it, would run as administrator with no prompts.
+                    if (system.Elevated) return new(false, "TidyWindow is running as administrator, so File Explorer was not restarted: it would come back with administrator rights too. Restart it from Task Manager, or sign out and back in.");
                     await system.RestartExplorerAsync().ConfigureAwait(false);
                     return Done("File Explorer restarted. The taskbar is back.");
                 case "restart-start-menu":
@@ -274,12 +278,21 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
         _ => Done($"{what} was not running, so nothing was stuck. Windows starts it when you next use it.")
     };
 
+    /// <summary>Why a program was not started: TidyWindow runs as administrator, and the program would inherit that for the rest of the session.</summary>
+    private static string ElevatedNote(string what, string instead) =>
+        $"TidyWindow is running as administrator, so {what} was not started: it would run with administrator rights too. {instead}";
+
     private ActionResult UnstickInput(UnstickAction action)
     {
         var ended = system.End(action.Targets);
-        var started = false;
-        if (!system.Running(["ctfmon"])) started = system.Start("ctfmon.exe");
+        var started = false; string? held = null;
+        if (!system.Running(["ctfmon"]))
+        {
+            if (system.Elevated) held = ElevatedNote("the keyboard helper (ctfmon.exe)", "Start it from Task Manager, or run TidyWindow normally.");
+            else started = system.Start("ctfmon.exe");
+        }
         if (ended.Ended == 0 && ended.Denied > 0 && !started) return Close(ended, "", "The text input host");
+        if (held is not null) return new(false, (ended.Ended > 0 ? "The typing panels were reset. " : "") + held);
         return Done(started
             ? "The typing panels were reset, and the keyboard helper (ctfmon.exe) was started."
             : ended.Ended > 0 ? "The typing panels were reset." : "Nothing was stuck: the typing panels were not running, and the keyboard helper is running.");
@@ -289,16 +302,23 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
     {
         var holder = system.CheckClipboard();
         var steps = system.End(["TextInputHost"]);
+        string? held = null;
         if (system.Running(["rdpclip"]))
         {
-            steps += system.End(["rdpclip"]);
-            system.Start("rdpclip.exe");
+            // Closing it without being able to start it again as the user would leave Remote Desktop with no clipboard at all.
+            if (system.Elevated) held = ElevatedNote("the Remote Desktop clipboard (rdpclip.exe)", "It was left running.");
+            else
+            {
+                steps += system.End(["rdpclip"]);
+                system.Start("rdpclip.exe");
+            }
         }
         var service = system.RestartServiceHost("cbdhsvc");
         if (service == UserServiceOutcome.Denied && steps.Ended == 0)
             return new(false, "Windows did not allow restarting the clipboard service. Sign out and back in to reset it.");
         var message = "The clipboard was restarted.";
         if (holder is not null) message += $" {holder} is holding the clipboard; close it if copying still fails.";
+        if (held is not null) message += " " + held;
         return Done(message);
     }
 

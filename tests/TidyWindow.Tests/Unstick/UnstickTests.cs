@@ -14,6 +14,7 @@ internal sealed class FakeUnstickSystem : IUnstickSystem
     public bool DnsWorks { get; set; } = true;
     public int WslExit { get; set; }
     public UserServiceOutcome Service { get; set; } = UserServiceOutcome.Restarted;
+    public bool Elevated { get; set; }
 
     public EndResult End(IReadOnlyList<string> programs, string? commandLine = null)
     {

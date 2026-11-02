@@ -49,17 +49,22 @@ public sealed class PowerCfgProcess : IPowerCfg
 {
     static PowerCfgProcess() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+    /// <summary>The code page powercfg writes in. Taken from the console, not the culture: a Unicode-only user locale (Hindi, Georgian, Armenian) has no OEM
+    /// code page of its own, and asking for it threw and took the Lab page down with it.</summary>
+    internal static Encoding ConsoleEncoding() => FixStepExecutor.OemEncoding();
+
     public string Run(IReadOnlyList<string> args)
     {
         if (!PowerGuard.Allows(args)) throw new InvalidOperationException("That power command is not allowed here.");
+        var encoding = ConsoleEncoding();
         var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "powercfg.exe"))
         {
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-            StandardErrorEncoding = Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage)
+            StandardOutputEncoding = encoding,
+            StandardErrorEncoding = encoding
         };
         foreach (var argument in args) start.ArgumentList.Add(argument);
         try

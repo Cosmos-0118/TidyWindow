@@ -107,3 +107,7 @@ The catalog is in code, not JSON like Fixes or Tune, because each action runs it
 - an action reports itself active only while its programs are running;
 - each Admin action runs exactly the fix it names, a failed step or a declined prompt is reported with its reason, a warning is a success that says where to look, and without the helper the Admin actions are hidden and refused;
 - every Admin action points at a machine-scope fix that exists in the Fixes catalog.
+
+## Hardening, 3 November 2026
+
+When TidyWindow itself runs as administrator, Unstick starts nothing: a program started from an elevated app keeps those rights for the rest of the session, with no prompt, and so does everything opened from a shell started that way. *Restart File Explorer* is refused with a message, *Unstick the emoji panel and typing* leaves a missing `ctfmon.exe` to Task Manager, and *Restart the clipboard* leaves `rdpclip.exe` running and says so. `IUnstickSystem.Elevated` carries the fact and the runner tests cover both modes. `ctfmon.exe` and `rdpclip.exe` were already started by their full System32 path. Still open, in Tune's `ExplorerShell`: it starts `explorer.exe` by bare name through ShellExecute and inherits the caller's token; it should use `%WINDIR%\explorer.exe` and refuse, or drop elevation, when elevated.
