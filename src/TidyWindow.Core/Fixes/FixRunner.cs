@@ -17,14 +17,16 @@ public interface IFixStepExecutor
 {
     /// <summary>Runs one step, reporting its output as it arrives, and returns its exit code.</summary>
     /// <exception cref="TimeoutException">The step ran longer than its limit and was stopped.</exception>
+    /// <exception cref="OperationCanceledException">The step was stopped before it finished. A step marked uninterruptible is let finish instead, and returns its exit code.</exception>
     Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Runs a fix one step at a time and says what happens as it happens. A step that fails stops the fix, unless it is optional.
-/// Nothing is run that the plan does not contain.
+/// Runs a fix one step at a time and says what happens as it happens. A step that fails stops the fix, unless it is optional, and so does a stop
+/// from outside; either way the steps that put things back still run. Nothing is run that the plan does not contain.
 /// </summary>
-public sealed class FixRunner(IFixStepExecutor executor)
+/// <param name="watching">Told which step is running, and null when none is.</param>
+public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>? watching = null)
 {
     private static string Seconds(TimeSpan time) => time.TotalSeconds < 90 ? $"{Math.Max(1, (int)time.TotalSeconds)} s" : $"{(int)time.TotalMinutes} min";
 
@@ -32,45 +34,76 @@ public sealed class FixRunner(IFixStepExecutor executor)
     {
         var plan = FixPlan.Build(item, options);
         var summary = new List<string>();
-        var restart = false; var warnings = 0; string? failure = null;
+        var restart = false; var warnings = 0; var stopped = false; string? failure = null;
         var started = Stopwatch.StartNew();
         progress.Report(new($"{item.Name}: {plan.Count} {(plan.Count == 1 ? "step" : "steps")}.\n", CommandOutputKind.Information));
-        for (var i = 0; i < plan.Count; i++)
+        try
         {
-            var step = plan[i];
-            // After a failure only the steps that put things back are still run.
-            if (failure is not null && !step.Always) continue;
-            progress.Report(new($"Step {i + 1} of {plan.Count}: {step.Title}\n", CommandOutputKind.Progress));
-            var clock = Stopwatch.StartNew();
-            // The Logs page keeps the summary, not the live output, so a step that goes wrong also records the last thing it said.
-            var tail = new LastLine(progress);
-            int code;
-            try { code = await executor.ExecuteAsync(new(item, options, Array.IndexOf(item.Steps, step), step), tail, cancellationToken).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (TimeoutException)
+            for (var i = 0; i < plan.Count; i++)
             {
-                code = int.MinValue;
-                tail.Report(new($"This step took longer than {step.Minutes} minutes and was stopped.\n", CommandOutputKind.Error));
+                var step = plan[i];
+                // After a failure only the steps that put things back are still run.
+                if (failure is not null && !step.Always) continue;
+                // A stop asked for between steps takes effect before the next one. The steps that put things back are not what it stops.
+                if (!stopped && !step.Always && cancellationToken.IsCancellationRequested)
+                {
+                    stopped = true; summary.Add($"STOPPED  before “{step.Title}”");
+                    progress.Report(new("Stopped. Only the steps that put things back will still run.\n", CommandOutputKind.Warning));
+                }
+                if (stopped && !step.Always) continue;
+                progress.Report(new($"Step {i + 1} of {plan.Count}: {step.Title}\n", CommandOutputKind.Progress));
+                var clock = Stopwatch.StartNew();
+                // The Logs page keeps the summary, not the live output, so a step that goes wrong also records the last thing it said.
+                var tail = new LastLine(progress);
+                var context = new FixStepContext(item, options, Array.IndexOf(item.Steps, step), step);
+                watching?.Invoke(context);
+                int code;
+                // A step that puts things back is never cut short: a service left stopped is worse than a few seconds more.
+                try { code = await executor.ExecuteAsync(context, tail, step.Always ? CancellationToken.None : cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    stopped = true; summary.Add($"STOPPED  {step.Title}{Why(tail)}");
+                    progress.Report(new("Stopped before it finished. Only the steps that put things back will still run.\n", CommandOutputKind.Warning));
+                    continue;
+                }
+                catch (TimeoutException)
+                {
+                    code = int.MinValue;
+                    tail.Report(new($"This step took longer than {step.Minutes} minutes and was stopped.\n", CommandOutputKind.Error));
+                }
+                catch (Exception ex) when (ex is IOException or Win32Exception or InvalidOperationException or UnauthorizedAccessException)
+                {
+                    code = int.MinValue;
+                    tail.Report(new($"{ex.Message}\n", CommandOutputKind.Error));
+                }
+                var why = Why(tail);
+                if (step.Restart.Contains(code)) { restart = true; summary.Add($"OK       {step.Title} (restart needed to finish)"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}. Windows needs a restart to finish this.\n", CommandOutputKind.Success)); }
+                else if (step.Ok.Contains(code)) { summary.Add($"OK       {step.Title}"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}.\n", CommandOutputKind.Success)); }
+                else if (step.Warn.Contains(code)) { warnings++; summary.Add($"WARNING  {step.Title} (exit code {code}){why}"); progress.Report(new($"Finished with exit code {code}. This is reported as a warning, not a failure.\n", CommandOutputKind.Warning)); }
+                else if (step.Optional) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This step did not work (exit code {Describe(code)}). It is optional, so the fix goes on.\n", CommandOutputKind.Warning)); }
+                else if (failure is not null || stopped) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This clean-up step did not work (exit code {Describe(code)}).\n", CommandOutputKind.Warning)); }
+                else { failure = step.Title; summary.Add($"FAILED   {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"Failed with exit code {Describe(code)}. Only the steps that put things back will still run.\n", CommandOutputKind.Error)); }
             }
-            catch (Exception ex) when (ex is IOException or Win32Exception or InvalidOperationException or UnauthorizedAccessException)
-            {
-                code = int.MinValue;
-                tail.Report(new($"{ex.Message}\n", CommandOutputKind.Error));
-            }
-            var why = tail.Text is { } last ? $"\n           “{last}”" : "";
-            if (step.Restart.Contains(code)) { restart = true; summary.Add($"OK       {step.Title} (restart needed to finish)"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}. Windows needs a restart to finish this.\n", CommandOutputKind.Success)); }
-            else if (step.Ok.Contains(code)) { summary.Add($"OK       {step.Title}"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}.\n", CommandOutputKind.Success)); }
-            else if (step.Warn.Contains(code)) { warnings++; summary.Add($"WARNING  {step.Title} (exit code {code}){why}"); progress.Report(new($"Finished with exit code {code}. This is reported as a warning, not a failure.\n", CommandOutputKind.Warning)); }
-            else if (step.Optional) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This step did not work (exit code {Describe(code)}). It is optional, so the fix goes on.\n", CommandOutputKind.Warning)); }
-            else if (failure is not null) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This clean-up step did not work (exit code {Describe(code)}).\n", CommandOutputKind.Warning)); }
-            else { failure = step.Title; summary.Add($"FAILED   {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"Failed with exit code {Describe(code)}. Only the steps that put things back will still run.\n", CommandOutputKind.Error)); }
         }
+        finally { watching?.Invoke(null); }
         var detail = string.Join('\n', summary) + $"\nTook {Seconds(started.Elapsed)}.";
         if (failure is not null) return new(ActionOutcome.Failed, $"Couldn’t finish {item.Name}", $"Stopped at “{failure}”.\n{detail}");
+        if (stopped)
+        {
+            progress.Report(new($"{item.Name} was stopped before it finished.\n", CommandOutputKind.Warning));
+            return new(ActionOutcome.Failed, $"Stopped {item.Name}", $"It was stopped before it finished.\n{detail}");
+        }
         restart |= item.Restart == FixRestart.Always;
         if (warnings > 0)
         {
-            progress.Report(new($"{item.Name} finished, but {(warnings == 1 ? "one step" : $"{warnings} steps")} gave a warning.\n", CommandOutputKind.Warning));
+            var gave = warnings == 1 ? "one step" : $"{warnings} steps";
+            // A restart that is still needed is the one thing left for the person to do, so a warning must not hide it.
+            if (restart)
+            {
+                progress.Report(new($"{item.Name} finished, but {gave} gave a warning. Restart Windows to finish.\n", CommandOutputKind.Warning));
+                return new(ActionOutcome.RestartRequired, $"{item.Name} finished with warnings; restart required", detail);
+            }
+            progress.Report(new($"{item.Name} finished, but {gave} gave a warning.\n", CommandOutputKind.Warning));
             return new(ActionOutcome.Unverified, $"{item.Name} finished with warnings", detail);
         }
         if (restart)
@@ -81,6 +114,8 @@ public sealed class FixRunner(IFixStepExecutor executor)
         progress.Report(new($"{item.Name} finished.\n", CommandOutputKind.Success));
         return new(ActionOutcome.Completed, $"{item.Name} finished", detail);
     }
+
+    private static string Why(LastLine tail) => tail.Text is { } last ? $"\n           “{last}”" : "";
 
     private static string Describe(int code) => code switch
     {
@@ -105,33 +140,63 @@ public sealed class FixRunner(IFixStepExecutor executor)
     }
 }
 
-/// <summary>Runs queued fixes: finds the fix in the catalog and chooses who runs it, this process or, for machine-wide fixes, the administrator helper after one permission prompt.</summary>
-public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor local, IFixStepExecutor? elevated, Func<bool> isAdministrator, Func<Task>? unlock, FixRunStore? history = null, Func<DateTimeOffset>? clock = null, Func<bool>? helperOpen = null)
+/// <summary>
+/// Runs queued fixes: finds the fix in the catalog and chooses who runs it, this process or, for machine-wide fixes, the administrator helper after
+/// one permission prompt. One fix runs at a time wherever it was asked for (the Queue, the Unstick page): two fixes with their steps interleaved
+/// would stop a service the other had just started.
+/// </summary>
+/// <param name="pendingRestart">Why Windows is waiting for a restart, or null; replaceable in tests. Fixes that mind are told before they run.</param>
+public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor local, IFixStepExecutor? elevated, Func<bool> isAdministrator, Func<Task>? unlock, FixRunStore? history = null, Func<DateTimeOffset>? clock = null, Func<bool>? helperOpen = null, Func<string?>? pendingRestart = null)
 {
     private readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.Now);
+    private readonly Func<string?> restartPending = pendingRestart ?? PendingRestart.Find;
+    private readonly SemaphoreSlim turn = new(1, 1);
+    private volatile FixStepContext? running;
 
     [SupportedOSPlatform("windows")]
     public static bool IsAdministrator() => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+
+    /// <summary>The step a fix is on right now, or null between steps and when nothing runs. The window's close guard uses it to say what closing would cut off.</summary>
+    public FixStepContext? Running => running;
+
+    /// <summary>True from the moment a fix is asked for until its result is recorded, including the time the permission prompt is up.</summary>
+    public bool Busy => turn.CurrentCount == 0;
+
+    /// <summary>Completes once no fix is running. A fix asked for in the meantime may start right after.</summary>
+    public async Task WhenIdleAsync(CancellationToken cancellationToken = default)
+    {
+        await turn.WaitAsync(cancellationToken).ConfigureAwait(false);
+        turn.Release();
+    }
 
     public async Task<PackageActionResult> RunAsync(FixRun run, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
         var item = catalog.FirstOrDefault(x => x.Id.Equals(run.Id, StringComparison.OrdinalIgnoreCase));
         if (item is null) return new(ActionOutcome.Failed, "That fix is not available", "It is not in this version of TidyWindow.");
-        var executor = local;
-        if (item.Scope == FixScope.Machine && !isAdministrator())
+        await turn.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (elevated is null || unlock is null) return Record(item, new(ActionOutcome.Failed, $"Couldn’t run {item.Name}", "This fix needs administrator rights, and the administrator helper is not available."));
-            // The helper stays connected between fixes, so the prompt only comes the first time.
-            if (helperOpen?.Invoke() != true) progress.Report(new("This fix needs administrator rights. Approve the Windows permission prompt; the output will appear here.", CommandOutputKind.Notice));
-            try { await unlock().ConfigureAwait(false); }
-            catch (OperationCanceledException) { return Record(item, new(ActionOutcome.Failed, $"{item.Name} was not run", "Administrator permission was declined. Nothing was changed.")); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-            { return Record(item, new(ActionOutcome.Failed, $"Couldn’t run {item.Name}", ex.Message)); }
-            executor = elevated;
-            progress.Report(new("Running with administrator rights.", CommandOutputKind.Notice));
+            var executor = local;
+            if (item.Scope == FixScope.Machine && !isAdministrator())
+            {
+                if (elevated is null || unlock is null) return Record(item, new(ActionOutcome.Failed, $"Couldn’t run {item.Name}", "This fix needs administrator rights, and the administrator helper is not available."));
+                // The helper stays connected between fixes, so the prompt only comes the first time.
+                if (helperOpen?.Invoke() != true) progress.Report(new("This fix needs administrator rights. Approve the Windows permission prompt; the output will appear here.", CommandOutputKind.Notice));
+                try { await unlock().ConfigureAwait(false); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Record(item, new(ActionOutcome.Failed, $"{item.Name} was not run", "Administrator permission was declined. Nothing was changed.")); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                { return Record(item, new(ActionOutcome.Failed, $"Couldn’t run {item.Name}", ex.Message)); }
+                executor = elevated;
+                progress.Report(new("Running with administrator rights.", CommandOutputKind.Notice));
+            }
+            var pending = item.RestartFirst ? restartPending() : null;
+            if (pending is not null) progress.Report(new($"Windows has a restart pending: {pending}. Until Windows has restarted, this fix can fail or report problems it cannot repair.\n", CommandOutputKind.Warning));
+            var result = await new FixRunner(executor, context => running = context).RunAsync(item, run.Options, progress, cancellationToken).ConfigureAwait(false);
+            if (pending is not null && result.Outcome != ActionOutcome.Completed)
+                result = result with { Detail = result.Detail + $"\nWindows had a restart pending while this ran ({pending}). Restart Windows and run it again before trusting a warning or failure from it." };
+            return Record(item, result);
         }
-        var result = await new FixRunner(executor).RunAsync(item, run.Options, progress, cancellationToken).ConfigureAwait(false);
-        return Record(item, result);
+        finally { running = null; turn.Release(); }
     }
 
     private PackageActionResult Record(FixItem item, PackageActionResult result)
@@ -255,10 +320,14 @@ public sealed partial class OutputSplitter(Action<string, CommandOutputKind> rep
 }
 
 /// <summary>The real thing: starts programs and does the few file steps, reading output as it arrives.</summary>
+/// <param name="pipeGrace">Once a program has ended, how long whatever it started gets to let go of its output before the step moves on without it.</param>
 [SupportedOSPlatform("windows")]
-public sealed class FixStepExecutor : IFixStepExecutor
+public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecutor
 {
     static FixStepExecutor() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+    private static readonly TimeSpan KillWait = TimeSpan.FromSeconds(10);
+    private readonly TimeSpan pipeGrace = pipeGrace ?? TimeSpan.FromSeconds(5);
 
     public async Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
@@ -298,7 +367,16 @@ public sealed class FixStepExecutor : IFixStepExecutor
         return new UTF8Encoding(false);
     }
 
-    private static async Task<int> RunProgramAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
+    /// <summary>
+    /// The module folders a step's PowerShell should use: the Program Files and System32 ones, which only administrators can write to. This is
+    /// defence in depth only: Windows PowerShell prepends the account's Documents module folder on startup whatever this is set to, so the real
+    /// protection is that every cmdlet in the catalog names its module (the guard enforces it), which stops discovery searching the path at all.
+    /// </summary>
+    internal static string ModulePath() => string.Join(';',
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsPowerShell", "Modules"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules"));
+
+    private async Task<int> RunProgramAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
         var step = context.Step;
         var path = FixGuard.Resolve(step.File);
@@ -319,6 +397,7 @@ public sealed class FixStepExecutor : IFixStepExecutor
             RedirectStandardError = true,
             StandardOutputEncoding = encoding,
             StandardErrorEncoding = encoding,
+            // A program's starting folder is on its DLL search path, so it is never one this account can write to.
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         };
         var powershell = step.File.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase);
@@ -328,41 +407,89 @@ public sealed class FixStepExecutor : IFixStepExecutor
             // Windows PowerShell writes to a pipe in the console's code page unless told otherwise.
             start.ArgumentList.Add(powershell && step.Encoding == FixEncoding.Utf8 && argument == step.Args[^1] ? "[Console]::OutputEncoding = [Text.Encoding]::UTF8; " + text : text);
         }
+        if (powershell) start.Environment["PSModulePath"] = ModulePath();
         start.Environment["NO_COLOR"] = "1";
         using var process = new Process { StartInfo = start };
         await Task.Run(process.Start, cancellationToken).ConfigureAwait(false);
-        var output = PumpAsync(process.StandardOutput, CommandOutputKind.Output, powershell, progress);
+        using var drain = new CancellationTokenSource();
+        var pumps = new Pumps(progress);
+        var output = pumps.RunAsync(process.StandardOutput, CommandOutputKind.Output, powershell, drain.Token);
         // A step that accepts a non-zero exit code (net says "already started" with 2) is not an error, so its messages are not shown in red.
-        var error = PumpAsync(process.StandardError, step.Ok.Any(code => code != 0) ? CommandOutputKind.Warning : CommandOutputKind.Error, powershell, progress);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMinutes(step.Minutes));
-        try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException)
+        var error = pumps.RunAsync(process.StandardError, step.Ok.Any(code => code != 0) ? CommandOutputKind.Warning : CommandOutputKind.Error, powershell, drain.Token);
+        var reading = Task.WhenAll(output, error);
+        if (step.Uninterruptible) await WaitUninterruptedAsync(process, step, progress, cancellationToken).ConfigureAwait(false);
+        else
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (Exception ex) when (ex is Win32Exception or InvalidOperationException) { }
-            await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            await Task.WhenAll(output, error).ConfigureAwait(false);
-            if (cancellationToken.IsCancellationRequested) throw;
-            throw new TimeoutException();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(step.Minutes));
+            try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException)
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or AggregateException) { }
+                try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(KillWait).ConfigureAwait(false); } catch (TimeoutException) { }
+                await FinishAsync(reading, drain, pumps, progress).ConfigureAwait(false);
+                if (cancellationToken.IsCancellationRequested) throw;
+                throw new TimeoutException();
+            }
         }
-        await Task.WhenAll(output, error).ConfigureAwait(false);
+        await FinishAsync(reading, drain, pumps, progress).ConfigureAwait(false);
         return process.ExitCode;
     }
 
-    private static async Task PumpAsync(StreamReader reader, CommandOutputKind kind, bool powershell, IProgress<CommandOutput> progress)
+    /// <summary>
+    /// DISM, SFC and the WMI salvage change Windows in place; ended half way they leave it damaged, which is worse than any wait. So the program runs
+    /// to the end whatever happens: a stop (the app closing, the queue being stopped) and the time limit are only said in the output.
+    /// </summary>
+    private static async Task WaitUninterruptedAsync(Process process, FixStep step, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
-        var decoder = powershell ? new PowerShellOutputDecoder(kind) : null;
-        var splitter = new OutputSplitter((text, k) => { try { progress.Report(new(text + "\n", k)); } catch { /* A display failure must not stop draining the pipe. */ } });
-        var buffer = new char[4096];
-        int count;
-        while ((count = await reader.ReadAsync(buffer.AsMemory()).ConfigureAwait(false)) > 0)
+        void Note(string text) { try { progress.Report(new(text, CommandOutputKind.Warning)); } catch { /* A display failure must not stop the step. */ } }
+        var exited = process.WaitForExitAsync(CancellationToken.None);
+        using var noticed = cancellationToken.Register(() => Note($"A stop was asked for, but {step.Title} is allowed to finish: ending {step.File} half way could leave Windows damaged.\n"));
+        // WaitAsync keeps its own timer and leaves the exit task to be awaited below, so nothing is left running unobserved.
+        try { await exited.WaitAsync(TimeSpan.FromMinutes(step.Minutes)).ConfigureAwait(false); }
+        catch (TimeoutException)
         {
-            var text = new string(buffer, 0, count);
-            if (decoder is null) splitter.Feed(text, kind);
-            else foreach (var message in decoder.Feed(text)) splitter.Feed(message.Text, message.Kind);
+            Note($"This step has been running for more than {step.Minutes} minutes. It is not stopped, because ending {step.File} half way could leave Windows damaged; it finishes when Windows is done.\n");
+            await exited.ConfigureAwait(false);
         }
-        if (decoder is not null) foreach (var message in decoder.Feed("", final: true)) splitter.Feed(message.Text, message.Kind);
-        splitter.Finish(kind);
+    }
+
+    /// <summary>Lets the output pipes finish for a moment, then stops reading them. Whatever arrived by then is kept; anything later belongs to something else.</summary>
+    private async Task FinishAsync(Task reading, CancellationTokenSource drain, Pumps pumps, IProgress<CommandOutput> progress)
+    {
+        if (await ProcessRunner.FinishReadingAsync(reading, drain, pipeGrace, KillWait).ConfigureAwait(false)) return;
+        pumps.Close();
+        try { progress.Report(new("Something this step started is still running in the background, so its output is no longer followed.\n", CommandOutputKind.Information)); }
+        catch { /* A display failure must not fail the step. */ }
+    }
+
+    /// <summary>Reads a program's two pipes into lines. Once closed, whatever still arrives is dropped: it comes from something the step left behind.</summary>
+    private sealed class Pumps(IProgress<CommandOutput> progress)
+    {
+        private volatile bool closed;
+
+        public void Close() => closed = true;
+
+        public async Task RunAsync(StreamReader reader, CommandOutputKind kind, bool powershell, CancellationToken stop)
+        {
+            var decoder = powershell ? new PowerShellOutputDecoder(kind) : null;
+            var splitter = new OutputSplitter((text, k) => { if (closed) return; try { progress.Report(new(text + "\n", k)); } catch { /* A display failure must not stop draining the pipe. */ } });
+            var buffer = new char[4096];
+            try
+            {
+                int count;
+                while ((count = await reader.ReadAsync(buffer.AsMemory(), stop).ConfigureAwait(false)) > 0)
+                {
+                    var text = new string(buffer, 0, count);
+                    if (decoder is null) splitter.Feed(text, kind);
+                    else foreach (var message in decoder.Feed(text)) splitter.Feed(message.Text, message.Kind);
+                }
+            }
+            // Reading was given up on (see FinishAsync) or the pipe broke: keep what arrived.
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or ObjectDisposedException) { }
+            if (decoder is not null) foreach (var message in decoder.Feed("", final: true)) splitter.Feed(message.Text, message.Kind);
+            splitter.Finish(kind);
+        }
     }
 
     private static int DeleteFiles(FixStepContext context, IProgress<CommandOutput> progress)
@@ -403,7 +530,7 @@ public sealed class FixStepExecutor : IFixStepExecutor
 }
 
 public sealed record FixMessage(string Op, string? Id = null, string[]? Options = null, int Index = 0);
-/// <summary>What the helper sends back: "ok" for the greeting, "out" for a line of output, "done" with the exit code, "timeout" or "fail".</summary>
+/// <summary>What the helper sends back: "ok" for the greeting, "out" for a line of output, "done" with the exit code, "timeout", "cancelled" or "fail".</summary>
 public sealed record FixEvent(string Type, string Text = "", CommandOutputKind Kind = CommandOutputKind.Output, int Code = 0, string Error = "");
 
 /// <summary>
@@ -465,7 +592,8 @@ public static class FixHost
                     var plan = item is null ? null : FixPlan.Build(item, message.Options ?? []);
                     if (item is null || item.Scope != FixScope.Machine || message.Index < 0 || message.Index >= item.Steps.Length || plan is null || !plan.Contains(item.Steps[message.Index]))
                     { Send(new("fail", Error: "That step is not one the helper runs.")); break; }
-                    // While a step runs, anything arriving on the pipe (a cancel, or the app closing) stops it.
+                    // While a step runs, anything arriving on the pipe (a cancel, or the app closing) asks it to stop. A step that must not be interrupted
+                    // takes that as a notice and finishes first; the helper stays until it has.
                     using (var cancel = new CancellationTokenSource())
                     {
                         pending = reader.ReadLineAsync();
@@ -476,7 +604,7 @@ public static class FixHost
                             Send(new("done", Code: code));
                         }
                         catch (TimeoutException) { Send(new("timeout")); }
-                        catch (OperationCanceledException) { Send(new("fail", Error: "The step was cancelled.")); }
+                        catch (OperationCanceledException) { Send(new("cancelled")); }
                         catch (Exception ex) when (ex is IOException or Win32Exception or InvalidOperationException or UnauthorizedAccessException) { Send(new("fail", Error: ex.Message)); }
                         // Whatever else goes wrong in a step must be reported, not end the helper: a helper that just vanishes tells the person nothing.
                         catch (Exception ex) { Send(new("fail", Error: "The step could not be run: " + ex.Message)); }
@@ -494,9 +622,11 @@ public static class FixHost
 }
 
 /// <summary>The app side: starts the helper through the Windows permission prompt, sends it one step at a time, and passes its output on as it arrives.</summary>
-public sealed class FixSession(Func<string, Task> launch) : IFixStepExecutor, IDisposable
+/// <param name="replyTimeout">How long the helper gets to answer a greeting. A connected helper answers at once; silence means it died, or something else holds the pipe.</param>
+public sealed class FixSession(Func<string, Task> launch, TimeSpan? replyTimeout = null) : IFixStepExecutor, IDisposable
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    private readonly TimeSpan replyTimeout = replyTimeout ?? TimeSpan.FromSeconds(15);
     private readonly SemaphoreSlim one = new(1, 1);
     private readonly object gate = new();
     private NamedPipeServerStream? pipe;
@@ -507,35 +637,60 @@ public sealed class FixSession(Func<string, Task> launch) : IFixStepExecutor, ID
 
     public static FixSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, FixHost.Command, name));
 
-    /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
+    /// <summary>
+    /// Asks for permission and connects, or makes sure the helper from last time is still there. The helper leaves by itself after five idle minutes,
+    /// and a pipe only shows that once something is written to it, so a greeting goes first: the first step of the next fix must not be what finds out.
+    /// Throws <see cref="OperationCanceledException"/> if the person says no.
+    /// </summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
-        if (IsOpen) return;
-        Close();
-        var name = HelperPipe.NewName("fix");
-        var server = HelperPipe.CreateServer(name);
+        await one.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var launched = Task.Run(() => launch(name), CancellationToken.None);
-            var connecting = server.WaitForConnectionAsync(cancellationToken);
-            if (await Task.WhenAny(connecting, launched).ConfigureAwait(false) != connecting)
+            PipeLineReader? input; StreamWriter? output;
+            lock (gate) { input = reader; output = writer; }
+            if (IsOpen && input is not null && output is not null && await GreetAsync(input, output, cancellationToken).ConfigureAwait(false) is { Type: "ok" }) return;
+            Close();
+            var name = HelperPipe.NewName("fix");
+            var server = HelperPipe.CreateServer(name);
+            try
             {
-                await launched.ConfigureAwait(false);
-                throw new IOException("The administrator helper stopped before it could connect.");
+                var launched = Task.Run(() => launch(name), CancellationToken.None);
+                var connecting = server.WaitForConnectionAsync(cancellationToken);
+                if (await Task.WhenAny(connecting, launched).ConfigureAwait(false) != connecting)
+                {
+                    await launched.ConfigureAwait(false);
+                    throw new IOException("The administrator helper stopped before it could connect.");
+                }
+                await connecting.ConfigureAwait(false);
+                var fresh = new PipeLineReader(server);
+                var toHelper = new StreamWriter(server) { AutoFlush = true };
+                var reply = await GreetAsync(fresh, toHelper, cancellationToken).ConfigureAwait(false) ?? throw new IOException("The administrator helper connected but did not answer.");
+                if (reply.Type != "ok") throw new UnauthorizedAccessException("The helper did not get administrator permission.");
+                lock (gate) { pipe = server; reader = fresh; writer = toHelper; }
             }
-            await connecting.ConfigureAwait(false);
-            var input = new PipeLineReader(server);
-            var output = new StreamWriter(server) { AutoFlush = true };
-            await output.WriteLineAsync(JsonSerializer.Serialize(new FixMessage("hello"), Json)).ConfigureAwait(false);
-            var reply = JsonSerializer.Deserialize<FixEvent>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);
-            if (reply is not { Type: "ok" }) throw new UnauthorizedAccessException("The helper did not get administrator permission.");
-            lock (gate) { pipe = server; reader = input; writer = output; }
+            catch
+            {
+                server.Dispose();
+                throw;
+            }
         }
-        catch
+        finally { one.Release(); }
+    }
+
+    /// <summary>Sends the greeting and reads the answer. Null when the helper is gone: the pipe broke or closed, or nothing readable came back in time.</summary>
+    private async Task<FixEvent?> GreetAsync(PipeLineReader input, StreamWriter output, CancellationToken cancellationToken)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(replyTimeout);
+        try
         {
-            server.Dispose();
-            throw;
+            await output.WriteLineAsync(JsonSerializer.Serialize(new FixMessage("hello"), Json).AsMemory(), limit.Token).ConfigureAwait(false);
+            var line = await input.ReadLineAsync(limit.Token).ConfigureAwait(false);
+            return line is null ? null : JsonSerializer.Deserialize<FixEvent>(line, Json);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or JsonException) { return null; }
     }
 
     public async Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
@@ -562,6 +717,7 @@ public sealed class FixSession(Func<string, Task> launch) : IFixStepExecutor, ID
                         case "out": progress.Report(new(value.Text, value.Kind)); break;
                         case "done": return value.Code;
                         case "timeout": throw new TimeoutException();
+                        case "cancelled": throw new OperationCanceledException("The step was stopped before it finished.", cancellationToken);
                         default: throw new InvalidOperationException(value.Error.Length > 0 ? value.Error : "The administrator helper could not run that step.");
                     }
                 }

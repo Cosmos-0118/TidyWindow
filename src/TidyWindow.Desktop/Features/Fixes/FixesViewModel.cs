@@ -95,7 +95,9 @@ public sealed class FixRow : ObservableState
 
     private static string LastLine(string output)
     {
-        var lines = PackageOutputParser.Clean(output).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // Only the newest line is shown, so only the tail of what can be 64 KB of output is looked at.
+        var tail = output.Length > 2048 ? output[^2048..] : output;
+        var lines = PackageOutputParser.Clean(tail).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return lines.Length == 0 ? "" : lines[^1];
     }
 
@@ -126,9 +128,12 @@ public sealed class FixRow : ObservableState
 
     public void Update(QueueEntry? latest, FixRunNote? last)
     {
-        entry = latest;
+        // Every row is asked on every tick of the queue's output; a row whose entry and note are the ones it already shows has nothing to say.
+        var entryChanged = !Equals(entry, latest);
         // The last run's details are part of the facts, so they are rebuilt when a new run is recorded.
         var noteChanged = !Equals(note, last);
+        if (!entryChanged && !noteChanged) return;
+        entry = latest;
         note = last;
         if (noteChanged) RebuildFacts();
         foreach (var name in new[]
@@ -214,8 +219,17 @@ public sealed class FixesViewModel : ObservableState, IDisposable
         Changed(nameof(RunningText));
     }
 
-    /// <summary>What to confirm before a fix with a trade-off runs. Null when no confirmation is needed.</summary>
-    public static string? Warning(FixRow row) => row.Item.Risk == FixRisk.Careful ? row.Item.Effect : null;
+    /// <summary>What to confirm before a fix runs: a restart Windows is still waiting for, and the fix's own trade-off. Null when no confirmation is needed.</summary>
+    public static string? Warning(FixRow row) => Warning(row, row.Item.RestartFirst ? PendingRestart.Find() : null);
+
+    internal static string? Warning(FixRow row, string? pendingRestart)
+    {
+        var parts = new List<string>();
+        if (pendingRestart is not null)
+            parts.Add($"Windows has a restart pending: {pendingRestart}. Restart first. Run before that and this fix can fail, report problems it cannot repair, or cut an update off half way.");
+        if (row.Item.Risk == FixRisk.Careful) parts.Add(row.Item.Effect);
+        return parts.Count == 0 ? null : string.Join("\n\n", parts);
+    }
 
     /// <summary>Adds the fix to the queue. Returns false when it is already queued or running.</summary>
     public bool Run(FixRow row)

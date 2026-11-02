@@ -63,6 +63,17 @@ public sealed class OutputFormattingTests
     }
 
     [Fact]
+    public void ALineBuiltToMakeThePatternsCrawlIsClassifiedPromptly()
+    {
+        // "checksum" a few thousand times with no "skip": the old pattern scanned to the end of the line for each one.
+        var line = string.Concat(Enumerable.Repeat("checksum ", 12000));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal(OutputTone.Normal, CommandOutputFormatter.Classify(line));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), clock.Elapsed.ToString());
+        Assert.Equal(OutputTone.Warning, CommandOutputFormatter.Classify("checksum mismatch, skip"));
+    }
+
+    [Fact]
     public void ExtremelyVerboseOutputHasABoundedFormattedView()
     {
         var lines = CommandOutputFormatter.Format([new(string.Join("\n", Enumerable.Range(0, 5000).Select(i => "Line " + i)))]);

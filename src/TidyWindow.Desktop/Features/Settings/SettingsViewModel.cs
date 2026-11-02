@@ -169,10 +169,8 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
             post(() => Apply(next));
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TimeoutException or JsonException or InvalidDataException)
-        {
-            post(() => FailCheck(ex));
-        }
+        // Whatever went wrong, the panel must not stay on "Checking" with its button gone: every failure ends the check and says so.
+        catch (Exception ex) { post(() => FailCheck(ex)); }
     }
 
     public Task DownloadAndLaunchAsync() => RunDownload(zip: false, launch: true);
@@ -219,6 +217,8 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         downloadTotal = asset.SizeBytes > 0 ? asset.SizeBytes : null;
         downloadPercent = 0;
         Notify();
+        // Without a checksum from the release the download is checked by its size and file type only, which is worth knowing when something goes wrong later.
+        if (asset.Sha256 is null) log.Write(ActivityLevel.Warning, ActivityArea.App, "The update's checksum was not published", $"GitHub lists no SHA-256 for {asset.Name}, so the download is checked by size and file type only.");
         var progress = new Progress<DownloadProgress>(ApplyProgress);
         try
         {
@@ -242,7 +242,8 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
             post(() => StopDownload("Download cancelled."));
             return null;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+        // A stalled connection, a checksum that does not match, or anything unforeseen: the panel goes back to idle and says what happened.
+        catch (Exception ex)
         {
             post(() => FailDownload(ex, "The update could not be downloaded."));
             return null;
@@ -350,9 +351,11 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
 
     private static string Explain(Exception ex) => ex switch
     {
+        TimeoutException { Message.Length: > 0 } slow => slow.Message,
         TimeoutException => "GitHub took too long to answer. Try again in a moment.",
         HttpRequestException => "GitHub could not be reached. Check your connection and try again.",
         InvalidOperationException { Message.Length: > 0 } invalid => invalid.Message,
+        InvalidDataException { Message.Length: > 0 } unusable => unusable.Message,
         _ => "The update information could not be read. Try again in a moment."
     };
 

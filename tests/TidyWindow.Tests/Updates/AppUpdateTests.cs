@@ -163,6 +163,65 @@ public sealed class AppUpdateTests : IDisposable
     }
 
     [Fact]
+    public void TheChecksumGitHubListsForAnAssetIsKeptAndAnythingElseIsNot()
+    {
+        var sha = new string('a', 64);
+        Assert.Equal(sha, AppUpdateService.Digest("sha256:" + sha.ToUpperInvariant()));
+        Assert.Null(AppUpdateService.Digest(""));
+        Assert.Null(AppUpdateService.Digest("md5:" + new string('a', 32)));
+        Assert.Null(AppUpdateService.Digest("sha256:" + new string('g', 64)));
+        var json = Sample.Replace("\"name\":\"TidyWindow-Setup-5.1.0.exe\",", "\"name\":\"TidyWindow-Setup-5.1.0.exe\",\"digest\":\"sha256:" + sha + "\",");
+        var release = Assert.Single(AppUpdateService.ParseReleases(json));
+        Assert.Equal(sha, release.InstallerAsset!.Sha256);
+        Assert.Null(release.PortableAsset!.Sha256);
+    }
+
+    [Fact]
+    public async Task DownloadInstallerRefusesAFileThatDoesNotMatchTheListedChecksumAndKeepsOneThatDoes()
+    {
+        var bytes = new byte[] { (byte)'M', (byte)'Z', 1, 2, 3, 4 };
+        using var http = new HttpClient(new BytesHandler(bytes)) { Timeout = Timeout.InfiniteTimeSpan };
+        var service = new AppUpdateService(http, new Version(5, 0, 0), () => true, folder);
+        var good = InstallerAsset(bytes.Length) with { Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) };
+        Assert.True(File.Exists(await service.DownloadInstallerAsync(good, null)));
+
+        var bad = InstallerAsset(bytes.Length) with { Sha256 = new string('0', 64) };
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => service.DownloadInstallerAsync(bad, null));
+        Assert.Contains("checksum", error.Message);
+        Assert.False(File.Exists(Path.Combine(folder, bad.Name + ".part")));
+    }
+
+    [Fact]
+    public async Task ARedirectIsFollowedOnlyWhenItStaysOnGitHub()
+    {
+        var bytes = new byte[] { (byte)'M', (byte)'Z', 1, 2, 3, 4 };
+        using var stays = new HttpClient(new RedirectHandler("https://objects.githubusercontent.com/x/TidyWindow-Setup-5.1.0.exe", bytes)) { Timeout = Timeout.InfiniteTimeSpan };
+        var path = await new AppUpdateService(stays, new Version(5, 0, 0), () => true, folder).DownloadInstallerAsync(InstallerAsset(bytes.Length), null);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+
+        using var leaves = new HttpClient(new RedirectHandler("https://example.com/TidyWindow-Setup-5.1.0.exe", bytes)) { Timeout = Timeout.InfiniteTimeSpan };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new AppUpdateService(leaves, new Version(5, 0, 0), () => true, folder).DownloadInstallerAsync(InstallerAsset(bytes.Length), null));
+    }
+
+    [Fact]
+    public async Task CheckAsyncRefusesAnAnswerLargerThanAListOfReleasesCanBe()
+    {
+        using var http = new HttpClient(new JsonHandler("[" + new string(' ', (int)AppUpdateService.MaxApiBytes) + "]")) { Timeout = Timeout.InfiniteTimeSpan };
+        await Assert.ThrowsAsync<InvalidDataException>(() => new AppUpdateService(http, new Version(5, 0, 0), () => true, folder).CheckAsync());
+    }
+
+    [Fact]
+    public async Task ADownloadThatStopsArrivingIsGivenUpOnInsteadOfShowingABarThatNeverMoves()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var http = new HttpClient(new StallHandler(started)) { Timeout = Timeout.InfiniteTimeSpan };
+        var service = new AppUpdateService(http, new Version(5, 0, 0), () => true, folder, stallTimeout: TimeSpan.FromMilliseconds(300));
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => service.DownloadInstallerAsync(InstallerAsset(100), null));
+        Assert.Contains("stopped arriving", error.Message);
+        Assert.Empty(Directory.GetFiles(folder));
+    }
+
+    [Fact]
     public async Task DownloadInstallerRejectsAddressesAndNamesThatAreNotTheRelease()
     {
         using var http = new HttpClient(new ThrowingHandler()) { Timeout = Timeout.InfiniteTimeSpan };
@@ -226,6 +285,23 @@ public sealed class AppUpdateTests : IDisposable
             UserAgent = request.Headers.UserAgent.ToString();
             Accept = request.Headers.Accept.ToString();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
+        }
+    }
+
+    /// <summary>Answers every address but the target with a redirect to it, as GitHub does for release files.</summary>
+    private sealed class RedirectHandler(string target, byte[] body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.RequestUri!.AbsoluteUri != target)
+            {
+                var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                redirect.Headers.Location = new Uri(target);
+                return Task.FromResult(redirect);
+            }
+            var content = new ByteArrayContent(body);
+            content.Headers.ContentLength = body.Length;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
         }
     }
 

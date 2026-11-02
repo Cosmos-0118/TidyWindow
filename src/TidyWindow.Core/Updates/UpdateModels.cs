@@ -1,6 +1,7 @@
 namespace TidyWindow.Next.Core;
 
-public sealed record AppReleaseAsset(string Name, string DownloadUrl, long SizeBytes);
+/// <param name="Sha256">The SHA-256 GitHub lists for the file, as lowercase hex, or null when the release does not list one. A download that does not match it is refused.</param>
+public sealed record AppReleaseAsset(string Name, string DownloadUrl, long SizeBytes, string? Sha256 = null);
 
 public sealed record AppRelease(
     string TagName,
