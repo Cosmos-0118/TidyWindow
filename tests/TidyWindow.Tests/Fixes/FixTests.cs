@@ -18,10 +18,15 @@ internal sealed class ScriptedExecutor : IFixStepExecutor
     public readonly Dictionary<string, int> Codes = [];
     public readonly Dictionary<string, Exception> Throws = [];
     public readonly Dictionary<string, string> Prints = [];
+    public readonly Dictionary<string, CancellationToken> Tokens = [];
+    /// <summary>Called with the step title as each step starts, before it prints, throws or returns.</summary>
+    public Action<string>? Before;
 
     public Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
     {
         Ran.Add(context.Step.Title);
+        Tokens[context.Step.Title] = cancellationToken;
+        Before?.Invoke(context.Step.Title);
         if (Prints.TryGetValue(context.Step.Title, out var text)) progress.Report(new(text));
         if (Throws.TryGetValue(context.Step.Title, out var error)) throw error;
         return Task.FromResult(Codes.GetValueOrDefault(context.Step.Title, 0));
@@ -206,9 +211,39 @@ public sealed class FixCatalogTests
     [Fact]
     public void PowerShellMustRunExactlyOneFixedCommand()
     {
-        Assert.Empty(Check(FixScope.Machine, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Get-Date")));
-        Assert.NotEmpty(Check(FixScope.Machine, Run("powershell.exe", "-Command", "Get-Date")));
+        Assert.Empty(Check(FixScope.Machine, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", @"Microsoft.PowerShell.Utility\Get-Date")));
+        Assert.NotEmpty(Check(FixScope.Machine, Run("powershell.exe", "-Command", @"Microsoft.PowerShell.Utility\Get-Date")));
         Assert.NotEmpty(Check(FixScope.Machine, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", "AAAA")));
+    }
+
+    [Fact]
+    public void EveryCmdletInAPowerShellStepNamesItsModuleSoNothingIsLoadedFromAProfileFolder()
+    {
+        // Windows PowerShell looks for an unknown cmdlet along its module path, which starts in the account's Documents folder; a step that runs as
+        // administrator must never go looking there. Naming the module takes the lookup out of the picture.
+        Assert.Contains(Check(FixScope.Machine, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Get-Date")), x => x.Contains("without naming its module"));
+        Assert.Contains(Check(FixScope.Machine, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", @"Evil\Get-Date")), x => x.Contains("Evil module"));
+        // Text in quotes, operators and winget's own options are not cmdlets.
+        Assert.Empty(Check(FixScope.User, Run("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+            @"$x = @(Appx\Get-AppxPackage -Name a | Microsoft.PowerShell.Core\Where-Object { $_ -notcontains 'a re-run' }); & winget source update --disable-interactivity")));
+        foreach (var step in FixCatalog.Load().SelectMany(x => x.Steps).Where(x => x.File == "powershell.exe"))
+            foreach (var cmdlet in new[] { "Get-AppxPackage", "Add-AppxPackage", "Reset-AppxPackage", "Repair-Volume", "Get-PhysicalDisk", "Update-MpSignature", "Start-MpScan", "Get-MpThreat", "Get-NetAdapter", "Restart-NetAdapter", "Delete-DeliveryOptimizationCache", "Checkpoint-Computer", "Get-ComputerRestorePoint", "Get-PnpDevice", "Get-Process", "Start-Process", "Where-Object", "Select-Object" })
+            {
+                Assert.DoesNotContain(" " + cmdlet, step.Args[^1]);
+                Assert.DoesNotContain("(" + cmdlet, step.Args[^1]);
+            }
+    }
+
+    [Fact]
+    public void StepsThatChangeWindowsInPlaceAreNeverInterruptedAndTheFixesThatMindAPendingRestartSaySo()
+    {
+        var catalog = FixCatalog.Load();
+        var steps = catalog.SelectMany(x => x.Steps).ToList();
+        Assert.All(steps.Where(x => x.File is "dism.exe" or "sfc.exe" || x.Args.Contains("/salvagerepository") || x.Kind == FixStepKind.RenameFolder), x => Assert.True(x.Uninterruptible, x.Title));
+        // Stopping or starting a service, or deleting cache files, can be cut short without harm.
+        Assert.All(steps.Where(x => x.File == "net.exe" || x.Kind == FixStepKind.DeleteFiles), x => Assert.False(x.Uninterruptible, x.Title));
+        Assert.True(catalog.Single(x => x.Id == "repair-windows-files").RestartFirst);
+        Assert.True(catalog.Single(x => x.Id == "reset-windows-update").RestartFirst);
     }
 
     [Fact]
@@ -371,12 +406,45 @@ public sealed class FixRunnerTests
     }
 
     [Fact]
-    public async Task CancellingStopsTheFixInsteadOfCallingItAFailure()
+    public async Task StoppingAFixStillRunsTheStepsThatPutThingsBackAndSaysItWasStopped()
     {
-        var executor = new ScriptedExecutor { Throws = { ["one"] = new OperationCanceledException() } };
         using var source = new CancellationTokenSource();
-        source.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new FixRunner(executor).RunAsync(Item(FixRestart.Never, Step("one")), [], new Collector(), source.Token));
+        var executor = new ScriptedExecutor { Throws = { ["delete"] = new OperationCanceledException() }, Before = title => { if (title == "delete") source.Cancel(); } };
+        var result = await new FixRunner(executor).RunAsync(Item(FixRestart.Never, Step("stop"), Step("delete"), Step("skipped"), Step("start", always: true)), [], new Collector(), source.Token);
+
+        Assert.Equal(ActionOutcome.Failed, result.Outcome); Assert.Equal("Stopped The fix", result.Message);
+        Assert.Equal(["stop", "delete", "start"], executor.Ran);
+        Assert.Contains("STOPPED  delete", result.Detail); Assert.Contains("OK       start", result.Detail);
+        // A step that puts things back cannot itself be stopped: a service left stopped is worse than a few seconds' wait.
+        Assert.True(executor.Tokens["delete"].CanBeCanceled); Assert.False(executor.Tokens["start"].CanBeCanceled);
+    }
+
+    [Fact]
+    public async Task AStopAskedForBetweenStepsTakesEffectBeforeTheNextOne()
+    {
+        using var source = new CancellationTokenSource();
+        var executor = new ScriptedExecutor { Before = title => { if (title == "one") source.Cancel(); } };
+        var result = await new FixRunner(executor).RunAsync(Item(FixRestart.Never, Step("one"), Step("two"), Step("three", always: true)), [], new Collector(), source.Token);
+
+        Assert.Equal(["one", "three"], executor.Ran);
+        Assert.Contains("OK       one", result.Detail); Assert.Contains("STOPPED  before “two”", result.Detail);
+    }
+
+    [Fact]
+    public async Task AWarningDoesNotHideThatARestartIsStillNeeded()
+    {
+        var result = await Run(new ScriptedExecutor { Codes = { ["dism"] = 3010, ["sfc"] = 1 } }, Item(FixRestart.Maybe, Step("dism", restart: [3010]), Step("sfc", warn: [1])));
+        Assert.Equal(ActionOutcome.RestartRequired, result.Outcome); Assert.Contains("warnings; restart required", result.Message);
+        Assert.Equal(ActionOutcome.RestartRequired, (await Run(new ScriptedExecutor { Codes = { ["one"] = 1 } }, Item(FixRestart.Always, Step("one", warn: [1])))).Outcome);
+    }
+
+    [Fact]
+    public async Task TheRunnerSaysWhichStepItIsOn()
+    {
+        var seen = new List<string?>();
+        var executor = new ScriptedExecutor();
+        await new FixRunner(executor, context => seen.Add(context?.Step.Title)).RunAsync(Item(FixRestart.Never, Step("one"), Step("two")), [], new Collector(), CancellationToken.None);
+        Assert.Equal(["one", "two", null], seen);
     }
 
     [Fact]
@@ -464,6 +532,60 @@ public sealed class FixServiceTests : IDisposable
         var local = new ScriptedExecutor();
         var result = await new FixService([Item("a", FixScope.User)], local, null, () => false, null).RunAsync(new("made-up", []), new Collector(), CancellationToken.None);
         Assert.Equal(ActionOutcome.Failed, result.Outcome); Assert.Empty(local.Ran);
+    }
+
+    [Fact]
+    public async Task FixesRunOneAtATimeWhereverTheyWereAskedFor()
+    {
+        // The Queue and the Unstick page share one service; two fixes with their steps interleaved would stop a service the other had just started.
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var executor = new Waiting(gate.Task);
+        var service = new FixService([Item("a", FixScope.User), Item("b", FixScope.User)], executor, null, () => false, null);
+        Assert.False(service.Busy);
+
+        var first = service.RunAsync(new("a", []), new Collector(), CancellationToken.None);
+        await executor.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = service.RunAsync(new("b", []), new Collector(), CancellationToken.None);
+        await Task.Delay(200);
+        Assert.True(service.Busy); Assert.Equal("a", service.Running?.Item.Id);
+        Assert.Equal(["a"], executor.Ran);
+
+        gate.SetResult();
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+        await service.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(["a", "b"], executor.Ran); Assert.Equal(1, executor.Most);
+        Assert.False(service.Busy); Assert.Null(service.Running);
+    }
+
+    [Fact]
+    public async Task AFixThatMindsAPendingRestartSaysSoInItsOutputAndInTheSummaryOfARunThatWentWrong()
+    {
+        var item = new FixItem { Id = "a", Name = "a", Group = FixGroup.Windows, Scope = FixScope.User, Summary = "s", Effect = "e", RestartFirst = true, Steps = [new() { Title = "run", File = "ipconfig.exe", Args = ["/flushdns"], Warn = [1] }] };
+        var progress = new Collector();
+        var result = await new FixService([item], new ScriptedExecutor { Codes = { ["run"] = 1 } }, null, () => false, null, pendingRestart: () => "Windows Update is waiting for a restart").RunAsync(new("a", []), progress, CancellationToken.None);
+        Assert.Contains("restart pending", progress.Text); Assert.Contains("Windows Update is waiting for a restart", result.Detail);
+
+        var quiet = new Collector();
+        var fine = await new FixService([item], new ScriptedExecutor(), null, () => false, null, pendingRestart: () => null).RunAsync(new("a", []), quiet, CancellationToken.None);
+        Assert.DoesNotContain("restart pending", quiet.Text); Assert.DoesNotContain("restart pending", fine.Detail);
+    }
+
+    /// <summary>Holds every step until the gate opens, and counts how many were inside at once.</summary>
+    private sealed class Waiting(Task gate) : IFixStepExecutor
+    {
+        private int inside;
+        public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly List<string> Ran = [];
+        public int Most;
+
+        public async Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
+        {
+            lock (Ran) { Ran.Add(context.Item.Id); Most = Math.Max(Most, Interlocked.Increment(ref inside)); }
+            Started.TrySetResult();
+            await gate;
+            Interlocked.Decrement(ref inside);
+            return 0;
+        }
     }
 
     [Fact]
@@ -719,6 +841,53 @@ public sealed class FixHostTests
         Assert.False(session.IsOpen);
     }
 
+    [Fact]
+    public async Task AHelperThatLeftWhileIdleIsStartedAgainBeforeTheNextStepInsteadOfFailingIt()
+    {
+        var launches = 0;
+        var left = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var session = new FixSession(async pipe =>
+        {
+            var nth = Interlocked.Increment(ref launches);
+            // The first helper leaves after a moment's idleness, as the real one does after five minutes; the second stays.
+            await FixHost.RunAsync([FixHost.Command, pipe], new LiveExecutor((_, _, _) => Task.FromResult(7)), () => true, nth == 1 ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromSeconds(20), [Machine()]);
+            if (nth == 1) left.TrySetResult();
+        });
+        await session.OpenAsync();
+        await left.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Opening again greets the helper first, finds it gone, and starts another instead of letting the first step find out.
+        await session.OpenAsync();
+        Assert.Equal(2, launches);
+        Assert.Equal(7, await session.ExecuteAsync(Context(Machine()), new Collector(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AHelperThatConnectsButNeverAnswersOrAnswersNonsenseIsAnIoProblemNotAHang()
+    {
+        using var silent = new FixSession(async pipe =>
+        {
+            await using var client = await HelperPipe.ConnectAsync(pipe);
+            var reader = new PipeLineReader(client);
+            try { while (await reader.ReadLineAsync() is not null) { } } catch (IOException) { }
+        }, replyTimeout: TimeSpan.FromMilliseconds(300));
+        var error = await Assert.ThrowsAsync<IOException>(() => silent.OpenAsync());
+        Assert.Contains("did not answer", error.Message);
+        Assert.False(silent.IsOpen);
+
+        using var garbled = new FixSession(async pipe =>
+        {
+            await using var client = await HelperPipe.ConnectAsync(pipe);
+            var reader = new PipeLineReader(client);
+            var writer = new StreamWriter(client) { AutoFlush = true };
+            await reader.ReadLineAsync();
+            await writer.WriteLineAsync("not json at all");
+            try { while (await reader.ReadLineAsync() is not null) { } } catch (IOException) { }
+        });
+        await Assert.ThrowsAsync<IOException>(() => garbled.OpenAsync());
+        Assert.False(garbled.IsOpen);
+    }
+
     private sealed class LiveExecutor(Func<FixStepContext, IProgress<CommandOutput>, CancellationToken, Task<int>> run) : IFixStepExecutor
     {
         public int Calls;
@@ -881,6 +1050,35 @@ public sealed class FixExecutorLiveTests
         var clock = System.Diagnostics.Stopwatch.StartNew();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new FixStepExecutor().ExecuteAsync(Context(step), new Collector(), source.Token));
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20));
+    }
+
+    [Fact]
+    public async Task AStepThatMustNotBeInterruptedIsAllowedToFinishWhenStopped()
+    {
+        if (!Applies) return;
+        using var source = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        var progress = new Collector();
+        var step = new FixStep { Title = "slow", File = "powershell.exe", Args = ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 3; 'finished anyway'"], Encoding = FixEncoding.Utf8, Uninterruptible = true };
+        var code = await new FixStepExecutor().ExecuteAsync(Context(step), progress, source.Token);
+        Assert.Equal(0, code);
+        Assert.Contains("finished anyway", progress.Text); Assert.Contains("allowed to finish", progress.Text);
+    }
+
+    [Fact]
+    public async Task WindowsPowerShellGetsTheSystemModulePathAndTakesModuleQualifiedNames()
+    {
+        if (!Applies) return;
+        var progress = new Collector();
+        var step = new FixStep { Title = "ps", File = "powershell.exe", Args = ["-NoProfile", "-NonInteractive", "-Command", @"Microsoft.PowerShell.Utility\Write-Output ('path=' + $env:PSModulePath); Microsoft.PowerShell.Core\ForEach-Object -InputObject 1 { 'qualified ok' }"], Encoding = FixEncoding.Utf8 };
+        var code = await new FixStepExecutor().ExecuteAsync(Context(step), progress, CancellationToken.None);
+        Assert.Equal(0, code);
+        // The real protection is that every cmdlet names its module, so command discovery never searches the path. The executor also sets
+        // PSModulePath to the system module folders; Windows PowerShell still prepends the user's Documents folder on startup, so that part is
+        // only defence in depth, which is exactly why the qualified names matter.
+        Assert.Contains("qualified ok", progress.Text);
+        var path = progress.Lines(CommandOutputKind.Output).Single(x => x.StartsWith("path=", StringComparison.Ordinal))[5..];
+        Assert.Contains(@"\WindowsPowerShell\v1.0\Modules", path, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(FixStepExecutor.ModulePath().Split(';')[0], path, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -43,6 +43,12 @@ public sealed class FixStep
     public bool Always { get; init; }
     /// <summary>An option id that must be on for this step to run, or "!id" when it must be off.</summary>
     public string When { get; init; } = "";
+    /// <summary>
+    /// A step that must run to the end once started, because ending it half way does more harm than waiting: DISM, SFC, the WMI salvage, setting
+    /// aside the update folders. It is not ended when the fix is stopped or the app closes, and its time limit only says when the output notes
+    /// that it is taking long.
+    /// </summary>
+    public bool Uninterruptible { get; init; }
     public FixEncoding Encoding { get; init; } = FixEncoding.Oem;
     /// <summary>DeleteFiles and RenameFolder: the folder. Environment variables are expanded.</summary>
     public string Path { get; init; } = "";
@@ -64,6 +70,11 @@ public sealed class FixItem
     public required string Effect { get; init; }
     public FixRisk Risk { get; init; } = FixRisk.Safe;
     public FixRestart Restart { get; init; } = FixRestart.Never;
+    /// <summary>
+    /// A fix that can fail, or report damage it cannot repair, while Windows still has a restart pending from an earlier update or install.
+    /// The page says so before it runs, and the output and summary say so when it ran anyway.
+    /// </summary>
+    public bool RestartFirst { get; init; }
     /// <summary>How long it usually takes, for example "A few minutes".</summary>
     public string Duration { get; init; } = "";
     public string[] Sources { get; init; } = [];
@@ -162,8 +173,26 @@ public static partial class FixGuard
 
     private static readonly string[] UserOnlyVariables = ["%LOCALAPPDATA%", "%APPDATA%", "%USERPROFILE%", "$env:LOCALAPPDATA", "$env:APPDATA", "$env:USERPROFILE", "HKCU"];
 
+    // The modules a PowerShell step may name. Every cmdlet in a step names its module (Appx\Get-AppxPackage), so command discovery never goes
+    // looking for it along the module path, which starts in the user's Documents folder. That is the protection: Windows PowerShell re-adds the
+    // user's Documents module folder on startup even when the executor sets PSModulePath, so a module planted there is only ever ignored because
+    // nothing asks for an unqualified name. The executor still sets PSModulePath to the system folders as defence in depth.
+    private static readonly HashSet<string> Modules = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Microsoft.PowerShell.Core", "Microsoft.PowerShell.Management", "Microsoft.PowerShell.Utility",
+        "Appx", "Storage", "Defender", "DeliveryOptimization", "NetAdapter", "PnpDevice"
+    };
+
     [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex Slug();
+
+    // A cmdlet name (Verb-Noun), with the module in front of it when there is one. A dash inside a word or after another dash (--disable-interactivity) is not one.
+    [GeneratedRegex(@"(?<![\w\\.\-])(?:(?<module>[A-Za-z][\w.]*)\\)?(?<cmdlet>[A-Za-z]+-[A-Za-z]+)(?![\w\-])")]
+    private static partial Regex Cmdlet();
+
+    // Text in single quotes is literal in PowerShell, so a dash in a sentence there is never a command.
+    [GeneratedRegex(@"'[^']*'")]
+    private static partial Regex Literal();
 
     /// <summary>The full path of an allowed program, or null when it is not one.</summary>
     public static string? Resolve(string file)
@@ -260,8 +289,40 @@ public static partial class FixGuard
                 if (step.Args.Length != 4 || step.Args[0] != "-NoProfile" || step.Args[1] != "-NonInteractive" || step.Args[2] != "-Command") { problems.Add($"{at}: PowerShell must run one fixed -Command."); break; }
                 foreach (var bad in Forbidden)
                     if (step.Args[3].Contains(bad, StringComparison.OrdinalIgnoreCase)) problems.Add($"{at}: the PowerShell command uses {bad.Trim()}, which fixes must not.");
+                foreach (Match match in Cmdlet().Matches(Literal().Replace(step.Args[3], "''")))
+                {
+                    if (!match.Groups["module"].Success) problems.Add($"{at}: the PowerShell command runs {match.Groups["cmdlet"].Value} without naming its module; write it as Module\\{match.Groups["cmdlet"].Value}.");
+                    else if (!Modules.Contains(match.Groups["module"].Value)) problems.Add($"{at}: the PowerShell command uses the {match.Groups["module"].Value} module, which fixes may not load.");
+                }
                 break;
         }
+    }
+}
+
+/// <summary>
+/// Whether Windows still has a restart pending from an earlier update or install. DISM and SFC then report damage they cannot repair, and setting
+/// aside the update folders can cut an update off half way, so the fixes that mind say so before they run.
+/// </summary>
+public static class PendingRestart
+{
+    /// <summary>Why a restart is pending, in a few words, or null when none is (or it cannot be told).</summary>
+    public static string? Find()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try { return FindOnWindows(); }
+        catch (Exception ex) when (ex is System.Security.SecurityException or IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static string? FindOnWindows()
+    {
+        using var servicing = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending");
+        if (servicing is not null) return "a Windows update or feature change is waiting for a restart";
+        using var update = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired");
+        if (update is not null) return "Windows Update is waiting for a restart";
+        using var session = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager");
+        if (session?.GetValue("PendingFileRenameOperations") is string[] { Length: > 0 }) return "an install or update is waiting for a restart to replace files";
+        return null;
     }
 }
 
