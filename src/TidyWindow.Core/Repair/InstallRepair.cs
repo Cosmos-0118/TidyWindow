@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
-public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart, BundleRecord, DanglingLinks, InstallerService, MissingPatch }
+public enum RepairKind { BrokenEntry, InstallerRecord, InstallLock, RunningInstaller, PendingRestart, BundleRecord, DanglingLinks, InstallerService, MissingPatch, BrokenShortcut, EmptyFolder, InstallerFiles }
 public enum RepairLevel { Recommended, Review, Info }
 
 /// <summary>One program as Windows lists it in "Installed apps", read from the registry.</summary>
@@ -23,11 +23,12 @@ public sealed record DeadPatch(string Patch, string File, IReadOnlyList<string> 
 
 /// <summary>Something wrong that a repair can fix, with exactly the registry keys that fixing it removes.</summary>
 public sealed record RepairFinding(string Id, RepairKind Kind, string Title, string Detail, string Evidence, RepairLevel Level, IReadOnlyList<string> Keys, int? ProcessId = null,
-    FootprintRequest? Footprint = null, IReadOnlyList<ValueRef>? Links = null, MsiProduct? Product = null, bool Alive = false, bool ServiceStuck = false, UninstallEntry? Entry = null)
+    FootprintRequest? Footprint = null, IReadOnlyList<ValueRef>? Links = null, MsiProduct? Product = null, bool Alive = false, bool ServiceStuck = false, UninstallEntry? Entry = null,
+    IReadOnlyList<string>? Shortcuts = null, bool MachineShortcuts = false, IReadOnlyList<string>? Folders = null, bool MachineFolders = false)
 {
     // A product's record always reaches Windows-wide keys, even a per-user one, because Windows Installer keeps its bookkeeping under UserData.
-    public bool NeedsAdmin => Footprint is not null || ServiceStuck || Keys.Any(InstallRepair.IsMachine) || (Links?.Any(x => InstallRepair.IsMachine(x.Path)) ?? false);
-    public bool CanFix => Keys.Count > 0 || ProcessId is not null || Footprint is not null || Links is { Count: > 0 } || ServiceStuck;
+    public bool NeedsAdmin => Footprint is not null || ServiceStuck || MachineShortcuts || MachineFolders || Keys.Any(InstallRepair.IsMachine) || (Links?.Any(x => InstallRepair.IsMachine(x.Path)) ?? false);
+    public bool CanFix => Keys.Count > 0 || ProcessId is not null || Footprint is not null || Links is { Count: > 0 } || ServiceStuck || Shortcuts is { Count: > 0 } || Folders is { Count: > 0 };
 }
 
 public sealed record RepairScan(IReadOnlyList<UninstallEntry> Entries, IReadOnlyList<MsiProduct> Products, IReadOnlyList<RepairFinding> Findings);
@@ -69,6 +70,23 @@ public interface IInstallSystem
     bool RemoveEmptyFolder(string path) => true;
     /// <summary>The files directly in a folder, or none when it cannot be read.</summary>
     IReadOnlyList<string> FilesIn(string folder) => [];
+    /// <summary>The folders Windows lists shortcuts from: the Start menu, the desktops, the taskbar's pins and the Send to menu.</summary>
+    IReadOnlyList<ShortcutRoot> ShortcutRoots() => [];
+    /// <summary>Every .lnk and .url file in those folders (the Start menu's subfolders included), read without resolving them.</summary>
+    IReadOnlyList<ShortcutFile> Shortcuts() => [];
+    /// <summary>Every folder under a Start menu, with what is directly in it.</summary>
+    IReadOnlyList<ShortcutFolder> ShortcutFolders() => [];
+    /// <summary>Tells Windows these shortcuts or folders changed, so the Start menu, search and Explorer drop them without a restart.</summary>
+    void ShellChanged(IReadOnlyList<string> paths) { }
+    /// <summary>
+    /// The folders Windows Installer and Burn keep for a product code that are still on disk: the icon folders (C:\Windows\Installer, %APPDATA%\Microsoft\Installer),
+    /// and with <paramref name="packageCache"/> the Package Cache folders named after it.
+    /// </summary>
+    IReadOnlyList<string> InstallerLeftovers(string code, bool packageCache) => [];
+    /// <summary>Icon folders under C:\Windows\Installer (and the per-user one) whose product Windows Installer has no record of anywhere, and that have not changed for two days.</summary>
+    IReadOnlyList<string> OrphanInstallerFolders() => [];
+    /// <summary>The hidden C:\Config.Msi where an install that was cut short left its rollback files; null when it is not there.</summary>
+    string? RollbackFolder() => null;
 }
 
 /// <summary>Whatever changes registry keys: the signed-in user's own, or the elevated helper. Every change hands back a full copy so it can be undone.</summary>
@@ -96,7 +114,8 @@ public static partial class InstallRepair
     private const int InstalledState = 5;
     private static readonly string[] UpdateTypes = ["Update", "Hotfix", "Security Update", "Update Rollup", "Service Pack"];
 
-    public static RepairScan Scan(IInstallSystem system)
+    /// <param name="shortcuts">Also look through the Start menu, desktops, taskbar and Send to menu for shortcuts that lead nowhere; a caller that only wants the install records leaves it out.</param>
+    public static RepairScan Scan(IInstallSystem system, bool shortcuts = true)
     {
         system.BeginScan();
         var entries = system.Entries();
@@ -108,6 +127,11 @@ public static partial class InstallRepair
         findings.AddRange(DeadPatches(system));
         findings.AddRange(DanglingLinks(system));
         findings.AddRange(StuckInstalls(system));
+        if (shortcuts)
+        {
+            findings.AddRange(StaleShortcutFindings(system));
+            findings.AddRange(OrphanedInstallerFindings(system));
+        }
         return new(entries, products, findings);
     }
 
@@ -356,6 +380,12 @@ public static partial class InstallRepair
                 "An install was interrupted and left its marker behind. Every new install fails with “another installation is in progress” until the marker is removed."
                 + (rollback ? " Its saved rollback information is removed with it." : ""),
                 InstallLockKey, RepairLevel.Recommended, rollback ? [InstallLockKey, InstallRollbackKey] : [InstallLockKey]);
+        }
+        else if (!lockExists && !system.InstallerBusy() && installers.Count == 0 && !system.InstallRollbackExists() && system.RollbackFolder() is { } rollbackFolder)
+        {
+            yield return new("rollback-folder", RepairKind.InstallLock, "Leftover rollback folder from an interrupted install",
+                "Windows Installer's temporary Config.Msi folder is still on the drive while no install is running. When its permissions are locked, repairs and installs roll back at the end with error 1603 until it is set aside.",
+                rollbackFolder, RepairLevel.Recommended, [], Folders: [rollbackFolder], MachineFolders: RepairFolders.IsMachine(rollbackFolder));
         }
 
         if (!system.InstallerBusy() && installers.Count == 0 && system.InstallerServiceStuck())

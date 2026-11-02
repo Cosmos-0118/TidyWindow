@@ -14,7 +14,7 @@ public sealed record RunResult(int ExitCode, string Output);
 /// <summary>The jobs that need the elevated helper for a Windows-wide program, apart from changing the registry.</summary>
 public interface IElevatedOps
 {
-    /// <summary>Repairs one product from its own installer file with <c>msiexec /fvomus</c>, which also puts the saved copy back. Refuses a file that is not that product's.</summary>
+    /// <summary>Repairs one product from its own installer file with <c>msiexec /fvomus</c> (<c>/fomus</c> when the file is the program's own saved copy), which puts a lost saved copy back. Refuses a file that is not that product's.</summary>
     RunResult Reinstall(string msiPath, MsiProduct product);
     /// <summary>Stops the Windows Installer service, ending it by force if it does not stop. Nothing else is ever stopped.</summary>
     bool StopInstallerService();
@@ -138,6 +138,80 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
             return key?.GetValue("PackageCode") is string { Length: 32 } code ? InstallRepair.Unpack(code) : null;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { return null; }
+    }
+
+    /// <summary>The file name Windows Installer registered in the product's SourceList (such as <c>EpicInstaller-20.3.3.msi</c>), which SecureRepair checks when repairing from source.</summary>
+    public string? RegisteredPackageName(MsiProduct product)
+    {
+        var (hive, path) = ProductKey(product, InstallRepair.Pack(product.Code));
+        try
+        {
+            using var source = hive.OpenSubKey(path + @"\SourceList");
+            if (source?.GetValue("PackageName") is string name && IsSafeMsiFileName(name)) return name;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { }
+        return null;
+    }
+
+    private static bool IsSafeMsiFileName(string name) =>
+        name.Length > 0
+        && name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(Path.GetFileName(name), name, StringComparison.Ordinal)
+        && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
+    /// <summary>
+    /// Whether an MSI database carries all of its cabinet streams inside itself (<c>#cab</c> in the <c>Media</c> table, present in <c>_Streams</c>).
+    /// Windows Installer 5.0+ keeps embedded cabinets inside the cached <c>LocalPackage</c>, so staging <c>LocalPackage</c> under its registered <c>PackageName</c>
+    /// satisfies source resolution without needing the deleted original download folder or a network fetch.
+    /// </summary>
+    internal static bool HasEmbeddedCabinets(string path)
+    {
+        if (MsiOpenDatabase(path, IntPtr.Zero, out var database) != 0) return false;
+        try
+        {
+            var cabinets = ColumnValues(database, "SELECT `Cabinet` FROM `Media`").Where(x => x.Length > 0).ToList();
+            if (cabinets.Count == 0 || cabinets.Any(x => x[0] != '#')) return false;
+            var streams = ColumnValues(database, "SELECT `Name` FROM `_Streams`").ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return cabinets.All(x => streams.Contains(x[1..]));
+        }
+        finally { MsiCloseHandle(database); }
+    }
+
+    /// <summary>
+    /// Whether repairing from source should use <c>e</c> (equal or older) rather than <c>o</c> (older only): products with .NET GAC assemblies (<c>MsiAssembly</c>)
+    /// or an authored <c>REINSTALLMODE</c> containing <c>e</c>/<c>a</c> (such as IIS 10.0 Express) skip <c>AssemblyCopy</c> under <c>o</c> while still unpublishing the assembly.
+    /// </summary>
+    internal static bool NeedsEqualReinstall(string path)
+    {
+        if (MsiOpenDatabase(path, IntPtr.Zero, out var database) != 0) return false;
+        try
+        {
+            if (Property(database, "REINSTALLMODE") is { } mode && (mode.Contains('a', StringComparison.OrdinalIgnoreCase) || mode.Contains('e', StringComparison.OrdinalIgnoreCase)))
+                return true;
+            return ColumnValues(database, "SELECT `File_` FROM `MsiAssembly`").Count > 0;
+        }
+        finally { MsiCloseHandle(database); }
+    }
+
+    private static List<string> ColumnValues(IntPtr database, string query)
+    {
+        var values = new List<string>();
+        if (MsiDatabaseOpenView(database, query, out var view) != 0) return values;
+        try
+        {
+            if (MsiViewExecute(view, IntPtr.Zero) != 0) return values;
+            while (MsiViewFetch(view, out var record) == 0)
+            {
+                try
+                {
+                    var value = new StringBuilder(256); uint length = 256;
+                    if (MsiRecordGetString(record, 1, value, ref length) == 0) values.Add(value.ToString());
+                }
+                finally { MsiCloseHandle(record); }
+            }
+        }
+        finally { MsiCloseHandle(view); }
+        return values;
     }
 
     public MsiPackageInfo? ReadPackage(string path)
@@ -304,12 +378,189 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         // Windows Installer may have no package code for it; when it has one, the file has to be the very same build.
         if (RegisteredPackageCode(product) is { } registered && info.PackageCode.Length > 0 && !string.Equals(registered, info.PackageCode, StringComparison.OrdinalIgnoreCase))
             return new(87, "That installer file is a different build of the program.");
+
+        ClearStaleRollbackFolders();
+
+        // "v" runs from the original source and re-caches the package, which is what puts a lost saved copy back. The program's own saved copy is already the cache, and with "v"
+        // Windows Installer insists on the original source (error 1706) that is usually gone, so a repair from the saved copy tries "/fomus" first.
+        // If that fails and the cached MSI carries its own embedded cabinets (#cab), staging it under its registered PackageName lets "/fvomus" (or "/fvemus" for GAC packages) repair self-contained.
+        var saved = !string.IsNullOrWhiteSpace(product.LocalPackage) && string.Equals(Path.GetFullPath(msiPath), Path.GetFullPath(product.LocalPackage), StringComparison.OrdinalIgnoreCase);
+        if (saved)
+        {
+            var first = RunMsiExec("/fomus", msiPath);
+            if (first.ExitCode is 0 or 3010 or 1641 || !HasEmbeddedCabinets(msiPath))
+                return first;
+        }
+
+        var flags = NeedsEqualReinstall(msiPath) ? "/fvemus" : "/fvomus";
+        return RunStagedMsiExec(flags, msiPath, product);
+    }
+
+    private static RunResult RunMsiExec(string flags, string msiPath, params string[] properties)
+    {
         var log = Path.Combine(Path.GetTempPath(), "TidyWindow-repair-" + Guid.NewGuid().ToString("N")[..8] + ".log");
         var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "msiexec.exe")) { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var argument in new[] { "/fvomus", msiPath, "/qn", "/norestart", "/l*v", log }) start.ArgumentList.Add(argument);
+        foreach (var argument in new[] { flags, msiPath, "/qn", "/norestart", "/l*v", log }) start.ArgumentList.Add(argument);
+        foreach (var prop in properties) start.ArgumentList.Add(prop);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Windows Installer could not be started.");
         if (!process.WaitForExit(TimeSpan.FromMinutes(20))) { try { process.Kill(); } catch (InvalidOperationException) { } return new(1460, "Windows Installer did not finish in 20 minutes.\nLog: " + log); }
-        return new(process.ExitCode, "Log: " + log);
+        var result = new RunResult(process.ExitCode, "Log: " + log);
+        if (result.ExitCode is not (0 or 3010 or 1641) && properties.Length == 0 && FailedOnRollbackFolder(log))
+        {
+            ClearStaleRollbackFolders();
+            return RunMsiExec(flags, msiPath, "DISABLEROLLBACK=1");
+        }
+        // msiexec's own exit code is the client's. When the install server finished and reconfigured the product without rolling anything back, the repair worked.
+        if (result.ExitCode == 1603 && ServerFinishedCleanly(log) is { } code)
+            return new(code, result.Output + "\nWindows Installer's exit code said 1603, but its log shows the repair finished and the program was reconfigured without error.");
+        return result;
+    }
+
+    /// <summary>
+    /// When the install server (<c>MSI (s)</c>) finished with 0 or 3010 and logged "reconfiguration success or error status: 0" with nothing rolled back, that code; otherwise null.
+    /// The client (<c>MSI (c)</c>) can still report 1603 afterwards, for instance when the cached package was replaced and the old one is only deleted at the next restart.
+    /// </summary>
+    internal static int? ServerFinishedCleanly(string logPath)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(logPath);
+            var text = bytes.Length > 1 && (bytes[1] == 0 || (bytes[0] == 0xFF && bytes[1] == 0xFE)) ? Encoding.Unicode.GetString(bytes) : Encoding.UTF8.GetString(bytes);
+            if (text.Contains("Error in rollback", StringComparison.Ordinal)) return null;
+            if (!text.Contains("reconfiguration success or error status: 0", StringComparison.OrdinalIgnoreCase)) return null;
+            var server = System.Text.RegularExpressions.Regex.Matches(text, @"MSI \(s\) [^\r\n]*MainEngineThread is returning (\d+)");
+            if (server.Count == 0) return null;
+            var last = int.Parse(server[^1].Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return last is 0 or 3010 ? last : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or FormatException or OverflowException) { return null; }
+    }
+
+    internal static bool FailedOnRollbackFolder(string logPath)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(logPath);
+            var text = bytes.Length > 1 && (bytes[1] == 0 || (bytes[0] == 0xFF && bytes[1] == 0xFE)) ? Encoding.Unicode.GetString(bytes) : Encoding.UTF8.GetString(bytes);
+            return text.Contains("Backup folder is created by user", StringComparison.Ordinal) && text.Contains("Error in rollback skipped", StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
+    }
+
+    /// <summary>
+    /// Runs <c>msiexec</c> with <c>v</c> against a copy staged under the product's registered <c>PackageName</c> when the file is in <c>C:\Windows\Installer</c>
+    /// or has a different name on disk (such as a WinGet download), so Windows Installer's SecureRepair (<c>Error 1316</c>) and custom actions see the exact filename expected.
+    /// </summary>
+    private RunResult RunStagedMsiExec(string flags, string msiPath, MsiProduct product)
+    {
+        var full = Path.GetFullPath(msiPath);
+        var wanted = RegisteredPackageName(product);
+        var installerCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer").TrimEnd('\\') + "\\";
+        var inCache = full.StartsWith(installerCache, StringComparison.OrdinalIgnoreCase);
+        var needsRename = wanted is not null && !string.Equals(Path.GetFileName(full), wanted, StringComparison.OrdinalIgnoreCase);
+        if (!inCache && !needsRename) return RunMsiExec(flags, full);
+
+        var stageDir = Path.Combine(Path.GetTempPath(), "TidyWindow-stage-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            Directory.CreateDirectory(stageDir);
+            var staged = Path.Combine(stageDir, wanted ?? Path.GetFileName(full));
+            File.Copy(full, staged, true);
+            if (!inCache && Path.GetDirectoryName(full) is { Length: > 0 } sourceDir)
+            {
+                foreach (var cab in Safe(() => Directory.EnumerateFiles(sourceDir, "*.cab")))
+                {
+                    var destCab = Path.Combine(stageDir, Path.GetFileName(cab));
+                    if (!CreateHardLink(destCab, cab, IntPtr.Zero)) File.Copy(cab, destCab, true);
+                }
+            }
+            return RunMsiExec(flags, staged);
+        }
+        finally
+        {
+            try { if (Directory.Exists(stageDir)) Directory.Delete(stageDir, true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
+    /// Removes an orphaned <c>C:\Config.Msi</c> (or <c>C:\Windows\Installer\Config.Msi</c>) left behind with locked permissions when no install is active.
+    /// When <c>C:\Config.Msi</c> pre-exists with broken ACLs, <c>msi.dll</c> logs <c>Backup folder is created by user</c> / <c>Note: 1: 2265 ... -2147287035</c>
+    /// and rolls back any repair that backs up files at the end of <c>InstallFinalize</c> with exit code 1603.
+    /// </summary>
+    internal static void ClearStaleRollbackFolders()
+    {
+        if (IsInstallerBusy()) return;
+        try
+        {
+            using var inProgress = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress");
+            if (inProgress is not null) return;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return; }
+
+        var drive = (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd('\\', '/') + @"\";
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        foreach (var folder in new[] { Path.Combine(drive, "Config.Msi"), Path.Combine(windows, "Installer", "Config.Msi") })
+        {
+            if (!Directory.Exists(folder)) continue;
+            try
+            {
+                if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0)
+                {
+                    Directory.Delete(folder, false);
+                    continue;
+                }
+                File.SetAttributes(folder, FileAttributes.Normal);
+                Directory.Delete(folder, true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            if (!Directory.Exists(folder)) continue;
+
+            UnlockRollbackFolder(folder);
+            try
+            {
+                if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) { Directory.Delete(folder, false); continue; }
+                Directory.Delete(folder, true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    internal static void UnlockRollbackFolder(string folder)
+    {
+        if (!Directory.Exists(folder)) return;
+        try { if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        if (OperatingSystem.IsWindows()) RegistryNative.EnablePrivileges();
+        Run("takeown.exe", "/F", folder, "/A");
+        Run("icacls.exe", folder, "/grant", "*S-1-5-32-544:F", "*S-1-5-18:F", "/C", "/Q");
+        Run("takeown.exe", "/F", folder, "/A", "/R", "/D", "Y");
+        Run("icacls.exe", folder, "/setowner", "*S-1-5-32-544", "/T", "/C", "/Q");
+        Run("icacls.exe", folder, "/grant", "*S-1-5-32-544:F", "*S-1-5-18:F", "/T", "/C", "/Q");
+        try
+        {
+            var info = new DirectoryInfo(folder);
+            if ((info.Attributes & FileAttributes.ReparsePoint) != 0) return;
+            info.Attributes = FileAttributes.Normal;
+            foreach (var entry in info.EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }))
+            {
+                try { entry.Attributes = FileAttributes.Normal; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    private static bool IsInstallerBusy()
+    {
+        try
+        {
+            if (!Mutex.TryOpenExisting(@"Global\_MSIExecute", out var mutex)) return false;
+            mutex.Dispose();
+            return true;
+        }
+        catch (UnauthorizedAccessException) { return true; }
+        catch (Exception ex) when (ex is WaitHandleCannotBeOpenedException or IOException) { return false; }
     }
 
     public bool StopInstallerService()
@@ -374,4 +625,7 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
 
     [DllImport("msi.dll")]
     private static extern uint MsiCloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
 }

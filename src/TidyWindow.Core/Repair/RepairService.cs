@@ -10,11 +10,18 @@ public sealed record RepairOutcome(int Fixed, IReadOnlyList<string> Problems, Re
     public bool RestartNeeded => Results?.Any(x => x.Status == RepairStatus.FixedAfterRestart) ?? false;
 }
 
+public enum QuarantineKind { Folder, Shortcut }
+
+/// <summary>One thing a repair removed and kept, with where it came from. Exactly one of <see cref="Folder"/> and <see cref="Link"/> is set.</summary>
+public sealed record QuarantineItem(string BatchId, string Title, DateTimeOffset Created, string Name, string Original, QuarantineKind Kind, FolderBackup? Folder, ShortcutBackup? Link);
+
+public sealed record QuarantineOutcome(int Done, IReadOnlyList<string> Problems);
+
 /// <summary>What a running repair or undo is doing, for a progress display: which item (Index of Total), what is happening this moment, and the last few things that finished for it.</summary>
 public sealed record RepairProgress(int Index, int Total, string Title, string Doing, IReadOnlyList<string> Done);
 
 /// <summary>An undo either put everything back or put nothing back; Problems says exactly what stopped it.</summary>
-public sealed record UndoOutcome(int Restored, IReadOnlyList<string> Problems, int FilesRemoved = 0)
+public sealed record UndoOutcome(int Restored, IReadOnlyList<string> Problems, int FilesRemoved = 0, int ShortcutsRestored = 0, int FoldersRestored = 0)
 {
     public bool Complete => Problems.Count == 0;
 }
@@ -25,7 +32,7 @@ public sealed record UndoOutcome(int Restored, IReadOnlyList<string> Problems, i
 /// Every removed key is copied first and kept, so the whole repair can be undone.
 /// </summary>
 public sealed partial class RepairService(IInstallSystem system, IKeyEditor user, IKeyEditor machine, Func<CancellationToken, Task> unlock, Action relock, RepairHistory history,
-    IInstallerOps? ops = null, IElevatedOps? elevated = null, IInstallerFetcher? fetcher = null)
+    IInstallerOps? ops = null, IElevatedOps? elevated = null, IInstallerFetcher? fetcher = null, IShortcutEditor? userLinks = null, IShortcutEditor? machineLinks = null, IFolderEditor? userFolders = null, IFolderEditor? machineFolders = null)
 {
     private const int Unknown = InstallRepair.Unknown;
 
@@ -37,6 +44,10 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         public bool Indexed;
         public readonly List<KeyBackup> Backups = [];
         public readonly List<string> Files = [];
+        public readonly List<ShortcutBackup> Links = [];
+        public readonly List<FolderBackup> Moved = [];
+        /// <summary>The program's record was actually removed from the registry by the item being repaired (it can also be repaired in place, which removes nothing).</summary>
+        public bool Removed;
         public readonly List<RepairResult> Results = [];
         public CancellationToken Token = token;
 
@@ -46,7 +57,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         private string title = "", doing = "";
         private readonly List<string> done = [];
 
-        public void Begin(string itemTitle) { index++; title = itemTitle; done.Clear(); doing = ""; Send(); }
+        public void Begin(string itemTitle) { index++; title = itemTitle; done.Clear(); doing = ""; Removed = false; Send(); }
         public void Doing(string text) { doing = text; Send(); }
         public void Finished(string line) { done.Add(line); Send(); }
         private void Send() => sink?.Report(new(index, Total, title, doing, done.TakeLast(4).ToList()));
@@ -74,7 +85,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         }
         finally { relock(); }
         // A repair that changed nothing leaves nothing to undo.
-        var batch = run.Backups.Count > 0 || run.Files.Count > 0 ? history.Save(title, run.Backups, files: run.Files) : null;
+        var batch = run.Backups.Count > 0 || run.Files.Count > 0 || run.Links.Count > 0 || run.Moved.Count > 0 ? history.Save(title, run.Backups, files: run.Files, shortcuts: run.Links, folders: run.Moved) : null;
         var problems = run.Results.Where(x => x.Status == RepairStatus.NotFixed).Select(x => $"{x.Title}: {x.Summary}").ToList();
         return new(run.Results.Count(x => x.Status != RepairStatus.NotFixed), problems, batch, run.Results);
     }
@@ -83,9 +94,9 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
     /// Repairs a program that works as far as Windows Installer is concerned, from the saved copy of its own installer, the way Windows' own Repair does (<c>msiexec /fvomus</c>).
     /// Nothing is removed from the registry, so there is nothing to undo.
     /// </summary>
-    public async Task<RepairResult> RepairProgramAsync(MsiProduct product, string title, CancellationToken cancellationToken = default, IProgress<RepairProgress>? progress = null)
+    public async Task<RepairResult> RepairProgramAsync(MsiProduct product, string title, CancellationToken cancellationToken = default, IProgress<RepairProgress>? progress = null, RepairOptions? options = null)
     {
-        var run = new Run(cancellationToken, new(), progress) { Total = 1 };
+        var run = new Run(cancellationToken, options ?? new(), progress) { Total = 1 };
         run.Begin(title);
         var steps = new Steps(run);
         var finding = new RepairFinding($"repair:{product.Code}", RepairKind.InstallerRecord, title, "", product.Code, RepairLevel.Review, []);
@@ -106,7 +117,17 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             steps.Add($"Repaired it with Windows Installer; it returned {result.ExitCode}. {result.Output}".TrimEnd());
             if (result.ExitCode is 0 or 3010 or 1641)
                 return Done(finding, "Windows Installer checked the program and put back what was missing or changed.", steps, restart: result.ExitCode != 0);
-            return Failed(finding, $"Windows Installer could not repair it ({Describe(result.ExitCode)}).", steps);
+            var said = WhyItFailed(result.Output);
+            if (said is not null) steps.Add($"Windows Installer said: {said}");
+            // The saved copy was not enough: Windows Installer wanted files from the program's original installer. Look for that, the way a broken record is repaired.
+            if (said is not null && NeedsOriginal().IsMatch(said))
+            {
+                if (Recover(finding, product, run, steps) is { } restored) return restored;
+                if (steps.Any(x => x.StartsWith("Found the program's own installer file at ", StringComparison.Ordinal)))
+                    return Failed(finding, steps[^1].TrimEnd('.') + ".", steps);
+            }
+            var hint = said is not null && NeedsOriginal().IsMatch(said) ? " Use “Locate installer folder…” to point at the program's original installer, or allow downloading it from WinGet, then try again." : "";
+            return Failed(finding, $"Windows Installer could not repair it ({(said is null ? Describe(result.ExitCode) : said.TrimEnd('.'))}).{hint}", steps);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -114,6 +135,47 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         }
         finally { if (elevate) relock(); }
     }
+
+    /// <summary>The first error Windows Installer wrote to the log a repair left (its "Log: path" line), in its own words; null when there is no log to read.</summary>
+    internal static string? WhyItFailed(string output)
+    {
+        if (LogLine().Match(output) is not { Success: true } line) return null;
+        try
+        {
+            var bytes = File.ReadAllBytes(line.Groups[1].Value.Trim());
+            // msiexec writes its log as UTF-16, or as ANSI on older Windows.
+            var text = bytes.Length > 1 && (bytes[1] == 0 || (bytes[0] == 0xFF && bytes[1] == 0xFE)) ? System.Text.Encoding.Unicode.GetString(bytes) : System.Text.Encoding.UTF8.GetString(bytes);
+            if (ErrorLine().Match(text) is { Success: true } error) return error.Groups[1].Value.Trim();
+            if ((text.Contains("SOURCEMGMT: Failed to resolve source", StringComparison.Ordinal) || text.Contains("Repair: Could not resolve source", StringComparison.Ordinal))
+                && MissingPackageNote().Match(text) is { Success: true } missing)
+                return $"Error 1706. An installation package for the product cannot be found ('{missing.Groups[1].Value.Trim()}').";
+            if (text.Contains("SECUREREPAIR: SecureRepair Failed", StringComparison.Ordinal) && SecureRepairNote().Match(text) is { Success: true } secure)
+                return $"Error 1316. Windows Installer expected the installer file to be named '{Path.GetFileName(secure.Groups[1].Value.Trim())}'.";
+            if (text.Contains("Backup folder is created by user", StringComparison.Ordinal) && text.Contains("Error in rollback skipped", StringComparison.Ordinal))
+                return "Windows' rollback folder (C:\\Config.Msi) had locked permissions from an earlier interrupted install.";
+            // A launch condition refused to run before anything was changed: the package says in its own words why (often "use the Visual Studio Installer").
+            if (LaunchConditionNote().Match(text) is { Success: true } refused)
+                return $"the program's own installer refused to run: {refused.Groups[1].Value.Trim()}";
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"Log: (.+)$", System.Text.RegularExpressions.RegexOptions.Multiline)]
+    private static partial System.Text.RegularExpressions.Regex LogLine();
+    // The first "Error 1706. An installation package ..." line a product reports about itself.
+    [System.Text.RegularExpressions.GeneratedRegex(@"-- (Error \d{4}\.[^\r\n]+)")]
+    private static partial System.Text.RegularExpressions.Regex ErrorLine();
+    [System.Text.RegularExpressions.GeneratedRegex(@"Note: 1: 1706 2: [^\r\n]*?3: ([^\r\n]+)")]
+    private static partial System.Text.RegularExpressions.Regex MissingPackageNote();
+    [System.Text.RegularExpressions.GeneratedRegex(@"Note: 1: 1316 2: ([^\r\n]+)")]
+    private static partial System.Text.RegularExpressions.Regex SecureRepairNote();
+    // The message a package's launch condition gives when it stops the run (action LaunchConditions, return value 3).
+    [System.Text.RegularExpressions.GeneratedRegex(@"Doing action: LaunchConditions[\s\S]*?Product: [^\r\n]*? -- ([^\r\n]+)[\s\S]*?Action ended [^\r\n]*?LaunchConditions\. Return value 3")]
+    private static partial System.Text.RegularExpressions.Regex LaunchConditionNote();
+    // 1706 and 1707 cannot find the installation package, 1708 and 1612 its source files, 1714 an update's saved file.
+    [System.Text.RegularExpressions.GeneratedRegex(@"^Error (?:1706|1707|1612|1714)\b")]
+    private static partial System.Text.RegularExpressions.Regex NeedsOriginal();
 
     private void Elevate(Run run)
     {
@@ -136,12 +198,14 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
                 return system.EndProcess(id) ? Done(finding, "It is no longer running.", steps) : Failed(finding, "Windows would not let TidyWindow end it.", steps);
             }
             if (finding.ServiceStuck) return StopService(finding, run, steps);
+            if (finding.Shortcuts is { Count: > 0 } stale) return RemoveStale(finding, stale, run, steps);
+            if (finding.Folders is { Count: > 0 } leftover) return SetAsideFound(finding, leftover, run, steps);
             if (finding.Entry is not null && finding.Alive && Revive(finding, run, steps) is { } revived) return revived;
             if (finding.Entry is not null && finding.Alive && run.Options.RestoreOnly) return LeftAlone(finding, steps);
-            if (finding.Footprint is { Kind: "bundle" } bundle) return Purge(finding, bundle, run, steps);
-            if (finding.Footprint is { } request) return FixProduct(finding, request, run, steps);
+            if (finding.Footprint is { Kind: "bundle" } bundle) return Swept(finding, Purge(finding, bundle, run, steps), run, steps);
+            if (finding.Footprint is { } request) return Swept(finding, FixProduct(finding, request, run, steps), run, steps);
             if (finding.Links is { Count: > 0 } links) return RemoveLinks(finding, links, run, steps);
-            return RemoveKeys(finding, run, steps);
+            return Swept(finding, RemoveKeys(finding, run, steps), run, steps);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
@@ -439,7 +503,11 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
                 return Done(finding, "Windows Installer has its saved copy again, so the program can be repaired, removed and updated normally.", steps, restart: result.ExitCode != 0);
             steps.Add("Windows Installer reported success, but the saved copy is still missing.");
         }
-        else steps.Add($"Windows Installer could not repair it ({Describe(result.ExitCode)}).");
+        else
+        {
+            var said = WhyItFailed(result.Output);
+            steps.Add(said is null ? $"Windows Installer could not repair it ({Describe(result.ExitCode)})." : $"Windows Installer could not repair it ({said.TrimEnd('.')}).");
+        }
         return null;
     }
 
@@ -492,6 +560,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         }
         steps.Add("Checked afterwards: Windows Installer no longer knows the program and none of its keys are left.");
         run.Backups.AddRange(done);
+        run.Removed = true;
         return Done(finding, $"Removed the whole record ({plan.Keys.Count} keys, {plan.Values.Count} shared links). The program can be installed again.", steps);
     }
 
@@ -568,7 +637,8 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             return Failed(finding, ex.Message + (done.Count > 0 && failed.Count == 0 ? " The keys already removed were put back." : failed.Count > 0 ? $" {failed.Count} removed keys could not be put back; use Undo." : ""), steps);
         }
         run.Backups.AddRange(done.Select(x => x.Copy));
-        var left = finding.Alive && finding.Entry is { InstallLocation.Length: > 0 } entry ? $" The program's own files were left in {entry.InstallLocation}; reinstall it to get them under Windows' control again, or delete that folder." : "";
+        run.Removed = done.Count > 0;
+        var left =finding.Alive && finding.Entry is { InstallLocation.Length: > 0 } entry ? $" The program's own files were left in {entry.InstallLocation}; reinstall it to get them under Windows' control again, or delete that folder." : "";
         return Done(finding, done.Count == 0 ? "It was already gone." : $"Removed {done.Count} registry {(done.Count == 1 ? "key" : "keys")}.{left}", steps);
     }
 
@@ -581,6 +651,278 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         return elevated.StopInstallerService() ? Done(finding, "The service was stopped. Windows starts it again the next time an install needs it.", steps) : Failed(finding, "The service would not stop. Restarting Windows clears it.", steps);
     }
 
+    // ---- Shortcuts and Start menu folders ----
+
+    private bool IsMachineLink(string path) =>
+        system.ShortcutRoots().Where(x => ShortcutPlaces.Under(path, x.Path)).OrderByDescending(x => x.Path.Length).FirstOrDefault()?.Machine ?? false;
+
+    private IShortcutEditor Editor(string path) =>
+        (IsMachineLink(path) ? machineLinks : userLinks) ?? throw new InvalidOperationException("Removing shortcuts is not available here.");
+
+    /// <summary>Removes each shortcut or empty folder, keeping a copy of every one in <paramref name="done"/> as it goes so a failure can be taken back.</summary>
+    private void Delete(IReadOnlyList<string> paths, Run run, List<ShortcutBackup> done)
+    {
+        foreach (var path in paths)
+        {
+            var editor = Editor(path);
+            if (IsMachineLink(path)) Elevate(run);
+            done.AddRange(editor.RemoveShortcut(path));
+        }
+    }
+
+    /// <summary>Puts back what a failed step had already removed. Returns what could not be put back, which stays in the Undo tab.</summary>
+    private List<ShortcutBackup> PutBack(List<ShortcutBackup> done)
+    {
+        var stuck = new List<ShortcutBackup>();
+        foreach (var copy in Enumerable.Reverse(done))
+        {
+            try { Editor(copy.Path).RestoreShortcut(copy); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { stuck.Add(copy); }
+        }
+        done.Clear();
+        return stuck;
+    }
+
+    private static string Count(int number, string one, string many) => number == 1 ? $"1 {one}" : $"{number} {many}";
+
+    private static bool IsShortcutFile(string path) => path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".url", StringComparison.OrdinalIgnoreCase);
+
+    private static string Describe(IReadOnlyList<string> paths)
+    {
+        var files = paths.Count(IsShortcutFile);
+        var parts = new List<string>();
+        if (files > 0) parts.Add(Count(files, "shortcut", "shortcuts"));
+        if (paths.Count - files > 0) parts.Add(Count(paths.Count - files, "empty folder", "empty folders"));
+        return string.Join(" and ", parts);
+    }
+
+    private RepairResult RemoveStale(RepairFinding finding, IReadOnlyList<string> paths, Run run, Steps steps)
+    {
+        run.Doing($"Removing {Describe(paths)} and saving a copy of each for Undo…");
+        var done = new List<ShortcutBackup>();
+        try { Delete(paths, run, done); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            steps.Add("Removing the shortcuts failed part of the way.");
+            var stuck = PutBack(done);
+            run.Links.AddRange(stuck);
+            return Failed(finding, ex.Message + (stuck.Count == 0 ? " What was already removed was put back." : $" {stuck.Count} removed items could not be put back; use Undo."), steps);
+        }
+        system.ShellChanged(paths);
+        run.Links.AddRange(done);
+        var unsaved = paths.Count(IsShortcutFile) - done.Count(x => x.Data is not null && IsShortcutFile(x.Path));
+        steps.Add($"Removed {Describe(paths)}; told Windows, so the Start menu and search drop {(paths.Count == 1 ? "it" : "them")} now.");
+        if (unsaved > 0) steps.Add($"{Count(unsaved, "file was", "files were")} OneDrive placeholders that could not be read, so there is no copy of {(unsaved == 1 ? "it" : "them")} to put back.");
+        return Done(finding, $"Removed {Describe(paths)}.", steps);
+    }
+
+    /// <summary>
+    /// After a program's registry record is removed, takes away the shortcuts that started it and that are broken now, so Windows Search and the Start menu stop listing it.
+    /// Shortcuts that still work are never touched, and the all-users Start menu is left for the next scan unless the helper is already approved.
+    /// </summary>
+    private RepairResult Swept(RepairFinding finding, RepairResult result, Run run, Steps steps) =>
+        SweptFolders(finding, SweptShortcuts(finding, result, run, steps), run, steps);
+
+    private RepairResult SweptShortcuts(RepairFinding finding, RepairResult result, Run run, Steps steps)
+    {
+        if (result.Status == RepairStatus.NotFixed || (finding.Entry is null && finding.Product is null)) return result;
+        try
+        {
+            var picked = InstallRepair.SweepOf(system, InstallRepair.MarksOf(system, finding.Entry, finding.Product));
+            if (picked.Count == 0) return result;
+            var paths = picked.Where(x => run.Elevated || !x.Machine).Select(x => x.Path).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var skipped = picked.Count(x => !run.Elevated && x.Machine);
+            if (skipped > 0) steps.Add($"{Count(skipped, "leftover shortcut", "leftover shortcuts")} in the all-users Start menu were left alone, because removing them needs administrator permission. Scan again to clean them up.");
+            if (paths.Count == 0) return result;
+
+            run.Doing("Removing the shortcuts the program left behind…");
+            var done = new List<ShortcutBackup>();
+            try { Delete(paths, run, done); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+            {
+                run.Links.AddRange(PutBack(done));
+                steps.Add($"Could not remove the program's leftover shortcuts ({ex.Message}); they were left as they were.");
+                return result;
+            }
+            system.ShellChanged(paths);
+            run.Links.AddRange(done);
+            steps.Add($"Also removed {Describe(paths)} that started the removed program, so Windows Search stops listing it.");
+            return result with { Summary = result.Summary + $" Its leftover {Describe(paths)} were removed too." };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            steps.Add($"Could not look for the program's leftover shortcuts: {ex.Message}");
+            return result;
+        }
+    }
+
+    // ---- Installer files and program folders ----
+
+    private IFolderEditor FolderEditor(string path) =>
+        (RepairFolders.IsMachine(path) ? machineFolders : userFolders) ?? throw new InvalidOperationException("Setting folders aside is not available here.");
+
+    /// <summary>Sets each folder aside, keeping where it went in <paramref name="done"/> as it goes so a failure can be taken back.</summary>
+    private void SetAsideAll(IReadOnlyList<string> paths, Run run, List<FolderBackup> done)
+    {
+        foreach (var path in paths)
+        {
+            var editor = FolderEditor(path);
+            if (RepairFolders.IsMachine(path)) Elevate(run);
+            if (editor.SetAside(path, history.SetAsideFolder) is { } kept) done.Add(kept);
+        }
+    }
+
+    /// <summary>Puts back what a failed step had already set aside. Returns what could not be put back, which stays in the Undo tab.</summary>
+    private List<FolderBackup> PutBackAll(List<FolderBackup> done)
+    {
+        var stuck = new List<FolderBackup>();
+        foreach (var kept in Enumerable.Reverse(done))
+        {
+            try { FolderEditor(kept.Original).PutBack(kept); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { stuck.Add(kept); }
+        }
+        done.Clear();
+        return stuck;
+    }
+
+    private RepairResult SetAsideFound(RepairFinding finding, IReadOnlyList<string> paths, Run run, Steps steps)
+    {
+        run.Doing($"Setting {Count(paths.Count, "folder", "folders")} aside and keeping them for Undo…");
+        var done = new List<FolderBackup>();
+        try { SetAsideAll(paths, run, done); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            steps.Add("Setting the folders aside failed part of the way.");
+            var stuck = PutBackAll(done);
+            run.Moved.AddRange(stuck);
+            return Failed(finding, ex.Message + (stuck.Count == 0 ? " What was already set aside was put back." : $" {stuck.Count} folders could not be put back; use Undo."), steps);
+        }
+        run.Moved.AddRange(done);
+        steps.Add($"Set {Count(done.Count, "folder", "folders")} aside. They stay in the Undo tab until the repair is undone or ten newer repairs push it out.");
+        return Done(finding, $"Set {Count(done.Count, "folder", "folders")} aside.", steps);
+    }
+
+    /// <summary>
+    /// After a program's record is removed: sets aside the installer files its record left (icon folders, and the Package Cache of a program that is gone), the program's own folder when the person asked for that,
+    /// and the rollback files of an interrupted install whose marker was just removed. Everything is kept for Undo.
+    /// </summary>
+    private RepairResult SweptFolders(RepairFinding finding, RepairResult result, Run run, Steps steps)
+    {
+        var removed = run.Removed;
+        run.Removed = false;
+        if (!removed || result.Status == RepairStatus.NotFixed) return result;
+        try
+        {
+            var found = new List<string>();
+            if (finding.Entry is not null || finding.Product is not null)
+            {
+                var bundle = finding.Footprint is { Kind: "bundle" };
+                // A program that is still on this PC keeps its installer files, which are what repairs and updates it, unless the person said to remove the program for good.
+                if (!finding.Alive || run.Options.RemoveProgramFolders)
+                    foreach (var code in InstallRepair.CodesOf(finding.Entry, finding.Product, bundle))
+                    {
+                        if (!bundle && system.ProductState(code) != Unknown) continue;
+                        // The cached packages of a hidden sub-package belong to the setup program that installed it, which still uses them.
+                        found.AddRange(system.InstallerLeftovers(code, packageCache: bundle || finding.Entry is { SystemComponent: false }));
+                    }
+                if (run.Options.RemoveProgramFolders) found.AddRange(InstallRepair.ProgramFolders(system, finding.Entry, finding.Product));
+            }
+            if (finding.Kind == RepairKind.InstallLock && !system.InstallerBusy() && system.RollbackFolder() is { } rollback) found.Add(rollback);
+
+            // The person's own choice to remove a program's folder may ask for the helper; the installer files are only taken when it is already approved.
+            var wanted = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var paths = wanted.Where(x => run.Elevated || run.Options.RemoveProgramFolders || !RepairFolders.IsMachine(x)).ToList();
+            if (wanted.Count > paths.Count) steps.Add($"{Count(wanted.Count - paths.Count, "leftover installer folder", "leftover installer folders")} were left alone, because setting them aside needs administrator permission. Scan again to clean them up.");
+            if (paths.Count == 0) return result;
+
+            run.Doing("Setting aside what the program left behind…");
+            var done = new List<FolderBackup>();
+            try { SetAsideAll(paths, run, done); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+            {
+                run.Moved.AddRange(PutBackAll(done));
+                steps.Add($"Could not set the program's leftover folders aside ({ex.Message}); they were left as they were.");
+                return result;
+            }
+            run.Moved.AddRange(done);
+            steps.Add($"Also set {Count(done.Count, "leftover folder", "leftover folders")} aside ({string.Join(", ", done.Take(3).Select(x => Path.GetFileName(x.Original)))}{(done.Count > 3 ? "…" : "")}). Undo puts them back.");
+            return result with { Summary = result.Summary + $" Its {Count(done.Count, "leftover folder was", "leftover folders were")} set aside too." };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        {
+            steps.Add($"Could not look for the program's leftover folders: {ex.Message}");
+            return result;
+        }
+    }
+
+    // ---- Quarantine: what repairs removed, one thing at a time ----
+
+    /// <summary>Everything the saved repairs removed that can be put back by itself: the folders they set aside and the shortcut files they removed, newest first.</summary>
+    public IReadOnlyList<QuarantineItem> Quarantine()
+    {
+        var items = new List<QuarantineItem>();
+        foreach (var batch in history.All())
+        {
+            foreach (var folder in batch.SetAside)
+                items.Add(new(batch.Id, batch.Title, batch.Created, Path.GetFileName(folder.Original), folder.Original, QuarantineKind.Folder, folder, null));
+            foreach (var link in batch.Shortcuts.Where(x => x.Data is not null))
+                items.Add(new(batch.Id, batch.Title, batch.Created, Path.GetFileNameWithoutExtension(link.Path), link.Path, QuarantineKind.Shortcut, null, link));
+        }
+        return items;
+    }
+
+    /// <summary>
+    /// Keeps (puts back) or removes for good each of these. Each one stands alone: one that cannot be done is reported and the rest carry on.
+    /// A kept item leaves the repair it came from, so undoing that repair later does not put it back a second time.
+    /// </summary>
+    public async Task<QuarantineOutcome> ResolveAsync(IReadOnlyList<QuarantineItem> items, bool keep, CancellationToken cancellationToken = default, IProgress<RepairProgress>? progress = null)
+    {
+        var run = new Run(cancellationToken, new(), progress) { Total = items.Count };
+        if (items.Any(IsMachineItem))
+        {
+            run.Doing("Asking Windows for administrator permission. Approve the prompt when it appears.");
+            await unlock(cancellationToken).ConfigureAwait(false); run.Elevated = true;
+        }
+        var problems = new List<string>();
+        var done = 0;
+        try
+        {
+            await Task.Run(() =>
+            {
+                foreach (var item in items)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    run.Begin(item.Name);
+                    run.Doing(keep ? "Putting it back…" : "Removing it for good…");
+                    try { Resolve(item, keep, run); done++; }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { problems.Add($"{item.Name}: {ex.Message}"); }
+                }
+            }, CancellationToken.None).ConfigureAwait(false);
+        }
+        finally { relock(); }
+        return new(done, problems);
+    }
+
+    private bool IsMachineItem(QuarantineItem item) => item.Folder is not null ? RepairFolders.IsMachine(item.Original) : IsMachineLink(item.Original);
+
+    private void Resolve(QuarantineItem item, bool keep, Run run)
+    {
+        if (IsMachineItem(item)) Elevate(run);
+        if (item.Folder is { } folder)
+        {
+            if (keep) FolderEditor(folder.Original).PutBack(folder); else FolderEditor(folder.Original).Discard(folder);
+            history.Update(item.BatchId, batch => batch with { Moved = batch.SetAside.Where(x => x != folder).ToList() });
+            return;
+        }
+        if (item.Link is not { } link) return;
+        if (keep)
+        {
+            Editor(link.Path).RestoreShortcut(link);
+            system.ShellChanged([link.Path]);
+        }
+        history.Update(item.BatchId, batch => batch with { Links = batch.Shortcuts.Where(x => x != link).ToList() });
+    }
+
     // ---- Undo ----
 
     /// <summary>
@@ -591,7 +933,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
     {
         var run = new Run(cancellationToken, new(), progress) { Total = 1 };
         run.Begin(batch.Title);
-        if (batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)) || batch.PutBack.Any(NeedsAdminFile))
+        if (batch.Keys.Any(x => InstallRepair.IsMachine(x.Path)) || batch.PutBack.Any(NeedsAdminFile) || batch.Shortcuts.Any(x => IsMachineLink(x.Path)) || batch.SetAside.Any(x => RepairFolders.IsMachine(x.Original)))
         {
             run.Doing("Asking Windows for administrator permission. Approve the prompt when it appears.");
             await unlock(cancellationToken).ConfigureAwait(false); run.Elevated = true;
@@ -626,8 +968,40 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
                 problems.Add($"{Leaf(copy.Path)}: {ex.Message}");
             }
         }
+        var keyProblems = problems.Count;
+        // The shortcuts come back once the registry has; the last one first removed is the first put back, so a folder exists before the file in it.
+        var restored = new List<ShortcutBackup>();
+        if (problems.Count == 0 && batch.Shortcuts.Count > 0)
+        {
+            run.Doing($"Putting back {Count(batch.Shortcuts.Count(x => x.Data is not null), "shortcut", "shortcuts")}…");
+            foreach (var copy in Enumerable.Reverse(batch.Shortcuts))
+            {
+                try { Editor(copy.Path).RestoreShortcut(copy); restored.Add(copy); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+                {
+                    problems.Add($"{Path.GetFileName(copy.Path)}: {ex.Message}");
+                    break;
+                }
+            }
+        }
+        // The folders that were set aside come back last of the things a repair removed, the last one set aside first.
+        var movedBack = new List<FolderBackup>();
+        if (problems.Count == 0 && batch.SetAside.Count > 0)
+        {
+            run.Doing($"Moving {Count(batch.SetAside.Count, "folder", "folders")} back…");
+            foreach (var kept in Enumerable.Reverse(batch.SetAside))
+            {
+                try { FolderEditor(kept.Original).PutBack(kept); movedBack.Add(kept); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+                {
+                    problems.Add($"{Path.GetFileName(kept.Original)}: {ex.Message}");
+                    break;
+                }
+            }
+        }
         if (problems.Count == 0)
         {
+            if (restored.Count > 0) system.ShellChanged(restored.Select(x => x.Path).ToList());
             // The files a repair put back go last, once everything else is back; one that cannot be removed leaves the repair in the Undo tab to try again.
             var removed = 0;
             foreach (var file in batch.PutBack)
@@ -637,17 +1011,27 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
                 if (remover is null || remover.RemoveCopy(file)) removed++;
                 else problems.Add($"{Path.GetFileName(file)}: Windows would not let TidyWindow remove the setup program it put back. The registry keys were put back.");
             }
-            return new(applied.Count, problems, removed);
+            return new(applied.Count, problems, removed, restored.Count(x => x.Data is not null), movedBack.Count);
         }
 
         // Something could not be put back: take back what was, so the PC is exactly as it was before the undo.
         var stuck = new List<string>();
+        foreach (var kept in Enumerable.Reverse(movedBack))
+        {
+            try { FolderEditor(kept.Original).TakeAgain(kept); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { stuck.Add($"{Path.GetFileName(kept.Original)}: {ex.Message}"); }
+        }
+        foreach (var copy in Enumerable.Reverse(restored))
+        {
+            try { Editor(copy.Path).RemoveShortcut(copy.Path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { stuck.Add($"{Path.GetFileName(copy.Path)}: {ex.Message}"); }
+        }
         foreach (var (copy, before, editor) in Enumerable.Reverse(applied))
         {
             try { editor.Delete(copy.Path); if (before is not null) editor.Restore(before); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException) { stuck.Add($"{Leaf(copy.Path)}: {ex.Message}"); }
         }
-        var head = $"{problems.Count} of {batch.Keys.Count} registry keys could not be put back, so nothing was restored.";
+        var head = keyProblems > 0 ? $"{keyProblems} of {batch.Keys.Count} registry keys could not be put back, so nothing was restored." : "A shortcut or folder could not be put back, so nothing was restored.";
         if (stuck.Count > 0) problems.Add($"{stuck.Count} keys restored before the failure could not be taken out again and may still be there ({stuck[0]}).");
         problems.Insert(0, head);
         return new(0, problems);
