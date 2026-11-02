@@ -1,0 +1,64 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.ArchiveToolbar"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="using:TidyWindow.Next.Desktop"
+ HorizontalContentAlignment="Stretch">
+ <UserControl.Resources>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+  </ResourceDictionary>
+ </UserControl.Resources>
+ <!-- One search box with the filters beside it, then how the search was read, then how much is shown. The same for every list that can get long. -->
+ <StackPanel Spacing="8">
+  <Grid ColumnSpacing="8">
+   <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+   </Grid.ColumnDefinitions>
+   <TextBox x:Name="SearchBox" Text="{Binding Text, Mode=OneWay}" TextChanged="SearchChanged" PlaceholderText="Search by name, path, date or kind:folder size:&gt;100mb…" AutomationProperties.Name="Search" />
+   <ComboBox Grid.Column="1" ItemsSource="{Binding WhenOptions}" SelectedIndex="{Binding WhenIndex, Mode=TwoWay}" MinWidth="130" AutomationProperties.Name="Filter by date" ToolTipService.ToolTip="Only show things from this long ago" />
+   <ComboBox Grid.Column="2" ItemsSource="{Binding TypeOptions}" SelectedIndex="{Binding TypeIndex, Mode=TwoWay}" MinWidth="130" AutomationProperties.Name="Filter by type" ToolTipService.ToolTip="Only show this kind of thing" />
+   <ComboBox Grid.Column="3" ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex, Mode=TwoWay}" MinWidth="140" AutomationProperties.Name="Sort" ToolTipService.ToolTip="How the list is ordered. Newest and oldest are grouped by day, week and month." />
+   <Button Grid.Column="4" Padding="10,7" Background="Transparent" AutomationProperties.Name="Search tips" ToolTipService.ToolTip="Search tips">
+    <FontIcon Glyph="&#xE897;" FontSize="14" />
+    <Button.Flyout>
+     <Flyout Placement="BottomEdgeAlignedRight">
+      <StackPanel Spacing="10" MaxWidth="440">
+       <TextBlock Text="Search tips" Style="{StaticResource ItemTitle}" />
+       <TextBlock Style="{StaticResource Muted}" Text="Type words to find them anywhere: in the repair's name, what it changed, the path, the date or the kind. Every word has to match." />
+       <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="12" LineHeight="20" TextWrapping="Wrap">
+        <Run Text="cmake rust" /><Run Text="          both words" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="&quot;start menu&quot;" /><Run Text="      exact phrase" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="-python" /><Run Text="             leave out" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="kind:folder|shortcut" /><Run Text=" either kind" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="date:today" /><Run Text="          or yesterday, week," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="                    month, 2026-10-25, 2026-10" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="after:2026-10-01" /><Run Text="   before:2026-11-01" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="size:&gt;100mb" /><Run Text="         also &lt; &gt;= &lt;= =" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="path:programdata" /><Run Text="    where it was" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="repair:leftovers" /><Run Text="    which repair" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+        <Run Text="admin:yes" /><Run Text="           needed administrator" Foreground="{ThemeResource MutedBrush}" />
+       </TextBlock>
+      </StackPanel>
+     </Flyout>
+    </Button.Flyout>
+   </Button>
+  </Grid>
+
+  <!-- How the search was read, so a result is never a mystery. -->
+  <Grid Visibility="{Binding ChipsVisibility}" ColumnSpacing="8">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+   <ItemsControl ItemsSource="{Binding Chips}" AutomationProperties.Name="How the search was read">
+    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate><DataTemplate>
+     <Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="9,2"><TextBlock Text="{Binding}" FontSize="12" Foreground="{ThemeResource MutedBrush}" /></Border>
+    </DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+  </Grid>
+
+  <Grid ColumnSpacing="12" MinHeight="24">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+   <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+   <HyperlinkButton Grid.Column="1" Click="ClearClick" Visibility="{Binding ClearVisibility}" Padding="4,0" FontSize="12" Content="Clear search and filters" />
+  </Grid>
+ </StackPanel>
+</UserControl>

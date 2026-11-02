@@ -163,6 +163,115 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine("msiserver: " + state);
         Assert.NotNull(state);
     }
+
+    [Fact]
+    public void EveryStaleShortcutOnThisPcIsFoundAndNothingTheScanCallsStaleStillWorks()
+    {
+        if (!Live) return;
+        var system = new WindowsInstallSystem();
+        var roots = system.ShortcutRoots();
+        var files = system.Shortcuts();
+        var groups = InstallRepair.StaleShortcuts(system);
+        output.WriteLine($"{roots.Count} shortcut places, {files.Count} shortcut files read, {groups.Count} stale groups.");
+        foreach (var root in roots) output.WriteLine($"  {root.Area}{(root.Machine ? " (all users)" : "")}: {root.Path}  [{files.Count(x => ShortcutPlaces.Under(x.Path, root.Path))} files]");
+        output.WriteLine($"  could not be read: {files.Count(x => x.Unparsed)}; unreadable OneDrive placeholders: {files.Count(x => x.Unreadable)}; shell or app-id only: {files.Count(x => x.Target.Length == 0 && (x.AppId.Length > 0 || x.ShellTarget))}");
+
+        var user = FileShortcutEditor.User();
+        var machine = FileShortcutEditor.Machine();
+        var broken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in groups)
+        {
+            output.WriteLine($"{(group.Review ? "REVIEW   " : "RECOMMEND")} [{group.Area}{(group.Machine ? ", all users" : "")}] {group.Name}: {group.Links.Count} shortcuts, {group.Folders.Count} folders");
+            foreach (var link in group.Links) { broken.Add(link.File.Path); output.WriteLine($"      {(link.Companion ? "companion " : "")}{link.File.Path}  <- {link.Reason}"); }
+            foreach (var folder in group.Folders) output.WriteLine($"      folder    {folder}");
+
+            // Every path the repair would touch is inside a place the matching editor is allowed to change, and no Windows folder is ever removed.
+            foreach (var path in group.Paths)
+            {
+                Assert.True(roots.Any(x => ShortcutPlaces.Under(path, x.Path) && x.Machine == group.Machine), path);
+                Assert.Equal(group.Machine, machine.Allows(path));
+                Assert.Equal(!group.Machine, user.Allows(path));
+            }
+            Assert.All(group.Folders, folder => Assert.False(InstallRepair.IsProtectedFolder(Path.GetFileName(folder)), folder));
+        }
+
+        // Independent check: every shortcut the scan calls broken for a missing target really has no file or folder there, looked at directly.
+        foreach (var link in groups.SelectMany(x => x.Links).Where(x => !x.Companion && x.Reason.StartsWith("Its target", StringComparison.Ordinal)))
+        {
+            var target = Environment.ExpandEnvironmentVariables(link.File.Target.Trim('"'));
+            Assert.False(File.Exists(target) || Directory.Exists(target), $"{link.File.Path} -> {target} exists");
+        }
+
+        // Independent check the other way: shortcuts WScript.Shell can see a missing plain file target for, that this scan left alone, and why.
+        var naive = new List<string>();
+        var type = Type.GetTypeFromProgID("WScript.Shell");
+        if (type is not null)
+        {
+            dynamic shell = Activator.CreateInstance(type)!;
+            foreach (var file in files.Where(x => !x.IsUrl && !x.Unparsed))
+            {
+                try
+                {
+                    string target = ((dynamic)shell.CreateShortcut(file.Path)).TargetPath ?? "";
+                    if (target.Length > 0 && !target.StartsWith(@"\\") && Path.IsPathRooted(target) && !File.Exists(target) && !Directory.Exists(target) && !broken.Contains(file.Path)) naive.Add($"{file.Path} -> {target}");
+                }
+                catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+            }
+        }
+        output.WriteLine($"Missing-target shortcuts the plain WScript check sees but this scan deliberately left alone: {naive.Count}");
+        foreach (var line in naive) output.WriteLine("  " + line);
+
+        var findings = InstallRepair.Scan(system).Findings.Where(x => x.Kind is RepairKind.BrokenShortcut or RepairKind.EmptyFolder).ToList();
+        Assert.Equal(groups.Count, findings.Count);
+        Assert.All(findings, f => Assert.True(f.CanFix));
+        output.WriteLine($"Repair would show {findings.Count} rows: {findings.Count(x => x.Level == RepairLevel.Recommended)} ticked, {findings.Count(x => x.Level == RepairLevel.Review)} for review, {findings.Count(x => x.NeedsAdmin)} needing administrator permission.");
+    }
+
+    [Fact]
+    public void TheInstallerLeftoversOnThisPcAreFoundAndEveryOneIsInsideWhatARepairMaySetAside()
+    {
+        if (!Live) return;
+        var system = new WindowsInstallSystem();
+        var orphans = system.OrphanInstallerFolders();
+        output.WriteLine($"{orphans.Count} icon folders of programs Windows Installer has never heard of:");
+        foreach (var folder in orphans) output.WriteLine($"  {folder}  [{RepairFolders.Classify(folder)}, {(RepairFolders.IsMachine(folder) ? "admin" : "user")}, {FolderSize.Of(folder) / 1024} KB, changed {Directory.GetLastWriteTime(folder):d MMM yyyy}]");
+        Assert.All(orphans, folder =>
+        {
+            Assert.Equal(FolderKind.InstallerCache, RepairFolders.Classify(folder));
+            Assert.Equal(InstallRepair.Unknown, system.ProductState(Path.GetFileName(folder).ToUpperInvariant()));
+        });
+
+        // Every orphan is one a machine editor may set aside, and none is one a user editor may.
+        var machine = FileFolderEditor.Machine();
+        Assert.All(orphans.Where(x => RepairFolders.IsMachine(x)), folder => Assert.True(machine.Allows(folder), folder));
+
+        var rollback = system.RollbackFolder();
+        output.WriteLine($"Config.Msi: {(rollback is null ? "not there" : rollback + $" ({FolderSize.Of(rollback) / 1024} KB; an install is {(system.InstallerBusy() ? "running" : "not running")})")}");
+
+        var findings = InstallRepair.Scan(system).Findings.Where(x => x.Kind == RepairKind.InstallerFiles).ToList();
+        Assert.Equal(orphans.Count > 0 ? 1 : 0, findings.Count);
+
+        // Every product code a real program is registered under: its leftovers are only ever shapes the allow-list knows.
+        var checkedCodes = 0;
+        foreach (var product in system.Products().Take(40))
+        {
+            foreach (var found in system.InstallerLeftovers(product.Code, packageCache: true))
+            {
+                Assert.Equal(FolderKind.InstallerCache, RepairFolders.Classify(found));
+                checkedCodes++;
+            }
+        }
+        output.WriteLine($"{checkedCodes} installer folders belong to the first 40 installed products (they are never offered while the product is installed).");
+
+        var rules = CleanupCatalog.Load().Where(x => x.Id is "chocolatey-failed" or "winget-diagnostics" or "winget-staging" or "msi-rollback").ToList();
+        var context = CleanupContext.Current;
+        foreach (var rule in rules)
+        {
+            var roots = CleanupPaths.Roots(rule, context);
+            output.WriteLine($"Cleanup rule {rule.Id}: {(roots.Length == 0 ? "nothing there" : string.Join("; ", roots.Select(x => $"{x} ({FolderSize.Of(x) / 1024 / 1024} MB)")))}");
+        }
+        Assert.Equal(4, rules.Count);
+    }
 }
 
 /// <summary>
