@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text.Json;
 
@@ -12,15 +13,19 @@ public sealed record DebloatRestoreBatch(IReadOnlyList<(DebloatItem Item, Debloa
 /// <summary>Brings an app back after it was removed: WinGet installs it again from the Store. Items with no Store id are only allowed back for new accounts.</summary>
 public sealed class DebloatReinstaller(ICommandRunner runner, IExecutableLocator locator)
 {
-    /// <summary>A Store product id is twelve letters and digits (9P1J8S7CCWWT); a WinGet id has a dot (Microsoft.Edge).</summary>
-    public static bool IsStoreProduct(string id) => id.Length == 12 && id.All(char.IsAsciiLetterOrDigit);
+    /// <summary>A Store product id (9P1J8S7CCWWT or XP8BT8DW290MPQ) as opposed to a WinGet id (Microsoft.Edge). See <see cref="DebloatGuard.IsStoreProduct"/>.</summary>
+    public static bool IsStoreProduct(string id) => DebloatGuard.IsStoreProduct(id);
 
+    /// <summary>Installs the item again. An item with no Store id, or a PC without WinGet, is reported as allowed back but not installed, never as installed.</summary>
     public async Task<DebloatOutcome> InstallAsync(DebloatItem item, CancellationToken cancellationToken = default)
     {
-        if (item.StoreId.Length == 0 || !DebloatGuard.IsToken(item.StoreId)) return new(true, null, "Open the Microsoft Store to install it again.");
-        if (locator.Find(ManagerKind.Winget) is not { } winget) return new(true, null, "WinGet is not available. Install it from the Microsoft Store.");
+        if (item.StoreId.Length == 0 || !DebloatGuard.IsToken(item.StoreId)) return new(true, null, "Windows may install it again, but it was not installed: open the Microsoft Store to install it.", AllowedOnly: true);
+        if (locator.Find(ManagerKind.Winget) is not { } winget) return new(true, null, "WinGet is not available, so it was not installed. Install WinGet from the Microsoft Store, then put it back again.", AllowedOnly: true);
         var arguments = new List<string> { "install", "--id", item.StoreId, "--exact", "--source", IsStoreProduct(item.StoreId) ? "msstore" : "winget", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity" };
-        var result = await runner.RunAsync(new CommandSpec(winget, arguments, TimeSpan.FromMinutes(10)), cancellationToken).ConfigureAwait(false);
+        CommandResult result;
+        try { result = await runner.RunAsync(new CommandSpec(winget, arguments, TimeSpan.FromMinutes(10)), cancellationToken).ConfigureAwait(false); }
+        catch (TimeoutException) { return new(false, $"WinGet took too long to install {item.Name}. Open the Microsoft Store to install it."); }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or IOException) { return new(false, $"WinGet could not be started to install {item.Name}: {ex.Message}"); }
         return result.ExitCode == 0 ? new(true) : new(false, $"WinGet could not install {item.Name}. Open the Microsoft Store to install it.");
     }
 }
@@ -35,16 +40,24 @@ public sealed class DebloatManager(IDebloatChanger machine, Func<Task> unlock, D
 
     public DebloatHistory History => history;
 
-    /// <exception cref="OperationCanceledException">The person declined the administrator prompt.</exception>
-    public async Task<DebloatOutcome> RemoveAsync(DebloatEntry entry)
+    /// <summary>
+    /// Removes one item. The token is only looked at before the helper is asked: once a removal is under way it is waited for, because stopping it
+    /// part-way would leave an app half registered, and the next request on the pipe would read this one's answer.
+    /// </summary>
+    /// <exception cref="OperationCanceledException">The person declined the administrator prompt, or asked to stop before this item started.</exception>
+    public async Task<DebloatOutcome> RemoveAsync(DebloatEntry entry, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!entry.CanRemove) return new(false, entry.Lock ?? "That cannot be removed.");
         var outcome = await SendAsync(new DebloatRequest(entry.Id)).ConfigureAwait(false);
         if (outcome.Ok) history.Add(new(entry.Id, entry.Item.Name, now(), outcome.Families ?? entry.Families));
         return outcome;
     }
 
-    /// <summary>Lets Windows have the item back and installs it again where that is possible.</summary>
+    /// <summary>
+    /// Lets Windows have the item back and installs it again where that is possible. When it could only be allowed back (nothing to install it from or with),
+    /// the record stays, marked with that, instead of the item being reported as back.
+    /// </summary>
     public async Task<DebloatOutcome> RestoreAsync(DebloatItem item, CancellationToken cancellationToken = default)
     {
         var saved = history.Get(item.Id);
@@ -55,6 +68,11 @@ public sealed class DebloatManager(IDebloatChanger machine, Func<Task> unlock, D
         {
             var install = await reinstaller.InstallAsync(item, cancellationToken).ConfigureAwait(false);
             if (!install.Ok) return install;
+            if (install.AllowedOnly)
+            {
+                history.Note(item.Id, install.Note);
+                return install;
+            }
             note = install.Note ?? note;
         }
         history.Remove(item.Id);
@@ -80,7 +98,7 @@ public sealed class DebloatManager(IDebloatChanger machine, Func<Task> unlock, D
                 progress?.Invoke(item, outcome);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(results, true); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or Win32Exception)
             {
                 results.Add((item, new(false, ex.Message)));
                 break;
@@ -125,6 +143,8 @@ public static class DebloatHost
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
         if (pipe is null) return 65;
+        // The account that asked is the one whose name the pipe was made in. That is read from the pipe itself, so a request cannot claim to be from another account.
+        var owner = OperatingSystem.IsWindows() ? PipeOwner(pipe) : null;
         var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
 
@@ -154,6 +174,7 @@ public static class DebloatHost
                 case "bye": return 0;
                 case "hello": admin = isAdministrator(); await Reply(new(admin)).ConfigureAwait(false); break;
                 case "run" when admin && message.Request is { } request:
+                    if (owner is not null) request = request with { UserSid = owner };
                     DebloatOutcome outcome;
                     try { outcome = changer.Change(request); }
                     catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException or Win32Exception or JsonException or ArgumentException)
@@ -166,12 +187,26 @@ public static class DebloatHost
             }
         }
     }
+
+    [SupportedOSPlatform("windows")]
+    private static string? PipeOwner(NamedPipeClientStream pipe)
+    {
+        try
+        {
+            var sid = pipe.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+            return sid is not null && sid.IsAccountSid() ? sid.Value : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { return null; }
+    }
 }
 
 /// <summary>The app side: starts the helper through the Windows permission prompt and sends it each request over a private pipe.</summary>
 public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger, IDisposable
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    /// <summary>How long a helper that has connected may take to answer the first message. It answers at once; one that stays silent has gone wrong.</summary>
+    private static readonly TimeSpan HelloTimeout = TimeSpan.FromSeconds(30);
+    private static readonly string? CurrentSid = OperatingSystem.IsWindows() ? ReadCurrentSid() : null;
     private readonly object gate = new();
     private NamedPipeServerStream? pipe;
     private PipeLineReader? reader;
@@ -181,7 +216,16 @@ public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger,
 
     public static DebloatSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, DebloatHost.Command, name));
 
+    [SupportedOSPlatform("windows")]
+    private static string? ReadCurrentSid()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        return identity.User?.Value;
+    }
+
     /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
+    /// <exception cref="IOException">The helper could not be started, or connected and then stopped or stayed silent.</exception>
+    /// <exception cref="UnauthorizedAccessException">The helper is running without administrator rights.</exception>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         if (IsOpen) return;
@@ -201,8 +245,19 @@ public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger,
             var input = new PipeLineReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
             await output.WriteLineAsync(JsonSerializer.Serialize(new DebloatMessage("hello"), Json)).ConfigureAwait(false);
-            var reply = JsonSerializer.Deserialize<DebloatOutcome>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);
-            if (reply is not { Ok: true }) throw new UnauthorizedAccessException("The helper did not get administrator permission.");
+            string? line;
+            using (var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                limit.CancelAfter(HelloTimeout);
+                try { line = await input.ReadLineAsync(limit.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new IOException("The administrator helper did not answer."); }
+            }
+            DebloatOutcome? reply;
+            try { reply = line is null ? null : JsonSerializer.Deserialize<DebloatOutcome>(line, Json); }
+            catch (JsonException) { reply = null; }
+            // An empty or unreadable answer means the helper stopped, not that permission was refused.
+            if (reply is null) throw new IOException("The administrator helper stopped before it answered.");
+            if (!reply.Ok) throw new UnauthorizedAccessException("The helper did not get administrator permission.");
             lock (gate) { pipe = server; reader = input; writer = output; }
         }
         catch
@@ -214,6 +269,8 @@ public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger,
 
     public DebloatOutcome Change(DebloatRequest request)
     {
+        // The helper may be running as another administrator; the request says which account asked, so per-account checks look at the right profile.
+        if (request.UserSid is null && CurrentSid is not null) request = request with { UserSid = CurrentSid };
         lock (gate)
         {
             if (!IsOpen || reader is null || writer is null) throw new InvalidOperationException("The administrator helper is not running.");

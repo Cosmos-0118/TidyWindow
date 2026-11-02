@@ -117,7 +117,7 @@ public sealed class DebloatRemovedRow(DebloatRemoved removed, DebloatItem? item)
     /// <summary>The picture the app had in the list before it was removed, while this session still remembers it.</summary>
     public ImageSource? Icon { get; private set; }
     public void SetIcon(ImageSource? image) { Icon = image; Changed(nameof(Icon)); }
-    public string Sub => $"Removed {Removed.When.ToLocalTime():d MMM yyyy, h:mm tt}";
+    public string Sub => $"Removed {Removed.When.ToLocalTime():d MMM yyyy, h:mm tt}" + (Removed.Note is { Length: > 0 } note ? " · " + note : "");
     public bool Busy { get => busy; set { if (Set(ref busy, value)) Changed(nameof(CanPutBack)); } }
     public bool CanPutBack => !busy && Item is not null;
     public string AutomationName => $"Put {Name} back";
@@ -372,10 +372,11 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             log.Write(ActivityLevel.Info, ActivityArea.App, "Removal stopped", "Administrator permission was declined.");
             failed = -1;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        // Whatever the helper or WinGet threw (a helper Windows would not start, a reply that was not JSON, a timeout) ends as a toast; an unhandled exception here would end the app.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             toasts.Show("debloat", ToastKind.Warning, "Removal stopped", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Removal could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Removal could not finish", ex.ToString());
             failed = -1;
         }
         finally { working = false; Notify(); }
@@ -397,7 +398,13 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         try
         {
             var outcome = await manager.RestoreAsync(item, lifetime.Token);
-            if (outcome.Ok)
+            if (outcome.Ok && outcome.AllowedOnly)
+            {
+                // Windows may have it again, but nothing installed it: said plainly, not as "it is back".
+                toasts.Show("debloat", ToastKind.Info, $"{row.Name} is allowed again", outcome.Note ?? "It was not installed.", seconds: 12);
+                log.Write(ActivityLevel.Info, ActivityArea.App, "Allowed again, not installed", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
+            }
+            else if (outcome.Ok)
             {
                 toasts.Show("debloat", ToastKind.Success, $"{row.Name} is back", outcome.Note ?? "Installed again.", seconds: 10);
                 log.Write(ActivityLevel.Success, ActivityArea.App, "Put back", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
@@ -409,10 +416,10 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             }
         }
         catch (OperationCanceledException) { toasts.Show("debloat", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             toasts.Show("debloat", ToastKind.Warning, $"{row.Name} could not be put back", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Could not put back", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Could not put back", ex.ToString());
         }
         finally { row.Busy = false; working = false; Notify(); }
         RefreshRemoved();
@@ -438,6 +445,11 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             }, lifetime.Token);
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            toasts.Show("debloat", ToastKind.Warning, "Putting things back stopped", ToastCenter.Brief(ex.Message), seconds: 15);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Put everything back could not finish", ex.ToString());
+        }
         finally
         {
             foreach (var row in rows) row.Busy = false;

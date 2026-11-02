@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
@@ -48,7 +49,8 @@ public sealed record CleanupFinding(CleanupRule Rule, string[] Roots, long Bytes
     public bool HasContent => Bytes > 0 || Files > 0 || Unmeasured;
 }
 
-public sealed record CleanupResult(long FreedBytes, int Removed, int InUse, int Denied, int Failed, string? UndoId, long HeldBytes, TimeSpan Elapsed)
+/// <param name="Stopped">The clean was stopped before it finished. The counts cover what was done up to then, and all of it stays done.</param>
+public sealed record CleanupResult(long FreedBytes, int Removed, int InUse, int Denied, int Failed, string? UndoId, long HeldBytes, TimeSpan Elapsed, bool Stopped = false)
 {
     public int Skipped => InUse + Denied + Failed;
 }
@@ -79,8 +81,69 @@ public static class CleanupCatalog
     {
         using var stream = typeof(CleanupCatalog).Assembly.GetManifestResourceStream("cleanup-catalog.json") ?? throw new InvalidOperationException("The cleanup catalog is missing from the app.");
         var catalog = JsonSerializer.Deserialize<CatalogFile>(stream, Options) ?? throw new InvalidOperationException("The cleanup catalog is empty.");
+        // A catalog that breaks the rules is a bug in the app, so it is refused as a whole before anything can be scanned or cleaned.
+        var problems = CleanupGuard.Validate(catalog.Rules);
+        if (problems.Count > 0) throw new InvalidOperationException("The cleanup catalog is not valid: " + string.Join(" ", problems));
         return catalog.Rules;
     }
 
     private sealed class CatalogFile { public List<CleanupRule> Rules { get; init; } = []; }
+}
+
+/// <summary>
+/// The rules every catalog entry must follow before it is trusted. They catch the mistakes a hand-written catalog can make (a rule listed twice, a fixed drive letter,
+/// a path that climbs out of its folder, a Windows tool offered without administrator rights); where a folder is allowed to be is judged at scan time by <see cref="CleanupPaths"/>.
+/// </summary>
+public static partial class CleanupGuard
+{
+    [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
+    private static partial Regex Slug();
+
+    /// <summary>Everything wrong with a catalog, as sentences. Empty when it is fine.</summary>
+    public static List<string> Validate(IReadOnlyList<CleanupRule> rules)
+    {
+        var problems = new List<string>();
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rule in rules)
+        {
+            var who = $"“{rule.Id}”";
+            if (!Slug().IsMatch(rule.Id)) problems.Add($"{who} needs a lowercase id with dashes.");
+            if (!ids.Add(rule.Id)) problems.Add($"{who} is listed twice.");
+            if (string.IsNullOrWhiteSpace(rule.Group) || string.IsNullOrWhiteSpace(rule.Name) || string.IsNullOrWhiteSpace(rule.Detail)) problems.Add($"{who} needs a group, a name and a detail.");
+            if (rule.MinAgeDays < 0) problems.Add($"{who} has a negative age.");
+            if (rule.Discover is not null && !string.Equals(rule.Discover, "chromium", StringComparison.OrdinalIgnoreCase)) problems.Add($"{who} discovers something unknown: “{rule.Discover}”.");
+            foreach (var path in rule.Paths.Concat(rule.ChromiumData))
+            {
+                if (string.IsNullOrWhiteSpace(path)) problems.Add($"{who} has an empty path.");
+                else if (!path.StartsWith('%')) problems.Add($"{who}: “{path}” must start with a %variable%, never with a fixed drive or folder.");
+                else if (path.Contains("..")) problems.Add($"{who}: “{path}” climbs out of its folder.");
+            }
+            foreach (var handler in rule.Handlers)
+                if (string.IsNullOrWhiteSpace(handler) || handler.AsSpan().IndexOfAny('\\', '/') >= 0) problems.Add($"{who}: “{handler}” is not the name of a Disk Cleanup handler.");
+            if (rule.Files is not null && rule.Masks.Length == 0) problems.Add($"{who} names no file masks.");
+            if (rule.Masks.Any(mask => mask.AsSpan().IndexOfAny('\\', '/') >= 0 || mask.Contains(".."))) problems.Add($"{who}: a file mask may name files, not paths.");
+            if (rule.Quarantine && rule.Level != CleanupLevel.Review) problems.Add($"{who} holds files for undo, so it must be marked review.");
+            if (rule.Quarantine && rule.Action != CleanupAction.Files) problems.Add($"{who} can only hold files, not run a Windows tool.");
+            if (rule.IsSystemAction && !rule.Admin) problems.Add($"{who} runs a Windows tool, which needs administrator rights.");
+            if (rule.Action is CleanupAction.DiskCleanup or CleanupAction.PreviousWindows or CleanupAction.Hibernation && rule.Level != CleanupLevel.Review) problems.Add($"{who} cannot be undone, so it must be marked review.");
+            switch (rule.Action)
+            {
+                case CleanupAction.Files:
+                    if (rule.Paths.Length == 0 && rule.ChromiumData.Length == 0 && rule.Handlers.Length == 0 && rule.Discover is null) problems.Add($"{who} cleans nothing.");
+                    break;
+                case CleanupAction.DiskCleanup:
+                    if (rule.Handlers.Length == 0) problems.Add($"{who} names no Disk Cleanup handler.");
+                    if (rule.Paths.Length > 0 || rule.ChromiumData.Length > 0 || rule.Discover is not null) problems.Add($"{who} hands its work to Windows and cannot name folders of its own.");
+                    break;
+                case CleanupAction.PreviousWindows:
+                    if (rule.Paths.Length == 0) problems.Add($"{who} must name the previous installation's folder.");
+                    if (rule.ChromiumData.Length > 0 || rule.Handlers.Length > 0 || rule.Discover is not null) problems.Add($"{who} hands its work to Windows and can only name the folder it removes.");
+                    break;
+                default:
+                    if (rule.Paths.Length > 0 || rule.ChromiumData.Length > 0 || rule.Handlers.Length > 0 || rule.Discover is not null) problems.Add($"{who} is handled by Windows and cannot name folders.");
+                    break;
+            }
+        }
+        return problems;
+    }
 }
