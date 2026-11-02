@@ -18,7 +18,9 @@ public sealed partial class PathDoctorView : UserControl
     {
         if (e.Key != VirtualKey.Enter || Model is not { } model) return;
         e.Handled = true;
-        await model.LookUpAsync();
+        // The box's own text: the binding may not have pushed the last keystrokes yet.
+        await model.LookUpAsync((sender as TextBox)?.Text);
+
     }
 
     private async void UpClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is PathRow row) await model.MoveAsync(row, -1); }

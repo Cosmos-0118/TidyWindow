@@ -66,11 +66,16 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
                 writer.RemoveRun(entry.Scope, entry.Source, entry.Key);
                 break;
             case StartupKind.StartupFolder:
-                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: Convert.ToBase64String(writer.RemoveFolderItem(entry.Scope, entry.Key)));
-                if (!Keep(request.Id, copy, out problem)) { writer.RestoreFolderItem(copy.Scope, copy.Key, Convert.FromBase64String(copy.Data)); return new(false, problem, entry); }
+                var contents = writer.RemoveFolderItem(entry.Scope, entry.Key);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, entry.Command, Data: Convert.ToBase64String(contents));
+                // A copy that could never be put back is no copy at all, so the file goes straight back and the item stays.
+                if (StartupGuard.FolderItemProblem(entry.Key, contents) is { } badFile) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, badFile + " It was left alone.", entry); }
+                if (!Keep(request.Id, copy, out problem)) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, problem, entry); }
                 break;
             default:
-                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: writer.RemoveTask(entry.Key));
+                var xml = writer.RemoveTask(entry.Key);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, entry.Command, Data: xml);
+                if (StartupGuard.TaskDefinitionProblem(xml, entry.Scope) is { } badTask) { writer.RestoreTask(copy.Key, xml); return new(false, badTask + " It was left alone.", entry); }
                 if (!Keep(request.Id, copy, out problem)) { writer.RestoreTask(copy.Key, copy.Data); return new(false, problem, entry); }
                 break;
         }
@@ -104,18 +109,31 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
         else copy = request.Vault;
         if (copy is null) return new(false, "There is nothing to put back.");
         if (StartupScan.IdFor(copy) != request.Id || copy.Key.Length == 0) return new(false, "That copy does not belong to this item.");
-        if (StartupScan.Find(system, request.Id) is { } already) { Forget(request.Id); return new(true, null, already); }
+        if (StartupScan.Find(system, request.Id) is { } already)
+        {
+            // Something with this name is back. The same item (reinstalled, or put back by hand) means the copy is no longer needed; a
+            // different one is pointed out and the copy stays, so a newcomer is never reported as the item put back.
+            if (copy.Command.Length > 0 && !string.Equals(already.Command.Trim(), copy.Command.Trim(), StringComparison.OrdinalIgnoreCase))
+                return new(false, $"Something else has taken this item's place in startup since it was removed. It now runs: {already.Command}. The saved copy was kept; check the new item before you decide what to do with it.", already);
+            Forget(request.Id);
+            return new(true, null, already);
+        }
+        // The copy is checked once more here, whoever kept it: it is the one thing the writes below take on trust.
         switch (copy.Kind)
         {
             case StartupKind.RunKey:
                 writer.RestoreRun(copy.Scope, copy.Source, copy.Key, copy.Command, copy.Expandable);
                 break;
             case StartupKind.StartupFolder:
-                writer.RestoreFolderItem(copy.Scope, copy.Key, Convert.FromBase64String(copy.Data));
+                var contents = Convert.FromBase64String(copy.Data);
+                if (StartupGuard.FolderItemProblem(copy.Key, contents) is { } badFile) return new(false, badFile + " It was not put back.");
+                writer.RestoreFolderItem(copy.Scope, copy.Key, contents);
                 break;
             case StartupKind.ScheduledTask:
+                if (StartupGuard.TaskDefinitionProblem(copy.Data, copy.Scope) is { } badTask) return new(false, badTask + " It was not put back.");
                 writer.RestoreTask(copy.Key, copy.Data);
                 break;
+
             default:
                 return new(false, "That kind of item cannot be put back.");
         }

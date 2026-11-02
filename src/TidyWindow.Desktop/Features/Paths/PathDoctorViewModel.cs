@@ -43,7 +43,7 @@ public sealed class CandidateRow(CommandCandidate candidate, bool wins, bool can
     {
         stub = result.StoreStub;
         foreach (var name in new[] { nameof(Stub), nameof(MakeFirstVisibility), nameof(RunsVisibility), nameof(HiddenVisibility), nameof(StoreLinkVisibility) }) Changed(name);
-        Version = result.StoreStub ? "Opens the Microsoft Store" : result.Version.Length > 0 ? result.Version : "Version unknown";
+        Version = result.StoreStub ? "Opens the Microsoft Store" : result.Skipped ? "Version not checked: not a command-line program" : result.Version.Length > 0 ? result.Version : "Version unknown";
     }
 }
 
@@ -157,6 +157,9 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
         foreach (var name in new[] { nameof(Busy), nameof(CanChange), nameof(ScanOverlay), nameof(Loaded), nameof(ToolsIntro), nameof(MachineUnlocked), nameof(MachineLockedVisibility), nameof(MachineUnlockedVisibility), nameof(MachineFixVisibility), nameof(MachineUndoVisibility) }) Changed(name);
     }
 
+    // Expected failures are explained by their message; anything else keeps its stack for the log.
+    private static string Detail(Exception ex) => ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString();
+
     public async Task RefreshAsync()
     {
         if (lifetime.IsCancellationRequested) return;
@@ -243,7 +246,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             try
             {
                 var command = Path.GetFileNameWithoutExtension(row.File);
-                var result = await CommandProbe.RunAsync(command, row.File, lifetime.Token).ConfigureAwait(false);
+                var result = await CommandProbe.RunAsync(command, row.File, lifetime.Token, alias: row.Candidate.Alias).ConfigureAwait(false);
                 post(() => { if (current == generation) row.Report(result); });
             }
             catch (OperationCanceledException) { }
@@ -322,15 +325,20 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             unlocked = true;
             log.Write(ActivityLevel.Info, ActivityArea.App, "Path Doctor unlocked Windows-wide PATH editing", "Administrator permission was granted.");
         }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (OperationCanceledException) { Toast("unlock", ToastKind.Info, "Administrator permission was declined", "The Windows-wide folders stay read-only."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
-            Toast("unlock", ToastKind.Warning, "Could not unlock editing", ex.Message);
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor could not get administrator permission", ex.Message);
+            // The helper may be missing, blocked by a policy or gone before it connected; whatever it was, the page stays usable and says so.
+            Toast("unlock", ToastKind.Warning, "Could not unlock editing", ToastCenter.Brief(ex.Message));
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor could not get administrator permission", Detail(ex));
         }
-        busy = false;
-        if (snapshot is not null) Fill(MachineFolders, snapshot.Machine, unlocked);
-        Notify();
+        finally
+        {
+            busy = false;
+            if (snapshot is not null) Fill(MachineFolders, snapshot.Machine, unlocked);
+            Notify();
+        }
     }
 
     public void LockMachine()
@@ -356,9 +364,10 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
         if (!string.IsNullOrWhiteSpace(folder)) await ApplyAsync(() => doctor.Add(folder));
     }
 
-    public async Task LookUpAsync()
+    /// <param name="typed">What the box holds right now, when the caller has it: a binding may not have pushed the latest keystrokes yet.</param>
+    public async Task LookUpAsync(string? typed = null)
     {
-        var name = LookupText.Trim();
+        var name = (typed ?? LookupText).Trim();
         if (name.Length == 0 || name.Any(c => Path.GetInvalidFileNameChars().Contains(c))) return;
         if (!custom.Contains(name, StringComparer.OrdinalIgnoreCase)) custom.Add(name);
         LookupText = "";
@@ -371,17 +380,20 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
         busy = true; Notify();
         PathChange result;
         try { result = await Task.Run(change); }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException)
+        catch (Exception ex)
         {
+            // Whatever stopped the write (the registry, the helper, a policy), the page is told and stays usable.
             result = new(false, "Windows would not let this change be saved: " + ex.Message);
-            log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor change failed", ex.Message);
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor change failed", Detail(ex));
         }
-        if (!result.Changed) Toast("result", ToastKind.Warning, result.Message);
+        finally { busy = false; }
+        if (!result.Changed) Toast("result", ToastKind.Warning, ToastCenter.Brief(result.Message));
         else if (offerUndo) Toast("result", ToastKind.Success, result.Message, "Open a new terminal to see it. Windows that are already open keep the old PATH.", "Undo", undo ?? UndoAsync);
         else Toast("result", ToastKind.Success, result.Message);
         if (result.Changed) log.Write(ActivityLevel.Success, ActivityArea.App, "Path Doctor changed your PATH", result.Message);
-        busy = false; Notify();
+        Notify();
         await RefreshAsync();
+
     }
 
     public void Dispose() { lifetime.Cancel(); session.Close(); lifetime.Dispose(); }

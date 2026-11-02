@@ -29,7 +29,11 @@ public sealed class PathAnalyzer(Func<string, string> expand, Func<string, bool>
         return value.ToLowerInvariant();
     }
 
+    /// <summary>The folder an entry points to once its %VARIABLES% are filled in.</summary>
+    public string Expand(string entry) => expand(entry);
+
     public PathSnapshot Analyze(string? machineRaw, string? userRaw)
+
     {
         var seen = new Dictionary<string, string>();
         return new(Parse(PathScope.Machine, machineRaw, seen), Parse(PathScope.User, userRaw, seen), machineRaw ?? "", userRaw ?? "");
