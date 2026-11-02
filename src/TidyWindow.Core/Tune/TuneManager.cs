@@ -84,7 +84,15 @@ public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IRe
 
     private void Put(TuneScope scope, TuneTarget target, bool set, TuneKind kind, string text)
     {
-        if (set) { writer.Set(scope, target.Key, target.Name, kind == TuneKind.Other ? target.Kind : kind, text); return; }
+        if (set)
+        {
+            var actual = kind == TuneKind.Other ? target.Kind : kind;
+            // A saved copy names the kind of value it held. One of another kind is not something this page wrote, so it is not written back:
+            // the copy came from a file any program running as the user can edit.
+            if (actual != target.Kind) throw new InvalidOperationException("The saved value is not the kind this setting takes, so it was not written.");
+            writer.Set(scope, target.Key, target.Name, actual, text);
+            return;
+        }
         writer.Delete(scope, target.Key, target.Name);
         if (target.RemoveKey.Length > 0) writer.DeleteKey(scope, target.RemoveKey);
     }
@@ -224,10 +232,9 @@ public static class TuneHost
             changer = new LocalTuneChanger(new WindowsTuneSystem(), new WindowsTuneWriter(), TuneCatalog.Load(), TuneScope.Machine);
         }
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
-        try { await pipe.ConnectAsync(15000).ConfigureAwait(false); }
-        catch (Exception ex) when (ex is TimeoutException or IOException) { return 65; }
-        using var reader = new StreamReader(pipe);
+        using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
+        if (pipe is null) return 65;
+        var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
 
         async Task Reply(TuneOutcome reply)
@@ -273,29 +280,20 @@ public sealed class TuneSession(Func<string, Task> launch) : ITuneChanger, IDisp
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly object gate = new();
     private NamedPipeServerStream? pipe;
-    private StreamReader? reader;
+    private PipeLineReader? reader;
     private StreamWriter? writer;
 
     public bool IsOpen => pipe is { IsConnected: true };
 
-    public static TuneSession Elevated(string helperPath) => new(name =>
-    {
-        if (!File.Exists(helperPath)) throw new FileNotFoundException("The administrator helper is missing from this installation.", helperPath);
-        var info = new ProcessStartInfo(helperPath) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
-        info.ArgumentList.Add(TuneHost.Command); info.ArgumentList.Add(name);
-        Process process;
-        try { process = Process.Start(info) ?? throw new InvalidOperationException("The administrator helper could not be started."); }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new OperationCanceledException("Administrator permission was declined."); }
-        return process.WaitForExitAsync().ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
-    });
+    public static TuneSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, TuneHost.Command, name));
 
     /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         if (IsOpen) return;
         Close();
-        var name = "tidywindow-tune-" + Guid.NewGuid().ToString("N");
-        var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var name = HelperPipe.NewName("tune");
+        var server = HelperPipe.CreateServer(name);
         try
         {
             var launched = Task.Run(() => launch(name), CancellationToken.None);
@@ -306,7 +304,7 @@ public sealed class TuneSession(Func<string, Task> launch) : ITuneChanger, IDisp
                 throw new IOException("The administrator helper stopped before it could connect.");
             }
             await connecting.ConfigureAwait(false);
-            var input = new StreamReader(server);
+            var input = new PipeLineReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
             await output.WriteLineAsync(JsonSerializer.Serialize(new TuneMessage("hello"), Json)).ConfigureAwait(false);
             var reply = JsonSerializer.Deserialize<TuneOutcome>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);

@@ -474,5 +474,25 @@ public sealed class SystemCleanTests : IDisposable
         Assert.DoesNotContain(catalog, rule => rule.Id == SystemCleanHost.MeasureMarker);
     }
 
+    [Fact]
+    public async Task TheHelperStopsItsWorkWhenTheAppGoesAwayMidRun()
+    {
+        // The component store estimate waits on Hold, as a long DISM run would; nothing ever releases it here.
+        tools.Hold = new TaskCompletionSource();
+        CleanupRule[] catalog = [new CleanupRule { Id = "component-store", Group = "Windows", Name = "Component store", Admin = true, Action = CleanupAction.ComponentStore }];
+        var name = HelperPipe.NewName("test");
+        var server = HelperPipe.CreateServer(name);
+        var waiting = server.WaitForConnectionAsync();
+        var host = SystemCleanHost.RunAsync([SystemCleanHost.Command, name, SystemCleanHost.EstimateMarker + ",component-store"], catalog, Context(), tools);
+        await waiting;
+        Assert.Contains("ready", await new PipeLineReader(server).ReadLineAsync() ?? "");
+
+        // The app ends without a word: its end of the pipe simply closes. The helper must not carry on with administrator rights unattended.
+        await server.DisposeAsync();
+
+        Assert.Equal(1, await host.WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.False(tools.Hold.Task.IsCompleted);
+    }
+
     private sealed class Collect(List<CleanupProgress> list) : IProgress<CleanupProgress> { public void Report(CleanupProgress value) { lock (list) list.Add(value); } }
 }

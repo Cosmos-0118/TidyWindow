@@ -123,10 +123,9 @@ public static class DebloatHost
             changer = new LocalDebloatChanger(system, new AppxRemover(system, new WindowsAppxStore(), new WindowsAppxOps()), new WindowsPlaybooks(), DebloatCatalog.Load());
         }
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
-        try { await pipe.ConnectAsync(15000).ConfigureAwait(false); }
-        catch (Exception ex) when (ex is TimeoutException or IOException) { return 65; }
-        using var reader = new StreamReader(pipe);
+        using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
+        if (pipe is null) return 65;
+        var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
 
         async Task Reply(DebloatOutcome reply)
@@ -175,29 +174,20 @@ public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger,
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly object gate = new();
     private NamedPipeServerStream? pipe;
-    private StreamReader? reader;
+    private PipeLineReader? reader;
     private StreamWriter? writer;
 
     public bool IsOpen => pipe is { IsConnected: true };
 
-    public static DebloatSession Elevated(string helperPath) => new(name =>
-    {
-        if (!File.Exists(helperPath)) throw new FileNotFoundException("The administrator helper is missing from this installation.", helperPath);
-        var info = new ProcessStartInfo(helperPath) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
-        info.ArgumentList.Add(DebloatHost.Command); info.ArgumentList.Add(name);
-        Process process;
-        try { process = Process.Start(info) ?? throw new InvalidOperationException("The administrator helper could not be started."); }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new OperationCanceledException("Administrator permission was declined."); }
-        return process.WaitForExitAsync().ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
-    });
+    public static DebloatSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, DebloatHost.Command, name));
 
     /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         if (IsOpen) return;
         Close();
-        var name = "tidywindow-debloat-" + Guid.NewGuid().ToString("N");
-        var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var name = HelperPipe.NewName("debloat");
+        var server = HelperPipe.CreateServer(name);
         try
         {
             var launched = Task.Run(() => launch(name), CancellationToken.None);
@@ -208,7 +198,7 @@ public sealed class DebloatSession(Func<string, Task> launch) : IDebloatChanger,
                 throw new IOException("The administrator helper stopped before it could connect.");
             }
             await connecting.ConfigureAwait(false);
-            var input = new StreamReader(server);
+            var input = new PipeLineReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
             await output.WriteLineAsync(JsonSerializer.Serialize(new DebloatMessage("hello"), Json)).ConfigureAwait(false);
             var reply = JsonSerializer.Deserialize<DebloatOutcome>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);
