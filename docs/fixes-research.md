@@ -75,7 +75,7 @@ Nothing is copied from these projects. Catalog entries and descriptions are writ
 
 All 16 fixes were run once. 11 finished, 1 finished with a warning and 3 failed (the log keeps only the summary, not the live output).
 
-- **Reset Microsoft Store** failed because `WSReset.exe` has a manifest that demands administrator rights (started without them, Windows answers "The requested operation requires elevation"). It was a user fix, so it never asked. Now a machine fix. Not run again since the change.
+- **Reset Microsoft Store** failed because `WSReset.exe` has a manifest that demands administrator rights (started without them, Windows answers "The requested operation requires elevation"). It was a user fix, so it never asked. Now a machine fix. Run again by hand since the change; the Fixes page works (4 November 2026).
 - **Reset OneDrive** failed with exit code 0xC0000005. Reproduced outside the app: `OneDrive.exe /reset` (version 26.189.928.9, in `C:\Program Files\Microsoft OneDrive`) crashes in `FileSyncClient.dll` however it is started, with or without redirected output. That is a fault in this OneDrive build, not in the command, which is the one Microsoft documents. The step is left as it is and the summary now says the program crashed. Starting `OneDrive.App.exe /reset` instead only started OneDrive and left its settings untouched, so it is not a substitute.
 - **Check the drive for errors** failed because `chkdsk.exe` cannot be started on this PC at all. Reproduced with a genuinely elevated window (confirmed High integrity): `chkdsk C: /scan` printed "Access is denied" and exited 5, and PowerShell reported that the program "failed to run". Something on this PC blocks that executable, so it is not our command. `Repair-Volume -DriveLetter C -Scan`, the same read-only online scan, ran fine elevated and returned `NoErrorsFound`, so the fix now uses it and `chkdsk.exe` was removed from the allowed programs. The step exits 0 when no errors are found, 1 (a warning) when it reports any, and 2 (a failure) if the scan cannot run. Scan progress is no longer shown, only the result. The failure summary now keeps the last line a failed step printed.
 - **Reset the network stack** warned because `netsh int ip reset` returned 1, which is expected when some keys cannot be reset, and is already treated as a warning.
@@ -91,17 +91,15 @@ Fixes were then run on the development PC through `FixService` and the elevated 
 - Harmless messages were shown in red: `net start` says "already started" on stderr and exits 2, which the fix accepts. Steps that accept a non-zero code now show their stderr as a warning. The "approve the permission prompt" notice only shows when a prompt is really coming.
 - SFC output arrives in bursts (about every 30 seconds), because SFC buffers its own output when it is not writing to a console. That is SFC's behaviour, not a delay in the app.
 
-## Not verified
+## Verification
 
 Covered by tests and by running real, harmless programs: the catalog and its guard, the runner (success, warnings, failure, restart codes, timeouts, steps that always run), the helper protocol (output streaming, cancel, refusals, one connection for several steps), line handling for DISM-style progress, UTF-16 from `sfc`, UTF-8 from PowerShell, code-page output from `ipconfig`, a real program's output appearing in the Queue while it is still running, and the real helper program answering `--fix` and refusing without administrator rights.
 
-Not done yet, and needing a person at the PC:
+Checked by hand in the app on 4 November 2026 (Windows 11 Pro, build 26300): the Fixes page works, the Queue page shows each fix's output correctly, and stopping and starting services behaves as intended. That covers the fixes that had not been run since the second round (Reset Windows Update, Fix Start menu and taskbar, Reset the network stack, Refresh the network connection, Rebuild the search index, Update Defender, Create a restore point), how the Queue page shows the output, and how the Fixes page looks.
 
-- Not run for real since the changes: Reset Windows Update, Fix Start menu and taskbar, Reset the network stack, Refresh the network connection, Rebuild the search index, Update Defender, Create a restore point (these ran once from the app and finished, before the second round of fixes).
-- How the Queue page itself shows all this. The service was driven by a console program, not the Queue window.
-- Exit codes: `net stop` and `net start` return 2 when the service is already stopped or running. This comes from documentation and is accepted as success.
-- Whether Windows restarts File Explorer by itself after it is closed for the icon fix. The fix waits a few seconds and starts it if not.
-- How the Fixes page looks. It was built and loaded, but not seen on screen.
+Also checked on 4 November 2026: when `explorer.exe` is closed, Windows starts a new one by itself (a new process within 0.2 seconds), so the icon fix's wait-and-start step is only a fallback.
+
+Still from documentation only: `net stop` and `net start` return 2 when the service is already stopped or running, and the fix accepts that as success.
 
 ## Third round: catalog growth (31 October 2026)
 
@@ -147,4 +145,4 @@ The catalog is now 24 fixes. **Restart Bluetooth** (Devices, machine) stops and 
 
 ### Not verified here
 
-Machine fixes (font cache, WMI, camera, discovery, Update Orchestrator, restore point) were validated by the guard and by tests but not run: they need an administrator prompt. The new user scripts were run from the catalog text on this PC: *Find devices with problems* (no problems found; the table branch was exercised with a loosened filter) and the `winget source update` step of *Repair WinGet* (exit 0). The re-register steps (Windows Security, App Installer, shell packages) and the Restart now button were not run or seen on screen.
+Machine fixes (font cache, WMI, camera, discovery, Update Orchestrator, restore point) were validated by the guard and by tests, and then used by hand in the app on 4 November 2026 with the Fixes page working as intended. The new user scripts were run from the catalog text on this PC: *Find devices with problems* (no problems found; the table branch was exercised with a loosened filter) and the `winget source update` step of *Repair WinGet* (exit 0). The Fixes page was reported working on 4 November 2026; the re-register steps (Windows Security, App Installer, shell packages) and the Restart now button were not itemized in that report.

@@ -96,7 +96,7 @@ Found by doing it, and fixed:
 - Windows keeps saved `.msp` files **read-only**. Replacing a damaged one and undoing a restore both failed on that, and refusing an unsigned read-only candidate left its half-placed `.tidywindow-new` copy behind in `C:\Windows\Installer`. Attributes are cleared before replacing or deleting, a restored file is marked read-only like Windows' own, and a refused copy is always removed.
 - Windows Installer's own `/fomus` repair of a product with a **removable** patch whose file is gone returns 0 and silently drops that patch's registration. The expectation that a non-removable patch (Office, SQL Server) fails with 1612 or 1714 did not hold on this Windows build either; see the third-round note below, where the update is silently dropped instead.
 
-Not exercised on a real PC: the `/qb` retry after a failed custom action (the decision is unit-tested on log text), `.zip` downloads from WinGet, the `HKLM\Software\Policies\WiX\Burn` cache folder, a cumulative-update `.exe` (an update inside a setup program is never unpacked: only `.msp` files are used), and Squirrel's `Update.exe`.
+Not exercised on a real PC in this first round: the `/qb` retry after a failed custom action, `.zip` downloads from WinGet, the `HKLM\Software\Policies\WiX\Burn` cache folder, a cumulative-update `.exe` (an update inside a setup program is never unpacked: only `.msp` files are used), and Squirrel's `Update.exe`. The first three were run later; see the second round below and the November 2026 table in `repair-research.md`. The last two are still not exercised on a real PC.
 
 Second round on the same PC (lab packages again, plus two real programs), each case run through the real engine and, where it needs administrator rights, the real helper:
 

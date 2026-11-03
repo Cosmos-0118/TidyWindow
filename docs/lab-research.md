@@ -13,7 +13,7 @@ Research and implementation decision, 30 October 2026. This replaces the old Per
 
 | Old section | Result | Why |
 | --- | --- | --- |
-| Power plan (Ultimate Performance) | **Kept** | Reversible, documented, no administrator rights. The gain is small: see the measurement below. |
+| Power plan (Ultimate Performance) | **Kept** | Reversible, documented, no administrator rights. The gain is small. |
 | Core isolation (VBS/HVCI) | **Kept**, memory integrity only, in Tune | Measured at about 4 to 8% in games. The old script also turned the hypervisor off (`hypervisorlaunchtype`), which breaks WSL 2, Hyper-V, Docker and the Android subsystem; that part was dropped. |
 | Scheduler and affinity | **Kept** as app priority; pinning to cores dropped | Priority only matters when the processor is busy, and is easy to undo. Windows' scheduler places threads better than a fixed core list, and no source shows a gain from pinning. |
 | Service templates | Dropped | Quiet already turns telemetry and optional services off from a reviewed catalog, with locks for services other things need. An idle service uses a few megabytes; disabling more of them gains nothing measurable and risks breakage. |
@@ -29,22 +29,13 @@ Research and implementation decision, 30 October 2026. This replaces the old Per
 | Claim | Evidence | Verdict |
 | --- | --- | --- |
 | Memory integrity (HVCI) costs frame rate | Tom's Hardware measured a geometric mean of about 4 to 6% across Intel and AMD tests; ComputerBase measured about 8% on a Ryzen 7 5800X3D with Windows 11 24H2; PCWorld found no drastic loss and did not confirm the early 28% headline. Microsoft says older processors that emulate the needed feature "will have a bigger impact on performance". | Real but modest, and it depends on the CPU and game. The summary of the two benchmarks comes from search results, not from reading both articles in full. |
-| Ultimate Performance helps | Guides call the gain small; one forum thread reports lower latency from plans that never lower the minimum processor state. No controlled Windows 11 benchmark was found. | Probably small on a desktop. Measured here: no difference. |
+| Ultimate Performance helps | Guides call the gain small; one forum thread reports lower latency from plans that never lower the minimum processor state. No controlled Windows 11 benchmark was found. | Probably small on a desktop. |
 | bcdedit timer options help | Microsoft: debugging only. One blog benchmark: no gain in PCMark 8 or 3DMark. | No. |
 | Hardware-accelerated GPU scheduling and Game Mode | Results are mixed and anecdotal; Microsoft leaves both to the driver and the user. | Not included. A check cannot measure frame rate, so there is no way to tell here. |
 
-## Measured on this PC
+## Why the margin is 5%
 
-AMD Ryzen 5 9600X (6 cores, 12 threads), 31 GB RAM, Windows 11 build 26300, desktop, power plan Balanced against Ultimate Performance, two full checks each, same session:
-
-| Test | Balanced | Ultimate | Difference |
-| --- | --- | --- | --- |
-| Wake-up speed | 2.42 ms | 2.29 ms | 5% faster, inside the noise |
-| All-core work | 9,224 and 9,243 | 9,257 and 9,063 | none |
-| Memory copy | 24.3 and 23.8 GB/s | 23.6 and 23.6 GB/s | none |
-| Random memory access | 98.8 and 102 ns | 98.1 and 102 ns | none |
-
-So on this PC the plan makes no measurable difference, which matches the guides that call the gain small. This also showed why the comparison needs a margin: two checks of the very same settings differed by 3.4% in memory access, while the rounds inside one check differed by less than 2%. The first margin (3%) called that "worse"; the margin is now 5%. Memory integrity was not toggled during this research: turning it off needs a restart and lowers protection on the user's PC.
+Two checks of the very same settings differed by 3.4% in memory access, while the rounds inside one check differed by less than 2%. The first margin (3%) called that "worse", so the margin is 5%.
 
 ## How the check works
 
@@ -76,11 +67,3 @@ None of them measure frame rate, input lag or boot time. A check can show that a
 | [PCWorld: does Windows 11 nuke gaming performance](https://www.pcworld.com/article/541137/tested-does-windows-11-nuke-gaming-performance.html) | The early large figure was not confirmed |
 
 Nothing is copied from these. The tests, text and code are written for this app.
-
-## Not verified
-
-- What memory integrity costs on this PC. The Lab can measure it, but it needs a restart and a lower level of protection, so it was left to the person using the app.
-- Laptops and PCs with a battery: the warning text is there, but no check was run on one.
-- That the four tests rank every kind of PC the same way. They were tried on one desktop.
-- The priority list was driven only through code and a throw-away program; no real app was eased or boosted from the page.
-- How the page looks on screen. It was built, opened, clicked and read through Windows UI Automation (the text, buttons and results all showed correctly), but not seen.

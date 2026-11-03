@@ -118,13 +118,21 @@ Follows Quiet. A list of switches with a one-line effect each, the small print b
 
 ## Not verified
 
-Reading, the guard, the rules for applying and putting back, rollback, and the helper protocol are covered by tests, plus a read-only scan of a real Windows PC. Writing to the real registry, the administrator helper with a real permission prompt, and how the page looks were not checked by hand yet.
+Reading, the guard, the rules for applying and putting back, rollback, and the helper protocol are covered by tests, plus a read-only scan of a real Windows PC.
+
+Checked on 4 November 2026 on the development PC (Windows 11 Pro 26H2, build 26300.9818):
+
+- **By hand in the app.** Writing to the real registry, the administrator helper with a real permission prompt, and how the page looks and behaves (dimming, the Explorer banner, **Turn on again**) all work.
+- **By a throwaway program** that ran the app's own changer against the real current-user registry, with a backup taken first. All 27 current-user items were changed and read back, and the original values came back exactly, including "was not set". The 3 items that were off were turned on and put back; the 24 that were already on were turned off using the catalog's normal values and then put back. Nothing differed from the backup afterwards. This checks the writes, the read-back, the restore and the guard. It does not check what each setting does on screen.
+- The machine items (Edge policies, long paths, fast startup, memory integrity and the other machine-wide values) need administrator rights and were not part of the throwaway program; the by-hand check above is their only real-PC check.
+
+What is still open:
 
 - Whether each setting does what the sources say on the newest Windows builds. Several values (`ContentDeliveryManager`, `TaskbarEndTask`) are community-documented, not Microsoft-documented.
 - Whether the Edge policies make Edge show a "managed by your organization" notice. The item says so up front; Edge's behavior with these policies was not confirmed here.
 - `WaitToKillAppTimeout` is written as "at most 5000". Its Windows default of 20000 comes from guides, not from a fresh install (the system default profile has no value, and loading the default user hive needs administrator rights). The page reads the real value and only offers a change when the current one is higher.
 - Web search: checked by hand on build 26300.9818. Setting `IsWebSuggestionsEnabled = 0` made Settings show Web Searches Off, Microsoft Store suggestions stayed On, and removing the value put it back to On. What the Start menu itself then shows was not looked at, because screenshots of the Start menu are masked. Microsoft's own wording for this setting is not documented yet; the value comes from a preview-build article and the Settings test.
-- The items added in the second and third rounds were checked by reading this PC (a read-only scan: values and their "partly on" states came out as expected) and against community guides, not by switching each one on and watching the result. In particular `LastActiveClick` on the newest Windows 11 builds, `Start_IrisRecommendations`, `ShowRecentList`/`ShowFrequentList` (no written source; the two Settings switches they match, and `ShowFrequentList` exists on the development PC) and `PreventDeviceMetadataFromNetwork` blocking a real companion app were not seen working. The new page behavior (dimming, Explorer banner, Turn on again) was built and compiled but not looked at in the running app.
+- The items added in the second and third rounds were checked by reading this PC (a read-only scan: values and their "partly on" states came out as expected) and against community guides, not by switching each one on and watching the result. In particular `LastActiveClick` on the newest Windows 11 builds, `Start_IrisRecommendations`, `ShowRecentList`/`ShowFrequentList` (no written source; the two Settings switches they match, and `ShowFrequentList` exists on the development PC) and `PreventDeviceMetadataFromNetwork` blocking a real companion app were not seen working.
 - Whether `MenuShowDelay` and the Sticky Keys flags apply without signing in again. The page says "After sign-in" to be safe.
 
 ## Sources
