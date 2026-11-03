@@ -104,4 +104,14 @@ public static class PathAdvice
             notes.Add($"JAVA_HOME is {home}, but typing java in a terminal runs {winner.File}. Build tools and terminals can end up using different versions of Java.");
         return notes;
     }
+
+    /// <summary>The folder JAVA_HOME should point to so it matches the java a terminal runs, or null when that cannot be told for sure (a shim folder, or a Java without a compiler).</summary>
+    public static string? JavaHomeFix(CommandLookup java, Func<string, bool> fileExists)
+    {
+        if (java.Winner is not { } winner) return null;
+        var bin = Path.GetDirectoryName(winner.File);
+        if (bin is null || !string.Equals(Path.GetFileName(bin), "bin", StringComparison.OrdinalIgnoreCase)) return null;
+        var home = Path.GetDirectoryName(bin);
+        return home is not null && fileExists(Path.Combine(bin, "javac.exe")) ? home : null;
+    }
 }
