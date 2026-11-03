@@ -508,6 +508,7 @@
              <StackPanel Spacing="4">
               <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
               <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+              <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" Visibility="{Binding ProgressVisibility}" Height="3" Margin="0,2,0,0" IsTabStop="False" AutomationProperties.AccessibilityView="Raw" />
              </StackPanel>
              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
               <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" />

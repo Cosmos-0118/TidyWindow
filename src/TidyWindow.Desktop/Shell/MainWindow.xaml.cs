@@ -65,7 +65,7 @@ public sealed partial class MainWindow : Window
         var repairService = new RepairService(installSystem, RegistryRepair.User, repairSession, repairSession.OpenAsync, repairSession.Close, repairHistory, new WindowsInstallerOps(), repairSession, new WingetFetcher(), FileShortcutEditor.User(), repairSession, FileFolderEditor.User(), repairSession);
         var uninstallRecovery = new UninstallRecovery(installSystem, new WindowsUninstallHost(), runner, repairService) { AllowDownload = true };
         var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")), uninstallRecovery);
-        var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
+        var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows, runner);
         // Fixes share the queue, and so its live output. Machine-wide fixes run in a helper that sends its output back as it is produced.
         fixSession = FixSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var fixStore = new FixRunStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Fixes"));
