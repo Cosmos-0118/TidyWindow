@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace TidyWindow.Next.Desktop;
@@ -28,6 +29,7 @@ public sealed partial class ToastCard : UserControl
         DataContextChanged += (_, e) => Attach(e.NewValue as ToastItem);
         Loaded += (_, _) => Enter();
         Unloaded += (_, _) => { copied?.Stop(); Release(); };
+        ActualThemeChanged += (_, _) => UpdateMark();
     }
 
     private void Attach(ToastItem? next)
@@ -39,6 +41,7 @@ public sealed partial class ToastCard : UserControl
         item.PropertyChanged += ItemChanged; item.Renewed += Renewed; item.HoldChanged += SyncBar;
         // A toast that was told to go before its card existed has nothing to show.
         if (item.Closing) Card.Opacity = 0;
+        UpdateMark();
         UpdateActions();
     }
 
@@ -51,7 +54,32 @@ public sealed partial class ToastCard : UserControl
     private void ItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ToastItem.Closing) && item is { Closing: true }) Exit();
-        else if (e.PropertyName is nameof(ToastItem.Kind) or nameof(ToastItem.Detail) or nameof(ToastItem.ActionLabel)) UpdateActions();
+        else if (e.PropertyName == nameof(ToastItem.Kind)) { UpdateMark(); UpdateActions(); }
+        else if (e.PropertyName is nameof(ToastItem.Detail) or nameof(ToastItem.ActionLabel)) UpdateActions();
+    }
+
+    // ----- The status mark -----
+
+    // One solid glyph per kind: a disc with a tick, a triangle with an exclamation mark, a disc with an "i".
+    private void UpdateMark()
+    {
+        if (item is null) return;
+        var (glyph, brush) = item.Kind switch
+        {
+            ToastKind.Success => ("", "GoodBrush"),
+            ToastKind.Warning => ("", "WarnBrush"),
+            _ => ("", "InfoBrush"),
+        };
+        Mark.Glyph = glyph;
+        Mark.Foreground = ThemeBrush(brush);
+    }
+
+    // A {ThemeResource} cannot be chosen in code, so the brush is read from the theme the card is showing now and read again when it changes.
+    private Brush? ThemeBrush(string key)
+    {
+        var theme = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast ? "HighContrast" : ActualTheme == ElementTheme.Dark ? "Default" : "Light";
+        return Application.Current.Resources.ThemeDictionaries.TryGetValue(theme, out var found) && found is ResourceDictionary colours && colours.TryGetValue(key, out var value)
+            ? value as Brush : null;
     }
 
     // ----- Coming and going -----

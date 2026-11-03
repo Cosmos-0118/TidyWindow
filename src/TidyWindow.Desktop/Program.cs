@@ -30,7 +30,7 @@ public static class Program
     private static void Main()
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
-        if (HandedOverToRunningInstance()) return;
+        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is null && HandedOverToRunningInstance()) return; // TEMP-DEMO
         // Before anything slow: the splash is on screen while the interface framework and the main window are still being set up.
         Splash = NativeSplash.Start();
 

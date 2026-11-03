@@ -41,9 +41,6 @@ public sealed class ToastItem : ObservableState
     public Visibility TimerVisibility => Seconds > 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DetailVisibility => Detail.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ActionVisibility => action is not null && ActionLabel.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility SuccessVisibility => Kind == ToastKind.Success ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility WarningVisibility => Kind == ToastKind.Warning ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility InfoVisibility => Kind == ToastKind.Info ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Spoken by screen readers when the toast appears.</summary>
     public string Announcement => Detail.Length > 0 ? Title + ". " + Detail : Title;
     /// <summary>What copying puts on the clipboard.</summary>
@@ -59,7 +56,7 @@ public sealed class ToastItem : ObservableState
         Kind = kind; Title = title; Detail = detail; ActionLabel = actionLabel; action = run;
         if (same) Count++; else Count = 1;
         Countdown.Restart(TimeSpan.FromSeconds(seconds));
-        foreach (var name in new[] { nameof(Kind), nameof(Title), nameof(Detail), nameof(ActionLabel), nameof(TimerVisibility), nameof(DetailVisibility), nameof(ActionVisibility), nameof(SuccessVisibility), nameof(WarningVisibility), nameof(InfoVisibility), nameof(Announcement), nameof(CopyText) })
+        foreach (var name in new[] { nameof(Kind), nameof(Title), nameof(Detail), nameof(ActionLabel), nameof(TimerVisibility), nameof(DetailVisibility), nameof(ActionVisibility), nameof(Announcement), nameof(CopyText) })
             Changed(name);
         Renewed?.Invoke(same);
     }
