@@ -16,7 +16,7 @@ public sealed record PackageOperation(PackageOperationKind Kind, ManagerKind Man
     public static PackageOperation Manage(ManagedPackage package, PackageAction action) =>
         new(action == PackageAction.Update ? PackageOperationKind.Update : PackageOperationKind.Uninstall, package.Manager, package.Id, package.Name, InstalledPackage: package);
 }
-public sealed record QueueEntry(Guid Id, PackageOperation Operation, QueueItemState State, PackageActionResult? Result = null, string Output = "", string Notice = "", IReadOnlyList<CommandOutput>? OutputSegments = null);
+public sealed record QueueEntry(Guid Id, PackageOperation Operation, QueueItemState State, PackageActionResult? Result = null, string Output = "", string Notice = "", IReadOnlyList<CommandOutput>? OutputSegments = null, CommandProgress? Progress = null);
 public sealed record QueueSnapshot(long Revision, IReadOnlyList<QueueEntry> Entries, long Completions = 0, long StateVersion = 0)
 {
     public bool HasWork => Entries.Any(x => x.State is QueueItemState.Waiting or QueueItemState.Running);
@@ -116,6 +116,12 @@ public sealed class PackageOperationQueue
             if (index < 0) return;
             var entry = entries[index];
             if (output.Kind == CommandOutputKind.Notice) entry = entry with { Notice = output.Text };
+            else if (output.Kind == CommandOutputKind.Transfer)
+            {
+                var progress = CommandProgressReader.Latest(output.Text);
+                if (progress == entry.Progress) return;
+                entry = entry with { Progress = progress };
+            }
             else
             {
                 var segments = entry.OutputSegments?.ToList() ?? [];
@@ -234,7 +240,8 @@ public sealed class PackageOperationQueue
 
 /// <param name="windowsApps">Reads what Windows lists as installed. Apps installed outside a package manager are invisible to
 /// the manager's own list, so this stops an installer being run over an existing installation. Null skips the check.</param>
-public sealed class PackageOperationExecutor(PackageService packages, InstallationService installations, IExecutableLocator locator, Func<InstalledInventory>? windowsApps = null)
+/// <param name="downloads">Reads how far a WinGet download has got, which WinGet itself does not print when its output is piped. Null shows no percentage.</param>
+public sealed class PackageOperationExecutor(PackageService packages, InstallationService installations, IExecutableLocator locator, Func<InstalledInventory>? windowsApps = null, ICommandRunner? downloads = null)
 {
     private async Task<InstalledApp?> FindOnWindowsAsync(Package package)
     {
@@ -248,6 +255,8 @@ public sealed class PackageOperationExecutor(PackageService packages, Installati
 
     public async Task<PackageActionResult> ExecuteAsync(PackageOperation operation, IProgress<CommandOutput>? progress, CancellationToken token)
     {
+        using var download = progress is not null && downloads is not null && operation.Manager == ManagerKind.Winget ? new WingetDownloadWatcher(progress, downloads) : null;
+        progress = download ?? progress;
         var path = locator.Find(operation.Manager);
         if (path is null) return new(ActionOutcome.Failed, $"{operation.Name} could not be processed", "Its package manager is no longer installed. Check Overview.");
         var manager = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == operation.Manager), ManagerHealth.Ready, "", path, "");
