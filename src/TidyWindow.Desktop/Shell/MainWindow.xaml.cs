@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
     private string? scoutFolder;
     private long reconciledCompletions;
     private bool initialized;
+    private bool scoutResetting;
     private bool closingDialog;
     private volatile bool closeConfirmed;
     private readonly InterruptedWork interrupted;
@@ -147,6 +148,11 @@ public sealed partial class MainWindow : Window
         QueueButton.DataContext = operationQueue;
         QueuePage.DataContext = operationQueue;
         ScoutPage.DataContext = scout;
+        ScoutType.ItemsSource = ScoutChoices.Types.Select(x => x.Label).ToArray();
+        ScoutModified.ItemsSource = ScoutChoices.Modified.Select(x => x.Label).ToArray();
+        ScoutSize.ItemsSource = ScoutChoices.Sizes.Select(x => x.Label).ToArray();
+        ScoutSort.ItemsSource = ScoutChoices.Sorts.Select(x => x.Label).ToArray();
+        ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0;
         scoutStatusTimer = DispatcherQueue.CreateTimer();
         scoutStatusTimer.Interval = TimeSpan.FromSeconds(3);
         scoutStatusTimer.Tick += async (_, _) => { if (page == Page.Scout && scout.NeedsBackendCheck) await RefreshScoutBackendAsync(); };
@@ -679,10 +685,24 @@ public sealed partial class MainWindow : Window
         if (initialized && !wasReady && scout.Indexed && page == Page.Scout) await SearchScoutAsync(false);
     }
     private string? ScoutRoot => ScoutLocation.SelectedIndex switch { 1 => null, >= 2 => scoutFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), _ => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) };
-    private ScoutItemKind ScoutKind => (ScoutItemKind)Math.Clamp(ScoutType.SelectedIndex, 0, 2);
-    private Task SearchScoutAsync(bool debounce = true) => scout.SearchAsync(ScoutSearchBox.Text, ScoutRoot, ScoutKind, debounce, ScoutLocation.SelectedIndex >= 2);
-    private async void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized) await SearchScoutAsync(); }
-    private async void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized) await SearchScoutAsync(false); }
+    /// <summary>The drop-down choices as filters, added to whatever was typed.</summary>
+    private string ScoutTokens => string.Join(' ', new[]
+    {
+        Choice(ScoutChoices.Types, ScoutType), Choice(ScoutChoices.Modified, ScoutModified), Choice(ScoutChoices.Sizes, ScoutSize), Choice(ScoutChoices.Sorts, ScoutSort)
+    }.Where(x => x.Length > 0));
+    private static string Choice((string Label, string Token)[] choices, ComboBox box) => choices[Math.Clamp(box.SelectedIndex, 0, choices.Length - 1)].Token;
+    private Task SearchScoutAsync(bool debounce = true) => scout.SearchAsync(ScoutSearchBox.Text, ScoutRoot, ScoutItemKind.All, debounce, ScoutLocation.SelectedIndex >= 2, ScoutTokens);
+    private void ScoutClearClick(object sender, RoutedEventArgs e)
+    {
+        // One search for all of it: the box and the four drop-downs are reset first and the changes they raise are ignored.
+        scoutResetting = true;
+        try { ScoutSearchBox.Text = ""; ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0; }
+        finally { scoutResetting = false; }
+        _ = SearchScoutAsync(false);
+        ScoutSearchBox.Focus(FocusState.Programmatic);
+    }
+    private async void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized && !scoutResetting) await SearchScoutAsync(); }
+    private async void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized && !scoutResetting) await SearchScoutAsync(false); }
     private async void ScoutLocationChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!initialized) return;
