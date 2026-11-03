@@ -34,8 +34,22 @@ public static partial class StartupGuard
     private static partial Regex HardwareMarkers();
 
     /// <summary>Files Windows itself ships: they live in the Windows folder and are not from another company.</summary>
-    public static bool IsWindowsOwned(string exePath, string publisher, StartupPlaces places) =>
-        !IsLauncher(exePath) && places.InWindows(exePath) && (publisher.Length == 0 || publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase));
+    public static bool IsWindowsOwned(string exePath, string publisher, StartupPlaces places) => IsWindowsOwned(exePath, () => publisher, places);
+
+    /// <summary>The same, asking for the company only when the file is in the Windows folder, since that is the only case where it matters.</summary>
+    public static bool IsWindowsOwned(string exePath, Func<string> publisher, StartupPlaces places) =>
+        !IsLauncher(exePath) && places.InWindows(exePath) && publisher() is var company && (company.Length == 0 || company.Contains("Microsoft", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether a task in Windows' own task folder really is Windows'. It is unless there is proof it runs something else: a task that names no program
+    /// (a COM handler) or only a launcher with nothing found behind it proves nothing, and a Microsoft-signed program outside the Windows folder is still Microsoft's.
+    /// </summary>
+    public static bool IsWindowsTask(string program, string exePath, Func<string> company, Func<FileFacts> file, StartupPlaces places) =>
+        string.IsNullOrWhiteSpace(program) || string.IsNullOrWhiteSpace(exePath) || IsLauncher(exePath)
+        || IsWindowsOwned(exePath, company, places)
+        || (file() is { Trust: StartupTrust.Verified } signed && signed.Signer.Contains("Microsoft", StringComparison.OrdinalIgnoreCase));
+
+    public const string UnusualTaskReason = "Sits among Windows' own scheduled tasks but runs a program that is not part of Windows. Drivers and system helpers do this, and so does unwanted software that wants to blend in, so check what it is before you change it.";
 
     /// <summary>The wording for an item with nothing special about it, so a screen can skip repeating it on every row.</summary>
     public const string OrdinaryReason = "Starting with Windows is optional. The app still works when you open it yourself.";
@@ -99,18 +113,49 @@ public static partial class StartupScan
 {
     private static readonly string[] RunSubKeys = ["Run", "Run32"];
 
-    public static StartupScanResult Run(IStartupSystem system, IReadOnlyCollection<string>? includeServices = null)
+    public static StartupScanResult Run(IStartupSystem system, IReadOnlyCollection<string>? includeServices = null) => Scan(system, includeServices, null);
+
+    private static readonly string[] IdKinds = ["run", "folder", "task", "service", "store", "setting"];
+
+    /// <summary>
+    /// Reads the places Windows starts things from. With <paramref name="only"/> it reads just what is needed to rebuild that one item, using the same code
+    /// and the same rules as the full scan, so the entry it gives back is identical to the one the full scan lists under that id.
+    /// </summary>
+    private static StartupScanResult Scan(IStartupSystem system, IReadOnlyCollection<string>? includeServices, string? only)
     {
-        var running = system.RunningImages();
+        // Only the kind of place the id names is read; an id that names no known kind reads everything and simply finds nothing.
+        var kind = only?.Split('|', 2)[0];
+        var everything = only is null || Array.IndexOf(IdKinds, kind?.ToLowerInvariant()) < 0;
+        bool Reads(string section) => everything || string.Equals(kind, section, StringComparison.OrdinalIgnoreCase);
+        bool NotWanted(string id) => only is not null && !string.Equals(id, only, StringComparison.OrdinalIgnoreCase);
+        string[] Parts(int count) => only!.Split('|', count);
+
+        ISet<string>? running = null;
+        // The whole list of running programs is read once for a full scan; for one item it is enough to ask about that program.
+        bool IsRunning(string exe) => only is null ? (running ??= system.RunningImages()).Contains(exe) : system.IsRunning(exe);
+
         var facts = new Dictionary<string, FileFacts>(StringComparer.OrdinalIgnoreCase);
+        var companies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         FileFacts Describe(string path)
         {
             if (path.Length == 0) return new(false, "", "", "", StartupTrust.Unknown);
             if (!facts.TryGetValue(path, out var found)) facts[path] = found = system.Describe(path);
             return found;
         }
+        // Deciding that something belongs to Windows only needs the company a file names, which is far cheaper than checking its signature.
+        string Company(string path)
+        {
+            if (path.Length == 0) return "";
+            if (facts.TryGetValue(path, out var known)) return known.Company;
+            if (!companies.TryGetValue(path, out var company)) companies[path] = company = system.Company(path);
+            return company;
+        }
 
+        // Entries are built after everything has been read: the slow part of building one is checking its program's signature, and once all the programs are known
+        // that can be done for all of them side by side. The entries come out in the order they were found.
         var entries = new List<StartupEntry>();
+        var pending = new List<(string Exe, Func<StartupEntry> Make)>();
+        void Defer(string exe, Func<StartupEntry> make) => pending.Add((exe, make));
         var finder = new PublisherFinder(system);
 
         StartupEntry Build(StartupKind kind, StartupScope scope, string id, string name, string description, string command, string exe, string location, string source, string key,
@@ -125,51 +170,80 @@ public static partial class StartupScan
             var (publisher, from) = finder.Find(name, exe, file, publisherHint, hintIsPackage: kind == StartupKind.StoreApp);
             var (risk, reason) = StartupGuard.Judge(kind, name, exe, command, publisher, file.Trust, missing, system.Places, service, dependents, policy, bootAsSystem);
             var about = description.Length > 0 ? description : file.Description;
-            var isRunning = !bare && exe.Length > 0 && running.Contains(exe);
+            var isRunning = !bare && exe.Length > 0 && IsRunning(exe);
             return new(id, kind, scope, name, publisher, about, command, exe, location, source, key, enabled, risk, reason, file.Trust, isRunning, missing, start, delayed, from, service?.Triggered ?? false, folderPath);
         }
 
-        foreach (var run in system.RunValues())
+        if (Reads("run"))
+            foreach (var run in system.RunValues())
+            {
+                var source = run.Where;
+                var id = $"run|{ScopeKey(run.Scope)}|{source}|{run.Name}";
+                if (NotWanted(id)) continue;
+                // Explorer keeps no on/off record for RunOnce or the Policies Run key, so those are always "on" until they are taken out.
+                var enabled = StartupLocations.ApprovedKey(source) is not { } approved || StartupApproved.IsEnabled(system.Approved(run.Scope, approved, run.Name));
+                var exe = ResolveExe(system, run.Command);
+                var name = CleanName(run.Name);
+                Defer(exe, () => NoSwitchNote(Build(StartupKind.RunKey, run.Scope, id, name, "", run.Command, exe, RunLocation(run.Scope, source), source, run.Name, enabled)));
+            }
+
+        if (Reads("folder"))
         {
-            var source = run.Where;
-            // Explorer keeps no on/off record for RunOnce or the Policies Run key, so those are always "on" until they are taken out.
-            var enabled = StartupLocations.ApprovedKey(source) is not { } approved || StartupApproved.IsEnabled(system.Approved(run.Scope, approved, run.Name));
-            var exe = ResolveExe(system, run.Command);
-            var name = CleanName(run.Name);
-            var entry = Build(StartupKind.RunKey, run.Scope, $"run|{ScopeKey(run.Scope)}|{source}|{run.Name}", name, "", run.Command, exe, RunLocation(run.Scope, source), source, run.Name, enabled);
-            entries.Add(NoSwitchNote(entry));
+            // The shortcuts in a Startup folder each cost a COM call to read, so for one item only that file is read.
+            IEnumerable<FolderItem> folderItems = !everything && Parts(3) is [_, var folderScope, var folderFile] && ScopeOf(folderScope) is { } scopeWanted
+                ? system.FolderItemFor(scopeWanted, folderFile) is { } one ? [one] : []
+                : system.FolderItems();
+            foreach (var item in folderItems)
+            {
+                var id = $"folder|{ScopeKey(item.Scope)}|{item.FileName}";
+                if (NotWanted(id)) continue;
+                var enabled = StartupApproved.IsEnabled(system.Approved(item.Scope, "StartupFolder", item.FileName));
+                var command = item.Target.Length > 0 ? (item.Arguments.Length > 0 ? $"\"{item.Target}\" {item.Arguments}" : item.Target) : item.FullPath;
+                var exe = item.Target.Length > 0 ? ResolveExe(system, Quoted(item.Target, item.Arguments)) : item.FullPath;
+                var name = Path.GetFileNameWithoutExtension(item.FileName);
+                var location = item.Scope == StartupScope.User ? "Your Startup folder" : "The Startup folder for everyone";
+                Defer(exe, () => Build(StartupKind.StartupFolder, item.Scope, id, name, "", command, exe, location, "StartupFolder", item.FileName, enabled, folderPath: item.FullPath));
+            }
         }
 
-        foreach (var item in system.FolderItems())
+        var windowsTasks = 0;
+        IReadOnlyList<ScheduledStartup> tasks = [];
+        if (Reads("task"))
         {
-            var enabled = StartupApproved.IsEnabled(system.Approved(item.Scope, "StartupFolder", item.FileName));
-            var command = item.Target.Length > 0 ? (item.Arguments.Length > 0 ? $"\"{item.Target}\" {item.Arguments}" : item.Target) : item.FullPath;
-            var exe = item.Target.Length > 0 ? ResolveExe(system, Quoted(item.Target, item.Arguments)) : item.FullPath;
-            var name = Path.GetFileNameWithoutExtension(item.FileName);
-            var location = item.Scope == StartupScope.User ? "Your Startup folder" : "The Startup folder for everyone";
-            entries.Add(Build(StartupKind.StartupFolder, item.Scope, $"folder|{ScopeKey(item.Scope)}|{item.FileName}", name, "", command, exe, location, "StartupFolder", item.FileName, enabled, folderPath: item.FullPath));
+            // Reading every task in Task Scheduler is the slowest read there is, so for one item only that task is read.
+            if (!everything && Parts(3) is [_, _, var taskPath]) tasks = system.TaskAt(taskPath) is { } oneTask ? [oneTask] : [];
+            else (tasks, windowsTasks) = system.Tasks();
         }
-
-        var (tasks, windowsTasks) = system.Tasks();
         foreach (var task in tasks.Where(x => x.AtLogon || x.AtBoot))
         {
+            var asSystem = task.RunAs.Contains("SYSTEM", StringComparison.OrdinalIgnoreCase);
+            var scope = asSystem ? StartupScope.Machine : StartupScope.User;
+            var id = $"task|{ScopeKey(scope)}|{task.Path}";
+            if (NotWanted(id)) continue;
             // The program and its arguments are read together: "cmd.exe" or "Update.exe" alone says nothing about what the task starts.
             var exe = ResolveExe(system, Quoted(task.Program, task.Arguments));
             // Office, Visual Studio and others keep their tasks in \Microsoft too. Only the ones that are really Windows' own are left out.
-            if (task.Path.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase) && StartupGuard.IsWindowsOwned(exe, Describe(exe).Company, system.Places)) { windowsTasks++; continue; }
+            var inWindowsFolder = task.Path.StartsWith(StartupLocations.WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase);
+            if (inWindowsFolder ? StartupGuard.IsWindowsTask(task.Program, exe, () => Company(exe), () => Describe(exe), system.Places)
+                : task.Path.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase) && StartupGuard.IsWindowsOwned(exe, () => Company(exe), system.Places)) { windowsTasks++; continue; }
             var command = task.Arguments.Length > 0 ? $"{task.Program} {task.Arguments}".Trim() : task.Program;
-            var asSystem = task.RunAs.Contains("SYSTEM", StringComparison.OrdinalIgnoreCase);
-            var scope = asSystem ? StartupScope.Machine : StartupScope.User;
             var when = task.AtBoot && task.AtLogon ? "at startup and sign-in" : task.AtBoot ? "at startup" : "at sign-in";
-            entries.Add(Build(StartupKind.ScheduledTask, scope, $"task|{ScopeKey(scope)}|{task.Path}", TaskName(task.Name), task.Description, command, exe, $"Scheduled task, runs {when}", "Task", task.Path, task.Enabled,
-                publisherHint: task.Author, bootAsSystem: asSystem && task.AtBoot));
+            Defer(exe, () =>
+            {
+                var entry = Build(StartupKind.ScheduledTask, scope, id, TaskName(task.Name), task.Description, command, exe, $"Scheduled task, runs {when}", "Task", task.Path, task.Enabled,
+                    publisherHint: task.Author, bootAsSystem: asSystem && task.AtBoot);
+                // Being among Windows' tasks is itself worth a warning; an ordinary "optional" verdict would undersell it.
+                return inWindowsFolder && entry.Risk == StartupRisk.Optional && !entry.FileMissing ? entry with { Risk = StartupRisk.Careful, Reason = StartupGuard.UnusualTaskReason } : entry;
+            });
         }
 
         var windowsServices = 0;
-        var all = system.Services();
-        var started = all.Where(x => x.Start <= 2).ToList();
+        // Every service is read even for one item, because whether other services depend on it is part of the answer; that read is cheap.
+        IReadOnlyList<ServiceFacts> all = Reads("service") ? system.Services() : Array.Empty<ServiceFacts>();
+        var started = new Lazy<List<ServiceFacts>>(() => all.Where(x => x.Start <= 2).ToList());
         foreach (var service in all)
         {
+            if (NotWanted($"service|machine|{service.Name}")) continue;
             var own = (service.Type & 0x30) != 0 && (service.Type & 0xC0) == 0;
             if (!own) continue;
             var wanted = includeServices?.Contains(service.Name, StringComparer.OrdinalIgnoreCase) == true;
@@ -179,35 +253,57 @@ public static partial class StartupScan
             if (service.ServiceDll.Length > 0 && string.Equals(Path.GetFileNameWithoutExtension(exe), "svchost", StringComparison.OrdinalIgnoreCase)
                 && ResolveExe(system, Quoted(service.ServiceDll, "")) is { Length: > 0 } library && !system.Places.InWindows(library))
                 exe = library;
-            if (StartupGuard.IsWindowsOwned(exe, Describe(exe).Company, system.Places)) { windowsServices++; continue; }
-            var dependents = started.Any(x => !ReferenceEquals(x, service) && x.DependsOn.Contains(service.Name, StringComparer.OrdinalIgnoreCase));
+            if (StartupGuard.IsWindowsOwned(exe, () => Company(exe), system.Places)) { windowsServices++; continue; }
+            var dependents = started.Value.Any(x => !ReferenceEquals(x, service) && x.DependsOn.Contains(service.Name, StringComparer.OrdinalIgnoreCase));
             // Names and descriptions that point into a resource file ("@dll,-101") are read here, only for the services that are listed.
             var display = system.Localize(service.DisplayName);
             var name = display.Length > 0 && !display.StartsWith('@') ? display : service.Name;
             var about = system.Localize(service.Description);
             if (about.StartsWith('@')) about = "";
             var how = service.Delayed ? "Starts shortly after Windows" : "Starts with Windows";
-            entries.Add(Build(StartupKind.Service, StartupScope.Machine, $"service|machine|{service.Name}", name, about, service.ImagePath, exe, $"Background service. {how}", "Service", service.Name,
+            var listed = exe;
+            Defer(exe, () => Build(StartupKind.Service, StartupScope.Machine, $"service|machine|{service.Name}", name, about, service.ImagePath, listed, $"Background service. {how}", "Service", service.Name,
                 service.Start == 2, service: service, dependents: dependents, start: service.Start, delayed: service.Delayed));
         }
 
-        foreach (var store in system.StoreTasks())
+        IEnumerable<StoreStartup> storeTasks = [];
+        if (Reads("store"))
+            storeTasks = !everything && Parts(4) is [_, _, var family, var taskId]
+                ? system.StoreTaskFor(family, taskId) is { } oneStore ? [oneStore] : []
+                : system.StoreTasks();
+        foreach (var store in storeTasks)
         {
+            var id = $"store|user|{store.Family}|{store.TaskId}";
+            if (NotWanted(id)) continue;
             var policy = store.State is 3 or 4;
             var name = store.DisplayName.Length > 0 ? store.DisplayName : StoreName(store.Family);
             var exe = store.Executable.Length > 0 ? store.Executable : "";
             var location = "App from the Microsoft Store";
-            entries.Add(Build(StartupKind.StoreApp, StartupScope.User, $"store|user|{store.Family}|{store.TaskId}", name, "", exe.Length > 0 ? exe : $"Startup task {store.TaskId}", exe, location, "Store", $"{store.Family}|{store.TaskId}",
+            Defer(exe, () => Build(StartupKind.StoreApp, StartupScope.User, id, name, "", exe.Length > 0 ? exe : $"Startup task {store.TaskId}", exe, location, "Store", $"{store.Family}|{store.TaskId}",
                 store.State is 2 or 4, publisherHint: store.Publisher, policy: policy, checkFile: false));
         }
 
-        foreach (var setting in system.WindowsSettings())
+        IReadOnlyList<WindowsSetting> settings = Reads("setting") ? system.WindowsSettings() : Array.Empty<WindowsSetting>();
+        foreach (var setting in settings)
         {
+            if (NotWanted($"setting|{ScopeKey(setting.Scope)}|{setting.Id}")) continue;
             var normal = string.Equals(setting.Value.Trim(), setting.Expected.Trim(), StringComparison.OrdinalIgnoreCase);
             var note = normal ? "" : "This is not the usual value. If you did not change it, run a security scan.";
-            var entry = Build(StartupKind.WindowsSetting, setting.Scope, $"setting|{ScopeKey(setting.Scope)}|{setting.Id}", setting.Name, note, setting.Value, "", setting.Location, "Setting", setting.Id, true);
-            entries.Add(normal ? entry : entry with { Reason = "Not the usual value. If you did not change it, run a security scan. It cannot be changed here." });
+            // A setting of this user that is empty on a healthy PC can be cleared, and the program it names is looked at like any other startup item.
+            var clearable = setting.Scope == StartupScope.User && !normal && StartupLocations.SettingFor(setting.Id) is not null;
+            var settingExe = clearable ? ResolveExe(system, setting.Value) : "";
+            Defer(settingExe, () =>
+            {
+                var entry = Build(StartupKind.WindowsSetting, setting.Scope, $"setting|{ScopeKey(setting.Scope)}|{setting.Id}", setting.Name, note, setting.Value, settingExe, setting.Location, "Setting", setting.Id, true);
+                return clearable ? entry with { Risk = StartupRisk.Careful, Reason = ClearableReason(setting.Id) }
+                    : normal ? entry : entry with { Reason = "Not the usual value. If you did not change it, run a security scan. It cannot be changed here." };
+            });
         }
+
+        // One item has nothing to share, so only a full scan checks the programs side by side first.
+        if (only is null)
+            system.Warm(pending.Select(x => x.Exe).Where(x => x.Length > 0 && !StartupGuard.IsLauncher(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        foreach (var (_, make) in pending) entries.Add(make());
 
         var ordered = entries
             .OrderBy(x => x.Risk == StartupRisk.Protected)
@@ -216,8 +312,18 @@ public static partial class StartupScan
         return new(ordered, windowsTasks, windowsServices);
     }
 
+    private static string ClearableReason(string id) => id switch
+    {
+        "User.Winlogon.Shell" => "Replaces the Windows desktop for your account only. Clearing it makes Windows use the usual one. If you did not set this up, run a security scan. TidyWindow keeps a copy so you can put it back.",
+        "User.Winlogon.Userinit" => "Replaces the sign-in program for your account only. Clearing it makes Windows use the usual one. If you did not set this up, run a security scan. TidyWindow keeps a copy so you can put it back.",
+        _ => "Starts a program every time you sign in, from a setting that is empty on most PCs and that Task Manager does not show. Only clear it if you recognize the program. TidyWindow keeps a copy so you can put it back."
+    };
+
+    /// <summary>The entry the full scan lists under this id, or null, found by reading only what that one item needs.</summary>
     public static StartupEntry? Find(IStartupSystem system, string id) =>
-        Run(system, ServiceNameOf(id) is { } service ? [service] : null).Entries.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        Scan(system, ServiceNameOf(id) is { } service ? [service] : null, id).Entries.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    private static StartupScope? ScopeOf(string key) => key.ToLowerInvariant() switch { "user" => StartupScope.User, "machine" => StartupScope.Machine, _ => null };
 
     private static string? ServiceNameOf(string id)
     {
@@ -233,6 +339,7 @@ public static partial class StartupScan
         StartupKind.RunKey => $"run|{ScopeKey(vault.Scope)}|{vault.Source}|{vault.Key}",
         StartupKind.StartupFolder => $"folder|{ScopeKey(vault.Scope)}|{vault.Key}",
         StartupKind.ScheduledTask => $"task|{ScopeKey(vault.Scope)}|{vault.Key}",
+        StartupKind.WindowsSetting => $"setting|{ScopeKey(vault.Scope)}|{vault.Key}",
         _ => ""
     };
 

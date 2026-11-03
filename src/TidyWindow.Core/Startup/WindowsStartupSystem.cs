@@ -73,25 +73,45 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return null; }
     }
 
+    private static string StartupFolder(StartupScope scope) =>
+        Environment.GetFolderPath(scope == StartupScope.User ? Environment.SpecialFolder.Startup : Environment.SpecialFolder.CommonStartup);
+
+    private static FolderItem ItemOf(StartupScope scope, string file)
+    {
+        var (target, arguments) = Path.GetExtension(file).Equals(".lnk", StringComparison.OrdinalIgnoreCase) ? Shortcut(file) : (file, "");
+        return new(scope, Path.GetFileName(file), file, target, arguments);
+    }
+
     public IReadOnlyList<FolderItem> FolderItems()
     {
         var items = new List<FolderItem>();
-        foreach (var (scope, folder) in new[] { (StartupScope.User, Environment.GetFolderPath(Environment.SpecialFolder.Startup)), (StartupScope.Machine, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup)) })
+        foreach (var scope in new[] { StartupScope.User, StartupScope.Machine })
         {
+            var folder = StartupFolder(scope);
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) continue;
             try
             {
                 foreach (var file in Directory.EnumerateFiles(folder))
-                {
-                    var name = Path.GetFileName(file);
-                    if (name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) continue;
-                    var (target, arguments) = Path.GetExtension(file).Equals(".lnk", StringComparison.OrdinalIgnoreCase) ? Shortcut(file) : (file, "");
-                    items.Add(new(scope, name, file, target, arguments));
-                }
+                    if (!Path.GetFileName(file).Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) items.Add(ItemOf(scope, file));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
         }
         return items;
+    }
+
+    // Looks the file up by name instead of reading the folder, but still returns it under the name the folder itself spells it with.
+    public FolderItem? FolderItemFor(StartupScope scope, string fileName)
+    {
+        var folder = StartupFolder(scope);
+        if (string.IsNullOrEmpty(folder) || fileName.Length == 0 || Path.GetFileName(fileName) != fileName || fileName.IndexOfAny(['*', '?']) >= 0
+            || fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return null;
+        try
+        {
+            if (!Directory.Exists(folder)) return null;
+            var file = Directory.EnumerateFiles(folder, fileName).FirstOrDefault(x => Path.GetFileName(x).Equals(fileName, StringComparison.OrdinalIgnoreCase));
+            return file is null ? null : ItemOf(scope, file);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or ArgumentException) { return null; }
     }
 
     private static (string Target, string Arguments) Shortcut(string file)
@@ -107,16 +127,58 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         catch (Exception ex) when (ex is COMException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { return ("", ""); }
     }
 
+    private static dynamic? ConnectScheduler()
+    {
+        var type = Type.GetTypeFromProgID("Schedule.Service");
+        if (type is null) return null;
+        dynamic service = Activator.CreateInstance(type)!;
+        service.Connect();
+        return service;
+    }
+
+    // Reading a task's definition is slow and a PC has hundreds, so the folders are read side by side, each reader with its own connection.
+    // Results are put back in folder order, so the list is the same one a single reader would give.
     public (IReadOnlyList<ScheduledStartup> Tasks, int WindowsOwned) Tasks()
+    {
+        try
+        {
+            dynamic? service = ConnectScheduler();
+            if (service is null) return ([], 0);
+            var folders = new List<string>();
+            ListFolders(service.GetFolder("\\"), folders);
+            var results = new (List<ScheduledStartup> Found, int Owned)[folders.Count];
+            Parallel.For(0, folders.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 6) },
+                () => ConnectScheduler(),
+                (index, _, reader) =>
+                {
+                    var found = new List<ScheduledStartup>();
+                    var owned = 0;
+                    try { if (reader is not null) ReadTasks(reader.GetFolder(folders[index]), found, ref owned); }
+                    catch (Exception ex) when (ex is COMException or IOException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+                    results[index] = (found, owned);
+                    return reader;
+                },
+                _ => { });
+            return ([.. results.SelectMany(x => x.Found)], results.Sum(x => x.Owned));
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or AggregateException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { return TasksOneByOne(); }
+    }
+
+    private static void ListFolders(dynamic folder, List<string> into)
+    {
+        into.Add((string)folder.Path);
+        foreach (var child in folder.GetFolders(0)) ListFolders(child, into);
+    }
+
+    // The way it was read before folders were read side by side; used if reading them side by side fails.
+    private static (IReadOnlyList<ScheduledStartup> Tasks, int WindowsOwned) TasksOneByOne()
     {
         var found = new List<ScheduledStartup>();
         var owned = 0;
         try
         {
-            var type = Type.GetTypeFromProgID("Schedule.Service");
-            if (type is null) return (found, 0);
-            dynamic service = Activator.CreateInstance(type)!;
-            service.Connect();
+            dynamic? service = ConnectScheduler();
+            if (service is null) return (found, 0);
             Walk(service.GetFolder("\\"), found, ref owned);
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
@@ -125,58 +187,77 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
 
     private static void Walk(dynamic folder, List<ScheduledStartup> found, ref int owned)
     {
+        ReadTasks(folder, found, ref owned);
+        foreach (var child in folder.GetFolders(0)) Walk(child, found, ref owned);
+    }
+
+    private static void ReadTasks(dynamic folder, List<ScheduledStartup> found, ref int owned)
+    {
         foreach (var task in folder.GetTasks(1))
         {
+            // Windows' own folder is read like any other: whether a task there is really Windows' is decided by the program it runs, which the scan looks at.
+            // Tasks that never start at sign-in or boot are counted here, since the scan never sees them.
+            var inWindows = false;
             try
             {
                 string path = task.Path;
-                if (path.StartsWith(WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase)) { owned++; continue; }
-                dynamic definition = task.Definition;
-                bool logon = false, boot = false;
-                foreach (var trigger in definition.Triggers)
-                {
-                    // A trigger that is switched off never fires, whatever it is for.
-                    if (!(bool)trigger.Enabled) continue;
-                    int kind = trigger.Type;
-                    // Type 9 is "at log on"; type 11 is a session change, and connecting to the console or a remote session is how some apps ask to start at sign-in.
-                    logon |= kind == 9 || (kind == 11 && (int)trigger.StateChange is 1 or 3);
-                    boot |= kind == 8;
-                }
-                if (!logon && !boot) continue;
-                string program = "", arguments = "";
-                foreach (var action in definition.Actions)
-                {
-                    if ((int)action.Type != 0) continue;
-                    program = (string)action.Path ?? ""; arguments = (string)action.Arguments ?? "";
-                    break;
-                }
-                string runAs = (string)definition.Principal.UserId ?? (string)definition.Principal.GroupId ?? "";
-                found.Add(new(path, (string)task.Name, (string)definition.RegistrationInfo.Description ?? "", (string)definition.RegistrationInfo.Author ?? "", (bool)task.Enabled, program, arguments, logon, boot, runAs));
+                inWindows = path.StartsWith(WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase);
+                if (ReadTask(task) is { } item) found.Add(item);
+                else if (inWindows) owned++;
             }
-            catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException) { }
-        }
-        foreach (var child in folder.GetFolders(0))
-        {
-            string name = child.Path;
-            if (name.Equals(WindowsTaskFolder, StringComparison.OrdinalIgnoreCase)) { owned += Count(child); continue; }
-            Walk(child, found, ref owned);
+            // A task deleted while the list is being read is simply not there any more.
+            catch (Exception ex) when (ex is COMException or IOException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException) { if (inWindows) owned++; }
         }
     }
 
-    // Windows' own tasks. The rest of \Microsoft (Office, Visual Studio...) holds ordinary programs' tasks and is read like any other folder.
-    internal const string WindowsTaskFolder = @"\Microsoft\Windows";
-
-    private static int Count(dynamic folder)
+    // The one place a task is turned into a record, so reading the whole list and reading a single task can never disagree. Null when it never starts at sign-in or boot.
+    private static ScheduledStartup? ReadTask(object comTask)
     {
-        var count = 0;
+        dynamic task = comTask;
+        dynamic definition = task.Definition;
+        bool logon = false, boot = false;
+        foreach (var trigger in definition.Triggers)
+        {
+            // A trigger that is switched off never fires, whatever it is for.
+            if (!(bool)trigger.Enabled) continue;
+            int kind = trigger.Type;
+            // Type 9 is "at log on"; type 11 is a session change, and connecting to the console or a remote session is how some apps ask to start at sign-in.
+            logon |= kind == 9 || (kind == 11 && (int)trigger.StateChange is 1 or 3);
+            boot |= kind == 8;
+        }
+        if (!logon && !boot) return null;
+        string program = "", arguments = "";
+        foreach (var action in definition.Actions)
+        {
+            if ((int)action.Type != 0) continue;
+            program = (string)action.Path ?? ""; arguments = (string)action.Arguments ?? "";
+            break;
+        }
+        string runAs = (string)definition.Principal.UserId ?? (string)definition.Principal.GroupId ?? "";
+        return new((string)task.Path, (string)task.Name, (string)definition.RegistrationInfo.Description ?? "", (string)definition.RegistrationInfo.Author ?? "", (bool)task.Enabled, program, arguments, logon, boot, runAs);
+    }
+
+    public ScheduledStartup? TaskAt(string path)
+    {
+        if (path.Length < 2 || path[0] != '\\' || path.Length > 240) return null;
         try
         {
-            count += (int)folder.GetTasks(1).Count;
-            foreach (var child in folder.GetFolders(0)) count += Count(child);
+            var type = Type.GetTypeFromProgID("Schedule.Service");
+            if (type is null) return null;
+            dynamic service = Activator.CreateInstance(type)!;
+            service.Connect();
+            var split = path.LastIndexOf('\\');
+            dynamic folder = service.GetFolder(split == 0 ? "\\" : path[..split]);
+            dynamic task = folder.GetTask(path[(split + 1)..]);
+            return ReadTask(task);
         }
-        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
-        return count;
+        // Task Scheduler's "no such task" arrives as a FileNotFoundException, which is an IOException, not as a COMException.
+        catch (Exception ex) when (ex is COMException or IOException or InvalidOperationException or ArgumentException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException) { return null; }
     }
+
+    // Windows' own tasks live here. Most are left out of the list, but a task here whose program is not Windows' (a driver helper, or unwanted software hiding among them) is kept.
+    // The rest of \Microsoft (Office, Visual Studio...) holds ordinary programs' tasks.
+    internal const string WindowsTaskFolder = StartupLocations.WindowsTaskFolder;
 
     public IReadOnlyList<ServiceFacts> Services()
     {
@@ -214,7 +295,12 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
 
     private static string Text(RegistryKey key, string name) => key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";
 
-    public IReadOnlyList<StoreStartup> StoreTasks()
+    public IReadOnlyList<StoreStartup> StoreTasks() => ReadStoreTasks(null, null);
+
+    public StoreStartup? StoreTaskFor(string family, string taskId) => ReadStoreTasks(family, taskId).FirstOrDefault();
+
+    // One reader for both the whole list and a single task, so the two can never disagree.
+    private static List<StoreStartup> ReadStoreTasks(string? onlyFamily, string? onlyTask)
     {
         var tasks = new List<StoreStartup>();
         try
@@ -224,6 +310,7 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
             var registered = RegisteredPackages();
             foreach (var family in root.GetSubKeyNames())
             {
+                if (onlyFamily is not null && !family.Equals(onlyFamily, StringComparison.OrdinalIgnoreCase)) continue;
                 using var package = root.OpenSubKey(family);
                 if (package is null) continue;
                 // Uninstalling a Store app leaves its startup task behind. When Windows knows the packages of this user and none belongs to the family, the app is gone.
@@ -234,6 +321,7 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
                 Manifest? manifest = null;
                 foreach (var id in package.GetSubKeyNames())
                 {
+                    if (onlyTask is not null && !id.Equals(onlyTask, StringComparison.OrdinalIgnoreCase)) continue;
                     using var task = package.OpenSubKey(id);
                     if (task?.GetValue("State") is not int state) continue;
                     manifest ??= ReadManifest(full, current?.Root);
@@ -378,16 +466,52 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
         return settings;
     }
 
+    // Checking a signature is by far the slowest thing a scan does and the answer only changes when the file does, so it is kept for as long as
+    // the file keeps the same size and time stamp (and for a few minutes at most), which makes every scan after the first nearly free.
+    private sealed record Described(long Length, long Ticks, long Stamp, FileFacts Facts);
+    private static readonly long CacheLife = (long)TimeSpan.FromMinutes(10).TotalMilliseconds;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Described> described = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool Fresh(string path, FileInfo file, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Described? hit) =>
+        described.TryGetValue(path, out hit) && hit.Length == file.Length && hit.Ticks == file.LastWriteTimeUtc.Ticks && Environment.TickCount64 - hit.Stamp < CacheLife;
+
     public FileFacts Describe(string path)
     {
         try
         {
-            if (!File.Exists(path)) return new(false, "", "", "", StartupTrust.Unknown);
+            var file = new FileInfo(path);
+            if (!file.Exists) return new(false, "", "", "", StartupTrust.Unknown);
+            if (Fresh(path, file, out var hit)) return hit.Facts;
             var info = FileVersionInfo.GetVersionInfo(path);
             var (trust, signer) = Verify(path);
-            return new(true, Clean(info.CompanyName), Clean(info.FileDescription), Clean(info.ProductName), trust, signer);
+            var facts = new FileFacts(true, Clean(info.CompanyName), Clean(info.FileDescription), Clean(info.ProductName), trust, signer);
+            described[path] = new(file.Length, file.LastWriteTimeUtc.Ticks, Environment.TickCount64, facts);
+            return facts;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return new(File.Exists(path), "", "", "", StartupTrust.Unknown); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return new(FileExists(path), "", "", "", StartupTrust.Unknown); }
+    }
+
+    // Signature checks wait on the disk and the certificate store, so they overlap well. The results land in the same cache Describe reads.
+    public void Warm(IReadOnlyCollection<string> paths)
+    {
+        if (paths.Count < 2) return;
+        try
+        {
+            Parallel.ForEach(paths, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 6) }, path => Describe(path));
+        }
+        catch (AggregateException) { }
+    }
+
+    // What Windows does with a file's own details, without the slow signature check.
+    public string Company(string path)
+    {
+        try
+        {
+            var file = new FileInfo(path);
+            if (!file.Exists) return "";
+            return Fresh(path, file, out var hit) ? hit.Facts.Company : Clean(FileVersionInfo.GetVersionInfo(path).CompanyName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return ""; }
     }
 
     private static string Clean(string? text) => text?.Trim() ?? "";
@@ -432,25 +556,41 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
     {
         var images = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var process in Process.GetProcesses())
-        {
             using (process)
-            {
-                try
-                {
-                    var handle = OpenProcess(0x1000, false, process.Id);
-                    if (handle == IntPtr.Zero) continue;
-                    try
-                    {
-                        var buffer = new StringBuilder(1024);
-                        var size = buffer.Capacity;
-                        if (QueryFullProcessImageName(handle, 0, buffer, ref size)) images.Add(buffer.ToString());
-                    }
-                    finally { CloseHandle(handle); }
-                }
-                catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { }
-            }
-        }
+                if (ImageOf(process) is { } image) images.Add(image);
         return images;
+    }
+
+    // Asks only for the processes with the program's name, then confirms the exact file, instead of reading every process on the PC.
+    public bool IsRunning(string exePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(exePath);
+        if (string.IsNullOrEmpty(name)) return false;
+        Process[] candidates;
+        try { candidates = Process.GetProcessesByName(name); }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return false; }
+        var running = false;
+        foreach (var process in candidates)
+            using (process)
+                running |= string.Equals(ImageOf(process), exePath, StringComparison.OrdinalIgnoreCase);
+        return running;
+    }
+
+    private static string? ImageOf(Process process)
+    {
+        try
+        {
+            var handle = OpenProcess(0x1000, false, process.Id);
+            if (handle == IntPtr.Zero) return null;
+            try
+            {
+                var buffer = new StringBuilder(1024);
+                var size = buffer.Capacity;
+                return QueryFullProcessImageName(handle, 0, buffer, ref size) ? buffer.ToString() : null;
+            }
+            finally { CloseHandle(handle); }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return null; }
     }
 
     // ---- Authenticode: is the file signed, does the signature check out, and who signed it? ----
@@ -580,13 +720,14 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
 
     public void SetTask(string path, bool enabled) => WithTask(path, task => task.Enabled = enabled);
 
-    // Windows' own tasks are never touched; the rest of \Microsoft (Office, Visual Studio...) belongs to ordinary programs.
+    // The changer only reaches a task in Windows' own folder when the scan listed it, which it does only for a task that runs a program that is not Windows'.
     private static void CheckTaskPath(string path)
     {
-        if (path.Length < 2 || path[0] != '\\' || path.Length > 240 || path.Contains("..", StringComparison.Ordinal)
-            || path.StartsWith(WindowsStartupSystem.WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase))
+        if (path.Length < 2 || path[0] != '\\' || path.Length > 240 || path.Contains("..", StringComparison.Ordinal))
             throw new InvalidOperationException("That task cannot be changed.");
     }
+
+    private static bool InWindowsFolder(string path) => path.StartsWith(WindowsStartupSystem.WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase);
 
     private static void WithTask(string path, Action<dynamic> change)
     {
@@ -640,7 +781,8 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
             var split = path.LastIndexOf('\\');
             dynamic folder = service.GetFolder(split == 0 ? "\\" : path[..split]);
             // 6 = create or update; the task's own definition names who it runs as, so no account is passed.
-            folder.RegisterTask(path[(split + 1)..], xml, 6, null, null, 0, null);
+            // In Windows' own folder only 2 (create) is used, so a copy can never replace one of Windows' tasks.
+            folder.RegisterTask(path[(split + 1)..], xml, InWindowsFolder(path) ? 2 : 6, null, null, 0, null);
         }
         catch (COMException ex) when ((uint)ex.HResult == 0x80070005) { throw new UnauthorizedAccessException(ex.Message, ex); }
         catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException ex) when (ex.Message.Contains("0x80070005", StringComparison.Ordinal) || ex.Message.Contains("denied", StringComparison.OrdinalIgnoreCase)) { throw new UnauthorizedAccessException(ex.Message, ex); }
@@ -688,6 +830,34 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
             using var root = Hive(scope);
             using var key = root.CreateSubKey(path, writable: true);
             key.SetValue(name, command, expandable ? RegistryValueKind.ExpandString : RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException ex) { throw new UnauthorizedAccessException(ex.Message, ex); }
+    }
+
+    public (string Value, bool Expandable) ClearSetting(string id)
+    {
+        if (StartupLocations.SettingFor(id) is not { } setting) throw new InvalidOperationException("That setting cannot be changed.");
+        var (path, name) = setting;
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(path, writable: true);
+            if (key?.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is not string { Length: > 0 } value) throw new InvalidOperationException("That setting was not found.");
+            var expandable = key.GetValueKind(name) == RegistryValueKind.ExpandString;
+            key.DeleteValue(name);
+            return (value, expandable);
+        }
+        catch (System.Security.SecurityException ex) { throw new UnauthorizedAccessException(ex.Message, ex); }
+    }
+
+    public void RestoreSetting(string id, string value, bool expandable)
+    {
+        if (StartupLocations.SettingFor(id) is not { } setting) throw new InvalidOperationException("That setting cannot be changed.");
+        var (path, name) = setting;
+        if (value.Length == 0 || value.Length > 8192) throw new InvalidOperationException("That setting cannot be put back.");
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(path, writable: true);
+            key.SetValue(name, value, expandable ? RegistryValueKind.ExpandString : RegistryValueKind.String);
         }
         catch (System.Security.SecurityException ex) { throw new UnauthorizedAccessException(ex.Message, ex); }
     }

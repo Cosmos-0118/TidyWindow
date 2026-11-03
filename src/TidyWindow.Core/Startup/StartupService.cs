@@ -60,11 +60,20 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
             case StartupKind.StartupFolder:
                 vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: Convert.ToBase64String(writer.RemoveFolderItem(entry.Scope, entry.Key)));
                 break;
+            case StartupKind.WindowsSetting:
+                if (entry.Scope != StartupScope.User || StartupLocations.SettingFor(entry.Key) is null) return new(false, "That kind of item cannot be removed from startup.", entry);
+                var (text, expandable) = writer.ClearSetting(entry.Key);
+                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, text, expandable);
+                break;
             default:
                 vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: writer.RemoveTask(entry.Key));
                 break;
         }
-        return StartupScan.Find(system, request.Id) is null
+        // The item is already gone and the copy is the only way back, so a failure to look again must never cost the caller that copy.
+        StartupEntry? remaining;
+        try { remaining = StartupScan.Find(system, request.Id); }
+        catch (Exception ex) when (ex is IOException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidOperationException) { remaining = null; }
+        return remaining is null
             ? new(true, null, null, vault)
             : new(false, "Windows did not accept the change.", entry, vault);
     }
@@ -85,6 +94,10 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
                 break;
             case StartupKind.ScheduledTask:
                 writer.RestoreTask(vault.Key, vault.Data);
+                break;
+            case StartupKind.WindowsSetting:
+                if (vault.Scope != StartupScope.User || StartupLocations.SettingFor(vault.Key) is null) return new(false, "That kind of item cannot be put back.");
+                writer.RestoreSetting(vault.Key, vault.Command, vault.Expandable);
                 break;
             default:
                 return new(false, "That kind of item cannot be put back.");

@@ -664,6 +664,9 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         {
             using var inProgress = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress");
             if (inProgress is not null) return;
+            // Saved rollback information that Windows Installer still lists is what an interrupted install would be undone from: the Repair scan never offers to remove it, and neither does this.
+            using var rollback = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Rollback");
+            if (rollback is not null) return;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return; }
 

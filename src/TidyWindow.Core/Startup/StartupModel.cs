@@ -16,9 +16,9 @@ public sealed record StartupEntry(
 {
     public bool CanChange => Risk != StartupRisk.Protected;
     /// <summary>Explorer keeps no on/off record for some Run-style keys, so those items can only be taken out, never switched.</summary>
-    public bool CanToggle => CanChange && Array.IndexOf(StartupLocations.NoSwitchSources, Source) < 0;
+    public bool CanToggle => CanChange && Kind != StartupKind.WindowsSetting && Array.IndexOf(StartupLocations.NoSwitchSources, Source) < 0;
     /// <summary>Items that live somewhere TidyWindow can take them out of and put back exactly as they were.</summary>
-    public bool CanRemove => CanChange && Kind is StartupKind.RunKey or StartupKind.StartupFolder or StartupKind.ScheduledTask;
+    public bool CanRemove => CanChange && Kind is StartupKind.RunKey or StartupKind.StartupFolder or StartupKind.ScheduledTask or StartupKind.WindowsSetting;
 }
 
 // What the scanner reads from the PC. Each record is one fact, so tests can describe a PC without touching the registry.
@@ -77,6 +77,22 @@ public interface IStartupSystem
     IReadOnlyList<string> Subfolders(string folder) => [];
     /// <summary>Turns a resource reference such as "@%SystemRoot%\x.dll,-101" into the text it points to, or returns the text unchanged when it cannot.</summary>
     string Localize(string text) => text;
+
+    // Reads aimed at one item. Each must give exactly what the matching full read would list for it, so that checking one item never needs the whole PC read.
+    // The defaults filter the full read, which is always correct; a real PC overrides them to read only what is asked for.
+
+    /// <summary>The company a file names for itself, "" if it names none or is not there. Unlike <see cref="Describe"/> it never checks the signature.</summary>
+    string Company(string path) => Describe(path).Company;
+    /// <summary>The sign-in or boot task at <paramref name="path"/>, as <see cref="Tasks"/> would list it, or null.</summary>
+    ScheduledStartup? TaskAt(string path) => Tasks().Tasks.FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
+    FolderItem? FolderItemFor(StartupScope scope, string fileName) =>
+        FolderItems().FirstOrDefault(x => x.Scope == scope && string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+    StoreStartup? StoreTaskFor(string family, string taskId) =>
+        StoreTasks().FirstOrDefault(x => string.Equals(x.Family, family, StringComparison.OrdinalIgnoreCase) && string.Equals(x.TaskId, taskId, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Gets <see cref="Describe"/> ready for all of these files at once, so asking for them one by one afterwards is quick. Changes no result.</summary>
+    void Warm(IReadOnlyCollection<string> paths) { }
+    /// <summary>Whether a process is running from exactly this file.</summary>
+    bool IsRunning(string exePath) => RunningImages().Contains(exePath);
 }
 
 /// <summary>
@@ -97,6 +113,10 @@ public interface IStartupWriter
     /// <returns>The task's definition (XML), read before it was deleted.</returns>
     string RemoveTask(string path);
     void RestoreTask(string path, string xml);
+    /// <summary>Clears one of the sign-in settings listed by <see cref="StartupLocations.SettingFor"/> for this user.</summary>
+    /// <returns>The value's text and whether it held %variables%, read before it was cleared.</returns>
+    (string Value, bool Expandable) ClearSetting(string id);
+    void RestoreSetting(string id, string value, bool expandable);
 }
 
 /// <summary>Everything needed to put a removed startup item back. <see cref="Data"/> is the shortcut's bytes (base64) or the task's XML.</summary>
@@ -120,6 +140,9 @@ public sealed record StartupChange(string Id, string Name, StartupKind Kind, Sta
 /// <summary>The Run-style registry keys Windows reads at sign-in, by the name TidyWindow gives each. Explorer keeps an on/off record for the first two only.</summary>
 public static class StartupLocations
 {
+    /// <summary>Task Scheduler's folder for Windows' own tasks.</summary>
+    public const string WindowsTaskFolder = @"\Microsoft\Windows";
+
     public const string Run = "Run", Run32 = "Run32", RunOnce = "RunOnce", RunOnce32 = "RunOnce32", PolicyRun = "PolicyRun";
 
     /// <summary>Where Explorer's own on/off record cannot reach: these can only be taken out.</summary>
@@ -133,6 +156,19 @@ public static class StartupLocations
         RunOnce => @"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce",
         RunOnce32 => @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce",
         PolicyRun => @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run",
+        _ => null
+    };
+
+    /// <summary>
+    /// The per-user sign-in settings that are empty on a healthy PC, so clearing one is always safe: Windows then does what it does without it.
+    /// The machine-wide copies are not listed here and stay locked, because a wrong value there can stop the desktop from starting.
+    /// </summary>
+    public static (string Path, string Value)? SettingFor(string id) => id switch
+    {
+        "User.Windows.Load" => (@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows", "Load"),
+        "User.Windows.Run" => (@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows", "Run"),
+        "User.Winlogon.Shell" => (@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", "Shell"),
+        "User.Winlogon.Userinit" => (@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", "Userinit"),
         _ => null
     };
 
