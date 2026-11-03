@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Window
         operationQueue = new(packageQueue, log, action => DispatcherQueue.TryEnqueue(() => action()));
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
-        installations = new(management, model, log, operationQueue);
+        installations = new(management, model, log, operationQueue, snapshot: new InstalledSnapshot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "installed-apps.json")));
         var scoutHost = Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe");
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.
         scout = new(new ScoutService(runner, scoutHost, worker: new PersistentScoutWorker(scoutHost), fuzzyWorker: new PersistentScoutWorker(scoutHost, killOnCancel: true)), log, action => DispatcherQueue.TryEnqueue(() => action()));
@@ -132,6 +132,8 @@ public sealed partial class MainWindow : Window
         QuietPage.DataContext = quiet;
         TunePage.DataContext = tune;
         DebloatPage.DataContext = debloat;
+        // Debloat removes apps behind the package managers' backs, so the Installed list is read again the next time it is opened.
+        debloat.AppsChanged += () => installations.NeedsRefresh = true;
         FixesPage.DataContext = fixes;
         UnstickPage.DataContext = unstick;
         LabPage.DataContext = lab;
@@ -763,8 +765,25 @@ public sealed partial class MainWindow : Window
         if (installations.NeedsRefresh) await installations.RefreshAsync();
     }
     private async void InstalledRefreshClick(object sender, RoutedEventArgs e) => await installations.RefreshAsync();
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? installedFilterTimer;
+    private void ApplyInstalledFilter() => installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1);
     private void InstalledFilterChanged(object sender, RoutedEventArgs e)
-    { if (initialized) installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1); }
+    {
+        if (!initialized) return;
+        if (sender is not TextBox) { installedFilterTimer?.Stop(); ApplyInstalledFilter(); return; }
+        // Typing: the list is narrowed once the person pauses, not once per letter, which on a slow PC made every keystroke wait for the list.
+        if (installedFilterTimer is null)
+        {
+            installedFilterTimer = DispatcherQueue.CreateTimer();
+            installedFilterTimer.Interval = TimeSpan.FromMilliseconds(150);
+            installedFilterTimer.IsRepeating = false;
+            installedFilterTimer.Tick += (_, _) => ApplyInstalledFilter();
+        }
+        installedFilterTimer.Stop();
+        installedFilterTimer.Start();
+    }
+    private void InstalledRowRealized(ListViewBase sender, ContainerContentChangingEventArgs args)
+    { if (!args.InRecycleQueue && args.Item is InstalledRow row) installations.Realized(row); }
     private void UpdateInstalledClick(object sender, RoutedEventArgs e)
     { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
     private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);

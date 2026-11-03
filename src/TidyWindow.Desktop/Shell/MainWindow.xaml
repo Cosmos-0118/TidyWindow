@@ -316,7 +316,7 @@
         <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
        </Grid>
       </Border>
-      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Installed packages">
+      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" ContainerContentChanging="InstalledRowRealized" AutomationProperties.Name="Installed packages">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,12" MinHeight="68">
