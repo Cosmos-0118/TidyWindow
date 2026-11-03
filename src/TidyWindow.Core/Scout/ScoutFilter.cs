@@ -17,7 +17,11 @@ public sealed partial class ScoutFilter
     private sealed record KindTest(bool Folders, bool Files, IReadOnlyList<ScoutCategory> Categories, IReadOnlyList<string> Extensions, bool Not);
     private sealed record SizeTest(long Min, long Max, bool Not);
     private sealed record DateTest(DateTimeOffset From, DateTimeOffset To, bool Not);
-    private sealed record TextTest(string Field, IReadOnlyList<string> Choices, bool Not);
+    private sealed record TextTest(string Field, IReadOnlyList<string> Choices, bool Not)
+    {
+        /// <summary>The choices as names are compared to them, so a search over many entries does not normalize them again for each one.</summary>
+        public IReadOnlyList<string> Normalized { get; } = [.. Choices.Select(ScoutQuery.Normalize)];
+    }
 
     private readonly List<KindTest> kinds = [];
     private readonly List<SizeTest> sizes = [];
@@ -236,7 +240,14 @@ public sealed partial class ScoutFilter
     /// <summary>Whether a file or folder passes every filter.</summary>
     public bool Allows(ScoutEntry entry)
     {
-        foreach (var test in kinds) if (Matches(test, entry) == test.Not) return false;
+        var view = ScoutView.Of(entry);
+        return Allows(in view);
+    }
+
+    /// <summary>The same test on a <see cref="ScoutView"/>, which is how a search over the folder index sees an entry without making an object for it.</summary>
+    internal bool Allows(in ScoutView entry)
+    {
+        foreach (var test in kinds) if (Matches(test, in entry) == test.Not) return false;
         foreach (var test in sizes)
         {
             if (entry.Size is not { } size) return false;
@@ -249,27 +260,41 @@ public sealed partial class ScoutFilter
         }
         foreach (var test in texts)
         {
-            var found = test.Choices.Any(x => test.Field switch
+            var found = false;
+            for (var i = 0; i < test.Choices.Count && !found; i++)
             {
-                "name" => entry.SearchName.Contains(ScoutQuery.Normalize(x), StringComparison.Ordinal),
-                "path" => entry.FullPath.Contains(x, StringComparison.OrdinalIgnoreCase),
-                _ => entry.SearchName.Contains(ScoutQuery.Normalize(x), StringComparison.Ordinal) || entry.FullPath.Contains(x, StringComparison.OrdinalIgnoreCase)
-            });
+                var inName = entry.SearchName.Contains(test.Normalized[i], StringComparison.Ordinal);
+                var inPath = entry.FullPath.Contains(test.Choices[i], StringComparison.OrdinalIgnoreCase);
+                found = test.Field switch { "name" => inName, "path" => inPath, _ => inName || inPath };
+            }
             if (found == test.Not) return false;
         }
         return true;
     }
 
-    private static bool Matches(KindTest test, ScoutEntry entry)
+    private static bool Matches(KindTest test, in ScoutView entry)
     {
         if (entry.IsFolder) return test.Folders;
         if (test.Files) return true;
         var name = entry.Name;
-        var extension = Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        var extension = Path.GetExtension(name).TrimStart('.');
         if (extension.Length == 0) return false;
-        if (test.Extensions.Contains(extension)) return true;
+        // Nearly every extension is plain ASCII, where lowercasing and comparing need no strings. Any other is handled the long way.
+        if (!System.Text.Ascii.IsValid(extension)) return Matches(test, extension.ToString().ToLowerInvariant(), name);
+        Span<char> lower = extension.Length <= 64 ? stackalloc char[extension.Length] : new char[extension.Length];
+        extension.ToLowerInvariant(lower);
+        for (var i = 0; i < test.Extensions.Count; i++) if (lower.SequenceEqual(test.Extensions[i])) return true;
         if (test.Categories.Count == 0) return false;
         var stem = Path.GetFileNameWithoutExtension(name);
+        for (var i = 0; i < test.Categories.Count; i++) if (test.Categories[i].Contains(lower, stem)) return true;
+        return false;
+    }
+
+    private static bool Matches(KindTest test, string extension, ReadOnlySpan<char> name)
+    {
+        if (test.Extensions.Contains(extension)) return true;
+        if (test.Categories.Count == 0) return false;
+        var stem = Path.GetFileNameWithoutExtension(name).ToString();
         foreach (var category in test.Categories) if (category.Contains(extension, stem)) return true;
         return false;
     }
