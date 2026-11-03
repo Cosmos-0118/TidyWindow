@@ -26,7 +26,8 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
 {
     private readonly SkippedUpdates skipped = skipped ?? new();
 
-    public async Task<ManagedInventory> ReadAsync(ManagerStatus manager, bool checkUpdates = true, CancellationToken token = default)
+    /// <param name="installedReady">Told what is installed as soon as it is known, before the (much slower) check for updates starts, so a page can show the list while the check runs.</param>
+    public async Task<ManagedInventory> ReadAsync(ManagerStatus manager, bool checkUpdates = true, CancellationToken token = default, IProgress<ManagedInventory>? installedReady = null)
     {
         var kind = manager.Definition.Kind;
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null)
@@ -49,6 +50,8 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                     .Where(x => !InstallationOutput.IsPlatformComponent(x)).ToArray();
             }
             if (!checkUpdates || installed.Count == 0) return new(kind, installed);
+            try { installedReady?.Report(new(kind, installed)); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { /* A display failure must not stop the update check. */ }
             try
             {
                 var command = kind switch
@@ -65,12 +68,12 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                     return new(kind, installed, UpdateError: Failure(result));
                 var updates = kind == ManagerKind.Scoop ? InstallationOutput.ParseScoop(result.Output, updates: true)
                     : InstallationOutput.ParseUpdates(kind, result.Output);
+                var updatesById = updates.ToLookup(x => x.Id, StringComparer.OrdinalIgnoreCase);
                 return new(kind, installed.Select(app =>
                 {
                     // Scoop status has no scope column. Reconcile by name AND installed version;
                     // list supplies global scope and hold state for the actual command.
-                    var update = updates.FirstOrDefault(x => x.Id.Equals(app.Id, StringComparison.OrdinalIgnoreCase) &&
-                        (kind != ManagerKind.Scoop || x.Version == app.Version));
+                    var update = updatesById[app.Id].FirstOrDefault(x => kind != ManagerKind.Scoop || x.Version == app.Version);
                     if (update is null) return app;
                     if (update.AvailableVersion is { Length: > 0 } latest && skipped.IsSkipped(app, latest))
                         return app with { Note = $"{manager.Definition.Name} can’t apply the {latest} update. Update it from the app itself." };
