@@ -104,6 +104,16 @@ public sealed class InstallerLeftoverTests : IDisposable
         Assert.True(RepairFolders.IsMachine(@"C:\Users\mean\AppData\Local\Programs\X", env));
     }
 
+    [Fact]
+    public void WindowsInstallersIconFoldersInTheProfileNeedTheHelperBecauseTheInstallerLocksThem()
+    {
+        Func<string, string?> env = name => name switch { "USERPROFILE" => @"C:\Users\me", "APPDATA" => @"C:\Users\me\AppData\Roaming", _ => null };
+        Assert.True(RepairFolders.IsMachine(@"C:\Users\me\AppData\Roaming\Microsoft\Installer\{57AC2A86-EC99-4E9C-9FF9-15DAA88D1FAE}", env));
+        Assert.True(RepairFolders.IsMachine(@"C:\Users\me\AppData\Roaming\microsoft\installer\{57ac2a86-ec99-4e9c-9ff9-15daa88d1fae}\", env));
+        Assert.False(RepairFolders.IsMachine(@"C:\Users\me\AppData\Roaming\Microsoft\InstallerX\{57AC2A86-EC99-4E9C-9FF9-15DAA88D1FAE}", env));
+        Assert.False(RepairFolders.IsMachine(@"C:\Users\me\AppData\Local\Package Cache\{57AC2A86-EC99-4E9C-9FF9-15DAA88D1FAE}v1", env));
+    }
+
     // ---- Sweeping on a purge ----
 
     [Fact]
@@ -290,6 +300,35 @@ public sealed class InstallerLeftoverTests : IDisposable
         Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
         Assert.Empty(present);
         Assert.True((await service.UndoAsync(outcome.Batch!)).Complete);
+        Assert.Equal(new[] { a, b }.Order(), present.Order());
+    }
+
+    [Fact]
+    public async Task IconFoldersInTheProfileAreSetAsideByTheHelperBecauseTheAccountItselfMayOnlyReadThem()
+    {
+        // The account's own editor would be denied, as it is on a real PC: only SYSTEM and Administrators may change %APPDATA%\Microsoft\Installer.
+        var a = Path.Combine(Windows, "Installer", "{66FE8944-1720-5E4E-A546-2A5609FEF6BB}");
+        var b = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Installer", "{57AC2A86-EC99-4E9C-9FF9-15DAA88D1FAE}");
+        var pc = new FakePc { Orphans = [a, b] };
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings, x => x.Kind == RepairKind.InstallerFiles);
+        Assert.True(finding.NeedsAdmin);
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { a, b };
+        var user = new MemoryFolders(new(present, StringComparer.OrdinalIgnoreCase)) { FailAside = _ => true };
+        var machine = new MemoryFolders(present);
+        var unlocks = new int[1];
+        var service = Service(pc, user, machine, unlocks);
+
+        var outcome = await service.FixAsync([finding], "Removed leftovers");
+
+        Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
+        Assert.Empty(present);
+        Assert.Empty(user.Aside);
+        Assert.Equal(new[] { a, b }.Order(), machine.Aside.Order());
+        Assert.Equal(1, unlocks[0]);
+
+        var undo = await service.UndoAsync(outcome.Batch!);
+
+        Assert.True(undo.Complete, string.Join(" ", undo.Problems));
         Assert.Equal(new[] { a, b }.Order(), present.Order());
     }
 
