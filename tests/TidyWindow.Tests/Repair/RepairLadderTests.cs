@@ -92,6 +92,8 @@ public sealed class FakePc : IInstallSystem
     public bool InstallLockExists() => Lock;
     public bool InstallRollbackExists() => Rollback;
     public IReadOnlyList<DeadPatch> DeadPatches() => Patches;
+    public HashSet<string> DamagedCopies = new(StringComparer.OrdinalIgnoreCase);
+    public bool SavedCopyDamaged(MsiProduct product) => DamagedCopies.Contains(product.Code);
     public bool InstallerBusy() => false;
     public IReadOnlyList<RunningInstaller> Installers() => [];
     public IReadOnlyList<string> PendingRestart() => [];
@@ -140,6 +142,21 @@ public sealed class FakeOps : IInstallerOps
     public Func<string, int>? BundleExitFor;
     public Action? OnRepairBundle;
     public IReadOnlyList<string> FilesIn(string folder) => Folders.GetValueOrDefault(folder) ?? [];
+    public Dictionary<string, string> PatchCodes = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string[]> PatchFolders = new(StringComparer.OrdinalIgnoreCase), Archives = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> PatchCandidates = [], PatchRestores = [];
+    public int PatchExit;
+    public Action? OnRestorePatch;
+    public string? ReadPatchCode(string path) => PatchCodes.GetValueOrDefault(path);
+    public IReadOnlyList<string> CandidatePatches(string patchCode) => PatchCandidates;
+    public IReadOnlyList<string> PatchesIn(string folder) => PatchFolders.GetValueOrDefault(folder) ?? [];
+    public IReadOnlyList<string> ExpandArchive(string zipPath, string folder) => Archives.GetValueOrDefault(zipPath) ?? [];
+    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature)
+    {
+        PatchRestores.Add($"{mspPath} -> {targetPath}{(requireSignature ? " (signed)" : "")}");
+        if (PatchExit == 0) OnRestorePatch?.Invoke();
+        return new(PatchExit, PatchExit == 0 ? "" : "refused");
+    }
     public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName) { Expanded.Add(exePath); return Bundles.GetValueOrDefault(exePath) ?? []; }
     public List<string> RestoredTo = [], Removed = [];
     public bool RemoveWorks = true;
@@ -755,6 +772,8 @@ public sealed class RepairHostTests
         public List<string> Restored = [], Removed = [];
         public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) { Restored.Add($"{exePath}|{programName}|{targetPath}"); return new(0, ""); }
         public bool RemoveCopy(string path) { Removed.Add(path); return true; }
+        public List<string> Patches = [];
+        public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature) { Patches.Add($"{mspPath}|{patchCode}|{targetPath}|{requireSignature}"); return new(0, ""); }
     }
 
     private static RepairSession Session(Recorder editor, Ops ops, bool admin = true) =>
@@ -794,6 +813,20 @@ public sealed class RepairHostTests
         Assert.Equal(3010, result.ExitCode);
         Assert.Equal("{X}", ops.Reinstalled!.Code);
         Assert.True(session.StopInstallerService());
+    }
+
+    [Fact]
+    public async Task TheHelperPutsAnUpdateFileBackAndTellsItWhetherASignatureIsRequired()
+    {
+        var ops = new Ops();
+        using var session = Session(new Recorder(), ops);
+        await session.OpenAsync();
+
+        var signed = session.RestorePatchCopy(@"C:\Package Cache\a.msp", "{P}", @"C:\Windows\Installer\1.msp", requireSignature: true);
+        var chosen = session.RestorePatchCopy(@"C:\Downloads\a.msp", "{P}", @"C:\Windows\Installer\1.msp", requireSignature: false);
+
+        Assert.Equal(0, signed.ExitCode); Assert.Equal(0, chosen.ExitCode);
+        Assert.Equal([@"C:\Package Cache\a.msp|{P}|C:\Windows\Installer\1.msp|True", @"C:\Downloads\a.msp|{P}|C:\Windows\Installer\1.msp|False"], ops.Patches);
     }
 
     [Fact]

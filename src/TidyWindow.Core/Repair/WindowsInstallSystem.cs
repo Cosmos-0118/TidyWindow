@@ -84,6 +84,9 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
 
     public int ProductState(string code) => MsiQueryProductState(code);
 
+    public bool SavedCopyDamaged(MsiProduct product) =>
+        !string.IsNullOrWhiteSpace(product.LocalPackage) && FileExists(product.LocalPackage) && PackageHealth.InstallerDamaged(product.LocalPackage, product.Code);
+
     /// <summary>Product keys Windows Installer has, that its own list of products does not include: the half of a record that an interrupted repair leaves.</summary>
     public IReadOnlyList<MsiProduct> Ghosts()
     {
@@ -193,9 +196,32 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
         var packed = InstallRepair.Pack(product.Code);
         var sid = string.Equals(product.Context, "Machine", StringComparison.OrdinalIgnoreCase) || product.Sid.Length == 0 ? MachineSid : product.Sid;
         foreach (var (_, path) in ComponentsOf(sid).ByProduct.GetValueOrDefault(packed) ?? [])
-            // A component's key path is a file or folder, or a registry path ("01:\...") that says nothing about files.
+            // A component's key path is a file or folder, or a registry value ("01:\Software\Vendor\App\Value"). A program whose components all have registry key paths is still there when they are.
             if (path.Length > 3 && path[1] == ':' && path[2] == '\\' && (File.Exists(path) || Directory.Exists(path))) return true;
+            else if (RegistryValuePresent(path)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// Whether the registry value a component names as its key path is there. The two characters before ":\" are hex: the low bits pick the hive
+    /// (0 classes root, 1 current user, 2 local machine, 3 users) and 0x20 means the 64-bit view.
+    /// </summary>
+    internal static bool RegistryValuePresent(string path)
+    {
+        if (path.Length < 5 || path[2] != ':' || path[3] != '\\' || !int.TryParse(path[..2], System.Globalization.NumberStyles.AllowHexSpecifier, null, out var code)) return false;
+        var hive = (code & 0x0F) switch { 0 => RegistryHive.ClassesRoot, 1 => RegistryHive.CurrentUser, 2 => RegistryHive.LocalMachine, 3 => RegistryHive.Users, _ => (RegistryHive?)null };
+        if (hive is null) return false;
+        var rest = path[4..];
+        var cut = rest.LastIndexOf('\\');
+        var key = cut < 0 ? rest : rest[..cut];
+        var value = cut < 0 ? "" : rest[(cut + 1)..];
+        try
+        {
+            using var root = RegistryKey.OpenBaseKey(hive.Value, (code & 0x20) != 0 ? RegistryView.Registry64 : RegistryView.Registry32);
+            using var opened = root.OpenSubKey(key);
+            return opened is not null && (value.Length == 0 || opened.GetValue(value) is not null);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or ArgumentException) { return false; }
     }
 
     private static int ContextOf(string context) => string.Equals(context, "Machine", StringComparison.OrdinalIgnoreCase) ? MachineContext : string.Equals(context, "User", StringComparison.OrdinalIgnoreCase) ? UserContext : ManagedContext;
@@ -309,7 +335,10 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
                 {
                     if (!PackedCode().IsMatch(patch)) continue;
                     using var record = patches!.OpenSubKey(patch);
-                    if (record?.GetValue("LocalPackage") is not string { Length: > 0 } file || FileExists(file)) continue;
+                    if (record?.GetValue("LocalPackage") is not string { Length: > 0 } file) continue;
+                    // A patch file that is there but empty, cut short or another update's is as useless to Windows Installer as one that is gone.
+                    var damaged = FileExists(file);
+                    if (damaged && !PackageHealth.PatchDamaged(file, InstallRepair.Unpack(patch))) continue;
 
                     var keys = new List<string>(); var programs = new List<string>();
                     using (var products = Registry.LocalMachine.OpenSubKey($@"{data}\Products"))
@@ -328,7 +357,7 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
                         ? new[] { $@"HKLM\SOFTWARE\Classes\Installer\Patches\{patch}" }
                         : [$@"HKCU\SOFTWARE\Microsoft\Installer\Patches\{patch}", $@"HKCU\SOFTWARE\Classes\Installer\Patches\{patch}", $@"HKLM\{Installer}\Managed\{sid}\Installer\Patches\{patch}"];
                     keys.AddRange(shared.Where(KeyExists));
-                    found.Add(new(patch, file, programs, keys));
+                    found.Add(new(patch, file, programs, keys, damaged));
                 }
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }

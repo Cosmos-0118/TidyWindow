@@ -35,6 +35,25 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheCacheChecksNameEveryDamagedSavedCopyAndInnoUninstallerOnThisPc()
+    {
+        if (!Live) return;
+        var system = new WindowsInstallSystem();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var scan = InstallRepair.Scan(system, shortcuts: false);
+        output.WriteLine($"Scan took {watch.ElapsedMilliseconds} ms: {scan.Products.Count} products, {scan.Findings.Count} findings.");
+        foreach (var finding in scan.Findings.Where(x => x.Detail.Contains("damaged") || x.Detail.Contains("unins") || x.Kind == RepairKind.MissingPatch))
+            output.WriteLine($"  [{finding.Kind}] {finding.Title}: {finding.Detail}");
+        // Every saved copy and update file on this PC, checked directly: a healthy PC has no damaged ones.
+        var damaged = scan.Products.Where(system.SavedCopyDamaged).Select(x => $"{x.Name} ({x.LocalPackage})").ToList();
+        output.WriteLine($"{damaged.Count} damaged saved copies.");
+        foreach (var line in damaged) output.WriteLine("  " + line);
+        var patches = system.DeadPatches();
+        output.WriteLine($"{patches.Count} dead or damaged update files.");
+        foreach (var patch in patches) output.WriteLine($"  {patch.File} (damaged: {patch.Damaged}) worn by {string.Join(", ", patch.Programs)}");
+    }
+
+    [Fact]
     public void EveryRealProductCodeSurvivesPackingAndUnpacking()
     {
         if (!Live) return;

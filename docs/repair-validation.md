@@ -82,6 +82,22 @@ A missing `C:\Windows\Installer` copy, verified: Python 3.12.10's Core Interpret
 
 Found by doing it, and fixed: the product's list entry names no install folder, so Repair judged the program gone and skipped the restore step, removing the Core product's record instead (the first attempt did exactly that). A product now counts as installed when any file or folder Windows Installer recorded for it is still on the PC.
 
+A deliberately broken, patched package, verified: a throwaway per-user MSI ("TidyWindow Lab Widget", built with WiX 5) plus a patch (`.msp`) installed on a real PC, then broken and repaired with the real engine and the real administrator helper (the elevated `TidyWindow.CleanHost.exe`, over its pipe). Each case was checked before and after.
+
+- The patch's saved file was deleted from `C:\Windows\Installer` and its only copy parked in a folder the person chose. The scan reported the dead update; Repair put the file back byte for byte (SHA-256 equal) through the helper without removing a registry key; a plain `msiexec /fomus` then worked; Undo took the file out again; fixing again put it back.
+- The product's saved `.msi` was cut to 0 bytes. The scan reported a damaged saved copy (a plain `/fomus` on it returns 1619); Repair found the original through the product's source list, repaired from it with `/fvomus`, and Windows Installer got a healthy new `LocalPackage`. No registry key was removed.
+- Both at once: the update first, then the saved copy, both Fixed.
+- The only copy of the update was unsigned, read-only and in `%LOCALAPPDATA%\Package Cache`: it was refused ("not digitally signed"), nothing reached `C:\Windows\Installer`, and the registration was removed as before, after which the product repaired normally.
+- An Inno-style entry whose `unins000.exe` is there but `unins000.dat` is not was reported for review; restore-only left it alone. The WinGet reinstall that puts the `.dat` back is covered by a unit test, not run on a real Inno program.
+
+Found by doing it, and fixed:
+
+- The first run of the damaged-copy case called the program **gone** and removed its whole record, because its components use registry values as key paths and only file paths counted as proof the program is there. Registry key paths (`01:\...`, with `0x20` for the 64-bit view) count now.
+- Windows keeps saved `.msp` files **read-only**. Replacing a damaged one and undoing a restore both failed on that, and refusing an unsigned read-only candidate left its half-placed `.tidywindow-new` copy behind in `C:\Windows\Installer`. Attributes are cleared before replacing or deleting, a restored file is marked read-only like Windows' own, and a refused copy is always removed.
+- Windows Installer's own `/fomus` repair of a product with a **removable** patch whose file is gone returns 0 and silently drops that patch's registration. A product that wears a non-removable patch (Office, SQL Server) is the one that fails with 1612 or 1714, which is what the restore is for; the lab patch could not show that failure, only that the file comes back and the product keeps its update.
+
+Not exercised on a real PC: the `/qb` retry after a failed custom action (the decision is unit-tested on log text), `.zip` downloads from WinGet, the `HKLM\Software\Policies\WiX\Burn` cache folder, a cumulative-update `.exe` (an update inside a setup program is never unpacked: only `.msp` files are used), and Squirrel's `Update.exe`.
+
 ## 5. Read-only checks on any PC
 
 ```powershell

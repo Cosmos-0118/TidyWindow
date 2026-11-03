@@ -91,6 +91,7 @@ public static class RepairHost
                 case "stopservice": return new(true, Flag: ops.StopInstallerService());
                 case "restorebundle" when request.File is { Length: > 0 } setup && request.Name is { Length: > 0 } program && request.Path is { Length: > 0 } target: return new(true, Run: ops.RestoreBundleCopy(setup, program, target));
                 case "removecopy" when request.Path is { Length: > 0 } copy: return new(true, Flag: ops.RemoveCopy(copy));
+                case "restorepatch" when request.File is { Length: > 0 } update && request.Name is { Length: > 0 } code && request.Path is { Length: > 0 } saved: return new(true, Run: ops.RestorePatchCopy(update, code, saved, request.Value == "signed"));
                 case "rmlink" when shortcuts is not null && request.Path is { Length: > 0 } link: return new(true, Links: shortcuts.RemoveShortcut(link));
                 case "restorelink" when shortcuts is not null && request.Link is { } copy: shortcuts.RestoreShortcut(copy); return new(true);
                 case "setaside" when folders is not null && request.Path is { Length: > 0 } aside && request.Value is { Length: > 0 } vault: return new(true, Moved: folders.SetAside(aside, vault));
@@ -183,6 +184,9 @@ public sealed class RepairSession(Func<string, Task> launch) : IKeyEditor, IElev
     public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) => Send(new("restorebundle", targetPath, Name: programName, File: exePath)).Run ?? new(1, "The helper gave no answer.");
 
     public bool RemoveCopy(string path) => Send(new("removecopy", path)).Flag;
+
+    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature) =>
+        Send(new("restorepatch", targetPath, Name: patchCode, File: mspPath, Value: requireSignature ? "signed" : "")).Run ?? new(1, "The helper gave no answer.");
 
     public IReadOnlyList<ShortcutBackup> RemoveShortcut(string path) => Send(new("rmlink", path)).Links ?? [];
 

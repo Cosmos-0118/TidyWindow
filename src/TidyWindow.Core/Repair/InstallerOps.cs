@@ -24,8 +24,13 @@ public interface IElevatedOps
     /// The bundle's own <c>/repair</c> is not used: with its saved choices gone it installs the default parts (Python's documentation and test suite) as well.
     /// </summary>
     RunResult RestoreBundleCopy(string exePath, string programName, string targetPath);
-    /// <summary>Takes back a setup program <see cref="RestoreBundleCopy"/> put in the package cache, and its folder when that is empty. True once the file is gone.</summary>
+    /// <summary>Takes back a setup program <see cref="RestoreBundleCopy"/> put in the package cache (or an update file <see cref="RestorePatchCopy"/> put in C:\Windows\Installer), and the setup program's folder when that is empty. True once the file is gone.</summary>
     bool RemoveCopy(string path);
+    /// <summary>
+    /// Puts an update's saved file back where Windows Installer registered it (a <c>.msp</c> directly in C:\Windows\Installer), from a copy that carries the very patch code it registered.
+    /// With <paramref name="requireSignature"/> the copy also has to have a valid digital signature; a file the person chose themselves does not. Never replaces a usable file.
+    /// </summary>
+    RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature);
 }
 
 /// <summary>Finding and checking the installer file a broken program needs. Reading only; nothing here changes the PC.</summary>
@@ -40,6 +45,14 @@ public interface IInstallerOps : IElevatedOps
     IReadOnlyList<string> FilesIn(string folder);
     /// <summary>Unpacks every package out of a program's own setup program (a WiX Burn bundle, with <c>/layout</c>) and returns the .msi files. Only a setup program with a valid signature that names the program is run.</summary>
     IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName);
+    /// <summary>Unpacks a .zip (WinGet sometimes downloads an installer inside one) into <paramref name="folder"/> and returns the .msi and .msp files in it. Nothing in it is run.</summary>
+    IReadOnlyList<string> ExpandArchive(string zipPath, string folder);
+    /// <summary>The update code ({GUID}) an .msp file carries, or null when it is not a readable update.</summary>
+    string? ReadPatchCode(string path);
+    /// <summary>.msp files that could be this update's, from the places bundles, Windows, WinGet and TidyWindow keep copies. Every one is checked against the patch code before it is used.</summary>
+    IReadOnlyList<string> CandidatePatches(string patchCode);
+    /// <summary>The .msp files in a folder the person pointed at, and in the folders directly under it.</summary>
+    IReadOnlyList<string> PatchesIn(string folder);
 }
 
 [SupportedOSPlatform("windows")]
@@ -89,8 +102,8 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
 
-        foreach (var cache in new[] { Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) })
-            folders.AddRange(Safe(() => Directory.EnumerateDirectories(Path.Combine(cache, "Package Cache"), product.Code + "v*")));
+        foreach (var root in BurnCacheRoots())
+            folders.AddRange(Safe(() => Directory.EnumerateDirectories(root, product.Code + "v*")));
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         // Patched products keep their original installer under the patch cache.
         var patchCache = Path.Combine(windows, "Installer", "$PatchCache$", "Managed");
@@ -119,6 +132,41 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
             return Directory.EnumerateFiles(root, "*.msi", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 4, IgnoreInaccessible = true }).Take(300).ToList();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
+    }
+
+    private const string BurnPolicyKey = @"SOFTWARE\Policies\WiX\Burn";
+
+    /// <summary>The folders Burn (WiX bundles, Visual Studio, the .NET SDK) caches its packages in: the two standard ones, and the one a policy moved the cache to.</summary>
+    internal static IReadOnlyList<string> BurnCacheRoots() => BurnCacheRoots(BurnPolicyRoot());
+
+    internal static IReadOnlyList<string> BurnCacheRoots(string? policy)
+    {
+        var roots = new List<string>
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Package Cache"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Package Cache")
+        };
+        // Burn 3.9 and later put its cache folders straight under the policy's folder, and some builds under a "Package Cache" folder inside it.
+        if (!string.IsNullOrWhiteSpace(policy))
+        {
+            var root = Environment.ExpandEnvironmentVariables(policy.Trim()).TrimEnd('\\');
+            if (Path.IsPathFullyQualified(root))
+            {
+                roots.Add(root);
+                roots.Add(Path.Combine(root, "Package Cache"));
+            }
+        }
+        return roots.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static string? BurnPolicyRoot()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(BurnPolicyKey);
+            return key?.GetValue("PackageCache") as string;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return null; }
     }
 
     private static IEnumerable<string> Safe(Func<IEnumerable<string>> read)
@@ -252,6 +300,104 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         finally { MsiCloseHandle(view); }
     }
 
+    public string? ReadPatchCode(string path) => PackageHealth.ReadPatchCode(path);
+
+    public IReadOnlyList<string> CandidatePatches(string patchCode)
+    {
+        var found = new List<string>();
+        // A bundle keeps the updates it applied next to its other packages; Windows keeps every update's own saved file under a name of its own choosing.
+        foreach (var root in BurnCacheRoots()) found.AddRange(Updates(root, 4));
+        found.AddRange(Safe(() => Directory.EnumerateFiles(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer"), "*.msp")));
+        foreach (var root in new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Undo"), Path.Combine(Path.GetTempPath(), "WinGet"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "scoop", "cache") })
+            found.AddRange(Updates(root, 4));
+        return found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static IEnumerable<string> Updates(string root, int depth)
+    {
+        try
+        {
+            if (!Directory.Exists(root)) return [];
+            return Directory.EnumerateFiles(root, "*.msp", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = depth, IgnoreInaccessible = true }).Take(300).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
+    }
+
+    public IReadOnlyList<string> PatchesIn(string folder)
+    {
+        var found = new List<string>();
+        foreach (var directory in new[] { folder }.Concat(Safe(() => Directory.EnumerateDirectories(folder))))
+            found.AddRange(Safe(() => Directory.EnumerateFiles(directory, "*.msp")));
+        return found.Take(400).ToList();
+    }
+
+    public IReadOnlyList<string> ExpandArchive(string zipPath, string folder)
+    {
+        try
+        {
+            using (var archive = System.IO.Compression.ZipFile.OpenRead(zipPath))
+            {
+                // A download is a few installers; an archive of thousands of files or many gigabytes is not one, and is not unpacked.
+                if (archive.Entries.Count > 2000 || archive.Entries.Sum(x => x.Length) > 4L * 1024 * 1024 * 1024) return [];
+            }
+            Directory.CreateDirectory(folder);
+            System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, folder);
+            return Safe(() => Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Where(x => Path.GetExtension(x).ToLowerInvariant() is ".msi" or ".msp")).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException) { return []; }
+    }
+
+    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature)
+    {
+        if (InstallerCachePatch(targetPath) is not { } target) return new(87, "That is not a place Windows keeps an update's saved file.");
+        if (!string.Equals(Path.GetExtension(mspPath), ".msp", StringComparison.OrdinalIgnoreCase) || !File.Exists(mspPath)) return new(87, "That is not an update file.");
+        if (!string.Equals(PackageHealth.ReadPatchCode(mspPath), patchCode, StringComparison.OrdinalIgnoreCase)) return new(87, "That update file is not the update Windows Installer registered.");
+        // A usable file is never replaced: it is the one Windows Installer already trusts.
+        if (File.Exists(target) && !PackageHealth.PatchDamaged(target, patchCode)) return new(183, "A usable file is already there.");
+        var staged = target + ".tidywindow-new";
+        try
+        {
+            File.Copy(mspPath, staged, true);
+            // The copy sits in a folder only administrators can write to now, so nobody can swap it between these checks and the move below.
+            if (!string.Equals(PackageHealth.ReadPatchCode(staged), patchCode, StringComparison.OrdinalIgnoreCase)) { DeleteStaged(staged); return new(87, "That update file is not the update Windows Installer registered."); }
+            if (requireSignature && WindowsStartupSystem.Verify(staged).Trust != StartupTrust.Verified) { DeleteStaged(staged); return new(87, "That update file is not digitally signed, so it was not trusted."); }
+            // Windows keeps its saved update files read-only, so a damaged one has to be made writable before it can be replaced, and the new one gets the same mark.
+            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
+            File.Move(staged, target, true);
+            File.SetAttributes(target, FileAttributes.ReadOnly | FileAttributes.Archive);
+            return new(0, "");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DeleteStaged(staged);
+            return new(5, ex.Message);
+        }
+    }
+
+    /// <summary>Removes a half-placed copy. A copy of a read-only file is read-only too, and could not be deleted otherwise.</summary>
+    private static void DeleteStaged(string staged)
+    {
+        try
+        {
+            if (!File.Exists(staged)) return;
+            File.SetAttributes(staged, FileAttributes.Normal);
+            File.Delete(staged);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>The full path of an update file directly inside C:\Windows\Installer, or null for anything else. Resolving the path first keeps "..\" from walking out of it.</summary>
+    internal static string? InstallerCachePatch(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer");
+            return full.EndsWith(".msp", StringComparison.OrdinalIgnoreCase) && string.Equals(Path.GetDirectoryName(full), cache, StringComparison.OrdinalIgnoreCase) ? full : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+    }
+
     public IReadOnlyList<string> FilesIn(string folder)
     {
         var found = new List<string>();
@@ -298,9 +444,11 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
 
     public bool RemoveCopy(string path)
     {
-        if (PackageCachePath(path) is not { } target) return false;
+        if ((PackageCachePath(path) ?? InstallerCachePatch(path)) is not { } target) return false;
         try
         {
+            // An update file Windows or TidyWindow saved is read-only.
+            if (File.Exists(target)) File.SetAttributes(target, FileAttributes.Normal);
             File.Delete(target);
             var folder = Path.GetDirectoryName(target);
             if (folder is not null && Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
@@ -387,7 +535,7 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         var saved = !string.IsNullOrWhiteSpace(product.LocalPackage) && string.Equals(Path.GetFullPath(msiPath), Path.GetFullPath(product.LocalPackage), StringComparison.OrdinalIgnoreCase);
         if (saved)
         {
-            var first = RunMsiExec("/fomus", msiPath);
+            var first = RunMsiExec("/fomus", msiPath, "/qn");
             if (first.ExitCode is 0 or 3010 or 1641 || !HasEmbeddedCabinets(msiPath))
                 return first;
         }
@@ -396,11 +544,11 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         return RunStagedMsiExec(flags, msiPath, product);
     }
 
-    private static RunResult RunMsiExec(string flags, string msiPath, params string[] properties)
+    private static RunResult RunMsiExec(string flags, string msiPath, string ui, params string[] properties)
     {
         var log = Path.Combine(Path.GetTempPath(), "TidyWindow-repair-" + Guid.NewGuid().ToString("N")[..8] + ".log");
         var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "msiexec.exe")) { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var argument in new[] { flags, msiPath, "/qn", "/norestart", "/l*v", log }) start.ArgumentList.Add(argument);
+        foreach (var argument in new[] { flags, msiPath, ui, "/norestart", "/l*v", log }) start.ArgumentList.Add(argument);
         foreach (var prop in properties) start.ArgumentList.Add(prop);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Windows Installer could not be started.");
         if (!process.WaitForExit(TimeSpan.FromMinutes(20))) { try { process.Kill(); } catch (InvalidOperationException) { } return new(1460, "Windows Installer did not finish in 20 minutes.\nLog: " + log); }
@@ -408,13 +556,34 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         if (result.ExitCode is not (0 or 3010 or 1641) && properties.Length == 0 && FailedOnRollbackFolder(log))
         {
             ClearStaleRollbackFolders();
-            return RunMsiExec(flags, msiPath, "DISABLEROLLBACK=1");
+            return RunMsiExec(flags, msiPath, ui, "DISABLEROLLBACK=1");
         }
         // msiexec's own exit code is the client's. When the install server finished and reconfigured the product without rolling anything back, the repair worked.
         if (result.ExitCode == 1603 && ServerFinishedCleanly(log) is { } code)
             return new(code, result.Output + "\nWindows Installer's exit code said 1603, but its log shows the repair finished and the program was reconfigured without error.");
+        // A custom action (a program the package runs itself) can fail with no window and work with one: run it once more with the progress bar showing, which asks nothing.
+        if (result.ExitCode == 1603 && ui == "/qn" && CustomActionFailed(log))
+        {
+            var again = RunMsiExec(flags, msiPath, "/qb", properties);
+            return new(again.ExitCode, again.Output + "\nIt failed with 1603 when run without a window, so it was run again with Windows Installer's progress bar showing.");
+        }
         return result;
     }
+
+    /// <summary>Whether the log shows a step the package runs itself (a custom action) failing: error 1721 to 1724, or an action that "returned actual error code".</summary>
+    internal static bool CustomActionFailed(string logPath)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(logPath);
+            var text = bytes.Length > 1 && (bytes[1] == 0 || (bytes[0] == 0xFF && bytes[1] == 0xFE)) ? Encoding.Unicode.GetString(bytes) : Encoding.UTF8.GetString(bytes);
+            return CustomActionError().IsMatch(text);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?:Error |Note: 1: )172[1-4]\b|returned actual error code \d+")]
+    private static partial System.Text.RegularExpressions.Regex CustomActionError();
 
     /// <summary>
     /// When the install server (<c>MSI (s)</c>) finished with 0 or 3010 and logged "reconfiguration success or error status: 0" with nothing rolled back, that code; otherwise null.
@@ -458,7 +627,7 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
         var installerCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer").TrimEnd('\\') + "\\";
         var inCache = full.StartsWith(installerCache, StringComparison.OrdinalIgnoreCase);
         var needsRename = wanted is not null && !string.Equals(Path.GetFileName(full), wanted, StringComparison.OrdinalIgnoreCase);
-        if (!inCache && !needsRename) return RunMsiExec(flags, full);
+        if (!inCache && !needsRename) return RunMsiExec(flags, full, "/qn");
 
         var stageDir = Path.Combine(Path.GetTempPath(), "TidyWindow-stage-" + Guid.NewGuid().ToString("N")[..8]);
         try
@@ -474,7 +643,7 @@ public sealed partial class WindowsInstallerOps : IInstallerOps
                     if (!CreateHardLink(destCab, cab, IntPtr.Zero)) File.Copy(cab, destCab, true);
                 }
             }
-            return RunMsiExec(flags, staged);
+            return RunMsiExec(flags, staged, "/qn");
         }
         finally
         {

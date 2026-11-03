@@ -48,6 +48,8 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         public readonly List<FolderBackup> Moved = [];
         /// <summary>The program's record was actually removed from the registry by the item being repaired (it can also be repaired in place, which removes nothing).</summary>
         public bool Removed;
+        /// <summary>Updates this run already looked for the saved file of, and whether it put it back, so each is looked for once.</summary>
+        public readonly Dictionary<string, bool> Patches = new(StringComparer.OrdinalIgnoreCase);
         public readonly List<RepairResult> Results = [];
         public CancellationToken Token = token;
 
@@ -101,7 +103,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         var steps = new Steps(run);
         var finding = new RepairFinding($"repair:{product.Code}", RepairKind.InstallerRecord, title, "", product.Code, RepairLevel.Review, []);
         var package = product.LocalPackage;
-        if (ops is null || string.IsNullOrWhiteSpace(package) || !system.FileExists(package))
+        if (ops is null || string.IsNullOrWhiteSpace(package))
             return Failed(finding, "Windows Installer has no saved copy of this program's installer, so it cannot be repaired from here.", steps);
         var elevate = product.Context != "User";
         if (elevate && elevated is null) return Failed(finding, "Repairing a Windows-wide program needs the administrator helper, which is not available.", steps);
@@ -112,6 +114,19 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         }
         try
         {
+            // The saved copy is the cache a repair runs from. One that is gone or damaged cannot be repaired from, but the program's own installer puts it back.
+            var gone = !system.FileExists(package);
+            if (gone || system.SavedCopyDamaged(product))
+            {
+                steps.Add(gone ? "Windows Installer's saved copy of this program's installer is gone." : "Windows Installer's saved copy of this program's installer is damaged (empty, cut short or not its installer).");
+                return await Task.Run(() =>
+                {
+                    RestorePatchesOf(product, run, steps);
+                    return Recover(finding, product, run, steps)
+                        ?? Failed(finding, "Windows Installer's saved copy is " + (gone ? "gone" : "damaged") + ", and TidyWindow could not find the program's own installer to put it back. Use “Locate installer folder…” to point at it, or allow downloading it from WinGet, then try again.", steps);
+                }, CancellationToken.None).ConfigureAwait(false);
+            }
+            await Task.Run(() => RestorePatchesOf(product, run, steps), CancellationToken.None).ConfigureAwait(false);
             run.Doing("Repairing the program with Windows Installer, from its saved installer file…");
             var result = await Task.Run(() => elevate ? elevated!.Reinstall(package, product) : ops.Reinstall(package, product), CancellationToken.None).ConfigureAwait(false);
             steps.Add($"Repaired it with Windows Installer; it returned {result.ExitCode}. {result.Output}".TrimEnd());
@@ -133,7 +148,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         {
             return Failed(finding, ex.Message, steps);
         }
-        finally { if (elevate) relock(); }
+        finally { if (run.Elevated) relock(); }
     }
 
     /// <summary>The first error Windows Installer wrote to the log a repair left (its "Log: path" line), in its own words; null when there is no log to read.</summary>
@@ -205,6 +220,12 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             if (finding.Footprint is { Kind: "bundle" } bundle) return Swept(finding, Purge(finding, bundle, run, steps), run, steps);
             if (finding.Footprint is { } request) return Swept(finding, FixProduct(finding, request, run, steps), run, steps);
             if (finding.Links is { Count: > 0 } links) return RemoveLinks(finding, links, run, steps);
+            if (finding.Kind == RepairKind.MissingPatch && finding.Patch is { } dead && ops is not null)
+            {
+                if (RestorePatchFile(dead, run, steps))
+                    return Done(finding, "Put the update's saved file back, so Windows Installer can repair, update and remove the program again. Nothing was removed from the registry.", steps);
+                steps.Add("Without a copy of the update's file, removing the update's registration is what lets Windows Installer carry on.");
+            }
             return Swept(finding, RemoveKeys(finding, run, steps), run, steps);
         }
         catch (OperationCanceledException) { throw; }
@@ -238,7 +259,9 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         if (InstallRepair.ProductCode(entry) is not null) return null;
 
         run.Doing("Looking for the program's own uninstaller…");
-        if (FindUninstaller(entry) is { } found)
+        var innoData = InstallRepair.MissingInnoData(system, string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString);
+        if (innoData is not null) steps.Add($"The uninstaller is there, but {Path.GetFileName(innoData)} beside it is gone. Inno Setup writes that file when the program is installed, so it cannot be rebuilt; the same version installed over the program puts it back.");
+        if (innoData is null && FindUninstaller(entry) is { } found)
         {
             var editor = InstallRepair.IsMachine(entry.Key) ? machine : user;
             var done = new List<KeyBackup>();
@@ -269,7 +292,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
             steps.Add("Pointed the entry at the uninstaller it found, but Windows still does not see it there.");
             RollBack(done, editor, steps);
         }
-        else steps.Add("Looked in the program's folder for an uninstaller; none is there.");
+        else if (innoData is null) steps.Add("Looked in the program's folder for an uninstaller; none is there.");
 
         // A bundle whose cached setup program is gone gets one back: from a folder the person chose first, then from WinGet.
         var bundleTarget = finding.Kind == RepairKind.BundleRecord && ops is not null ? CachedSetup(entry) : null;
@@ -354,7 +377,9 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
     private static partial System.Text.RegularExpressions.Regex X86();
 
     /// <summary>A file under C:\ProgramData is only reachable with administrator rights.</summary>
-    private static bool NeedsAdminFile(string path) => path.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+    private static bool NeedsAdminFile(string path) =>
+        path.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer").TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The setup program in Windows' package cache that the entry's uninstall command names.</summary>
     private string? CachedSetup(UninstallEntry entry)
@@ -424,12 +449,18 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         var work = Path.Combine(Path.GetTempPath(), "TidyWindow-repair-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
+            // A repair from the original stops with 1612 or 1714 while an update the program wears has no saved file: put those back first.
+            RestorePatchesOf(product, run, steps);
             string? Matching(IEnumerable<string> files)
             {
                 var count = 0;
                 foreach (var file in files)
                 {
-                    var candidates = file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? ops.ExpandBundle(file, Path.Combine(work, "layout" + count++), product.Name) : [file];
+                    IEnumerable<string> candidates;
+                    if (file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) candidates = ops.ExpandBundle(file, Path.Combine(work, "layout" + count++), product.Name);
+                    // WinGet sometimes downloads the installer inside a .zip.
+                    else if (file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) candidates = ops.ExpandArchive(file, Path.Combine(work, "zip" + count++)).Where(x => x.EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+                    else candidates = [file];
                     foreach (var candidate in candidates)
                     {
                         var info = ops.ReadPackage(candidate);
@@ -499,7 +530,7 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         if (result.ExitCode is 0 or 3010 or 1641)
         {
             var now = system.Products().FirstOrDefault(x => string.Equals(x.Code, product.Code, StringComparison.OrdinalIgnoreCase));
-            if (now is not null && !string.IsNullOrWhiteSpace(now.LocalPackage) && system.FileExists(now.LocalPackage))
+            if (now is not null && !string.IsNullOrWhiteSpace(now.LocalPackage) && system.FileExists(now.LocalPackage) && !system.SavedCopyDamaged(now))
                 return Done(finding, "Windows Installer has its saved copy again, so the program can be repaired, removed and updated normally.", steps, restart: result.ExitCode != 0);
             steps.Add("Windows Installer reported success, but the saved copy is still missing.");
         }
@@ -516,6 +547,56 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         1618 => "another install is running", 1612 => "the installer's source files are not all there", 1603 => "the install failed",
         1605 => "Windows Installer does not know the program", 1925 => "it needs administrator rights", 87 => "that file does not match the program", _ => "error " + code
     };
+
+    // ---- An update whose saved file is gone ----
+
+    /// <summary>Looks for the saved update files of every update this program wears that has lost its own, and puts back the ones it finds.</summary>
+    private void RestorePatchesOf(MsiProduct product, Run run, Steps steps)
+    {
+        if (ops is null || elevated is null) return;
+        var marker = $@"\Products\{InstallRepair.Pack(product.Code)}\Patches\";
+        foreach (var dead in system.DeadPatches().Where(x => x.Keys.Any(key => key.Contains(marker, StringComparison.OrdinalIgnoreCase))))
+            RestorePatchFile(dead, run, steps);
+    }
+
+    /// <summary>
+    /// Puts an update's own .msp file back where Windows Installer registered it. A candidate has to carry the very patch code Windows Installer registered.
+    /// Copies from the places bundles and downloads keep them also need a valid digital signature; a copy in a folder the person chose does not.
+    /// Each update is looked for once per run.
+    /// </summary>
+    private bool RestorePatchFile(DeadPatch dead, Run run, Steps steps)
+    {
+        if (run.Patches.TryGetValue(dead.Patch, out var known)) return known;
+        run.Patches[dead.Patch] = false;
+        if (ops is null || elevated is null) { steps.Add("Putting an update's saved file back needs the administrator helper, which is not available."); return false; }
+        string code;
+        try { code = InstallRepair.Unpack(dead.Patch); }
+        catch (ArgumentException) { return false; }
+
+        var name = Path.GetFileName(dead.File);
+        run.Doing($"Looking for the update's own file ({name})…");
+        var chosen = run.Options.Folders is { Count: > 0 } folders ? folders.SelectMany(ops.PatchesIn).ToList() : [];
+        var tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Only administrators can write to C:\Windows\Installer, so what is already there (an update file left behind by a program that was removed) needs no signature either.
+        var installerFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer").TrimEnd('\\') + "\\";
+        foreach (var (file, signed) in chosen.Select(x => (File: x, Signed: false)).Concat(ops.CandidatePatches(code).Select(x => (File: x, Signed: !x.StartsWith(installerFolder, StringComparison.OrdinalIgnoreCase)))))
+        {
+            if (!tried.Add(file) || !string.Equals(ops.ReadPatchCode(file), code, StringComparison.OrdinalIgnoreCase)) continue;
+            Elevate(run);
+            run.Doing($"Putting the update's file back ({name})…");
+            var result = elevated.RestorePatchCopy(file, code, dead.File, signed);
+            if (result.ExitCode is 0 or 183 && system.FileExists(dead.File))
+            {
+                run.Files.Add(dead.File);
+                steps.Add($"Found the update's own file at {file} and put it back as {dead.File}.");
+                run.Patches[dead.Patch] = true;
+                return true;
+            }
+            steps.Add($"Found a file for this update at {file}, but it was not put back: {(result.Output.Length > 0 ? result.Output : "Windows would not accept it")}.");
+        }
+        steps.Add($"Looked for the update's own file ({name}) in the places bundles and downloads keep copies{(chosen.Count > 0 ? $" and in the {Count(run.Options.Folders!.Count, "folder", "folders")} you chose" : "")}; none carries this update's code.");
+        return false;
+    }
 
     // ---- Removing a record completely ----
 

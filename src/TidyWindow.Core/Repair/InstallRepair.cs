@@ -18,13 +18,13 @@ public sealed record MsiProduct(string Code, string Context, string Sid, string 
 
 public sealed record RunningInstaller(int Id, string Name, DateTimeOffset? Started);
 
-/// <summary>An update (patch) a program wears whose saved .msp file is gone. <see cref="Keys"/> are the registrations of that patch to remove: the program's own links to it, and the patch's shared records when nothing else wears it.</summary>
-public sealed record DeadPatch(string Patch, string File, IReadOnlyList<string> Programs, IReadOnlyList<string> Keys);
+/// <summary>An update (patch) a program wears whose saved .msp file is gone, or is there but empty or not a patch (<see cref="Damaged"/>). <see cref="Keys"/> are the registrations of that patch to remove: the program's own links to it, and the patch's shared records when nothing else wears it.</summary>
+public sealed record DeadPatch(string Patch, string File, IReadOnlyList<string> Programs, IReadOnlyList<string> Keys, bool Damaged = false);
 
 /// <summary>Something wrong that a repair can fix, with exactly the registry keys that fixing it removes.</summary>
 public sealed record RepairFinding(string Id, RepairKind Kind, string Title, string Detail, string Evidence, RepairLevel Level, IReadOnlyList<string> Keys, int? ProcessId = null,
     FootprintRequest? Footprint = null, IReadOnlyList<ValueRef>? Links = null, MsiProduct? Product = null, bool Alive = false, bool ServiceStuck = false, UninstallEntry? Entry = null,
-    IReadOnlyList<string>? Shortcuts = null, bool MachineShortcuts = false, IReadOnlyList<string>? Folders = null, bool MachineFolders = false)
+    IReadOnlyList<string>? Shortcuts = null, bool MachineShortcuts = false, IReadOnlyList<string>? Folders = null, bool MachineFolders = false, DeadPatch? Patch = null)
 {
     // A product's record always reaches Windows-wide keys, even a per-user one, because Windows Installer keeps its bookkeeping under UserData.
     public bool NeedsAdmin => Footprint is not null || ServiceStuck || MachineShortcuts || MachineFolders || Keys.Any(InstallRepair.IsMachine) || (Links?.Any(x => InstallRepair.IsMachine(x.Path)) ?? false);
@@ -62,8 +62,10 @@ public interface IInstallSystem
     bool InstallerServiceStuck() => false;
     /// <summary>Called once at the start of every scan, so anything read from the registry for the last scan is read again.</summary>
     void BeginScan() { }
-    /// <summary>Updates whose saved patch file is gone while a program still wears them: what repairing, updating or removing that program trips over (error 1612 or 1714).</summary>
+    /// <summary>Updates whose saved patch file is gone (or is there but empty or not a patch) while a program still wears them: what repairing, updating or removing that program trips over (error 1612 or 1714).</summary>
     IReadOnlyList<DeadPatch> DeadPatches() => [];
+    /// <summary>Whether the file Windows Installer saved for a program is there but unusable: empty, cut short, not an installer file at all, or another program's. A file that merely cannot be read right now is not called damaged.</summary>
+    bool SavedCopyDamaged(MsiProduct product) => false;
     /// <summary>Windows Installer's saved rollback information, left behind by an install that was cut short.</summary>
     bool InstallRollbackExists() => false;
     /// <summary>Removes a folder only if nothing is in it; returns whether it is gone.</summary>
@@ -156,6 +158,7 @@ public static partial class InstallRepair
 
             var command = string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString;
             string reason;
+            string? innoData = null;
             if (string.IsNullOrWhiteSpace(command))
             {
                 if (entry.NoRemove) continue;
@@ -164,18 +167,25 @@ public static partial class InstallRepair
             else
             {
                 var found = Launched(system, command);
-                if (found.Count == 0 || found.Any(x => Exists(system, x) || IsUri(x))) continue;
-                // A program on a drive that is not plugged in is not broken, only out of reach.
-                if (found.Any(x => !system.DriveAvailable(system.Expand(x)))) continue;
-                reason = "Its uninstaller is missing.";
+                innoData = MissingInnoData(system, command);
+                if (innoData is null)
+                {
+                    if (found.Count == 0 || found.Any(x => Exists(system, x) || IsUri(x))) continue;
+                    // A program on a drive that is not plugged in is not broken, only out of reach.
+                    if (found.Any(x => !system.DriveAvailable(system.Expand(x)))) continue;
+                    reason = "Its uninstaller is missing.";
+                }
+                else reason = $"Its uninstaller needs {Path.GetFileName(innoData)}, which is missing.";
             }
 
-            var alive = StillThere(system, entry) || (entry.BundleProvider.Length > 0 && system.BundleHasChildren(entry.KeyName));
+            // An uninstaller that is there is proof enough that the program is.
+            var alive = innoData is not null || StillThere(system, entry) || (entry.BundleProvider.Length > 0 && system.BundleHasChildren(entry.KeyName));
             // Only an entry that says where the program lives, with every one of those places gone, is called safe to remove.
             var named = entry.InstallLocation.Trim().Length > 0 || entry.DisplayIcon.Trim().Length > 0;
             var cached = CacheMarker().IsMatch(command ?? "");
             var (detail, level) =
-                alive ? ($"{reason} The program's files are still on this PC, so check that you no longer need it before removing the entry.", RepairLevel.Review)
+                innoData is not null ? ($"{reason} Inno Setup writes that file when the program is installed and it cannot be rebuilt, so Windows cannot uninstall the program. Installing the same version over it puts it back, which TidyWindow can do with WinGet when downloading is allowed.", RepairLevel.Review)
+                : alive ? ($"{reason} The program's files are still on this PC, so check that you no longer need it before removing the entry.", RepairLevel.Review)
                 : cached ? ($"{reason} Windows keeps it in a cache that has been cleared. Running the program's installer again restores it; remove the entry only if you do not want the program.", RepairLevel.Review)
                 : !named ? ($"{reason} It does not say where the program lives, so TidyWindow cannot tell whether it is still installed.", RepairLevel.Review)
                 : ($"{reason} The program's files are gone too, so this entry only blocks reinstalling.", RepairLevel.Recommended);
@@ -202,7 +212,23 @@ public static partial class InstallRepair
         var command = string.IsNullOrWhiteSpace(entry.UninstallString) ? entry.QuietUninstallString : entry.UninstallString;
         if (string.IsNullOrWhiteSpace(command)) return false;
         var found = Launched(system, command);
-        return found.Count > 0 && found.Any(x => Exists(system, x) || IsUri(x));
+        return found.Count > 0 && found.Any(x => Exists(system, x) || IsUri(x)) && MissingInnoData(system, command) is null;
+    }
+
+    /// <summary>
+    /// Inno Setup's uninstaller (unins000.exe) only runs with the unins000.dat beside it. The .dat is written when the program is installed and is not in the setup program,
+    /// so a program whose .dat is gone cannot be uninstalled. Returns the missing .dat, or null when the command is not an Inno uninstaller or has its data.
+    /// </summary>
+    internal static string? MissingInnoData(IInstallSystem system, string command)
+    {
+        foreach (var candidate in Launched(system, command))
+        {
+            var path = system.Expand(candidate.Trim().Trim('"'));
+            if (!InnoUninstaller().IsMatch(Path.GetFileName(path)) || !system.FileExists(path)) continue;
+            var data = Path.ChangeExtension(path, ".dat");
+            return system.FileExists(data) ? null : data;
+        }
+        return null;
     }
 
     private static readonly string[] Hosts = ["cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "rundll32"];
@@ -272,12 +298,15 @@ public static partial class InstallRepair
             // A record with no saved copy named at all is as broken as one naming a file that is gone, but only when Windows Installer says the program is installed:
             // a program that is only advertised has no saved copy yet.
             var unnamed = string.IsNullOrWhiteSpace(product.LocalPackage);
-            if (unnamed ? system.ProductState(product.Code) != InstalledState : system.FileExists(product.LocalPackage!)) continue;
+            var damaged = false;
+            if (unnamed ? system.ProductState(product.Code) != InstalledState : system.FileExists(product.LocalPackage!) && !(damaged = system.SavedCopyDamaged(product))) continue;
             var arp = entries.Where(x => string.Equals(x.KeyName, product.Code, StringComparison.OrdinalIgnoreCase)).ToList();
             var alive = arp.Any(x => StillThere(system, x)) || system.ProductFilesPresent(product);
             var name = string.IsNullOrWhiteSpace(product.Name) ? arp.FirstOrDefault()?.Name ?? product.Code : product.Name;
             var keys = RecordKeys(product).Concat(arp.Select(x => x.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var lost = unnamed ? "Windows Installer has no saved copy recorded that it needs to repair or uninstall this program" : "Windows Installer lost the saved copy it needs to repair or uninstall this program";
+            var lost = unnamed ? "Windows Installer has no saved copy recorded that it needs to repair or uninstall this program"
+                : damaged ? "Windows Installer's saved copy of this program's installer is damaged (empty, cut short or not its installer), so it cannot repair or uninstall the program"
+                : "Windows Installer lost the saved copy it needs to repair or uninstall this program";
             yield return new($"record:{product.Code}", RepairKind.InstallerRecord, name,
                 alive ? $"{lost}, and the program is still on this PC. TidyWindow first tries to restore the copy from the program's own installer files; if it cannot, it removes the record so the program can be installed again."
                       : $"{lost}, and the program is gone. Its leftover record blocks installing it again.",
@@ -305,9 +334,9 @@ public static partial class InstallRepair
         foreach (var patch in system.DeadPatches())
         {
             var programs = patch.Programs.Count == 0 ? "a program" : string.Join(", ", patch.Programs.Take(3)) + (patch.Programs.Count > 3 ? $" and {patch.Programs.Count - 3} more" : "");
-            yield return new($"patch:{patch.Patch}", RepairKind.MissingPatch, $"Missing update file for {(patch.Programs.Count == 0 ? "a program" : patch.Programs[0])}",
-                $"{programs} wears an update whose saved file ({Path.GetFileName(patch.File)}) is gone, so repairing, updating or removing it can fail with error 1612 or 1714. Removing the update's registration lets Windows Installer carry on; the changes the update made to the program's files stay.",
-                patch.File, RepairLevel.Review, patch.Keys);
+            yield return new($"patch:{patch.Patch}", RepairKind.MissingPatch, $"{(patch.Damaged ? "Damaged" : "Missing")} update file for {(patch.Programs.Count == 0 ? "a program" : patch.Programs[0])}",
+                $"{programs} wears an update whose saved file ({Path.GetFileName(patch.File)}) is {(patch.Damaged ? "damaged" : "gone")}, so repairing, updating or removing it can fail with error 1612 or 1714. TidyWindow first looks for that update's own .msp file and puts it back; only when none is found does it remove the update's registration, which lets Windows Installer carry on (the changes the update made to the program's files stay).",
+                patch.File, RepairLevel.Review, patch.Keys, Patch: patch);
         }
     }
 
@@ -413,6 +442,8 @@ public static partial class InstallRepair
     private static partial Regex ProductGuid();
     [GeneratedRegex(@"\\Package Cache\\", RegexOptions.IgnoreCase)]
     private static partial Regex CacheMarker();
+    [GeneratedRegex(@"^unins\d{3}\.exe$", RegexOptions.IgnoreCase)]
+    private static partial Regex InnoUninstaller();
     [GeneratedRegex(@"msiexec", RegexOptions.IgnoreCase)]
     private static partial Regex MsiExec();
     // msiexec takes "/" or "-" for its switches: /x, /i, /f..., /uninstall and /package all name a product by its code.
