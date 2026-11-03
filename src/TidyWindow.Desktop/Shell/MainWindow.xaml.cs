@@ -132,6 +132,8 @@ public sealed partial class MainWindow : Window
         QuietPage.DataContext = quiet;
         TunePage.DataContext = tune;
         DebloatPage.DataContext = debloat;
+        // Debloat removes apps behind the package managers' backs, so the Installed list is read again the next time it is opened.
+        debloat.AppsChanged += () => installations.NeedsRefresh = true;
         FixesPage.DataContext = fixes;
         UnstickPage.DataContext = unstick;
         LabPage.DataContext = lab;
