@@ -7,7 +7,7 @@ TidyWindow is a Windows-specific desktop app built with C#, .NET 10 and WinUI 3.
 | Path | Contents |
 | --- | --- |
 | [`src/TidyWindow.Desktop/`](../src/TidyWindow.Desktop/) | WinUI app. `Shell/` is the main window, `Features/` has one folder per page (view and view model together), and `Controls/`, `Common/` and `Styles/` are shared. |
-| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Unstick/`, `Lab/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
+| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Unstick/`, `Lab/`, `Crashes/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
 | [`src/TidyWindow.CleanHost/`](../src/TidyWindow.CleanHost/) | The elevated helper for Windows-wide changes. |
 | [`src/TidyWindow.SearchHost/`](../src/TidyWindow.SearchHost/) | The Scout worker that talks to Everything. |
 | [`tests/TidyWindow.Tests/`](../tests/TidyWindow.Tests/) | Unit tests, in folders that mirror `TidyWindow.Core` (and `Desktop/` for the UI code they link). |
@@ -52,6 +52,14 @@ Debloat is the one page that removes software. The page scans without administra
 Reversible changes save original state before writing and read back the result where supported. Cleanup holds old installers and unfinished downloads for 14 days; ordinary cache rules delete their files. Held files, installer repair backups and startup restore data survive app restarts. Windows repair commands and package operations have their own effects and do not have a universal undo mechanism.
 
 The per-tool research notes linked from the [README](../README.md#documentation) describe the contracts and limitations in more detail.
+
+## Crashes
+
+Crashes reads app crashes, freezes and Windows problems (blue screens, failing services, driver resets, disk and hardware errors) from the Windows event log, using the system's own query engine so Windows does the filtering. Nothing watches the log: a scan runs when the page opens, on Refresh, and once shortly after launch so the sidebar can show whether something is new. A scan reads only what is newer than the last, on a lowest-priority thread.
+
+Records are kept in `%LOCALAPPDATA%\TidyWindow.Next\Crashes` (up to 6,000 records and 120 days) so the page opens at once and outlives Windows' own log rotation. Duplicates are merged (a .NET crash is written twice, a blue screen up to three times), repeats of one system problem within ten minutes become one entry with a count, and search runs over strings built once per refresh. See [Crashes research](crashes-research.md).
+
+This is separate from Logs, which records what TidyWindow itself did.
 
 ## Logs
 
