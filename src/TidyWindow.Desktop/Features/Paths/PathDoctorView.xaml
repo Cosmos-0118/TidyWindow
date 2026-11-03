@@ -108,6 +108,20 @@
 
      <!-- Tab 1: which program runs -->
      <StackPanel x:Name="ProgramsTab" Spacing="14">
+      <!-- Java warning: JAVA_HOME is a setting, not a PATH folder, so no row below can show it. -->
+      <Border Visibility="{Binding JavaNoteVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="8" Padding="18,14">
+       <Grid ColumnSpacing="16">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+         <TextBlock Text="Java is set up two different ways" Style="{StaticResource ItemTitle}" />
+         <TextBlock Text="{Binding JavaNote}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+        <Button Grid.Column="2" Click="JavaFixClick" Visibility="{Binding JavaFixVisibility}" IsEnabled="{Binding CanChange}" Padding="14,8" VerticalAlignment="Center" ToolTipService.ToolTip="Sets JAVA_HOME to the folder of the java that runs when you type java.">
+         <TextBlock Text="Use the Java that runs" FontSize="12" />
+        </Button>
+       </Grid>
+      </Border>
       <Grid ColumnSpacing="16">
        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
        <StackPanel Spacing="3" VerticalAlignment="Center">
