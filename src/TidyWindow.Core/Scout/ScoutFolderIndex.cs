@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO.Enumeration;
 
 namespace TidyWindow.Next.Core;
@@ -9,7 +8,7 @@ public sealed class ScoutFolderIndex : IDisposable
 {
     private const int Capacity = 400000;
     private readonly object gate = new();
-    private readonly Dictionary<string, ScoutEntry> entries = new(StringComparer.OrdinalIgnoreCase);
+    private ScoutEntryStore store = new();
     private readonly ConcurrentQueue<(string Path, string? Old)> changes = new();
     private CancellationTokenSource cancellation = new();
     private Task? building;
@@ -36,17 +35,20 @@ public sealed class ScoutFolderIndex : IDisposable
         while (true)
         {
             token.ThrowIfCancellationRequested();
-            ScoutEntry[] snapshot; int errors; bool capped; bool dirty;
+            ScoutEntryStore.Snapshot snapshot; int errors; bool capped; bool dirty; bool complete;
             lock (gate)
             {
                 if (!path.Equals(root, StringComparison.OrdinalIgnoreCase)) throw new OperationCanceledException("The search folder changed.", token);
-                ApplyChanges(); snapshot = entries.Values.ToArray(); errors = skipped; capped = limited; dirty = missedChanges || !changes.IsEmpty;
+                // Asked before the entries are taken: a result can only be called complete if everything the walk found is in it.
+                complete = build.IsCompleted;
+                ApplyChanges(); snapshot = store.Capture(); errors = skipped; capped = limited; dirty = missedChanges || !changes.IsEmpty;
             }
-            var matches = query.Rank(snapshot, request.Kind, token: token);
-            var result = new ScoutResult(matches, "Folder index", snapshot.Length, errors, build.IsCompleted, capped,
+            // The search reads the entries where they are, outside the lock, so the walkers can keep adding to them meanwhile.
+            var matches = query.Rank(new ScoutStoreSource(snapshot), request.Kind, token: token);
+            var result = new ScoutResult(matches, "Folder index", snapshot.Live, errors, complete, capped,
                 dirty ? "Some changes could not be tracked. Refresh the folder index." : null);
             progress?.Report(result);
-            if (build.IsCompleted) { await build.ConfigureAwait(false); return result; }
+            if (complete) { await build.ConfigureAwait(false); return result; }
             await Task.WhenAny(build, Task.Delay(250, token)).ConfigureAwait(false);
         }
     }
@@ -56,14 +58,14 @@ public sealed class ScoutFolderIndex : IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             cancellation.Cancel(); watcher?.Dispose(); watcher = null;
-            root = null; building = null; entries.Clear(); changes.Clear();
+            root = null; building = null; store = new(); changes.Clear();
         }
     }
     private void Start(string path)
     {
         if (!Directory.Exists(path)) throw new DirectoryNotFoundException("The selected folder is unavailable.");
         var oldCancellation = cancellation; oldCancellation.Cancel(); watcher?.Dispose(); cancellation = new();
-        var token = cancellation.Token; root = path; entries.Clear(); skipped = 0; limited = false; missedChanges = false;
+        var token = cancellation.Token; root = path; store = new(); skipped = 0; limited = false; missedChanges = false;
         while (changes.TryDequeue(out _)) { }
         try
         {
@@ -75,7 +77,9 @@ public sealed class ScoutFolderIndex : IDisposable
             watcher.EnableRaisingEvents = true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { missedChanges = true; watcher?.Dispose(); watcher = null; }
-        building = Task.Run(() => Walk(path, token), CancellationToken.None);
+        // Folders are known by their path without a closing separator, which is how a change reports the folder it happened in.
+        var folder = Path.TrimEndingDirectorySeparator(path); var folderId = store.RegisterDirectory(folder);
+        building = Task.Run(() => Walk(path, folder, folderId, token), CancellationToken.None);
         _ = building.ContinueWith(_ => oldCancellation.Dispose(), TaskScheduler.Default);
     }
     private void TrackChange(string path, string? old, CancellationToken token)
@@ -87,15 +91,21 @@ public sealed class ScoutFolderIndex : IDisposable
             changes.Enqueue((path, old));
         }
     }
-    private void Walk(string path, CancellationToken token)
+    /// <summary>Makes a folder known to the index, or -1 when this walk has been given up on.</summary>
+    private int Register(string folder, CancellationToken token)
+    {
+        lock (gate) return token.IsCancellationRequested ? -1 : store.RegisterDirectory(folder);
+    }
+    private void Walk(string root, string folder, int folderId, CancellationToken token)
     {
         // Folders of tooling and caches are walked only after everything else, so the entry cap is spent on files people look for.
-        var directories = new ConcurrentQueue<string>(); directories.Enqueue(path);
-        var deferred = new ConcurrentQueue<string>();
+        var directories = new ConcurrentQueue<(string Path, int Id)>(); directories.Enqueue((folder, folderId));
+        var deferred = new ConcurrentQueue<(string Path, int Id)>();
         var active = 1; var mainActive = 1;
         var workers = Enumerable.Range(0, Math.Clamp(Environment.ProcessorCount / 2, 2, 4)).Select(_ => Task.Run(() =>
         {
-            var batch = new List<ScoutEntry>(256);
+            // What the walker finds goes into this batch as it is enumerated: no object and no string is made for a file, only for a folder to walk into.
+            var batch = new ScoutBatch();
             while (!token.IsCancellationRequested && Volatile.Read(ref active) > 0)
             {
                 var main = true;
@@ -106,42 +116,46 @@ public sealed class ScoutFolderIndex : IDisposable
                 }
                 try
                 {
-                    var items = new FileSystemEnumerable<ScoutEntry>(directory, (ref FileSystemEntry e) =>
-                        new(e.ToFullPath(), e.IsDirectory, e.IsDirectory ? null : e.Length, e.LastWriteTimeUtc, e.Attributes.HasFlag(FileAttributes.ReparsePoint)), new EnumerationOptions
-                        { RecurseSubdirectories = false, IgnoreInaccessible = false, ReturnSpecialDirectories = false, AttributesToSkip = FileAttributes.Offline });
-                    foreach (var entry in items)
+                    var items = new FileSystemEnumerable<int>(directory.Path, (ref FileSystemEntry e) => batch.Add(directory.Id, ref e), new EnumerationOptions
+                    { RecurseSubdirectories = false, IgnoreInaccessible = false, ReturnSpecialDirectories = false, AttributesToSkip = FileAttributes.Offline });
+                    foreach (var added in items)
                     {
                         if (token.IsCancellationRequested) return;
-                        if (entry.IsFolder && !entry.IsReparse)
+                        if (batch.IsWalkable(added))
                         {
+                            var name = batch.NameOf(added);
+                            var child = Path.Join(directory.Path, name);
+                            var childId = Register(child, token);
+                            if (childId < 0) return;
                             Interlocked.Increment(ref active);
-                            if (!main || IsLowPriority(entry.Name)) deferred.Enqueue(entry.FullPath);
-                            else { Interlocked.Increment(ref mainActive); directories.Enqueue(entry.FullPath); }
+                            if (!main || IsLowPriority(name)) deferred.Enqueue((child, childId));
+                            else { Interlocked.Increment(ref mainActive); directories.Enqueue((child, childId)); }
                         }
-                        batch.Add(entry);
-                        if (batch.Count >= 256 && !Publish(batch, path, token)) return;
+                        if (batch.Count >= 256 && !Publish(batch, root, token)) return;
                     }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 { lock (gate) { if (!token.IsCancellationRequested) skipped++; } }
                 finally { Interlocked.Decrement(ref active); if (main) Interlocked.Decrement(ref mainActive); }
             }
-            Publish(batch, path, token);
+            Publish(batch, root, token);
         })).ToArray();
         Task.WaitAll(workers);
     }
     private static readonly HashSet<string> LowPriority = new(StringComparer.OrdinalIgnoreCase)
     { "node_modules", ".git", ".hg", ".svn", "__pycache__", "$Recycle.Bin", "AppData", ".nuget", ".gradle", ".cache", "site-packages", ".venv", "venv" };
+    private static readonly HashSet<string>.AlternateLookup<ReadOnlySpan<char>> LowPriorityByName = LowPriority.GetAlternateLookup<ReadOnlySpan<char>>();
     internal static bool IsLowPriority(string name) => LowPriority.Contains(name);
-    private bool Publish(List<ScoutEntry> batch, string path, CancellationToken token)
+    private static bool IsLowPriority(ReadOnlySpan<char> name) => LowPriorityByName.Contains(name);
+    private bool Publish(ScoutBatch batch, string path, CancellationToken token)
     {
         lock (gate)
         {
             if (token.IsCancellationRequested || path != root) return false;
-            foreach (var entry in batch)
+            for (var i = 0; i < batch.Count; i++)
             {
-                if (entries.Count >= Capacity) { limited = true; cancellation.Cancel(); return false; }
-                entries[entry.FullPath] = entry;
+                if (store.Live >= Capacity) { limited = true; cancellation.Cancel(); return false; }
+                store.Add(batch, i);
             }
         }
         batch.Clear(); return true;
@@ -151,30 +165,24 @@ public sealed class ScoutFolderIndex : IDisposable
         var count = 0;
         while (count++ < 2000 && changes.TryDequeue(out var change))
         {
-            if (change.Old is { } old)
-                foreach (var key in entries.Keys.Where(x => x.Equals(old, StringComparison.OrdinalIgnoreCase) || x.StartsWith(old + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)).ToArray())
-                { var value = entries[key]; entries.Remove(key); var renamed = change.Path + key[old.Length..]; entries[renamed] = new(renamed, value.IsFolder, value.Size, value.Modified, value.IsReparse); }
+            if (change.Old is { } old) store.Move(old, change.Path);
             try
             {
                 var attributes = File.GetAttributes(change.Path);
                 if ((attributes & FileAttributes.Offline) != 0) continue;
                 var folder = attributes.HasFlag(FileAttributes.Directory);
-                if (entries.Count < Capacity || entries.ContainsKey(change.Path))
+                if (store.Live < Capacity || store.Contains(change.Path))
                 {
                     var info = folder ? (FileSystemInfo)new DirectoryInfo(change.Path) : new FileInfo(change.Path);
-                    entries[change.Path] = new(change.Path, folder, info is FileInfo file ? file.Length : null, info.LastWriteTimeUtc, attributes.HasFlag(FileAttributes.ReparsePoint));
+                    store.Upsert(change.Path, folder, info is FileInfo file ? file.Length : null, info.LastWriteTimeUtc.Ticks, attributes.HasFlag(FileAttributes.ReparsePoint));
                     if (folder && change.Old is null) missedChanges = true; // A new/moved tree needs a refresh to discover all children.
                 }
                 else limited = true;
             }
-            catch (FileNotFoundException) { RemoveTree(change.Path); }
-            catch (DirectoryNotFoundException) { RemoveTree(change.Path); }
+            catch (FileNotFoundException) { store.RemoveTree(change.Path); }
+            catch (DirectoryNotFoundException) { store.RemoveTree(change.Path); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { missedChanges = true; }
         }
-    }
-    private void RemoveTree(string path)
-    {
-        foreach (var key in entries.Keys.Where(x => x.Equals(path, StringComparison.OrdinalIgnoreCase) || x.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)).ToArray()) entries.Remove(key);
     }
     public void Dispose() { lock (gate) { disposed = true; cancellation.Cancel(); watcher?.Dispose(); } }
 }

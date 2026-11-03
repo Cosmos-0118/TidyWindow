@@ -19,6 +19,16 @@ public sealed class ScoutCategory
     public bool Contains(string extension, string stem) =>
         extension.Length > 0 && (Extensions.Contains(extension) || Hint is not null && HintedExtensions.Contains(extension) && Hint.IsMatch(stem));
 
+    private HashSet<string>.AlternateLookup<ReadOnlySpan<char>>? plain, hinted;
+
+    /// <summary>The same test without making a string: <paramref name="extension"/> must already be lowercase, as the string form expects.</summary>
+    public bool Contains(ReadOnlySpan<char> extension, ReadOnlySpan<char> stem)
+    {
+        if (extension.IsEmpty) return false;
+        if ((plain ??= Extensions.GetAlternateLookup<ReadOnlySpan<char>>()).Contains(extension)) return true;
+        return Hint is not null && (hinted ??= HintedExtensions.GetAlternateLookup<ReadOnlySpan<char>>()).Contains(extension) && Hint.IsMatch(stem);
+    }
+
     /// <summary>Every extension the kind can have, for a search that may return a little too much and is narrowed afterwards.</summary>
     public IEnumerable<string> PossibleExtensions => Extensions.Concat(HintedExtensions);
 }
