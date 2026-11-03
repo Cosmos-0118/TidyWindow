@@ -103,6 +103,9 @@ public sealed partial class RepairService(IInstallSystem system, IKeyEditor user
         var steps = new Steps(run);
         var finding = new RepairFinding($"repair:{product.Code}", RepairKind.InstallerRecord, title, "", product.Code, RepairLevel.Review, []);
         var package = product.LocalPackage;
+        // Visual Studio's packages refuse to run on their own, so repairing one here only ends in an administrator prompt and a refusal.
+        if (system.RefusesWithoutVisualStudio(product) || system.Entries().Any(x => x.NamedFromVisualStudio && string.Equals(InstallRepair.ProductCode(x), product.Code, StringComparison.OrdinalIgnoreCase)))
+            return Failed(finding, "Visual Studio installed this program and keeps it up to date itself. Open the Visual Studio Installer and choose Modify or Repair there.", steps);
         if (ops is null || string.IsNullOrWhiteSpace(package))
             return Failed(finding, "Windows Installer has no saved copy of this program's installer, so it cannot be repaired from here.", steps);
         var elevate = product.Context != "User";

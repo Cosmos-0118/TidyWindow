@@ -8,9 +8,18 @@ public enum RepairLevel { Recommended, Review, Info }
 
 /// <summary>One program as Windows lists it in "Installed apps", read from the registry.</summary>
 public sealed record UninstallEntry(string Key, string Name, string Version, string Publisher, string UninstallString, string QuietUninstallString,
-    string InstallLocation, string DisplayIcon, bool WindowsInstaller, bool SystemComponent, bool NoRemove, bool IsUpdate, string BundleProvider = "")
+    string InstallLocation, string DisplayIcon, bool WindowsInstaller, bool SystemComponent, bool NoRemove, bool IsUpdate, string BundleProvider = "", string InstallSource = "")
 {
     public string KeyName => Key[(Key.LastIndexOf('\\') + 1)..];
+
+    /// <summary>
+    /// Installed from the Visual Studio Installer's package cache, which is where everything Visual Studio sets up comes from. Most of it repairs like any other program (IIS Express, Web Deploy, LocalDB),
+    /// but a few packages (the .NET SDK) refuse to run on their own, which only the package's launch conditions say: <see cref="IInstallSystem.RefusesWithoutVisualStudio"/> decides, this only says where to look.
+    /// </summary>
+    public bool FromVisualStudioCache => InstallSource.Replace('/', '\\').Contains(@"\Microsoft\VisualStudio\Packages\", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Visual Studio puts " from Visual Studio" in the name of the packages that refuse to run without it: enough on its own when the saved installer cannot be read.</summary>
+    public bool NamedFromVisualStudio => Name.Contains(" from Visual Studio", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>A product Windows Installer knows about. <see cref="Context"/> is Machine, User or Managed (installed for one user by an administrator).</summary>
@@ -66,6 +75,8 @@ public interface IInstallSystem
     IReadOnlyList<DeadPatch> DeadPatches() => [];
     /// <summary>Whether the file Windows Installer saved for a program is there but unusable: empty, cut short, not an installer file at all, or another program's. A file that merely cannot be read right now is not called damaged.</summary>
     bool SavedCopyDamaged(MsiProduct product) => false;
+    /// <summary>Whether the program's own saved installer says it can only be changed through the Visual Studio Installer (a launch condition refuses every other run).</summary>
+    bool RefusesWithoutVisualStudio(MsiProduct product) => false;
     /// <summary>Windows Installer's saved rollback information, left behind by an install that was cut short.</summary>
     bool InstallRollbackExists() => false;
     /// <summary>Removes a folder only if nothing is in it; returns whether it is gone.</summary>
