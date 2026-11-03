@@ -75,6 +75,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 | **Fixes** | Run standard Windows repairs for system files, Windows Update, networking, audio and more. Inspect the commands first and follow their live output. |
 | **Unstick** | One-press fixes for things that get stuck: restart File Explorer, Start, search, the clipboard, notifications or media keys, unstick screenshots and folder previews, refresh the display, flush DNS or restart WSL. Each runs at once and takes seconds. A separate section restarts sound, Bluetooth, the camera or the print queue, and rescans hardware, and asks for administrator permission once. |
 | **Lab** | Compare a 15-second performance check with the previous one, switch power plans or temporarily change one app's priority. |
+| **Crashes** | See which apps crash or freeze most, what failed each time, and which Windows problems (blue screens, failing services, driver resets) happened. Search forgives typos and understands `app:chrome since:7d`. Reads Windows' own records only when opened. |
 | **Queue** | Follow installs, updates and uninstalls from every page, one operation at a time. |
 | **Logs** | Review outcomes and problems that need attention, without a stream of routine activity. |
 
@@ -173,6 +174,7 @@ The research notes explain what each tool changes, the evidence behind it, and w
 | [Debloat](docs/debloat-research.md) | How apps are removed for every account, the protected list, OneDrive and Edge checks, and put back. |
 | [Fixes](docs/fixes-research.md) | Standard Windows repair commands, scope and limitations. |
 | [Unstick](docs/unstick-research.md) | The instant restarts and why each is safe, what was left out, and what was checked on a real PC. |
+| [Crashes](docs/crashes-research.md) | Where Windows keeps crash records, what is left out, how a scan stays cheap, and the search syntax. |
 | [Lab](docs/lab-research.md) | What the performance check measures and how comparisons work. |
 
 ## Contributing

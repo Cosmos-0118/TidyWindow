@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Queue, Logs, Settings }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Crashes, Queue, Logs, Settings }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private readonly FixSession fixSession;
     private readonly UnstickViewModel unstick;
     private readonly LabViewModel lab;
+    private readonly CrashesViewModel crashes;
     private readonly SettingsViewModel settings;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
@@ -125,6 +126,8 @@ public sealed partial class MainWindow : Window
         var labStore = new LabStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Lab"));
         lab = new(new PowerMode(new PowerCfgProcess(), labStore), labStore, new ProcessBoost(new LiveProcesses()), tuneSystem, log, toasts, OpenTune, PowerSource.HasBattery());
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
+        // Crash records are read from Windows' own event log when the page opens or is refreshed, and a short while after launch to show whether anything is new. Nothing watches the log.
+        crashes = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Crashes"), new WindowsEventSource(), log, toasts);
         unstick = new(new UnstickRunner(new WindowsUnstickSystem(), (run, progress, token) => fixService.RunAsync(run, progress, token)), log, toasts);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
@@ -137,6 +140,8 @@ public sealed partial class MainWindow : Window
         FixesPage.DataContext = fixes;
         UnstickPage.DataContext = unstick;
         LabPage.DataContext = lab;
+        CrashesPage.DataContext = crashes;
+        CrashesNav.DataContext = crashes;
         PathsPage.DataContext = paths;
         logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
         settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), action => DispatcherQueue.TryEnqueue(() => action()));
@@ -187,6 +192,7 @@ public sealed partial class MainWindow : Window
             WatchFirstFrames();
             ReportInterruptedRun();
             ApplyResponsiveLayout();
+            _ = CheckCrashesLaterAsync();
             await Refresh();
             if (page == Page.Installed) await installations.RefreshAsync();
         };
@@ -194,7 +200,7 @@ public sealed partial class MainWindow : Window
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     private readonly TaskCompletionSource firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -445,7 +451,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Crashes => CrashesPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -497,7 +503,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (CrashesNav, Page.Crashes), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -523,6 +529,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonInactiveForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9));
         foreach (var manager in model.Managers) manager.SetLightTheme(light);
         logs.SetLightTheme(light);
+        crashes.SetLightTheme(light);
         operationQueue.SetLightTheme(light);
     }
     private void ThemeClick(object sender, RoutedEventArgs e)
@@ -579,6 +586,30 @@ public sealed partial class MainWindow : Window
     {
         ShowPage(Page.Unstick);
         _ = unstick.LoadAsync();
+    }
+
+    private void CrashesClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Crashes);
+        _ = OpenCrashesAsync();
+    }
+
+    private async Task OpenCrashesAsync()
+    {
+        try { await crashes.OpenAsync(); }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash history could not be opened", ex.Message); }
+    }
+
+    // A single quiet look a little after launch, so the sidebar can say whether anything crashed since the page was last opened. It reads only what is new, on a low-priority thread.
+    private async Task CheckCrashesLaterAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            if (!initialized) return;
+            await crashes.CheckQuietlyAsync();
+        }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash records could not be checked at startup", ex.Message); }
     }
 
     private void LabClick(object sender, RoutedEventArgs e)
