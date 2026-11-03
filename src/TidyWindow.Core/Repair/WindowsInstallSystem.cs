@@ -38,7 +38,7 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
                         entries.Add(new($@"{prefix}\{path}\{name}", Text(key, "DisplayName"), Text(key, "DisplayVersion"), Text(key, "Publisher"),
                             Text(key, "UninstallString"), Text(key, "QuietUninstallString"), Text(key, "InstallLocation"), Text(key, "DisplayIcon"),
                             Flag(key, "WindowsInstaller"), Flag(key, "SystemComponent"), Flag(key, "NoRemove"),
-                            parent.Length > 0 || Array.Exists(UpdateTypes, x => string.Equals(x, Text(key, "ReleaseType"), StringComparison.OrdinalIgnoreCase)), Text(key, "BundleProviderKey")));
+                            parent.Length > 0 || Array.Exists(UpdateTypes, x => string.Equals(x, Text(key, "ReleaseType"), StringComparison.OrdinalIgnoreCase)), Text(key, "BundleProviderKey"), Text(key, "InstallSource")));
                     }
                     catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
                 }
@@ -86,6 +86,9 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
 
     public bool SavedCopyDamaged(MsiProduct product) =>
         !string.IsNullOrWhiteSpace(product.LocalPackage) && FileExists(product.LocalPackage) && PackageHealth.InstallerDamaged(product.LocalPackage, product.Code);
+
+    public bool RefusesWithoutVisualStudio(MsiProduct product) =>
+        !string.IsNullOrWhiteSpace(product.LocalPackage) && FileExists(product.LocalPackage) && PackageHealth.RefusesWithoutVisualStudio(product.LocalPackage);
 
     /// <summary>Product keys Windows Installer has, that its own list of products does not include: the half of a record that an interrupted repair leaves.</summary>
     public IReadOnlyList<MsiProduct> Ghosts()

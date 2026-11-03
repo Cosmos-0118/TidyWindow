@@ -374,4 +374,68 @@ public sealed class RepairCacheRestoreTests : IDisposable
         Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
         Assert.Equal([@"C:\unzipped\core.msi"], ops.Reinstalled);
     }
+
+    // ---- Programs Visual Studio installed for itself ----
+
+    private const string DotnetSdkCode = "{F88188C9-CDDF-4229-B5A0-71E054594115}";
+    private const string VisualStudioPackages = @"C:\ProgramData\Microsoft\VisualStudio\Packages\Microsoft.NetCore.SdkPlaceholder.10.0.403-servicing.26523.112,version=18.11.12324.64,machinearch=x64\";
+
+    private static UninstallEntry Entry(string name, string source) =>
+        new($@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DotnetSdkCode}", name, "10.0.403", "Microsoft", $"MsiExec.exe /X{DotnetSdkCode}", "", "", "", true, false, false, false, InstallSource: source);
+
+    [Theory]
+    [InlineData(VisualStudioPackages, true)]
+    [InlineData(@"c:\programdata\microsoft\visualstudio\packages\Some.Runtime,version=1\", true)]
+    [InlineData("C:/ProgramData/Microsoft/VisualStudio/Packages/Some.Runtime/", true)]
+    [InlineData(@"C:\Users\me\Downloads\", false)]
+    [InlineData(@"C:\ProgramData\Microsoft\VisualStudio\Setup\", false)]
+    [InlineData("", false)]
+    public void ProgramsFromTheVisualStudioPackageCacheAreRecognisedByTheirSource(string source, bool expected) =>
+        Assert.Equal(expected, Entry("Anything", source).FromVisualStudioCache);
+
+    [Theory]
+    [InlineData("Microsoft .NET SDK 10.0.403 (x64) from Visual Studio", true)]
+    [InlineData("Visual Studio Code", false)]
+    [InlineData("Microsoft Visual Studio Installer", false)]
+    public void TheNameVisualStudioGivesItsRefusingPackagesIsTheFallback(string name, bool expected) =>
+        Assert.Equal(expected, Entry(name, "").NamedFromVisualStudio);
+
+    [Fact]
+    public async Task RepairingAProgramWhoseInstallerOnlyRunsFromVisualStudioStopsBeforeAskingForAdministratorRights()
+    {
+        var product = new MsiProduct(DotnetSdkCode, "Machine", "", "Microsoft .NET SDK 10.0.403 (x64)", @"C:\Windows\Installer\sdk.msi");
+        var pc = new FakePc { Msi = [product], Files = { product.LocalPackage! }, Programs = [Entry(product.Name, VisualStudioPackages)] };
+        pc.NeedVisualStudio.Add(DotnetSdkCode);
+        var ops = new FakeOps();
+
+        var result = await Service(pc, ops).RepairProgramAsync(product, product.Name);
+
+        Assert.Equal(RepairStatus.NotFixed, result.Status);
+        Assert.Contains("Visual Studio Installer", result.Summary);
+        Assert.Empty(ops.Reinstalled);
+    }
+
+    [Fact]
+    public async Task ARepairWhoseSavedInstallerCannotBeReadStillStopsForTheNameVisualStudioGivesIt()
+    {
+        var product = new MsiProduct(DotnetSdkCode, "Machine", "", "Microsoft .NET SDK 10.0.403 (x64) from Visual Studio", null);
+        var pc = new FakePc { Msi = [product], Programs = [Entry(product.Name, "")] };
+
+        var result = await Service(pc, new FakeOps()).RepairProgramAsync(product, product.Name);
+
+        Assert.Contains("Visual Studio Installer", result.Summary);
+    }
+
+    [Fact]
+    public async Task AProgramVisualStudioCachedThatRepairsNormallyIsRepairedAsBefore()
+    {
+        // IIS Express, Web Deploy and LocalDB come from the same cache but nothing in their installers refuses a repair.
+        var product = new MsiProduct(DotnetSdkCode, "Machine", "", "Microsoft Web Deploy 4.0", @"C:\Windows\Installer\sdk.msi");
+        var pc = new FakePc { Msi = [product], Files = { product.LocalPackage! }, Programs = [Entry(product.Name, VisualStudioPackages)] };
+        var ops = new FakeOps();
+
+        var result = await Service(pc, ops).RepairProgramAsync(product, product.Name);
+
+        Assert.Equal(RepairStatus.Fixed, result.Status);
+    }
 }

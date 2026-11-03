@@ -94,6 +94,8 @@ public sealed class FakePc : IInstallSystem
     public IReadOnlyList<DeadPatch> DeadPatches() => Patches;
     public HashSet<string> DamagedCopies = new(StringComparer.OrdinalIgnoreCase);
     public bool SavedCopyDamaged(MsiProduct product) => DamagedCopies.Contains(product.Code);
+    public HashSet<string> NeedVisualStudio = new(StringComparer.OrdinalIgnoreCase);
+    public bool RefusesWithoutVisualStudio(MsiProduct product) => NeedVisualStudio.Contains(product.Code);
     public bool InstallerBusy() => false;
     public IReadOnlyList<RunningInstaller> Installers() => [];
     public IReadOnlyList<string> PendingRestart() => [];

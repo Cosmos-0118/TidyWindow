@@ -35,6 +35,25 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void OnlyTheProgramsWhoseInstallerRefusesAreCalledVisualStudioOnlyOnThisPc()
+    {
+        if (!Live) return;
+        var system = new WindowsInstallSystem();
+        var products = system.Products();
+        var cached = system.Entries().Where(x => x.FromVisualStudioCache && !x.SystemComponent).ToList();
+        foreach (var entry in cached)
+        {
+            var product = products.FirstOrDefault(p => string.Equals(p.Code, InstallRepair.ProductCode(entry), StringComparison.OrdinalIgnoreCase));
+            var refuses = product is not null && system.RefusesWithoutVisualStudio(product);
+            output.WriteLine($"  {entry.Name}: named from VS {entry.NamedFromVisualStudio}, installer refuses {refuses}");
+            // The name Visual Studio gives them and the package's own launch condition must agree.
+            if (entry.NamedFromVisualStudio) Assert.True(refuses, entry.Name);
+            else Assert.False(refuses, entry.Name);
+        }
+        output.WriteLine($"{cached.Count} visible programs came from the Visual Studio package cache.");
+    }
+
+    [Fact]
     public void TheCacheChecksNameEveryDamagedSavedCopyAndInnoUninstallerOnThisPc()
     {
         if (!Live) return;

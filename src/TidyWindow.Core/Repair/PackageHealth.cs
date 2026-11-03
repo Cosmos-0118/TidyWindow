@@ -41,6 +41,33 @@ internal static partial class PackageHealth
         return patchCode is not null && !string.Equals(found, patchCode, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Whether the installer itself says it must be changed through the Visual Studio Installer: one of its launch conditions gives that as the reason it stops.
+    /// Only the package knows; what Visual Studio put in its package cache (IIS Express, Web Deploy, LocalDB) repairs normally.
+    /// </summary>
+    public static bool RefusesWithoutVisualStudio(string path)
+    {
+        if (MsiOpenDatabase(path, IntPtr.Zero, out var database) != 0) return false;
+        try
+        {
+            if (MsiDatabaseOpenView(database, "SELECT `Description` FROM `LaunchCondition`", out var view) != 0) return false;
+            try
+            {
+                if (MsiViewExecute(view, IntPtr.Zero) != 0) return false;
+                while (MsiViewFetch(view, out var record) == 0)
+                    try
+                    {
+                        var text = new StringBuilder(2048); uint length = 2048;
+                        if (MsiRecordGetString(record, 1, text, ref length) == 0 && text.ToString().Contains("Visual Studio Installer", StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                    finally { MsiCloseHandle(record); }
+                return false;
+            }
+            finally { MsiCloseHandle(view); }
+        }
+        finally { MsiCloseHandle(database); }
+    }
+
     /// <summary>The update code ({GUID}) an .msp file carries in its summary information, or null when it is not a readable update.</summary>
     public static string? ReadPatchCode(string path) => ReadPatchCode(path, out _);
 
