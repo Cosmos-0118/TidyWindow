@@ -20,6 +20,7 @@ public sealed class CrashHistory
     private readonly Func<DateTimeOffset> clock;
     private readonly string? file, state;
     private DateTimeOffset? scannedUpTo, seenUpTo;
+    private int scannedSources;
 
     /// <param name="folder">Where the history is kept; null keeps it in memory only.</param>
     public CrashHistory(string? folder = null, Func<DateTimeOffset>? clock = null)
@@ -36,6 +37,8 @@ public sealed class CrashHistory
     public int Count { get { lock (gate) return events.Count; } }
     /// <summary>Everything before this moment has been read. Null until a scan has finished once.</summary>
     public DateTimeOffset? ScannedUpTo { get { lock (gate) return scannedUpTo; } }
+    /// <summary>The <see cref="CrashSources.Version"/> the last finished scan read with; 0 for a history from before versions were kept.</summary>
+    public int ScannedSources { get { lock (gate) return scannedSources; } }
 
     /// <summary>Newest first.</summary>
     public IReadOnlyList<CrashEvent> All() { lock (gate) return events.Values.OrderByDescending(x => x.Time).ToArray(); }
@@ -70,9 +73,9 @@ public sealed class CrashHistory
         }
     }
 
-    public void MarkScanned(DateTimeOffset moment)
+    public void MarkScanned(DateTimeOffset moment, int sources = CrashSources.Version)
     {
-        lock (gate) { scannedUpTo = moment; WriteState(); }
+        lock (gate) { scannedUpTo = moment; scannedSources = sources; WriteState(); }
     }
 
     public void MarkSeen(DateTimeOffset moment)
@@ -85,7 +88,7 @@ public sealed class CrashHistory
     {
         lock (gate)
         {
-            events.Clear(); dismissed.Clear(); scannedUpTo = null;
+            events.Clear(); dismissed.Clear(); scannedUpTo = null; scannedSources = 0;
             foreach (var path in new[] { file, state })
             {
                 if (path is null) continue;
@@ -127,7 +130,7 @@ public sealed class CrashHistory
         try
         {
             Directory.CreateDirectory(Folder!);
-            File.WriteAllText(state, JsonSerializer.Serialize(new State(scannedUpTo, seenUpTo, dismissed.ToArray()), Json), new UTF8Encoding(false));
+            File.WriteAllText(state, JsonSerializer.Serialize(new State(scannedUpTo, seenUpTo, dismissed.ToArray(), scannedSources), Json), new UTF8Encoding(false));
             StorageError = null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { StorageError = ex.Message; }
@@ -151,7 +154,7 @@ public sealed class CrashHistory
         try
         {
             var saved = JsonSerializer.Deserialize<State>(File.ReadAllText(state!), Json);
-            scannedUpTo = saved?.ScannedUpTo; seenUpTo = saved?.SeenUpTo;
+            scannedUpTo = saved?.ScannedUpTo; seenUpTo = saved?.SeenUpTo; scannedSources = saved?.Sources ?? 0;
             if (saved?.Dismissed is { } closed) dismissed.AddRange(closed.Where(x => !string.IsNullOrEmpty(x)).Distinct().TakeLast(MaxDismissed));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -159,5 +162,5 @@ public sealed class CrashHistory
         Prune();
     }
 
-    private sealed record State(DateTimeOffset? ScannedUpTo, DateTimeOffset? SeenUpTo = null, string[]? Dismissed = null);
+    private sealed record State(DateTimeOffset? ScannedUpTo, DateTimeOffset? SeenUpTo = null, string[]? Dismissed = null, int Sources = 0);
 }

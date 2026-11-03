@@ -113,7 +113,7 @@ public sealed class CrashAppRow(CrashApp app, int max, bool lightTheme) : Observ
     private const int FirstEvents = 8;
     private CrashApp current = app;
     private int biggest = max;
-    private bool expanded, showAll, light = lightTheme;
+    private bool expanded, showAll, copied, light = lightTheme;
     private DateTimeOffset now = DateTimeOffset.Now;
     private Microsoft.UI.Xaml.Media.ImageSource? icon;
 
@@ -129,6 +129,7 @@ public sealed class CrashAppRow(CrashApp app, int max, bool lightTheme) : Observ
     {
         current.Crashes > 0 ? $"{current.Crashes:N0} crash{(current.Crashes == 1 ? "" : "es")}" : "",
         current.Hangs > 0 ? $"{current.Hangs:N0} not responding" : "",
+        current.StartFailures > 0 ? $"{current.StartFailures:N0} could not start" : "",
         $"last {CrashTime.Ago(current.Last, now)}"
     }.Where(x => x.Length > 0));
     public string AutomationName => $"{Name}: {current.Total} problems";
@@ -159,6 +160,8 @@ public sealed class CrashAppRow(CrashApp app, int max, bool lightTheme) : Observ
     public string MoreText => $"Show all {current.Events.Count:N0} events";
     public Visibility MoreVisibility => expanded && !showAll && current.Events.Count > FirstEvents ? Visibility.Visible : Visibility.Collapsed;
 
+    public string CopyGlyph => copied ? "" : "";
+    public void SetCopied(bool value) { copied = value; Changed(nameof(CopyGlyph)); }
     public void SetIcon(ImageSource? image) { icon = image; Changed(nameof(Icon)); }
     public void SetLightTheme(bool value) { light = value; foreach (var row in Events) row.SetLightTheme(value); }
     public void Toggle() { expanded = !expanded; LoadEvents(); Notify(nameof(Expanded), nameof(DetailsVisibility), nameof(Chevron), nameof(MoreVisibility)); }

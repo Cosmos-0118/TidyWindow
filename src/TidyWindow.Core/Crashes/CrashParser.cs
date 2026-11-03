@@ -8,12 +8,16 @@ internal sealed record CrashSource(string Log, string Provider, int[] Ids, strin
 
 internal static class CrashSources
 {
+    /// <summary>Raised whenever <see cref="All"/> changes, so a history scanned with the old list reads the whole look-back once and picks up what it used to skip.</summary>
+    public const int Version = 2;
+
     // Matching on the component as well as the number matters: other software reuses 1000 and 1002 for its own routine messages.
     public static readonly CrashSource[] All =
     [
         new("Application", "Application Error", [1000]),
         new("Application", "Application Hang", [1002]),
-        new("Application", ".NET Runtime", [1026]),
+        // 1026 an unhandled exception, 1025 FailFast, 1023 a runtime failure or a program that could not start. The last two often have no other record.
+        new("Application", ".NET Runtime", [1023, 1025, 1026]),
         new("Application", "Windows Error Reporting", [1001], ["APPCRASH", "CLR20r3", "BEX", "BEX64", "AppHangB1", "AppHangXProcB1", "AppHangTransient", "MoAppCrash", "MoAppHang", "MoBEX", "LiveKernelEvent"]),
         new("System", "Microsoft-Windows-WER-SystemErrorReporting", [1001]),
         new("System", "Microsoft-Windows-Kernel-Power", [41]),
@@ -46,7 +50,7 @@ public static class CrashParser
         {
             "application error" when id == 1000 => AppCrash(raw),
             "application hang" when id == 1002 => AppHang(raw),
-            ".net runtime" when id == 1026 => DotNet(raw),
+            ".net runtime" when id is 1023 or 1025 or 1026 => DotNet(raw),
             "windows error reporting" when id == 1001 => Report(raw),
             "microsoft-windows-wer-systemerrorreporting" when id == 1001 => BlueScreen(raw),
             "microsoft-windows-kernel-power" when id == 41 => KernelPower(raw),
@@ -93,24 +97,44 @@ public static class CrashParser
         };
     }
 
-    // The .NET runtime writes one text block: "Application: x.exe", then the exception and its stack.
+    // The .NET runtime writes one text block of "Label: value" lines: "Application: x.exe", a description, then the exception or message and its stack.
     private static CrashEvent? DotNet(RawEvent raw)
     {
         var text = (raw.At(0) ?? "").Replace("\r\n", "\n").Trim();
         var lines = text.Split('\n');
-        string App() => lines.FirstOrDefault(x => x.StartsWith("Application:", StringComparison.OrdinalIgnoreCase)) is { } line ? line["Application:".Length..].Trim() : "";
-        var app = App();
-        var at = Array.FindIndex(lines, x => x.StartsWith("Exception Info:", StringComparison.OrdinalIgnoreCase));
-        if (app.Length == 0 || at < 0) return null;
-        var detail = string.Join('\n', lines.Skip(at).Take(24).Select(x => x.TrimEnd()));
-        detail = detail["Exception Info:".Length..].Trim();
-        if (detail.Length > 3000) detail = detail[..3000] + "\n…";
-        var first = detail.Split('\n')[0].Trim();
-        return new()
+        int Find(string label) => Array.FindIndex(lines, x => x.StartsWith(label, StringComparison.OrdinalIgnoreCase));
+        string Value(string label) => Find(label) is var at and >= 0 ? lines[at][label.Length..].Trim() : "";
+        string From(string label)
         {
-            Id = IdOf(raw), Time = raw.Time, Kind = CrashKind.AppCrash, Source = raw.Provider, EventId = raw.EventId,
-            App = app, Code = "0xE0434352", Managed = first.Length > 300 ? first[..300] + "…" : first, Detail = detail
+            var at = Find(label);
+            if (at < 0) return "";
+            var block = string.Join('\n', lines.Skip(at).Take(24).Select(x => x.TrimEnd()))[label.Length..].Trim();
+            return block.Length > 3000 ? block[..3000] + "\n…" : block;
+        }
+        var app = Value("Application:");
+        if (app.Length == 0) return null;
+        var description = Value("Description:");
+        CrashEvent Crash(CrashKind kind, string managed, string detail, string code = "") => new()
+        {
+            Id = IdOf(raw), Time = raw.Time, Kind = kind, Source = raw.Provider, EventId = raw.EventId,
+            App = app, AppPath = Value("Path:"), Code = code, Managed = managed.Length > 300 ? managed[..300] + "…" : managed, Detail = detail
         };
+
+        if (From("Exception Info:") is { Length: > 0 } exception) return Crash(CrashKind.AppCrash, exception.Split('\n')[0].Trim(), exception, "0xE0434352");
+        if (raw.EventId == 1025 || description.Contains("FailFast", StringComparison.OrdinalIgnoreCase))
+        {
+            var message = From("Message:");
+            var reason = message.Split('\n')[0].Trim();
+            return Crash(CrashKind.AppCrash, reason.Length > 0 ? $"{CrashKnowledge.FailFast}: {reason}" : CrashKnowledge.FailFast, message, "0x80131623");
+        }
+        // Written by the .NET host, before the program's own code ran: the runtime it needs is missing, or one of its files is.
+        if (description.Contains("A .NET application failed", StringComparison.OrdinalIgnoreCase)) return Crash(CrashKind.AppStartFailure, "", From("Message:"));
+        if (description.Contains("internal error", StringComparison.OrdinalIgnoreCase))
+        {
+            var exit = description.IndexOf("exit code", StringComparison.OrdinalIgnoreCase) is var at and >= 0 ? description[(at + "exit code".Length)..].Trim().TrimEnd('.') : "";
+            return Crash(CrashKind.AppCrash, CrashKnowledge.RuntimeFailure, description, CrashKnowledge.TryParse(exit, out _) ? CrashKnowledge.NormalizeCode(exit) : "");
+        }
+        return null;
     }
 
     // Reports for crashes and freezes only carry the folder Windows keeps; the crash itself is the other event with the same report number.

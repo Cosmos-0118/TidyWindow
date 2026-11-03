@@ -20,7 +20,8 @@ public sealed class CrashScanner(ICrashEventSource source, CrashHistory history,
     {
         var timer = Stopwatch.StartNew();
         var started = now();
-        var since = (full ? null : history.ScannedUpTo) is { } last ? last - Overlap : started - FirstLookBack;
+        // A history read with an older list of sources never saw what was added since, so it reads the whole look-back once; a record already held is ignored.
+        var since = (full || history.ScannedSources != CrashSources.Version ? null : history.ScannedUpTo) is { } last ? last - Overlap : started - FirstLookBack;
         var problems = new List<string>();
         var found = new List<CrashEvent>();
         var complete = true;
@@ -41,7 +42,7 @@ public sealed class CrashScanner(ICrashEventSource source, CrashHistory history,
         }
         var added = history.Add(found);
         // Only a scan that read everything moves the mark, so a log that failed is tried again next time.
-        if (complete) history.MarkScanned(started);
+        if (complete) history.MarkScanned(started, CrashSources.Version);
         return new(added, problems, timer.Elapsed);
     }
 

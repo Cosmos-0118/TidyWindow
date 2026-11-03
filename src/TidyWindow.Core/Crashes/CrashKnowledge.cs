@@ -13,6 +13,7 @@ public static class CrashKnowledge
         [0xC0000094] = ("Divide by zero", "The program divided a number by zero. A bug in the program."),
         [0xC0000096] = ("Privileged instruction", "The program tried an operation only Windows itself may do."),
         [0xC00000FD] = ("Stack overflow", "The program called itself too deeply and ran out of working space. A bug in the program."),
+        [0xC000027B] = ("Unhandled error in a Windows app", "A Windows app (one built on WinUI or for the Store) hit an error it did not handle, most often in its user interface. Usually a bug in the app; updating or reinstalling it is the likeliest fix."),
         [0xC0000135] = ("DLL not found", "The program needs a shared file that is missing. Reinstalling the program, or the Visual C++ or .NET runtime it relies on, usually fixes this."),
         [0xC0000139] = ("Entry point not found", "A shared file is the wrong version for this program. Reinstalling or updating the program usually fixes this."),
         [0xC0000142] = ("DLL initialization failed", "A shared file refused to start. Often a damaged install or a security tool blocking it."),
@@ -22,6 +23,8 @@ public static class CrashKnowledge
         [0xC0000417] = ("Invalid parameter", "The program passed a value its own runtime rejected. A bug in the program."),
         [0xC06D007E] = ("Module not found", "The program needs a shared file that is missing. Reinstalling it usually fixes this."),
         [0xE0434352] = (".NET exception", "A .NET program hit an error it did not handle. The exception below names the cause."),
+        [0x80131506] = ("Fatal .NET runtime error", "The .NET runtime itself failed, usually because native code the program loads damaged its memory, or from a bug in .NET. Updating the program and .NET is the likeliest fix."),
+        [0x80131623] = ("Stopped by the program", "The program stopped itself on purpose after finding a problem it could not recover from. Its own message says why."),
         [0xE06D7363] = ("C++ exception", "The program threw an error it did not handle."),
         [0x80000003] = ("Breakpoint", "The program stopped itself on purpose, as a debugger or a built-in check would.")
     };
@@ -68,6 +71,9 @@ public static class CrashKnowledge
         [0x193] = "Graphics driver error"
     };
 
+    /// <summary>How the parser words a .NET program that stopped itself, and one whose runtime failed. The headline and explanation key on these.</summary>
+    internal const string FailFast = "Environment.FailFast", RuntimeFailure = "Fatal error inside the .NET runtime";
+
     public static string ExceptionName(string code) => TryParse(code, out var value) && Exceptions.TryGetValue(value, out var known) ? known.Name : "";
     public static string BugcheckName(string code) => TryParse(code, out var value) && Bugchecks.TryGetValue(value, out var known) ? known.Name : "";
     public static string LiveKernelName(string code) => TryParse(code, out var value) && LiveKernel.TryGetValue(value, out var known) ? known : "";
@@ -92,7 +98,9 @@ public static class CrashKnowledge
         var who = e.AppName;
         return e.Kind switch
         {
+            CrashKind.AppCrash when e.Managed.StartsWith(FailFast + ": ", StringComparison.Ordinal) => $"{who} stopped itself: {e.Managed[(FailFast.Length + 2)..]}",
             CrashKind.AppCrash => e.Managed.Length > 0 ? $"{who} crashed: {e.Managed}" : e.Module.Length > 0 ? $"{who} crashed in {e.Module}" : $"{who} crashed",
+            CrashKind.AppStartFailure => $"{who} could not start",
             CrashKind.AppHang => $"{who} stopped responding",
             CrashKind.BlueScreen => e.CodeName.Length > 0 ? $"Windows showed a blue screen: {e.CodeName}" : "Windows showed a blue screen",
             CrashKind.UnexpectedShutdown => "Windows stopped without shutting down properly",
@@ -109,6 +117,10 @@ public static class CrashKnowledge
     {
         if (e.Kind == CrashKind.BlueScreen && TryParse(e.Code, out var stop) && Bugchecks.TryGetValue(stop, out var bug)) return bug.Meaning;
         if (e.Kind == CrashKind.AppHang) return "The program stopped answering Windows, so Windows offered to close it. Often it was busy, waiting on a slow disk or network, or stuck on a bug.";
+        if (e.Kind == CrashKind.AppStartFailure) return StartFailure(e.Detail);
+        // A .NET crash is often also written by Windows under a native code such as an access violation. The .NET record names the real cause, so it decides.
+        if (e.Kind == CrashKind.AppCrash && e.Managed.Length > 0)
+            return Exceptions[e.Managed.StartsWith(FailFast, StringComparison.Ordinal) ? 0x80131623 : e.Managed == RuntimeFailure ? 0x80131506 : 0xE0434352].Meaning;
         if (e.Kind == CrashKind.AppCrash && TryParse(e.Code, out var code) && Exceptions.TryGetValue(code, out var known)) return known.Meaning;
         return e.Kind switch
         {
@@ -121,4 +133,11 @@ public static class CrashKnowledge
             _ => ""
         };
     }
+
+    private static string StartFailure(string message) =>
+        message.Contains("install or update .NET", StringComparison.OrdinalIgnoreCase) || message.Contains("framework", StringComparison.OrdinalIgnoreCase)
+            ? "The version of .NET this program needs is not installed. The details name the version; installing it from Microsoft's .NET download page fixes this."
+        : message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) || message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            ? "One of the program's own files is missing, so .NET could not start it. Reinstalling or repairing the program fixes this."
+        : ".NET could not start this program. The details below say why.";
 }

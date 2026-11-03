@@ -7,6 +7,12 @@
   <ResourceDictionary>
    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ms-appx:///Styles/ListStyles.xaml" /></ResourceDictionary.MergedDictionaries>
 
+   <!-- The actions inside an opened row: the app's usual icon-and-label button, one size smaller to sit under the details -->
+   <Style x:Key="RowAction" TargetType="Button">
+    <Setter Property="Padding" Value="10,5" />
+    <Setter Property="FontSize" Value="12" />
+   </Style>
+
    <!-- One label and value in an opened event -->
    <DataTemplate x:Key="FactTemplate">
     <Grid ColumnSpacing="14" Margin="0,0,0,6">
@@ -39,14 +45,22 @@
        <TextBlock Text="{Binding Explanation}" Visibility="{Binding ExplanationVisibility}" Style="{StaticResource Muted}" FontSize="12" IsTextSelectionEnabled="True" />
        <ItemsControl ItemsSource="{Binding Facts}" ItemTemplate="{StaticResource FactTemplate}" IsTabStop="False" />
        <ItemsControl ItemsSource="{Binding TechnicalFacts}" ItemTemplate="{StaticResource FactTemplate}" Visibility="{Binding TechnicalVisibility}" IsTabStop="False" />
-       <StackPanel Orientation="Horizontal" Spacing="16">
-        <HyperlinkButton Click="CopyEventClick" Padding="0" FontSize="12" AutomationProperties.Name="Copy details" ToolTipService.ToolTip="Copy these details, with your Windows account name hidden, to paste into a support request">
-         <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="{Binding CopyGlyph}" FontSize="11" /><TextBlock Text="Copy details" /></StackPanel>
-        </HyperlinkButton>
-        <HyperlinkButton Click="SearchWebClick" Padding="0" Content="Search the web" FontSize="12" AutomationProperties.Name="Search the web for this problem" ToolTipService.ToolTip="Opens a web search for this error in your browser" />
-        <HyperlinkButton Click="OpenReportClick" Visibility="{Binding ReportVisibility}" Padding="0" Content="Windows report" FontSize="12" AutomationProperties.Name="Open Windows report folder" ToolTipService.ToolTip="The report Windows saved for this problem, if it still keeps it" />
-        <HyperlinkButton Click="ShowProgramClick" Visibility="{Binding ProgramVisibility}" Padding="0" Content="Show program" FontSize="12" AutomationProperties.Name="Show the program in its folder" />
-        <HyperlinkButton Click="TechnicalClick" Padding="0" Content="{Binding TechnicalLabel}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+       <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Click="CopyEventClick" Style="{StaticResource RowAction}" AutomationProperties.Name="Copy details" ToolTipService.ToolTip="Copy these details, with your Windows account name hidden, to paste into a support request">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="{Binding CopyGlyph}" FontSize="12" /><TextBlock Text="Copy details" /></StackPanel>
+        </Button>
+        <Button Click="SearchWebClick" Style="{StaticResource RowAction}" AutomationProperties.Name="Search the web for this problem" ToolTipService.ToolTip="Opens a web search for this error in your browser">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE774;" FontSize="12" /><TextBlock Text="Search the web" /></StackPanel>
+        </Button>
+        <Button Click="OpenReportClick" Visibility="{Binding ReportVisibility}" Style="{StaticResource RowAction}" AutomationProperties.Name="Open Windows report folder" ToolTipService.ToolTip="The report Windows saved for this problem, if it still keeps it">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9F9;" FontSize="12" /><TextBlock Text="Windows report" /></StackPanel>
+        </Button>
+        <Button Click="ShowProgramClick" Visibility="{Binding ProgramVisibility}" Style="{StaticResource RowAction}" AutomationProperties.Name="Show the program in its folder">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Show program" /></StackPanel>
+        </Button>
+        <Button Click="TechnicalClick" Style="{StaticResource RowAction}" AutomationProperties.Name="{Binding TechnicalLabel}">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE946;" FontSize="12" /><TextBlock Text="{Binding TechnicalLabel}" /></StackPanel>
+        </Button>
        </StackPanel>
       </StackPanel>
      </StackPanel>
@@ -73,7 +87,7 @@
          <DataTemplate><Border Width="4" Height="{Binding Height}" Opacity="{Binding Opacity}" VerticalAlignment="Bottom" CornerRadius="1" Background="{ThemeResource MutedBrush}" ToolTipService.ToolTip="{Binding Tip}" /></DataTemplate>
         </ItemsControl.ItemTemplate>
        </ItemsControl>
-       <Border Grid.Column="3" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="10,3" VerticalAlignment="Center" MinWidth="36" ToolTipService.ToolTip="Crashes and times it stopped responding"><TextBlock Text="{Binding Count}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" /></Border>
+       <Border Grid.Column="3" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="10,3" VerticalAlignment="Center" MinWidth="36" ToolTipService.ToolTip="Crashes, times it stopped responding, and times it could not start"><TextBlock Text="{Binding Count}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" /></Border>
        <Button Grid.Column="4" Click="AppDetailsClick" Padding="8" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding DetailsName}" ToolTipService.ToolTip="Details">
         <FontIcon Glyph="{Binding Chevron}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
        </Button>
@@ -97,15 +111,21 @@
         </StackPanel>
         <TextBlock Text="{Binding Versions}" Visibility="{Binding VersionsVisibility}" Style="{StaticResource Muted}" FontSize="12" IsTextSelectionEnabled="True" />
         <TextBlock Text="{Binding Path}" Visibility="{Binding PathVisibility}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-        <StackPanel Orientation="Horizontal" Spacing="16">
-         <HyperlinkButton Click="CopyAppClick" Padding="0" Content="Copy summary" FontSize="12" AutomationProperties.Name="Copy a summary of this program" ToolTipService.ToolTip="Copy a summary and the latest events, with your Windows account name hidden" />
-         <HyperlinkButton Click="ShowAppFolderClick" Visibility="{Binding PathVisibility}" Padding="0" Content="Show in folder" FontSize="12" AutomationProperties.Name="Show the program in its folder" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+         <Button Click="CopyAppClick" Style="{StaticResource RowAction}" AutomationProperties.Name="Copy a summary of this program" ToolTipService.ToolTip="Copy a summary and the latest events, with your Windows account name hidden">
+          <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="{Binding CopyGlyph}" FontSize="12" /><TextBlock Text="Copy summary" /></StackPanel>
+         </Button>
+         <Button Click="ShowAppFolderClick" Visibility="{Binding PathVisibility}" Style="{StaticResource RowAction}" AutomationProperties.Name="Show the program in its folder">
+          <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Show in folder" /></StackPanel>
+         </Button>
         </StackPanel>
         <TextBlock Text="What happened" Style="{StaticResource GroupLabel}" Margin="0,6,0,0" />
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Margin="-16,0,-16,0">
          <ItemsControl ItemsSource="{Binding Events}" ItemTemplate="{StaticResource EventRowTemplate}" IsTabStop="False" />
         </Border>
-        <HyperlinkButton Click="ShowAllClick" Visibility="{Binding MoreVisibility}" Padding="0" Content="{Binding MoreText}" FontSize="12" HorizontalAlignment="Left" />
+        <Button Click="ShowAllClick" Visibility="{Binding MoreVisibility}" Style="{StaticResource RowAction}" HorizontalAlignment="Left">
+         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE70D;" FontSize="12" /><TextBlock Text="{Binding MoreText}" /></StackPanel>
+        </Button>
        </StackPanel>
       </Border>
      </StackPanel>
@@ -131,12 +151,13 @@
   </ResourceDictionary>
  </UserControl.Resources>
 
- <Grid RowSpacing="14">
+ <Grid RowSpacing="16">
   <Grid.RowDefinitions>
-   <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" />
+   <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" />
   </Grid.RowDefinitions>
 
-  <!-- Title -->
+  <!-- Title, then any warning or observation. They share a row, so when there are none the tabs follow the title as closely as on the other pages. -->
+  <StackPanel Spacing="14">
   <Grid ColumnSpacing="12">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <StackPanel Spacing="4" VerticalAlignment="Center">
@@ -166,7 +187,6 @@
   </Grid>
 
   <!-- Warnings: a log Windows would not let us read, or history that cannot be saved -->
-  <StackPanel Grid.Row="1" Spacing="8">
    <Border Style="{StaticResource Card}" Background="{ThemeResource WarnSoftBrush}" Padding="14,10" Visibility="{Binding ProblemVisibility}">
     <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
      <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
@@ -175,13 +195,13 @@
    <Border Style="{StaticResource Card}" Background="{ThemeResource WarnSoftBrush}" Padding="14,10" Visibility="{Binding StorageWarningVisibility}">
     <TextBlock Text="{Binding StorageWarning}" FontSize="12" TextWrapping="Wrap" />
    </Border>
-  </StackPanel>
 
   <!-- What the whole list shows that no single row does -->
-  <ItemsControl Grid.Row="2" ItemsSource="{Binding Insights}" ItemTemplate="{StaticResource InsightTemplate}" Visibility="{Binding InsightsVisibility}" IsTabStop="False" Margin="0,0,0,-6" />
+   <ItemsControl ItemsSource="{Binding Insights}" ItemTemplate="{StaticResource InsightTemplate}" Visibility="{Binding InsightsVisibility}" IsTabStop="False" Margin="0,0,0,-6" />
+  </StackPanel>
 
   <!-- Three views of the same records -->
-  <Grid Grid.Row="3" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
+  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
    <StackPanel Orientation="Horizontal">
     <RadioButton GroupName="CrashTabs" Tag="Apps" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="By app" ToolTipService.ToolTip="Which programs crash or freeze the most">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="By app" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding AppsTab}" FontSize="11" /></Border></StackPanel>
@@ -196,7 +216,7 @@
   </Grid>
 
   <!-- Search, time range, kind and order -->
-  <StackPanel Grid.Row="4" Spacing="8">
+  <StackPanel Grid.Row="2" Spacing="8">
    <Grid ColumnSpacing="10">
     <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="560" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
     <TextBox x:Name="SearchBox" PlaceholderText="Search: an app, an error, or app:chrome kind:hang since:7d" MaxLength="200" TextChanged="QueryChanged" AutomationProperties.Name="Search crashes" VerticalAlignment="Center" />
@@ -243,7 +263,7 @@
   </StackPanel>
 
   <!-- The lists -->
-  <Grid Grid.Row="5">
+  <Grid Grid.Row="3">
    <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12" VerticalAlignment="Top" Visibility="{Binding AppsVisibility}">
     <ListView ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppRowTemplate}" ItemContainerStyle="{StaticResource RowContainer}" SelectionMode="None" IsItemClickEnabled="False" HorizontalContentAlignment="Stretch" Margin="0,0,0,-1" AutomationProperties.Name="Apps that crashed or froze" />
    </Border>

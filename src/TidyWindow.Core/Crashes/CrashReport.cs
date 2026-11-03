@@ -34,7 +34,7 @@ public static class CrashReport
     public static string Format(CrashApp app, string? profile = null)
     {
         var text = new StringBuilder();
-        text.AppendLine($"{app.Name}: {app.Crashes} crash{(app.Crashes == 1 ? "" : "es")}, {app.Hangs} not responding; first {app.First.ToLocalTime():yyyy-MM-dd HH:mm}, last {app.Last.ToLocalTime():yyyy-MM-dd HH:mm}");
+        text.AppendLine($"{app.Name}: {app.Crashes} crash{(app.Crashes == 1 ? "" : "es")}, {app.Hangs} not responding{(app.StartFailures > 0 ? $", {app.StartFailures} could not start" : "")}; first {app.First.ToLocalTime():yyyy-MM-dd HH:mm}, last {app.Last.ToLocalTime():yyyy-MM-dd HH:mm}");
         if (app.Path.Length > 0) text.AppendLine($"Path: {app.Path}");
         if (app.Versions.Count > 0) text.AppendLine($"Versions: {string.Join(", ", app.Versions)}");
         foreach (var s in app.Signatures) text.AppendLine($"  {s.Count}x {s.Label}");
@@ -50,6 +50,8 @@ public static class CrashReport
         {
             CrashKind.BlueScreen => new[] { "blue screen", e.CodeName, e.Code },
             CrashKind.AppHang => new[] { e.FileName, "not responding" },
+            // The host's message up to its first colon ("You must install or update .NET to run this application.") is the part others will have searched for.
+            CrashKind.AppStartFailure => new[] { e.FileName, e.Detail.Split('\n')[0].Split(':')[0].Trim().TrimEnd('.'), "failed to start" },
             CrashKind.AppCrash => new[] { e.FileName, e.Managed.Length > 0 ? e.Managed.Split(':')[0] : e.Module, e.CodeName.Length > 0 ? e.CodeName : e.Code, "crash" },
             _ => new[] { e.App, e.Kind.Label(), e.Headline }
         };

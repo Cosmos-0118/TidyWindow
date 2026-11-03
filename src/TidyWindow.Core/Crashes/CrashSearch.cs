@@ -238,6 +238,7 @@ public sealed class CrashSearchIndex
     {
         "crash" or "crashes" or "crashed" => e.Kind == CrashKind.AppCrash,
         "hang" or "hangs" or "hung" or "freeze" or "frozen" or "notresponding" => e.Kind == CrashKind.AppHang,
+        "start" or "startup" or "launch" or "couldnotstart" or "notstarting" => e.Kind == CrashKind.AppStartFailure,
         "app" or "apps" or "program" => e.Kind.IsApp(),
         "windows" or "system" => e.Kind.IsWindows(),
         "bsod" or "bluescreen" or "bugcheck" => e.Kind == CrashKind.BlueScreen,

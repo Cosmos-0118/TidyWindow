@@ -10,10 +10,12 @@ Windows already keeps the evidence. It is spread over two event logs, in a forma
 | --- | --- | --- |
 | Application | Application Error 1000 | An app crashed. Names the program, version, failing file, exception code, offset and process. |
 | Application | Application Hang 1002 | An app stopped responding. |
-| Application | .NET Runtime 1026 | A .NET app crashed. Carries the exception and stack, which Windows' own record does not. Merged into the 1000 record for the same crash. |
+| Application | .NET Runtime 1026 | A .NET app crashed. Carries the exception and stack, which Windows' own record does not. Merged into the 1000 record for the same crash, and the exception, not Windows' code, explains it and groups it with others. |
+| Application | .NET Runtime 1025, 1023 | A .NET app stopped itself (FailFast), or the .NET runtime failed inside it. Often the only record of that crash. Merged like 1026. |
+| Application | .NET Runtime 1023, "A .NET application failed" | A .NET app could not start: the runtime it needs, or one of its own files, is missing. Repeats within ten minutes are one entry. |
 | Application | Windows Error Reporting 1001, for crash, hang and kernel reports only | Holds the report folder Windows keeps. Attached to the crash with the same report number. A kernel report with a known code is a problem of its own. |
 | System | WER-SystemErrorReporting 1001, Kernel-Power 41, EventLog 6008 | Blue screen, or Windows restarting without shutting down. One incident, written up to three times; kept once. |
-| System | Service Control Manager 7000, 7009, 7031, 7034 | A service crashed, failed to start or timed out. |
+| System | Service Control Manager 7000, 7009, 7031, 7034 | A service crashed, failed to start or timed out. A start timeout is written as both 7009 and 7000; kept once. |
 | System | Display 4101 | The graphics driver stopped responding and recovered. |
 | System | WHEA-Logger 1, 17, 18, 19, 20 | Hardware errors. |
 | System | disk 7, 11, 51, 153 · Ntfs 55 | Disk and file system errors. |

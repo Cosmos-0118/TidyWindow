@@ -6,6 +6,8 @@ namespace TidyWindow.Next.Core;
 public enum CrashKind
 {
     AppCrash, AppHang,
+    /// <summary>A .NET program that never got going: its runtime or one of its own files was missing.</summary>
+    AppStartFailure,
     BlueScreen, UnexpectedShutdown, ServiceFailure, DriverReset, HardwareError, StorageError, LowMemory,
     /// <summary>A Windows Error Reporting record that only carries the report folder for another event. Never shown.</summary>
     Report
@@ -13,13 +15,14 @@ public enum CrashKind
 
 public static class CrashKinds
 {
-    public static bool IsApp(this CrashKind kind) => kind is CrashKind.AppCrash or CrashKind.AppHang;
-    public static bool IsWindows(this CrashKind kind) => kind is not (CrashKind.AppCrash or CrashKind.AppHang or CrashKind.Report);
+    public static bool IsApp(this CrashKind kind) => kind is CrashKind.AppCrash or CrashKind.AppHang or CrashKind.AppStartFailure;
+    public static bool IsWindows(this CrashKind kind) => kind is not (CrashKind.AppCrash or CrashKind.AppHang or CrashKind.AppStartFailure or CrashKind.Report);
 
     public static string Label(this CrashKind kind) => kind switch
     {
         CrashKind.AppCrash => "Crash",
         CrashKind.AppHang => "Not responding",
+        CrashKind.AppStartFailure => "Could not start",
         CrashKind.BlueScreen => "Blue screen",
         CrashKind.UnexpectedShutdown => "Unexpected shutdown",
         CrashKind.ServiceFailure => "Service failure",
@@ -35,6 +38,7 @@ public static class CrashKinds
     {
         CrashKind.AppCrash => "crash crashed closed stopped working terminated",
         CrashKind.AppHang => "hang hung freeze frozen freezing not responding stuck",
+        CrashKind.AppStartFailure => "start startup launch open failed to start runtime missing .net dotnet",
         CrashKind.BlueScreen => "bsod blue screen bugcheck stop error kernel",
         CrashKind.UnexpectedShutdown => "shutdown restart reboot power loss kernel-power",
         CrashKind.ServiceFailure => "service background",
@@ -113,9 +117,9 @@ public static class CrashNames
 }
 
 /// <summary>How a program has been doing: every crash and freeze, grouped the way a person asks about it.</summary>
-public sealed record CrashApp(string Key, string Name, string Path, int Crashes, int Hangs, DateTimeOffset First, DateTimeOffset Last, IReadOnlyList<CrashEvent> Events, IReadOnlyList<CrashSignature> Signatures, IReadOnlyList<string> Versions, IReadOnlyList<int> Daily)
+public sealed record CrashApp(string Key, string Name, string Path, int Crashes, int Hangs, DateTimeOffset First, DateTimeOffset Last, IReadOnlyList<CrashEvent> Events, IReadOnlyList<CrashSignature> Signatures, IReadOnlyList<string> Versions, IReadOnlyList<int> Daily, int StartFailures = 0)
 {
-    public int Total => Crashes + Hangs;
+    public int Total => Crashes + Hangs + StartFailures;
 }
 
 /// <summary>The same failure happening again: the same file, failing the same way.</summary>

@@ -26,6 +26,16 @@ internal static class CrashFixtures
     public static RawEvent DotNet(string app, DateTimeOffset time) =>
         Raw("Application", ".NET Runtime", 1026, time, ("", $"Application: {app}\nCoreCLR Version: 10.0.1426.52326\n.NET Version: 10.0.14\nDescription: The process was terminated due to an unhandled exception.\nException Info: System.InvalidOperationException: no vault; cannot continue\n   at Roundtrip.Run() in C:\\x\\Roundtrip.cs:line 107\n"));
 
+    // The three other shapes .NET Runtime writes, as they appear on a real PC.
+    public static RawEvent RuntimeFailure(string app, DateTimeOffset time) =>
+        Raw("Application", ".NET Runtime", 1023, time, ("", $"Application: {app}\nCoreCLR Version: 10.0.1426.52326\n.NET Version: 10.0.14\nDescription: The process was terminated due to an internal error in the .NET Runtime at IP 0x00007FFA9EDD6D52 (0x00007FFA9EB50000) with exit code 0x80131506.\n"));
+
+    public static RawEvent FailFast(string app, DateTimeOffset time) =>
+        Raw("Application", ".NET Runtime", 1025, time, ("", $"Application: {app}\nCoreCLR Version: 10.0.926.27113\n.NET Version: 10.0.9\nDescription: The application requested process termination through System.Environment.FailFast.\nMessage: Unrecoverable system error.\nStack:\n   at System.Environment.FailFast(System.String)\n"));
+
+    public static RawEvent StartFailure(string app, DateTimeOffset time, string message = "The application to execute does not exist: 'C:\\Apps\\Host.dll'.") =>
+        Raw("Application", ".NET Runtime", 1023, time, ("", $"Description: A .NET application failed.\nApplication: {app}\nPath: C:\\Apps\\{app}\nMessage: {message}\n"));
+
     public static RawEvent Report(DateTimeOffset time, string report, string name = "APPCRASH") =>
         Raw("Application", "Windows Error Reporting", 1001, time,
             ("Bucket", "1"), ("BucketType", "5"), ("EventName", name), ("Response", "Not available"), ("CabId", "0"), ("P1", "Smoke.exe"),
@@ -80,6 +90,49 @@ public class CrashParserTests
         Assert.Equal("System.InvalidOperationException: no vault; cannot continue", e.Managed);
         Assert.Contains("Roundtrip.Run()", e.Detail);
         Assert.DoesNotContain("CoreCLR Version", e.Detail);
+    }
+
+    [Fact]
+    public void A_failure_inside_the_dotnet_runtime_is_a_crash_with_its_exit_code()
+    {
+        var e = CrashFixtures.Parsed(CrashFixtures.RuntimeFailure("TidyWindow.Next.exe", CrashFixtures.Now));
+        Assert.Equal(CrashKind.AppCrash, e.Kind);
+        Assert.Equal("0x80131506", e.Code);
+        Assert.Equal("Fatal .NET runtime error", e.CodeName);
+        Assert.Equal("TidyWindow.Next crashed: Fatal error inside the .NET runtime", e.Headline);
+        Assert.Contains(".NET runtime itself failed", e.Explanation);
+    }
+
+    [Fact]
+    public void A_program_that_stops_itself_says_why()
+    {
+        var e = CrashFixtures.Parsed(CrashFixtures.FailFast("Harness.exe", CrashFixtures.Now));
+        Assert.Equal(CrashKind.AppCrash, e.Kind);
+        Assert.Equal("Harness stopped itself: Unrecoverable system error.", e.Headline);
+        Assert.Contains("on purpose", e.Explanation);
+        Assert.Contains("FailFast", e.Detail);
+    }
+
+    [Fact]
+    public void A_dotnet_program_that_could_not_start_names_the_missing_piece()
+    {
+        var missingFile = CrashFixtures.Parsed(CrashFixtures.StartFailure("Host.exe", CrashFixtures.Now));
+        Assert.Equal(CrashKind.AppStartFailure, missingFile.Kind);
+        Assert.True(missingFile.Kind.IsApp());
+        Assert.Equal(@"C:\Apps\Host.exe", missingFile.AppPath);
+        Assert.Equal("Host could not start", missingFile.Headline);
+        Assert.Contains("files is missing", missingFile.Explanation);
+        var missingRuntime = CrashFixtures.Parsed(CrashFixtures.StartFailure("Host.exe", CrashFixtures.Now, "You must install or update .NET to run this application."));
+        Assert.Contains(".NET this program needs is not installed", missingRuntime.Explanation);
+        Assert.Equal("Host.exe You must install or update .NET to run this application failed to start", CrashReport.SearchText(missingRuntime));
+    }
+
+    [Fact]
+    public void The_winui_crash_code_is_explained()
+    {
+        var e = CrashFixtures.Parsed(CrashFixtures.Crash("TidyWindow.Next.exe", CrashFixtures.Now, "Microsoft.UI.Xaml.dll", "c000027b"));
+        Assert.Equal("Unhandled error in a Windows app", e.CodeName);
+        Assert.NotEmpty(e.Explanation);
     }
 
     [Fact]
@@ -216,6 +269,66 @@ public class CrashDigestTests
         Assert.Equal("System.InvalidOperationException: no vault; cannot continue", only.Managed);
         Assert.Contains("Roundtrip.Run()", only.Detail);
         Assert.Equal("Smoke crashed: System.InvalidOperationException: no vault; cannot continue", only.Headline);
+    }
+
+    [Fact]
+    public void A_dotnet_crash_that_windows_wrote_as_an_access_violation_is_explained_by_its_exception()
+    {
+        var merged = CrashDigest.Merge([P(CrashFixtures.Crash("Smoke.exe", T, code: "c0000005")), P(CrashFixtures.DotNet("Smoke.exe", T))]);
+        var only = Assert.Single(merged);
+        Assert.Equal("0xC0000005", only.Code);
+        Assert.StartsWith("A .NET program hit an error", only.Explanation);
+    }
+
+    [Fact]
+    public void Runtime_failures_and_failfast_merge_with_the_windows_record_for_the_same_crash()
+    {
+        var merged = CrashDigest.Merge([P(CrashFixtures.Crash("a.exe", T, code: "c0000409")), P(CrashFixtures.FailFast("a.exe", T.AddSeconds(-1))),
+            P(CrashFixtures.Crash("b.exe", T, code: "c0000409")), P(CrashFixtures.RuntimeFailure("b.exe", T))]);
+        Assert.Equal(2, merged.Count);
+        Assert.Contains(merged, x => x.Headline == "a stopped itself: Unrecoverable system error.");
+        Assert.Contains(merged, x => x.Headline == "b crashed: Fatal error inside the .NET runtime");
+    }
+
+    [Fact]
+    public void A_service_that_timed_out_while_starting_is_one_entry_not_two()
+    {
+        var events = new[]
+        {
+            P(CrashFixtures.Raw("System", "Service Control Manager", 7009, T, ("param1", "30000"), ("param2", "Steam Client Service"))),
+            P(CrashFixtures.Raw("System", "Service Control Manager", 7000, T, ("param1", "Steam Client Service"), ("param2", "%%1053"))),
+            P(CrashFixtures.Raw("System", "Service Control Manager", 7009, T.AddHours(-1), ("param1", "30000"), ("param2", "Spooler")))
+        };
+        var merged = CrashDigest.Merge(events);
+        Assert.Equal(2, merged.Count);
+        Assert.Equal("Steam Client Service failed to start: it did not respond in time", merged[0].Headline);
+        Assert.Contains("waited 30 s", merged[0].Detail);
+        Assert.Equal("Spooler timed out while starting (waited 30 s)", merged[1].Headline);
+    }
+
+    [Fact]
+    public void Repeated_start_failures_fold_together_and_count_for_the_app()
+    {
+        var merged = CrashDigest.Merge(Enumerable.Range(0, 5).Select(i => P(CrashFixtures.StartFailure("Host.exe", T.AddSeconds(-i * 30)))));
+        var only = Assert.Single(merged);
+        Assert.Equal(5, only.Repeats);
+        var app = Assert.Single(CrashDigest.Apps(merged, T, 7));
+        Assert.Equal((0, 0, 1, 1), (app.Crashes, app.Hangs, app.StartFailures, app.Total));
+    }
+
+    [Fact]
+    public void Dotnet_crashes_are_grouped_by_their_exception_not_by_the_runtime_file()
+    {
+        RawEvent Managed(string exception, DateTimeOffset time) => CrashFixtures.Raw("Application", ".NET Runtime", 1026, time,
+            ("", $"Application: setup.exe\nDescription: The process was terminated due to an unhandled exception.\nException Info: {exception}\n"));
+        var mixed = CrashDigest.Merge([P(Managed("InstallerException", T)), P(Managed("InstallerException", T.AddHours(-1))), P(Managed("System.Exception: boom", T.AddHours(-2)))]);
+        var app = Assert.Single(CrashDigest.Apps(mixed, T, 7));
+        Assert.Equal(["InstallerException", "System.Exception"], app.Signatures.Select(x => x.Label));
+        Assert.DoesNotContain(CrashDigest.Insights(mixed), x => x.Title.Contains("same way"));
+
+        var same = CrashDigest.Merge(Enumerable.Range(0, 3).Select(i => P(Managed("System.NullReferenceException: Object reference not set", T.AddHours(-i)))));
+        var insight = Assert.Single(CrashDigest.Insights(same), x => x.Title == "setup keeps crashing the same way");
+        Assert.StartsWith("3 crashes, each with System.NullReferenceException.", insight.Detail);
     }
 
     [Fact]
@@ -488,6 +601,21 @@ public class CrashScannerTests
     }
 
     [Fact]
+    public void A_history_scanned_with_an_older_list_of_sources_reads_the_whole_look_back_once()
+    {
+        var source = new FakeEventSource();
+        var history = new CrashHistory(null, () => T);
+        history.MarkScanned(T.AddHours(-1), sources: 1);
+        var scanner = new CrashScanner(source, history, () => T);
+        scanner.Scan(CancellationToken.None);
+        Assert.All(source.Calls, c => Assert.Contains(T.AddDays(-90).UtcDateTime.ToString("yyyy-MM-dd"), c.Query));
+        Assert.Equal(CrashSources.Version, history.ScannedSources);
+        source.Calls.Clear();
+        scanner.Scan(CancellationToken.None);
+        Assert.All(source.Calls, c => Assert.DoesNotContain(T.AddDays(-90).UtcDateTime.ToString("yyyy-MM-dd"), c.Query));
+    }
+
+    [Fact]
     public void A_full_scan_ignores_the_mark()
     {
         var source = new FakeEventSource();
@@ -554,7 +682,7 @@ public class CrashScannerTests
         Assert.Equal(3, source.Calls.Count);
         var application = source.Calls.First(c => c.Log == "Application").Query;
         Assert.Contains("Provider[@Name='Application Error'] and (EventID=1000)", application);
-        Assert.Contains("Provider[@Name='.NET Runtime'] and (EventID=1026)", application);
+        Assert.Contains("Provider[@Name='.NET Runtime'] and (EventID=1023 or EventID=1025 or EventID=1026)", application);
         var reports = source.Calls.Single(c => c.Query.Contains("Windows Error Reporting")).Query;
         Assert.Contains("EventData[Data[@Name='EventName']='APPCRASH' or", reports);
         Assert.Contains("'LiveKernelEvent'", reports);

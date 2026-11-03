@@ -95,7 +95,13 @@ public sealed partial class CrashesView : UserControl
         row.SetCopied(false);
     }
 
-    private void CopyAppClick(object sender, RoutedEventArgs e) { if (Row<CrashAppRow>(sender) is { } row) TryCopy(CrashReport.Format(row.App)); }
+    private async void CopyAppClick(object sender, RoutedEventArgs e)
+    {
+        if (Row<CrashAppRow>(sender) is not { } row || !TryCopy(CrashReport.Format(row.App))) return;
+        row.SetCopied(true);
+        await Task.Delay(1500);
+        row.SetCopied(false);
+    }
     private void SearchWebClick(object sender, RoutedEventArgs e) { if (Row<CrashEventRow>(sender) is { } row) Model?.SearchWeb(row.Event); }
     private void OpenReportClick(object sender, RoutedEventArgs e) { if (Row<CrashEventRow>(sender) is { } row) Model?.OpenReport(row.Event); }
     private void ShowProgramClick(object sender, RoutedEventArgs e) { if (Row<CrashEventRow>(sender) is { } row) Model?.ShowFile(row.Event.AppPath, "That program is no longer where it was"); }

@@ -41,7 +41,26 @@ public static class CrashDigest
         // A .NET crash Windows never reported on its own still counts.
         merged.AddRange(managed.Where(x => !used.Contains(x.Id)));
 
-        return CollapseBursts(DropRepeatedShutdowns(merged)).OrderByDescending(x => x.Time).ToList();
+        return CollapseBursts(PairServiceStarts(DropRepeatedShutdowns(merged))).OrderByDescending(x => x.Time).ToList();
+    }
+
+    // A service that does not start in time is written twice in the same second: 7009 says how long Windows waited, 7000 that it failed. One problem, one entry.
+    private static IEnumerable<CrashEvent> PairServiceStarts(IEnumerable<CrashEvent> events)
+    {
+        var list = events.ToList();
+        var timeouts = list.Where(x => x.Kind == CrashKind.ServiceFailure && x.EventId == 7009).ToList();
+        var used = new HashSet<string>();
+        foreach (var e in list)
+        {
+            if (e.Kind == CrashKind.ServiceFailure && e.EventId == 7000
+                && timeouts.FirstOrDefault(t => !used.Contains(t.Id) && string.Equals(t.App, e.App, StringComparison.OrdinalIgnoreCase) && (t.Time - e.Time).Duration() <= SameCrash) is { } twin)
+            {
+                used.Add(twin.Id);
+                yield return e with { Detail = Combine(e.Detail, twin.Detail) };
+            }
+            else if (!(e.Kind == CrashKind.ServiceFailure && e.EventId == 7009)) yield return e;
+        }
+        foreach (var t in timeouts.Where(x => !used.Contains(x.Id))) yield return t;
     }
 
     // A failing device or driver can log the same problem dozens of times in a minute. That is one problem, shown once with how often it repeated.
@@ -65,7 +84,13 @@ public static class CrashDigest
         }
     }
 
-    private static bool IsManagedRecord(CrashEvent e) => e.Kind == CrashKind.AppCrash && e.EventId == 1026 && e.Source == ".NET Runtime";
+    private static bool IsManagedRecord(CrashEvent e) => e.Kind == CrashKind.AppCrash && e.Source == ".NET Runtime";
+
+    /// <summary>What makes two crashes "the same": the .NET exception type when there is one (the failing file is then always the same runtime file), else the failing file and code.</summary>
+    private static (string Module, string Code, string CodeName) Cause(CrashEvent e) =>
+        e.Managed.Length > 0 ? ("", e.Code, e.Managed.Split(':')[0].Trim()) : (e.Module, e.Code, e.CodeName);
+
+    private static (string, string) CauseKey(CrashEvent e) => Cause(e) is var c && c.Module.Length == 0 ? ("", c.CodeName) : (c.Module.ToLowerInvariant(), c.Code);
     private static string Combine(string first, string second) => first.Length == 0 ? second : second.Length == 0 ? first : first + "\n" + second;
 
     // The record with the most to say wins: the blue screen report (it names the dump), then the power record that carries a stop code, then the bare ones.
@@ -98,13 +123,13 @@ public static class CrashDigest
                     if (ago >= 0 && ago < daily.Length) daily[daily.Length - 1 - ago]++;
                 }
                 var signatures = items.Where(x => x.Kind == CrashKind.AppCrash)
-                    .GroupBy(x => (Module: x.Module.ToLowerInvariant(), x.Code))
-                    .Select(g => new CrashSignature(g.First().Module, g.Key.Code, g.First().CodeName, g.Count(), g.Max(x => x.Time)))
+                    .GroupBy(CauseKey)
+                    .Select(g => { var (module, code, name) = Cause(g.First()); return new CrashSignature(module, code, name, g.Count(), g.Max(x => x.Time)); })
                     .OrderByDescending(x => x.Count).ThenByDescending(x => x.Last).Take(8).ToList();
                 return new CrashApp(group.Key, items[0].AppName, items.Select(x => x.AppPath).FirstOrDefault(x => x.Length > 0) ?? "",
                     items.Count(x => x.Kind == CrashKind.AppCrash), items.Count(x => x.Kind == CrashKind.AppHang),
                     items[^1].Time, items[0].Time, items, signatures,
-                    items.Select(x => x.AppVersion).Where(x => x.Length > 0).Distinct().ToList(), daily);
+                    items.Select(x => x.AppVersion).Where(x => x.Length > 0).Distinct().ToList(), daily, items.Count(x => x.Kind == CrashKind.AppStartFailure));
             })
             .OrderByDescending(x => x.Total).ThenByDescending(x => x.Last).ToList();
     }
@@ -122,12 +147,14 @@ public static class CrashDigest
             found.Add(new($"{shared.Apps} different apps crashed in {shared.Module}",
                 $"{shared.Module} is shared by those programs, so the real problem is probably in it (often a driver or a plug-in they all load) rather than in each program. Update or reinstall whatever installed it."));
 
-        var repeat = crashes.GroupBy(x => (x.AppKey, Module: x.Module.ToLowerInvariant(), x.Code)).Select(g => (Group: g, Count: g.Count())).Where(x => x.Count >= 3).OrderByDescending(x => x.Count).FirstOrDefault();
+        var repeat = crashes.GroupBy(x => (x.AppKey, CauseKey(x)))
+            .Select(g => (Group: g, Count: g.Count())).Where(x => x.Count >= 3).OrderByDescending(x => x.Count).FirstOrDefault();
         if (repeat.Group is not null)
         {
             var first = repeat.Group.First();
-            var cause = new CrashSignature(first.Module, first.Code, first.CodeName, repeat.Count, first.Time).Label;
-            found.Add(new($"{first.AppName} keeps crashing the same way", $"{repeat.Count} crashes, each in {cause}. An update, a reinstall, or turning off an add-on it uses is the likeliest fix."));
+            var (module, code, name) = Cause(first);
+            var cause = module.Length == 0 && name.Length > 0 ? $"with {name}" : $"in {new CrashSignature(module, code, name, repeat.Count, first.Time).Label}";
+            found.Add(new($"{first.AppName} keeps crashing the same way", $"{repeat.Count} crashes, each {cause}. An update, a reinstall, or turning off an add-on it uses is the likeliest fix."));
         }
 
         foreach (var app in crashes.GroupBy(x => x.AppKey))
