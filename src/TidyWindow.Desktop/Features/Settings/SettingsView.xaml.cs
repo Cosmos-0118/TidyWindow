@@ -37,7 +37,7 @@ public sealed partial class SettingsView : UserControl
                 CloseButtonText = "Not now",
                 DefaultButton = ContentDialogButton.Close
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         }
         await model.DownloadAndLaunchAsync();
     }

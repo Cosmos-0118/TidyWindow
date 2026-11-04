@@ -43,7 +43,7 @@ public sealed partial class FixesView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.RestartWindows();
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) model.RestartWindows();
     }
 
     private async void RunClick(object sender, RoutedEventArgs e)
@@ -61,7 +61,7 @@ public sealed partial class FixesView : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ActualTheme
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         }
         model.Run(row);
     }

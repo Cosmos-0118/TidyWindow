@@ -119,11 +119,14 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     public bool Scanned => scanned;
     public bool Busy => scanning || cleaning || measuringAdmin;
     public bool CanScan => !Busy;
+    /// <summary>The scan button turns into a stop button while a scan or a clean runs; whatever a clean already removed stays removed.</summary>
+    public bool CanStop => (scanning || cleaning) && !lifetime.IsCancellationRequested;
+    public bool CanScanOrStop => CanScan || CanStop;
     public bool CanClean => !Busy && selectedCount > 0;
     /// <summary>The estimate runs in the background and never blocks the page; the same button stops it.</summary>
     public bool CanEstimate => estimating || (scanned && !Busy && Groups.Any(x => x.Rows.Any(row => row.NeedsEstimate)));
     public string EstimateLabel => estimating ? "Stop estimating" : "Estimate";
-    public string ScanLabel => scanning ? "Scanning…" : scanned ? "Scan again" : "Scan";
+    public string ScanLabel => scanning ? "Stop scan" : cleaning ? "Stop cleaning" : scanned ? "Scan again" : "Scan";
     public string CleanLabel => cleaning ? "Cleaning…" : selectedBytes > 0 ? $"Clean {ByteSize.Format(selectedBytes)}" : "Clean";
     public string Status { get => status; private set => Set(ref status, value); }
     public bool ScanOverlay => scanning && Groups.Count == 0;
@@ -147,7 +150,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanClean), nameof(CanEstimate), nameof(EstimateLabel), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(CleaningVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanStop), nameof(CanScanOrStop), nameof(CanClean), nameof(CanEstimate), nameof(EstimateLabel), nameof(ScanLabel), nameof(CleanLabel), nameof(ScanOverlay), nameof(EmptyVisibility), nameof(CleaningVisibility) }) Changed(name);
     }
 
     private void RowChanged(CleanupRow row)
@@ -304,6 +307,9 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         }
         if (problem is not null) toasts.Show("clean", ToastKind.Info, "Estimate not made", problem);
     }
+
+    /// <summary>Stops the scan or clean in progress.</summary>
+    public void Stop() { if (CanStop) work?.Cancel(); }
 
     public async Task ScanAsync()
     {

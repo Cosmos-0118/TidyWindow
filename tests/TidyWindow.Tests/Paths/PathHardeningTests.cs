@@ -131,4 +131,14 @@ public sealed class PathHardeningTests : IDisposable
         Assert.Equal(@"C:\Windows", machine);
         Assert.Equal(0, broadcasts);
     }
+
+    [Fact]
+    public void BackupsMadeInTheSameMillisecondKeepTheirOwnCopy()
+    {
+        var backup = new PathBackup(Path.Combine(root, "_same-ms"));
+        var ids = Enumerable.Range(0, 40).Select(n => backup.Record("value " + n, "test").Id).ToList();
+        Assert.Equal(ids.Count, ids.Distinct().Count());
+        Assert.Equal(30, Directory.EnumerateFiles(Path.Combine(root, "_same-ms"), "*.json").Count());
+        Assert.Equal("value 39", backup.Latest()!.Raw);
+    }
 }

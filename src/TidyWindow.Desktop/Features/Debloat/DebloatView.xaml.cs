@@ -37,6 +37,7 @@ public sealed partial class DebloatView : UserControl
     private async void RemoveClick(object sender, RoutedEventArgs e)
     {
         if (Model is not { } model) return;
+        if (model.CanStop) { model.Stop(); return; }
         var rows = model.Selected();
         if (rows.Count == 0) return;
         var dialog = new ContentDialog
@@ -50,7 +51,7 @@ public sealed partial class DebloatView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         await model.RemoveAsync(rows);
     }
 
@@ -70,7 +71,7 @@ public sealed partial class DebloatView : UserControl
             DefaultButton = ContentDialogButton.Primary,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         await model.PutAllBackAsync();
     }
 

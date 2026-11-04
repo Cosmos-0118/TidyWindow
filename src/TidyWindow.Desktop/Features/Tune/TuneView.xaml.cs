@@ -31,7 +31,7 @@ public sealed partial class TuneView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await dialog.ShowGatedAsync() == ContentDialogResult.Primary;
     }
 
     private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
@@ -79,7 +79,7 @@ public sealed partial class TuneView : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ActualTheme
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
         }
         if (!await model.SetAsync(row, wanted)) toggle.IsOn = row.Enabled;
     }

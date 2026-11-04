@@ -30,6 +30,9 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
             start.StandardOutputEncoding = Encoding.UTF8;
             start.StandardErrorEncoding = Encoding.UTF8;
             start.Environment["NO_COLOR"] = "1";
+            // Windows PowerShell started from PowerShell 7 inherits its module folders, and cannot load its own modules from them (Get-FileHash and
+            // Get-AuthenticodeSignature vanish). Give it Windows' own folders, which are also the only ones an administrator-owned run should trust.
+            if (string.Equals(command.FileName, ElevatedProgram.WindowsPowerShell, StringComparison.OrdinalIgnoreCase)) start.Environment["PSModulePath"] = DebloatProcess.SystemModulePath;
         }
         using var process = new Process { StartInfo = start };
         if (command.Elevate) Report(command, new("Approve the Windows administrator prompt. Output will appear in the separate administrator window; it cannot be captured by this launch method.", CommandOutputKind.Notice));

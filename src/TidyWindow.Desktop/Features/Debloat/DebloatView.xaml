@@ -116,7 +116,7 @@
      <TextBlock Text="Clear" FontSize="12" />
     </Button>
    </StackPanel>
-   <Button Grid.Column="5" Click="RemoveClick" IsEnabled="{Binding CanRemove}" Style="{StaticResource AccentButtonStyle}" Padding="14,7" AutomationProperties.Name="Remove the selected apps">
+   <Button Grid.Column="5" Click="RemoveClick" IsEnabled="{Binding CanRemoveOrStop}" Style="{StaticResource AccentButtonStyle}" Padding="14,7" AutomationProperties.Name="Remove the selected apps">
     <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock Text="{Binding RemoveLabel}" FontSize="12" /></StackPanel>
    </Button>
   </Grid>

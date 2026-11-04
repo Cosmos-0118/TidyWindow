@@ -126,6 +126,7 @@ public sealed class DebloatRemovedRow(DebloatRemoved removed, DebloatItem? item)
 public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<DebloatItem> catalog, DebloatManager manager, ActivityLog log, ToastCenter toasts, IconService? iconService = null) : ObservableState, IDisposable
 {
     private readonly CancellationTokenSource lifetime = new();
+    private bool stopRequested, removing;
     private readonly IconService icons = iconService ?? IconService.Shared;
     // Where each item's picture came from, kept so that an item that has been removed can still be shown with it for the rest of the session.
     private readonly Dictionary<string, IconQuery> iconQueries = new(StringComparer.OrdinalIgnoreCase);
@@ -168,8 +169,11 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
     public int SelectedCount => all.Count(x => x.Selected);
     public bool HasSelection => SelectedCount > 0;
     public bool CanRemove => !Busy && HasSelection;
+    /// <summary>While apps are being removed the remove button asks to stop. It stops between apps, never part-way through one, so nothing is left half removed.</summary>
+    public bool CanStop => removing && !stopRequested;
+    public bool CanRemoveOrStop => CanRemove || CanStop;
     public string SelectedText => SelectedCount switch { 0 => "Nothing selected", 1 => "1 selected", var n => $"{n:N0} selected" };
-    public string RemoveLabel => SelectedCount switch { 0 => "Remove selected", 1 => "Remove 1", var n => $"Remove {n:N0}" };
+    public string RemoveLabel => removing ? (stopRequested ? "Stopping…" : "Stop after this one") : SelectedCount switch { 0 => "Remove selected", 1 => "Remove 1", var n => $"Remove {n:N0}" };
     public bool CanSuggest => !Busy && all.Any(x => x.Entry.Item.Recommended && x.Entry.CanRemove && !x.Selected);
 
     public string Summary => scanned ? $"{all.Count:N0} found on this PC" : "";
@@ -199,7 +203,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRemove), nameof(CanSuggest), nameof(CanPutAllBack), nameof(ScanLabel), nameof(ScanOverlay), nameof(WorkOverlay), nameof(WorkHeading), nameof(WorkCounter), nameof(WorkText), nameof(EmptyVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRemove), nameof(CanStop), nameof(CanRemoveOrStop), nameof(RemoveLabel), nameof(CanSuggest), nameof(CanPutAllBack), nameof(ScanLabel), nameof(ScanOverlay), nameof(WorkOverlay), nameof(WorkHeading), nameof(WorkCounter), nameof(WorkText), nameof(EmptyVisibility) }) Changed(name);
     }
 
     private void SelectionChanged()
@@ -338,19 +342,22 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
     }
 
     /// <summary>Removes the ticked items one after another, showing the run as a checklist. One item that fails does not stop the others.</summary>
+    public void Stop() { if (!CanStop) return; stopRequested = true; Notify(); }
+
     public async Task RemoveSelectedAsync() => await RemoveAsync(Selected());
 
     public async Task RemoveAsync(IReadOnlyList<DebloatRow> rows)
     {
         if (Busy || rows.Count == 0) return;
-        working = true; Progress.Clear(); workText = "Removing…"; workHeading = ""; workCounter = ""; Notify();
-        int done = 0, failed = 0;
+        working = true; removing = true; stopRequested = false; Progress.Clear(); workText = "Removing…"; workHeading = ""; workCounter = ""; Notify();
+        int done = 0, failed = 0, skipped = 0;
         string? firstError = null;
         var restart = false;
         try
         {
             for (var i = 0; i < rows.Count; i++)
             {
+                if (stopRequested) { skipped = rows.Count - i; break; }
                 var row = rows[i];
                 workHeading = row.Name; workCounter = rows.Count > 1 ? $"{i + 1} of {rows.Count}" : "";
                 workText = row.Entry.Item.Kind switch { DebloatKind.Edge => "This can take a few minutes.", DebloatKind.OneDrive => "Running its uninstaller…", _ => "Removing for every account…" };
@@ -382,11 +389,12 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             log.Write(ActivityLevel.Error, ActivityArea.App, "Removal could not finish", ex.ToString());
             failed = -1;
         }
-        finally { working = false; Notify(); }
+        finally { working = false; removing = false; stopRequested = false; Notify(); }
 
         if (failed >= 0)
         {
-            if (failed == 0) toasts.Show("debloat", ToastKind.Success, done == 1 ? $"{rows[0].Name} removed" : $"{done:N0} items removed", restart ? "Restart Windows to finish removing Recall." : "You can put them back from the Removed tab.", seconds: 12);
+            if (skipped > 0) toasts.Show("debloat", ToastKind.Info, "Removal stopped", $"{done:N0} removed, {skipped:N0} left as they were." + (failed > 0 ? $" {failed:N0} could not be removed." : ""), seconds: 12);
+            else if (failed == 0) toasts.Show("debloat", ToastKind.Success, done == 1 ? $"{rows[0].Name} removed" : $"{done:N0} items removed", restart ? "Restart Windows to finish removing Recall." : "You can put them back from the Removed tab.", seconds: 12);
             else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} removed, {failed:N0} could not be", ToastCenter.Brief(firstError ?? ""), seconds: 15);
         }
         // One read of the PC settles what is really gone, whatever each step reported.

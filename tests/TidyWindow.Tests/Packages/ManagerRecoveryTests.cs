@@ -129,9 +129,11 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
         Assert.Equal(kind == ManagerKind.Scoop ? new ExecutableLocator().PowerShell : ElevatedProgram.WindowsPowerShell, command.FileName);
         var script = Encoding.Unicode.GetString(Convert.FromBase64String(command.Arguments[^1]));
         Assert.DoesNotContain("Remove-Item", script);
-        // Nothing fetched at run time is unpinned, and nothing is unpacked by a module that could be planted in a profile.
+        // Nothing is unpacked by a module that could be planted in a profile. A script that runs with administrator rights never names a moving branch: what it fetches is
+        // either hash-pinned or checked against the vendor's signature before it runs. Scoop is the account's own and never elevated, so it may take the latest of its official installer.
         Assert.DoesNotContain("Expand-Archive", script);
-        Assert.DoesNotContain("master", script);
+        if (elevate) Assert.DoesNotContain("master", script);
+        Assert.Equal(kind == ManagerKind.Scoop, script.Contains("Install/master/install.ps1"));
         Assert.DoesNotContain("Invoke-WebRequest", script);
         // A run with administrator rights loads modules only from Windows' own folders and works in an administrator-only folder; the hardening comes before anything else runs.
         Assert.Equal(elevate, script.Contains("$PSModuleAutoLoadingPreference = 'None'"));
@@ -254,6 +256,91 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
         finally { listener.Stop(); listener.Close(); await serving.WaitAsync(TimeSpan.FromSeconds(5)).ContinueWith(_ => { }); }
     }
 
+    [Fact]
+    public async Task ADownloadWithoutAHashIsKeptAndTheLatestAddressIsReadWithoutFollowingIt()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var payload = Encoding.ASCII.GetBytes("whatever the official source serves today");
+        using var listener = new HttpListener();
+        var port = FreePort();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        var serving = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                HttpListenerContext context;
+                try { context = await listener.GetContextAsync(); } catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException) { return; }
+                var path = context.Request.Url!.AbsolutePath;
+                if (path == "/latest") { context.Response.StatusCode = 302; context.Response.RedirectLocation = $"http://127.0.0.1:{port}/tag/v9.9.9"; }
+                else if (path == "/tag/v9.9.9") { context.Response.StatusCode = 200; await context.Response.OutputStream.WriteAsync(payload); }
+                else context.Response.StatusCode = 404;
+                context.Response.Close();
+            }
+        });
+        try
+        {
+            var body = $$"""
+                function Test-OfficialAddress([uri]$uri) { return $uri.Host -eq '127.0.0.1' }
+                $next = Get-Redirect 'http://127.0.0.1:{{port}}/latest'
+                if ($next -ne 'http://127.0.0.1:{{port}}/tag/v9.9.9') { throw "Wrong address: $next" }
+                $caught = ''
+                try { Get-Redirect 'http://127.0.0.1:{{port}}/tag/v9.9.9' | Out-Null } catch { $caught = $_.Exception.Message }
+                if ($caught -notlike '*did not point to a newer address*') { throw "A page that is not a redirect was accepted: $caught" }
+                $caught = ''
+                try { Get-Redirect 'https://example.com/latest' | Out-Null } catch { $caught = $_.Exception.Message }
+                if ($caught -notlike 'Unexpected download address*') { throw "An unofficial address was asked: $caught" }
+                Download-Official $next (Join-Path $job 'kept.bin')
+                """;
+            var script = Variables(fixture.Root, job, "Executable", ElevatedProgram.WindowsPowerShell) + ManagerRecoveryService.Resource("Common") + "\n" + body + "\n" + ManagerRecoveryService.Resource("Complete");
+            var result = await new ProcessRunner().RunAsync(new(ElevatedProgram.WindowsPowerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], TimeSpan.FromSeconds(60)));
+            Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+            Assert.Equal(payload, File.ReadAllBytes(Path.Combine(job, "kept.bin")));
+        }
+        finally { listener.Stop(); listener.Close(); await serving.WaitAsync(TimeSpan.FromSeconds(5)).ContinueWith(_ => { }); }
+    }
+
+    [Fact]
+    public async Task AScoopReleaseAddressThatIsNotAVersionTagIsRefused()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var host = new ExecutableLocator().PowerShell;
+        var root = Path.Combine(fixture.DirectoryPath, "scoop");
+        var core = Path.Combine(root, "apps", "scoop", "current");
+        Directory.CreateDirectory(Path.Combine(core, "bin")); File.WriteAllText(Path.Combine(core, "bin", "scoop.ps1"), "throw 'Deliberately broken core'");
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var stub = "function Get-Redirect([string]$uri) { 'https://github.com/evil/Scoop/releases/tag/v0.6.0' }\nfunction Download-Official { throw 'Nothing may be downloaded' }";
+        var result = await RunScriptAsync(host, Variables(root, job, "Executable", host), "Scoop", stub);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("did not name a Scoop release", ResultError(job));
+        Assert.Contains("Deliberately broken core", File.ReadAllText(Path.Combine(core, "bin", "scoop.ps1")));
+    }
+
+    // Chocolatey's own package, as it sits on this PC if Chocolatey is installed: every file in it that can run must pass the package-wide check, and one more file must not.
+    [Fact]
+    public async Task ChocolateysOwnPackagePassesThePackageCheckAndAnExtraUnsignedProgramDoesNot()
+    {
+        var package = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey", "lib", "chocolatey", "chocolatey.nupkg");
+        if (!OperatingSystem.IsWindows() || !File.Exists(package)) return;
+        using var fixture = new Fixture();
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var unpacked = Path.Combine(fixture.DirectoryPath, "package");
+        ZipFile.ExtractToDirectory(package, unpacked);
+        string Script(string body) => Variables(fixture.Root, job, "Executable", ElevatedProgram.WindowsPowerShell) + ManagerRecoveryService.Resource("Common") + "\n" + body + "\n" + ManagerRecoveryService.Resource("Complete");
+        async Task<CommandResult> Run(string body) => await new ProcessRunner().RunAsync(new(ElevatedProgram.WindowsPowerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(Script(body)))], TimeSpan.FromSeconds(120)));
+
+        var genuine = await Run($"Assert-ChocolateyPackageSigned {Literal(unpacked)}");
+        Assert.True(genuine.ExitCode == 0, genuine.Output + genuine.Error + ResultError(job));
+
+        File.WriteAllBytes(Path.Combine(unpacked, "tools", "chocolateyInstall", "tools", "planted.dll"), [0x4D, 0x5A, 0, 0]);
+        var tampered = await Run($"Assert-ChocolateyPackageSigned {Literal(unpacked)}");
+        Assert.Equal(1, tampered.ExitCode);
+        Assert.Contains("planted.dll", ResultError(job));
+    }
+
     private static int FreePort()
     {
         using var socket = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
@@ -276,7 +363,7 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
         var staging = Path.Combine(fixture.DirectoryPath, "staging", "Scoop-0.6.0", "bin"); Directory.CreateDirectory(staging);
         File.WriteAllText(Path.Combine(staging, "scoop.ps1"), "Write-Output 'Current Scoop version:'; Write-Output 'v0.6.0 - Released at 2026-01-01'");
         var fake = Path.Combine(fixture.DirectoryPath, "fake.zip"); ZipFile.CreateFromDirectory(Path.Combine(fixture.DirectoryPath, "staging"), fake);
-        var stub = $"function Download-Official([string]$uri, [string]$destination, [string]$sha256) {{ if ($uri -notlike 'https://github.com/ScoopInstaller/Scoop/archive/refs/tags/v*.zip') {{ throw \"unexpected $uri\" }}; Copy-Item -LiteralPath {Literal(fake)} -Destination $destination }}";
+        var stub = "function Get-Redirect([string]$uri) { if ($uri -ne 'https://github.com/ScoopInstaller/Scoop/releases/latest') { throw \"unexpected $uri\" }; 'https://github.com/ScoopInstaller/Scoop/releases/tag/v0.6.0' }\n" + $"function Download-Official([string]$uri, [string]$destination, [string]$sha256 = '') {{ if ($uri -ne 'https://github.com/ScoopInstaller/Scoop/archive/refs/tags/v0.6.0.zip' -or $sha256) {{ throw \"unexpected $uri\" }}; Copy-Item -LiteralPath {Literal(fake)} -Destination $destination }}";
         var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
         var result = await RunScriptAsync(host, Variables(root, job, "Executable", host), "Scoop", stub);
         Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));

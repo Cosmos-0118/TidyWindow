@@ -101,12 +101,6 @@ public sealed partial class MainWindow : Window
         paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, Post, toasts, ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
         ToastStack.ItemsSource = toasts.Items;
-        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is not null) // TEMP-DEMO
-        { // TEMP-DEMO
-            toasts.Show("d1", ToastKind.Info, "Checking for updates", "", seconds: 0); // TEMP-DEMO
-            toasts.Show("d2", ToastKind.Warning, "The power plan could not be changed", "Access to the registry key HKLM Power is denied. Try again from an account with admin rights, or open Logs for the full message.", "Open Logs", () => Task.CompletedTask, 0); // TEMP-DEMO
-            toasts.Show("d3", ToastKind.Success, "Detailed messages at start-up and shutdown is on", "Windows applies this the next time you restart.", "Turn off", () => Task.CompletedTask, 30); // TEMP-DEMO
-        } // TEMP-DEMO
         Root.DataContext = model;
         repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.

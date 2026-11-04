@@ -19,17 +19,18 @@
             Move-Item -LiteralPath $config -Destination ($config + '.tidywindow-backup-' + [guid]::NewGuid().ToString('N'))
         }
     }
-    # One pinned Chocolatey package serves both a fresh install and a repair: its own installer creates the folder when there is none and repairs the
-    # binaries in place when there is, leaving lib/, config/ and installed applications intact. Each file that runs is also checked for Chocolatey's signature.
+    # The current Chocolatey package serves both a fresh install and a repair: its own installer creates the folder when there is none and repairs the
+    # binaries in place when there is, leaving lib/, config/ and installed applications intact. It comes from Chocolatey's own address for the latest release, so
+    # a new Chocolatey needs no new TidyWindow; nothing from it runs until every file in it that can run has been checked for Chocolatey's signature.
     $archive = Join-Path $work 'chocolatey.nupkg'
-    Download-Official 'https://packages.chocolatey.org/chocolatey.2.7.5.nupkg' $archive 'F86F99A18D236C2F99E6F67A20BE7ADC65C6C7756BF6CF3B43759E7EC0AA5839'
+    Download-Official 'https://community.chocolatey.org/api/v2/package/chocolatey' $archive
     $unpacked = Join-Path $work 'chocolatey-package'
     [IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
     $installer = Join-Path $unpacked 'tools\chocolateyInstall.ps1'
     foreach ($file in $installer, (Join-Path $unpacked 'tools\chocolateysetup.psm1'), (Join-Path $unpacked 'tools\chocolateyInstall\choco.exe')) {
         if (!(Test-Path -LiteralPath $file)) { throw 'The Chocolatey package did not contain its installation files.' }
-        Assert-ChocolateySigned $file
     }
+    Assert-ChocolateyPackageSigned $unpacked
     & $installer
     $choco = Join-Path $root 'bin\choco.exe'
     if (!(Test-Path -LiteralPath $choco)) { throw 'The Chocolatey setup finished, but choco.exe was not created.' }

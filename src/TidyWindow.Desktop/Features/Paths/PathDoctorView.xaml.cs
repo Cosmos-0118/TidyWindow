@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using TidyWindow.Next.Core;
 using Windows.System;
 
 namespace TidyWindow.Next.Desktop;
@@ -26,7 +27,23 @@ public sealed partial class PathDoctorView : UserControl
 
     private async void UpClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is PathRow row) await model.MoveAsync(row, -1); }
     private async void DownClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is PathRow row) await model.MoveAsync(row, 1); }
-    private async void RemoveClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is PathRow row) await model.RemoveAsync(row); }
+    private async void RemoveClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model || (sender as FrameworkElement)?.DataContext is not PathRow row) return;
+        // A Windows-wide entry is every account's, not just this one's; it can be undone, but nothing should be one stray click from asking for it.
+        if (row.Entry.Scope == PathScope.Machine)
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot, RequestedTheme = ActualTheme,
+                Title = "Remove this folder for everyone?",
+                Content = new TextBlock { Text = $"{row.Folder}\n\nThis changes the Windows-wide list of folders, which every account on this PC uses. Windows asks for permission, and you can undo it afterwards.", TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true },
+                PrimaryButtonText = "Remove", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
+        }
+        await model.RemoveAsync(row);
+    }
     private async void AddAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.AddAllToolsAsync(); }
     private async void AddToolClick(object sender, RoutedEventArgs e) { if (Model is { } model && (sender as FrameworkElement)?.DataContext is ToolRow row) await model.AddToolAsync(row); }
 

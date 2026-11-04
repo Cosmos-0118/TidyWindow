@@ -34,7 +34,7 @@ public sealed partial class BackgroundView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.TurnOffSafeAsync(rows);
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.TurnOffSafeAsync(rows);
     }
 
     private async void RestoreAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestoreAllAsync(); }
@@ -79,7 +79,7 @@ public sealed partial class BackgroundView : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ActualTheme
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
         }
         if (!await model.SetAsync(row, wanted)) toggle.IsOn = row.Enabled;
     }

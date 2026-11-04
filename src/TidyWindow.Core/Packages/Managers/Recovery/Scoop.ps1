@@ -23,7 +23,9 @@
     }
     if ($problem -eq 'NotInstalled' -and !(Test-Path -LiteralPath $core)) {
         $installer = Join-Path $work 'install-scoop.ps1'
-        Download-Official 'https://raw.githubusercontent.com/ScoopInstaller/Install/1e2f334083d609986d8c8bc9e31ae8e87c39fab4/install.ps1' $installer '94F983B190438311E006B957DB7C8422709E0BA62A6C2AC04E278164108F2512'
+        # Scoop's own documented installer, from its official repository. Scoop belongs to the account and never runs with administrator rights, so this is the same
+        # trust as installing it by hand, and a new Scoop needs no new TidyWindow.
+        Download-Official 'https://raw.githubusercontent.com/ScoopInstaller/Install/master/install.ps1' $installer
         # In its own host: the installer ends with exit when it refuses (already installed, running as administrator), which must not end this recovery.
         & $powershell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $installer -ScoopDir $root
         Assert-Native 'The Scoop installer'
@@ -37,10 +39,16 @@
         }
         if (!$coreWorks) {
             $archive = Join-Path $work 'scoop.zip'
-            Download-Official 'https://github.com/ScoopInstaller/Scoop/archive/refs/tags/v0.6.0.zip' $archive '77FA70F3133C70A7B17698235130767C3301D072C7BA2DEAA2C939014E380875'
+            # The latest release, asked of GitHub: its "latest" address points at the tag, and only a plain version tag is accepted.
+            $release = Get-Redirect 'https://github.com/ScoopInstaller/Scoop/releases/latest'
+            if ($release -notmatch '^https://github\.com/ScoopInstaller/Scoop/releases/tag/(v\d+\.\d+\.\d+)$') { throw "GitHub did not name a Scoop release: $release" }
+            Download-Official "https://github.com/ScoopInstaller/Scoop/archive/refs/tags/$($Matches[1]).zip" $archive
             $unpacked = Join-Path $work 'scoop-core'
             [IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
-            $replacement = Join-Path $unpacked 'Scoop-0.6.0'
+            # The archive holds one folder, named after the release.
+            $folders = @(Get-ChildItem -LiteralPath $unpacked -Directory -Force)
+            if ($folders.Count -ne 1) { throw 'The Scoop archive did not contain a single Scoop folder.' }
+            $replacement = $folders[0].FullName
             if (!(Test-Path -LiteralPath (Join-Path $replacement 'bin\scoop.ps1'))) { throw 'The Scoop archive did not contain a valid entry point.' }
             New-Item -ItemType Directory -Path (Split-Path -Parent $core) -Force | Out-Null
             # Move only Scoop's own core; never remove apps/, buckets/, persist/ or caches. A link in its place could make the move act elsewhere, so only a real folder is moved aside.

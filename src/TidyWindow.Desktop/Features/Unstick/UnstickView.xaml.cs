@@ -14,7 +14,19 @@ public sealed partial class UnstickView : UserControl
 
     private async void RunClick(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: UnstickRow row } && Model is { } model) await model.RunAsync(row);
+        if (sender is not FrameworkElement { DataContext: UnstickRow row } || Model is not { } model) return;
+        // Shutting WSL down ends every Linux distribution and container running in it, with whatever they had not saved.
+        if (row.Action.Id == "restart-wsl")
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot, RequestedTheme = ActualTheme,
+                Title = "Restart WSL?", Content = new TextBlock { Text = row.Action.Notice + "\n\nSave your work in any Linux terminal first.", TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "Restart WSL", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
+        }
+        await model.RunAsync(row);
     }
 
     private void DetailsClick(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is UnstickRow row) row.ToggleDetails(); }

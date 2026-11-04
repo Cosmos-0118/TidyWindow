@@ -37,7 +37,7 @@ public sealed partial class CrashesView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.ClearHistoryAsync();
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.ClearHistoryAsync();
     }
 
     private async void CopyClick(object sender, RoutedEventArgs e)

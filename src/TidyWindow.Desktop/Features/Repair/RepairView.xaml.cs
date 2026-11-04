@@ -29,7 +29,7 @@ public sealed partial class RepairView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.FixAsync();
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.FixAsync();
     }
     private async void LocateClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.LocateInstallerAsync(); }
     // Shows or hides the list of steps under the button, and turns the arrow to match.
@@ -85,7 +85,7 @@ public sealed partial class RepairView : UserControl
     private async Task<bool> Confirm(string title, string text)
     {
         var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = text, PrimaryButtonText = "Remove for good", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, RequestedTheme = ActualTheme };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await dialog.ShowGatedAsync() == ContentDialogResult.Primary;
     }
 
     // The whole row is the target, not only the small box.
@@ -115,6 +115,6 @@ public sealed partial class RepairView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.RemoveProgramAsync(row);
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.RemoveProgramAsync(row);
     }
 }

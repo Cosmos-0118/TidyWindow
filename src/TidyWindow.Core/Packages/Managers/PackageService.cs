@@ -12,6 +12,10 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
     internal SemaphoreSlim OperationGate => installGate;
     private readonly PackageSearchCache searchCache = new();
     public void ClearSearchCache() => searchCache.Clear();
+
+    /// <summary>WinGet without a source also reads the registry and the Store's app list, which takes much longer than its own packages on a slow PC or network.</summary>
+    private static readonly TimeSpan WindowsAppsInventoryLimit = TimeSpan.FromSeconds(60);
+
     /// <summary>Where a fast search path that stops working is noted, once per source per session, so a search that turned slow has an explanation. Searches work without it.</summary>
     public ActivityLog? Log { get; set; }
     private int fastPathNoted;
@@ -40,7 +44,7 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
         };
         try
         {
-            var result = await runner.RunAsync(BuildCommand(kind, manager.Executable, arguments, TimeSpan.FromSeconds(20)), token).ConfigureAwait(false);
+            var result = await runner.RunAsync(BuildCommand(kind, manager.Executable, arguments, windowsApps ? WindowsAppsInventoryLimit : TimeSpan.FromSeconds(20)), token).ConfigureAwait(false);
             if (result.ExitCode == unchecked((int)0x8A150014)) return new(kind, []);
             if (kind == ManagerKind.Scoop && result.ExitCode == 1 && result.Output.Contains("There aren't any apps installed", StringComparison.OrdinalIgnoreCase)) return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));

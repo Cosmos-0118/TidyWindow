@@ -78,6 +78,8 @@ public sealed class PathBackup(string folder)
     {
         Directory.CreateDirectory(folder);
         var created = DateTime.UtcNow;
+        // Two changes inside one millisecond would otherwise share a name, and the later copy would overwrite the earlier one, losing a step of undo.
+        while (File.Exists(Path.Combine(folder, created.ToString("yyyyMMdd-HHmmss-fff") + ".json"))) created = created.AddMilliseconds(1);
         var item = new PathBackupItem(created.ToString("yyyyMMdd-HHmmss-fff"), created, raw, why);
         File.WriteAllText(Path.Combine(folder, item.Id + ".json"), JsonSerializer.Serialize(item, Json));
         foreach (var old in Directory.EnumerateFiles(folder, "*.json").OrderByDescending(x => x).Skip(Keep))
