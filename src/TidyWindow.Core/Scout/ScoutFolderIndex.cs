@@ -237,11 +237,20 @@ public sealed class ScoutFolderIndex : IDisposable
     }
     private void Apply(List<Update> updates)
     {
+        // Every update was resolved against the file system as it is now, so a change to something that has since been moved reads as "gone" at its old path. The moves go first,
+        // so what was under a renamed folder is under its new name before such a stale "gone" is applied, and is not deleted on the way.
+        foreach (var update in updates)
+        {
+            if (update.Old is not { } old) continue;
+            var known = store.Contains(old);
+            store.Move(old, update.Path);
+            // A folder renamed before the index had seen it has nothing under it yet: it is looked at again as a folder that appeared whole, which walks it.
+            if (!known && update.Current is { IsFolder: true, IsReparse: false } && update.Children is null) changes.Enqueue((update.Path, null));
+        }
         foreach (var update in updates)
         {
             if (update.Lost) missedChanges = true;
             skipped += update.Inaccessible;
-            if (update.Old is { } old) store.Move(old, update.Path);
             if (update.Gone) { store.RemoveTree(update.Path); continue; }
             if (update.Current is null || !Upsert(update.Current)) continue;
             if (update.Children is not null) foreach (var child in update.Children) if (!Upsert(child)) break;

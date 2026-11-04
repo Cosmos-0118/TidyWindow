@@ -101,7 +101,7 @@ public static class CommandProbe
         start.ArgumentList.Add(command is "java" or "javac" ? "-version" : "--version");
         try
         {
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("The program could not be started.");
+            using var process = StartQuietly(start) ?? throw new InvalidOperationException("The program could not be started.");
             process.StandardInput.Close();
             var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
             var errors = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -119,6 +119,23 @@ public static class CommandProbe
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException) { return new("", false); }
     }
+
+    /// <summary>
+    /// Starts the program without letting Windows put up its own error box for a file that cannot run (a damaged alias, an old 16-bit program): that box waits for a click,
+    /// and the start would wait with it. For this one start, on this thread, the failure comes back as an exception instead.
+    /// </summary>
+    private static Process? StartQuietly(ProcessStartInfo start)
+    {
+        const uint FailCriticalErrors = 0x0001, NoOpenFileErrorBox = 0x8000;
+        uint before = 0;
+        var changed = OperatingSystem.IsWindows() && SetThreadErrorMode(FailCriticalErrors | NoOpenFileErrorBox, out before);
+        try { return Process.Start(start); }
+        finally { if (changed) SetThreadErrorMode(before, out _); }
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetThreadErrorMode(uint mode, out uint previous);
 
     /// <summary>The Microsoft Store placeholder for Python answers with a "not found" message instead of a version.</summary>
     public static ProbeResult Parse(string text, int exitCode)

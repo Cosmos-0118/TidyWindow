@@ -26,6 +26,25 @@ public sealed class ElevatedProgramLocatorTests : IDisposable
     }
 
     [Fact]
+    public void TheTwoWaysOfAskingGiveTheSameAnswerForTheSameFile()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var planted = Path.Combine(temp, "tool.exe");
+        File.WriteAllText(planted, "not really");
+        var link = Path.Combine(temp, "link.exe");
+        // A symbolic link needs a privilege an ordinary account may not have; the file itself is what matters when it cannot be made.
+        var linked = false;
+        try { File.CreateSymbolicLink(link, Path.Combine(Environment.SystemDirectory, "cmd.exe")); linked = true; } catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        foreach (var file in new[] { planted, Path.Combine(Environment.SystemDirectory, "cmd.exe"), ElevatedProgram.WindowsPowerShell, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "..", "Windows", "System32", "cmd.exe") })
+            Assert.Equal(ElevatedProgram.ProtectedPathProblem(file) is null, ElevatedProgram.Resolve(Path.GetFullPath(file)).Problem is null);
+        if (linked)
+        {
+            Assert.Contains("is a link", ElevatedProgram.ProtectedPathProblem(link));
+            Assert.Contains("is a link", ElevatedProgram.Resolve(link).Problem);
+        }
+    }
+
+    [Fact]
     public void OnlyAFullPathToAnExistingFileOnThisPcIsConsidered()
     {
         Assert.Contains("not a full path", ElevatedProgram.ProtectedPathProblem("choco.exe"));
