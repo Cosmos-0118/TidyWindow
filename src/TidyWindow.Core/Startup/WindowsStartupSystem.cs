@@ -376,7 +376,10 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
             var folder = !string.IsNullOrWhiteSpace(packageRoot) ? packageRoot : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps", packageFullName);
             var file = Path.Combine(folder, "AppxManifest.xml");
             if (!File.Exists(file)) return none;
-            var document = XDocument.Load(file);
+            XDocument? document;
+            // Read strictly: a manifest holds no document type definition, and the administrator helper reads these too.
+            using (var stream = File.OpenRead(file)) document = StartupGuard.ReadXml(new StreamReader(stream), 8 << 20);
+            if (document is null) return none;
             var properties = document.Descendants().FirstOrDefault(x => x.Name.LocalName == "Properties");
             string Read(string name) => properties?.Elements().FirstOrDefault(x => x.Name.LocalName == name)?.Value ?? "";
             string Resolve(string text) => ResolveName(packageFullName, text);
@@ -595,7 +598,27 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
 
     // ---- Authenticode: is the file signed, does the signature check out, and who signed it? ----
 
+    private const uint RevokeNone = 0, RevokeWholeChain = 1;
+    private const uint CacheOnlyUrlRetrieval = 0x1000, RevocationCheckNone = 0x10, RevocationCheckChainExcludeRoot = 0x80;
+    private const int Unavailable = 1;
+
     internal static (StartupTrust Trust, string Signer) Verify(string path)
+    {
+        var (result, signer) = Check(path, revocation: false);
+        var trust = result switch
+        {
+            0 => StartupTrust.Verified,
+            Unavailable => StartupTrust.Unknown,
+            unchecked((int)0x800B0100) or unchecked((int)0x800B0001) or unchecked((int)0x800B0003) => StartupTrust.Unsigned,
+            _ => StartupTrust.Invalid
+        };
+        // A second look asks whether the certificate was revoked, using only the lists Windows already holds: a scan must never wait on the
+        // network. Only a definite answer counts; a list that is not at hand leaves the file as it was judged above.
+        if (trust == StartupTrust.Verified && Check(path, revocation: true).Result is unchecked((int)0x800B010C) or unchecked((int)0x80092010)) return (StartupTrust.Invalid, "");
+        return (trust, signer);
+    }
+
+    private static (int Result, string Signer) Check(string path, bool revocation)
     {
         var file = IntPtr.Zero; var data = IntPtr.Zero; var name = IntPtr.Zero;
         var opened = false;
@@ -606,19 +629,19 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
             file = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
             Marshal.StructureToPtr(info, file, false);
             // Keeping the verification state open lets the same check hand back the certificate that signed the file.
-            var trust = new WinTrustData { Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2, RevocationChecks = 0, UnionChoice = 1, File = file, StateAction = StateVerify, ProviderFlags = 0x1000 | 0x10 };
+            var trust = new WinTrustData
+            {
+                Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2, UnionChoice = 1, File = file, StateAction = StateVerify,
+                RevocationChecks = revocation ? RevokeWholeChain : RevokeNone,
+                ProviderFlags = CacheOnlyUrlRetrieval | (revocation ? RevocationCheckChainExcludeRoot : RevocationCheckNone)
+            };
             data = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustData>());
             Marshal.StructureToPtr(trust, data, false);
             var result = WinVerifyTrust(new IntPtr(-1), WintrustActionGenericVerifyV2, data);
             opened = true;
-            return result switch
-            {
-                0 => (StartupTrust.Verified, SignerOf(data)),
-                unchecked((int)0x800B0100) or unchecked((int)0x800B0001) or unchecked((int)0x800B0003) => (StartupTrust.Unsigned, ""),
-                _ => (StartupTrust.Invalid, "")
-            };
+            return (result, result == 0 ? SignerOf(data) : "");
         }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException) { return (StartupTrust.Unknown, ""); }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException) { return (Unavailable, ""); }
         finally
         {
             if (opened) CloseState(data);
@@ -704,11 +727,15 @@ public sealed partial class WindowsStartupSystem : IStartupSystem
 public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = null) : IStartupWriter
 {
     private static readonly string[] ApprovedKeys = ["Run", "Run32", "StartupFolder"];
+    private static readonly string[] ReservedNames = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"];
     private readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.Now);
+
+    // A registry value name as the scan read it: no path separators, nothing unprintable, and no longer than a name has any reason to be.
+    private static bool BadName(string name) => string.IsNullOrWhiteSpace(name) || name.Length > 260 || name.IndexOfAny(['\\', '/']) >= 0 || name.Any(char.IsControl);
 
     public void SetApproved(StartupScope scope, string subKey, string name, bool enabled)
     {
-        if (Array.IndexOf(ApprovedKeys, subKey) < 0 || string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['\\', '/']) >= 0) throw new InvalidOperationException("That startup item cannot be changed.");
+        if (Array.IndexOf(ApprovedKeys, subKey) < 0 || BadName(name)) throw new InvalidOperationException("That startup item cannot be changed.");
         try
         {
             using var root = RegistryKey.OpenBaseKey(scope == StartupScope.User ? RegistryHive.CurrentUser : RegistryHive.LocalMachine, RegistryView.Registry64);
@@ -723,8 +750,7 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
     // The changer only reaches a task in Windows' own folder when the scan listed it, which it does only for a task that runs a program that is not Windows'.
     private static void CheckTaskPath(string path)
     {
-        if (path.Length < 2 || path[0] != '\\' || path.Length > 240 || path.Contains("..", StringComparison.Ordinal))
-            throw new InvalidOperationException("That task cannot be changed.");
+        if (StartupGuard.TaskPathProblem(path) is not null) throw new InvalidOperationException("That task cannot be changed.");
     }
 
     private static bool InWindowsFolder(string path) => path.StartsWith(WindowsStartupSystem.WindowsTaskFolder + @"\", StringComparison.OrdinalIgnoreCase);
@@ -774,7 +800,7 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
     public void RestoreTask(string path, string xml)
     {
         CheckTaskPath(path);
-        if (xml.Length == 0 || xml.Length > 1 << 20) throw new InvalidOperationException("That task cannot be put back.");
+        if (xml.Length == 0 || xml.Length > StartupGuard.LargestTaskDefinition) throw new InvalidOperationException("That task cannot be put back.");
         try
         {
             dynamic service = Connect();
@@ -790,13 +816,13 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
 
     // ---- Taking an item out of startup, with a copy kept by the caller so it can be put back ----
 
-    private const int LargestShortcut = 4 << 20;
+    private const int LargestShortcut = StartupGuard.LargestFolderItem;
 
     private static RegistryKey Hive(StartupScope scope) => RegistryKey.OpenBaseKey(scope == StartupScope.User ? RegistryHive.CurrentUser : RegistryHive.LocalMachine, RegistryView.Registry64);
 
     private static string RunKeyPath(string source, string name)
     {
-        if (StartupLocations.PathFor(source) is not { } path || string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['\\', '/']) >= 0) throw new InvalidOperationException("That startup item cannot be changed.");
+        if (StartupLocations.PathFor(source) is not { } path || BadName(name)) throw new InvalidOperationException("That startup item cannot be changed.");
         return path;
     }
 
@@ -824,7 +850,7 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
     public void RestoreRun(StartupScope scope, string source, string name, string command, bool expandable)
     {
         var path = RunKeyPath(source, name);
-        if (command.Length == 0 || command.Length > 8192) throw new InvalidOperationException("That startup item cannot be put back.");
+        if (command.Length == 0 || command.Length > 8192 || command.Any(char.IsControl)) throw new InvalidOperationException("That startup item cannot be put back.");
         try
         {
             using var root = Hive(scope);
@@ -865,7 +891,9 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
     private static string FolderFile(StartupScope scope, string fileName)
     {
         var folder = Environment.GetFolderPath(scope == StartupScope.User ? Environment.SpecialFolder.Startup : Environment.SpecialFolder.CommonStartup);
-        if (string.IsNullOrEmpty(folder) || fileName.Length == 0 || Path.GetFileName(fileName) != fileName || fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        // A plain file name: one Windows would not quietly rewrite (a trailing dot or space is dropped, CON and friends are devices) and that stays inside the folder.
+        if (string.IsNullOrEmpty(folder) || fileName.Length == 0 || fileName.Length > 255 || Path.GetFileName(fileName) != fileName || fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)
+            || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || fileName.EndsWith('.') || fileName.EndsWith(' ') || ReservedNames.Contains(fileName.Split('.')[0], StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("That startup item cannot be changed.");
         return Path.Combine(folder, fileName);
     }
@@ -892,8 +920,16 @@ public sealed partial class WindowsStartupWriter(Func<DateTimeOffset>? clock = n
         var file = FolderFile(scope, fileName);
         if (contents.Length == 0 || contents.Length > LargestShortcut) throw new InvalidOperationException("That startup item cannot be put back.");
         if (File.Exists(file)) return;
-        File.WriteAllBytes(file, contents);
+        try
+        {
+            // Made new or not at all: a file or link that has appeared at this name in the meantime is neither overwritten nor followed.
+            using var stream = new FileStream(file, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stream.Write(contents);
+        }
+        catch (IOException) when (File.Exists(file)) { }
+        catch (System.Security.SecurityException ex) { throw new UnauthorizedAccessException(ex.Message, ex); }
     }
+
 
     [GeneratedRegex(@"^[A-Za-z0-9_.\- ]{1,256}$")]
     private static partial Regex ServiceName();

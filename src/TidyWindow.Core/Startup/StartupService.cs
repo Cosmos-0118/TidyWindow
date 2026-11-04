@@ -7,8 +7,13 @@ using System.Text.Json;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>Makes one change on this PC, after checking again that the item may be changed, and reads it back to be sure it took.</summary>
-public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter writer) : IStartupChanger
+/// <summary>
+/// Makes one change on this PC, after checking again that the item may be changed, and reads it back to be sure it took.
+/// With a <paramref name="vault"/>, as in the administrator helper, the copy of a removed item is kept there and a put-back uses only that
+/// copy: the app's own record could have been edited by any program running as the ordinary account, and it must never choose what the
+/// helper writes with administrator rights.
+/// </summary>
+public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter writer, ProtectedStore? vault = null) : IStartupChanger
 {
     /// <exception cref="UnauthorizedAccessException">The change needs administrator rights this process does not have.</exception>
     public StartupOutcome Change(StartupRequest request)
@@ -48,25 +53,36 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
         if (entry is null) return new(false, "That item is no longer on this PC.");
         if (!entry.CanChange) return new(false, entry.Reason);
         if (!entry.CanRemove) return new(false, "That kind of item cannot be removed from startup.", entry);
-        StartupVault vault;
+        StartupVault copy;
+        string problem;
         switch (entry.Kind)
         {
             case StartupKind.RunKey:
                 var value = system.RunValues().FirstOrDefault(x => x.Scope == entry.Scope && x.Where == entry.Source && string.Equals(x.Name, entry.Key, StringComparison.Ordinal));
                 if (value is null) return new(false, "That item is no longer on this PC.");
-                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, value.Command, value.Expandable);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, value.Command, value.Expandable);
+                // The copy is kept before the value goes: without it there is no way back.
+                if (!Keep(request.Id, copy, out problem)) return new(false, problem, entry);
                 writer.RemoveRun(entry.Scope, entry.Source, entry.Key);
                 break;
             case StartupKind.StartupFolder:
-                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: Convert.ToBase64String(writer.RemoveFolderItem(entry.Scope, entry.Key)));
+                var contents = writer.RemoveFolderItem(entry.Scope, entry.Key);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, entry.Command, Data: Convert.ToBase64String(contents));
+                // A copy that could never be put back is no copy at all, so the file goes straight back and the item stays.
+                if (StartupGuard.FolderItemProblem(entry.Key, contents) is { } badFile) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, badFile + " It was left alone.", entry); }
+                if (!Keep(request.Id, copy, out problem)) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, problem, entry); }
                 break;
             case StartupKind.WindowsSetting:
                 if (entry.Scope != StartupScope.User || StartupLocations.SettingFor(entry.Key) is null) return new(false, "That kind of item cannot be removed from startup.", entry);
                 var (text, expandable) = writer.ClearSetting(entry.Key);
-                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, text, expandable);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, text, expandable);
+                if (!Keep(request.Id, copy, out problem)) { writer.RestoreSetting(copy.Key, copy.Command, copy.Expandable); return new(false, problem, entry); }
                 break;
             default:
-                vault = new(entry.Kind, entry.Scope, entry.Source, entry.Key, Data: writer.RemoveTask(entry.Key));
+                var xml = writer.RemoveTask(entry.Key);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, entry.Command, Data: xml);
+                if (StartupGuard.TaskDefinitionProblem(xml, entry.Scope) is { } badTask) { writer.RestoreTask(copy.Key, xml); return new(false, badTask + " It was left alone.", entry); }
+                if (!Keep(request.Id, copy, out problem)) { writer.RestoreTask(copy.Key, copy.Data); return new(false, problem, entry); }
                 break;
         }
         // The item is already gone and the copy is the only way back, so a failure to look again must never cost the caller that copy.
@@ -74,35 +90,74 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
         try { remaining = StartupScan.Find(system, request.Id); }
         catch (Exception ex) when (ex is IOException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidOperationException) { remaining = null; }
         return remaining is null
-            ? new(true, null, null, vault)
-            : new(false, "Windows did not accept the change.", entry, vault);
+            ? new(true, null, null, copy)
+            : new(false, "Windows did not accept the change.", entry, copy);
+    }
+
+    private bool Keep(string id, StartupVault copy, out string problem)
+    {
+        problem = "";
+        if (vault is null) return true;
+        try { vault.Save(id, copy); return true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            problem = "The copy needed to put this item back could not be kept, so it was not removed. " + ex.Message;
+            return false;
+        }
     }
 
     // The helper may be asked to put back something it never removed, so it checks the copy is well formed and belongs to the item it was asked for.
     private StartupOutcome Restore(StartupRequest request)
     {
-        if (request.Vault is not { } vault) return new(false, "There is nothing to put back.");
-        if (StartupScan.IdFor(vault) != request.Id || vault.Key.Length == 0) return new(false, "That copy does not belong to this item.");
-        if (StartupScan.Find(system, request.Id) is { } already) return new(true, null, already);
-        switch (vault.Kind)
+        StartupVault? copy;
+        if (vault is not null)
+        {
+            // Only the helper's own copy is put back with administrator rights, never the one that arrived with the request.
+            copy = vault.Load<StartupVault>(request.Id);
+            if (copy is null) return new(false, "There is no protected copy of this item to put back. It may have been removed by an earlier version of TidyWindow; add it to startup again by hand.");
+        }
+        else copy = request.Vault;
+        if (copy is null) return new(false, "There is nothing to put back.");
+        if (StartupScan.IdFor(copy) != request.Id || copy.Key.Length == 0) return new(false, "That copy does not belong to this item.");
+        if (StartupScan.Find(system, request.Id) is { } already)
+        {
+            // Something with this name is back. The same item (reinstalled, or put back by hand) means the copy is no longer needed; a
+            // different one is pointed out and the copy stays, so a newcomer is never reported as the item put back.
+            if (copy.Command.Length > 0 && !string.Equals(already.Command.Trim(), copy.Command.Trim(), StringComparison.OrdinalIgnoreCase))
+                return new(false, $"Something else has taken this item's place in startup since it was removed. It now runs: {already.Command}. The saved copy was kept; check the new item before you decide what to do with it.", already);
+            Forget(request.Id);
+            return new(true, null, already);
+        }
+        // The copy is checked once more here, whoever kept it: it is the one thing the writes below take on trust.
+        switch (copy.Kind)
         {
             case StartupKind.RunKey:
-                writer.RestoreRun(vault.Scope, vault.Source, vault.Key, vault.Command, vault.Expandable);
+                writer.RestoreRun(copy.Scope, copy.Source, copy.Key, copy.Command, copy.Expandable);
                 break;
             case StartupKind.StartupFolder:
-                writer.RestoreFolderItem(vault.Scope, vault.Key, Convert.FromBase64String(vault.Data));
+                var contents = Convert.FromBase64String(copy.Data);
+                if (StartupGuard.FolderItemProblem(copy.Key, contents) is { } badFile) return new(false, badFile + " It was not put back.");
+                writer.RestoreFolderItem(copy.Scope, copy.Key, contents);
                 break;
             case StartupKind.ScheduledTask:
-                writer.RestoreTask(vault.Key, vault.Data);
+                if (StartupGuard.TaskDefinitionProblem(copy.Data, copy.Scope) is { } badTask) return new(false, badTask + " It was not put back.");
+                writer.RestoreTask(copy.Key, copy.Data);
                 break;
             case StartupKind.WindowsSetting:
-                if (vault.Scope != StartupScope.User || StartupLocations.SettingFor(vault.Key) is null) return new(false, "That kind of item cannot be put back.");
-                writer.RestoreSetting(vault.Key, vault.Command, vault.Expandable);
+                if (copy.Scope != StartupScope.User || StartupLocations.SettingFor(copy.Key) is null) return new(false, "That kind of item cannot be put back.");
+                writer.RestoreSetting(copy.Key, copy.Command, copy.Expandable);
                 break;
             default:
                 return new(false, "That kind of item cannot be put back.");
         }
-        return StartupScan.Find(system, request.Id) is { } after ? new(true, null, after) : new(false, "Windows did not accept the change.");
+        if (StartupScan.Find(system, request.Id) is { } after) { Forget(request.Id); return new(true, null, after); }
+        return new(false, "Windows did not accept the change.");
+    }
+
+    private void Forget(string id)
+    {
+        try { vault?.Delete(id); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* The item is back; a copy that lingers does no harm. */ }
     }
 
     private void Apply(StartupEntry entry, StartupRequest request)
@@ -273,13 +328,12 @@ public static class StartupHost
         if (changer is null)
         {
             if (!OperatingSystem.IsWindows()) return 66;
-            changer = new LocalStartupChanger(new WindowsStartupSystem(), new WindowsStartupWriter());
+            changer = new LocalStartupChanger(new WindowsStartupSystem(), new WindowsStartupWriter(), new ProtectedStore("startup"));
         }
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
-        try { await pipe.ConnectAsync(15000).ConfigureAwait(false); }
-        catch (Exception ex) when (ex is TimeoutException or IOException) { return 65; }
-        using var reader = new StreamReader(pipe);
+        using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
+        if (pipe is null) return 65;
+        var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
 
         async Task Reply(StartupOutcome reply)
@@ -325,29 +379,20 @@ public sealed class StartupSession(Func<string, Task> launch) : IStartupChanger,
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly object gate = new();
     private NamedPipeServerStream? pipe;
-    private StreamReader? reader;
+    private PipeLineReader? reader;
     private StreamWriter? writer;
 
     public bool IsOpen => pipe is { IsConnected: true };
 
-    public static StartupSession Elevated(string helperPath) => new(name =>
-    {
-        if (!File.Exists(helperPath)) throw new FileNotFoundException("The administrator helper is missing from this installation.", helperPath);
-        var info = new ProcessStartInfo(helperPath) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
-        info.ArgumentList.Add(StartupHost.Command); info.ArgumentList.Add(name);
-        Process process;
-        try { process = Process.Start(info) ?? throw new InvalidOperationException("The administrator helper could not be started."); }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new OperationCanceledException("Administrator permission was declined."); }
-        return process.WaitForExitAsync().ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
-    });
+    public static StartupSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, StartupHost.Command, name));
 
     /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         if (IsOpen) return;
         Close();
-        var name = "tidywindow-startup-" + Guid.NewGuid().ToString("N");
-        var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var name = HelperPipe.NewName("startup");
+        var server = HelperPipe.CreateServer(name);
         try
         {
             var launched = Task.Run(() => launch(name), CancellationToken.None);
@@ -358,7 +403,7 @@ public sealed class StartupSession(Func<string, Task> launch) : IStartupChanger,
                 throw new IOException("The administrator helper stopped before it could connect.");
             }
             await connecting.ConfigureAwait(false);
-            var input = new StreamReader(server);
+            var input = new PipeLineReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
             await output.WriteLineAsync(JsonSerializer.Serialize(new StartupMessage("hello"), Json)).ConfigureAwait(false);
             var reply = JsonSerializer.Deserialize<StartupOutcome>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);

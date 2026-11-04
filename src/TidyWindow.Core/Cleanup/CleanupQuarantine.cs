@@ -9,6 +9,7 @@ public sealed record RestoreResult(int Restored, int Conflicts, int Missing);
 /// <summary>
 /// Holds files a rule is unsure about instead of deleting them. A held file is moved, not copied, so holding is instant
 /// and frees no space until the batch expires; restoring moves each file back to exactly where it was.
+/// An undo folder that cannot be read or written is treated as one with nothing in it: it never stops a scan, a clean or the app.
 /// </summary>
 public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock = null)
 {
@@ -30,12 +31,19 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
     public IReadOnlyList<HeldBatch> List()
     {
         var batches = new List<HeldBatch>();
-        if (!Directory.Exists(Folder)) return batches;
-        foreach (var directory in Directory.EnumerateDirectories(Folder))
+        try
         {
-            var manifest = Read(directory);
-            if (manifest is { Entries.Count: > 0 }) batches.Add(new HeldBatch(Path.GetFileName(directory), manifest.Created, manifest.Entries.Count, manifest.Entries.Sum(x => x.Length)));
+            if (!Directory.Exists(Folder)) return batches;
+            foreach (var directory in Directory.EnumerateDirectories(Folder))
+            {
+                var manifest = Read(directory);
+                if (manifest is null) continue;
+                // Only files that are still held count: a batch whose files have gone has nothing left to put back.
+                var held = manifest.Entries.Where(x => File.Exists(x.Stored)).ToList();
+                if (held.Count > 0) batches.Add(new HeldBatch(Path.GetFileName(directory), manifest.Created, held.Count, held.Sum(x => x.Length)));
+            }
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         return batches;
     }
 
@@ -59,22 +67,31 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
         }
         // Whatever could not go back stays held; the batch is gone only once it is empty.
         if (conflicts == 0) TryDelete(directory);
-        else Write(directory, manifest with { Entries = manifest.Entries.Where(x => File.Exists(x.Stored)).ToList() });
+        else
+        {
+            // A list that cannot be written now is trimmed next time: a file that went back is no longer held, so it is never offered twice.
+            try { Write(directory, manifest with { Entries = manifest.Entries.Where(x => File.Exists(x.Stored)).ToList() }); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
         return new RestoreResult(restored, conflicts, missing);
     }
 
     /// <summary>Permanently removes batches older than the retention period.</summary>
     public int Purge()
     {
-        if (!Directory.Exists(Folder)) return 0;
         var purged = 0;
-        foreach (var directory in Directory.EnumerateDirectories(Folder))
+        try
         {
-            var manifest = Read(directory);
-            var created = manifest?.Created ?? Directory.GetCreationTime(directory);
-            if (clock() - created < Retention) continue;
-            if (TryDelete(directory)) purged++;
+            if (!Directory.Exists(Folder)) return 0;
+            foreach (var directory in Directory.EnumerateDirectories(Folder))
+            {
+                var manifest = Read(directory);
+                var created = manifest?.Created ?? Directory.GetCreationTime(directory);
+                if (clock() - created < Retention) continue;
+                if (TryDelete(directory)) purged++;
+            }
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         return purged;
     }
 
@@ -107,6 +124,7 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
         public long Bytes => held.Sum(x => x.Length);
 
         /// <summary>Moves one file into the batch, keeping its place under <paramref name="root"/> so it can be put back.</summary>
+        /// <exception cref="IOException">The file could not be moved: it is open, the undo folder could not be made, or the drive it is on is full.</exception>
         public void Hold(string ruleId, int rootIndex, string root, string file, long length)
         {
             var relative = Path.GetRelativePath(root, file);
@@ -116,9 +134,13 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
             var attributes = File.GetAttributes(file);
             var readOnly = attributes.HasFlag(FileAttributes.ReadOnly);
             if (readOnly) File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            var existed = File.Exists(stored);
             try { File.Move(file, stored); }
             catch
             {
+                // A move to another drive copies first. A copy that did not finish (the drive filled up, the original was locked part-way) is not kept:
+                // it is not in the list of held files, so it could never be restored, and it would only sit in the undo folder taking space.
+                if (!existed && File.Exists(file) && File.Exists(stored)) { try { File.Delete(stored); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
                 if (readOnly && File.Exists(file)) File.SetAttributes(file, attributes);
                 throw;
             }
@@ -126,11 +148,12 @@ public sealed class CleanupQuarantine(string folder, Func<DateTimeOffset>? clock
             held.Add(new Entry(file, stored, length));
         }
 
-        /// <summary>Records what was held. Called once, after every file has been moved.</summary>
+        /// <summary>Records what was held. Called once, after every file has been moved. A list that cannot be written leaves the held files where they are, so nothing is lost twice.</summary>
         public void Commit()
         {
             if (held.IsEmpty) { TryDelete(directory); return; }
-            Write(directory, new Manifest(created, held.ToList()));
+            try { Write(directory, new Manifest(created, held.ToList())); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 }

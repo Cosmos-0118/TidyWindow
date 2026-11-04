@@ -153,17 +153,17 @@ public sealed class FakeOps : IInstallerOps
     public IReadOnlyList<string> CandidatePatches(string patchCode) => PatchCandidates;
     public IReadOnlyList<string> PatchesIn(string folder) => PatchFolders.GetValueOrDefault(folder) ?? [];
     public IReadOnlyList<string> ExpandArchive(string zipPath, string folder) => Archives.GetValueOrDefault(zipPath) ?? [];
-    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature)
+    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath)
     {
-        PatchRestores.Add($"{mspPath} -> {targetPath}{(requireSignature ? " (signed)" : "")}");
+        PatchRestores.Add($"{mspPath} -> {targetPath}");
         if (PatchExit == 0) OnRestorePatch?.Invoke();
         return new(PatchExit, PatchExit == 0 ? "" : "refused");
     }
-    public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName) { Expanded.Add(exePath); return Bundles.GetValueOrDefault(exePath) ?? []; }
+    public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName, string publisher) { Expanded.Add(exePath); return Bundles.GetValueOrDefault(exePath) ?? []; }
     public List<string> RestoredTo = [], Removed = [];
     public bool RemoveWorks = true;
     public bool RemoveCopy(string path) { Removed.Add(path); return RemoveWorks; }
-    public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath)
+    public RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath)
     {
         Repaired.Add(exePath); RestoredTo.Add(targetPath);
         var exit = BundleExitFor?.Invoke(exePath) ?? BundleExit;
@@ -176,7 +176,7 @@ public sealed class FakeOps : IInstallerOps
     public Queue<int> Exits = new();
     public Queue<string> Outputs = new();
     public string Output = "Log: fake.log";
-    public RunResult Reinstall(string msiPath, MsiProduct product) { Reinstalled.Add(msiPath); OnReinstall?.Invoke(); return new(Exits.Count > 0 ? Exits.Dequeue() : ExitCode, Outputs.Count > 0 ? Outputs.Dequeue() : Output); }
+    public RunResult Reinstall(string msiPath, MsiProduct product, CancellationToken cancellationToken = default) { Reinstalled.Add(msiPath); OnReinstall?.Invoke(); return new(Exits.Count > 0 ? Exits.Dequeue() : ExitCode, Outputs.Count > 0 ? Outputs.Dequeue() : Output); }
     public bool StopInstallerService() { ServiceStopped = true; return StopWorks; }
 }
 
@@ -748,9 +748,12 @@ public sealed class RegistryFidelityTests : IDisposable
     }
 }
 
-public sealed class RepairHostTests
+public sealed class RepairHostTests : IDisposable
 {
     private const string Key = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Ghost";
+    private readonly string vaultRoot = Path.Combine(Path.GetTempPath(), "tw-hostvault-" + Guid.NewGuid().ToString("N")[..8]);
+    public void Dispose() { try { Directory.Delete(vaultRoot, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+    private RepairVault Vault() => new(new ProtectedStore("repair", vaultRoot, enforce: false));
 
     private sealed class Recorder : IKeyEditor
     {
@@ -769,17 +772,17 @@ public sealed class RepairHostTests
     private sealed class Ops : IElevatedOps
     {
         public MsiProduct? Reinstalled;
-        public RunResult Reinstall(string msiPath, MsiProduct product) { Reinstalled = product; return new(3010, "ok"); }
+        public RunResult Reinstall(string msiPath, MsiProduct product, CancellationToken cancellationToken = default) { Reinstalled = product; return new(3010, "ok"); }
         public bool StopInstallerService() => true;
         public List<string> Restored = [], Removed = [];
-        public RunResult RestoreBundleCopy(string exePath, string programName, string targetPath) { Restored.Add($"{exePath}|{programName}|{targetPath}"); return new(0, ""); }
+        public RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath) { Restored.Add($"{exePath}|{programName}|{publisher}|{targetPath}"); return new(0, ""); }
         public bool RemoveCopy(string path) { Removed.Add(path); return true; }
         public List<string> Patches = [];
-        public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath, bool requireSignature) { Patches.Add($"{mspPath}|{patchCode}|{targetPath}|{requireSignature}"); return new(0, ""); }
+        public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath) { Patches.Add($"{mspPath}|{patchCode}|{targetPath}"); return new(0, ""); }
     }
 
-    private static RepairSession Session(Recorder editor, Ops ops, bool admin = true) =>
-        new(pipe => RepairHost.RunAsync([RepairHost.Command, pipe], _ => editor, ops, () => admin, TimeSpan.FromSeconds(20)));
+    private RepairSession Session(Recorder editor, Ops ops, bool admin = true) =>
+        new(pipe => RepairHost.RunAsync([RepairHost.Command, pipe], _ => editor, _ => ops, () => admin, TimeSpan.FromSeconds(20), vault: Vault()));
 
     [Fact]
     public async Task TheHelperRemovesRestoresAndPlansAndReturnsCopies()
@@ -818,17 +821,17 @@ public sealed class RepairHostTests
     }
 
     [Fact]
-    public async Task TheHelperPutsAnUpdateFileBackAndTellsItWhetherASignatureIsRequired()
+    public async Task TheHelperIsToldWhichUpdateFileToConsiderAndNotWhetherToCheckIt()
     {
         var ops = new Ops();
         using var session = Session(new Recorder(), ops);
         await session.OpenAsync();
 
-        var signed = session.RestorePatchCopy(@"C:\Package Cache\a.msp", "{P}", @"C:\Windows\Installer\1.msp", requireSignature: true);
-        var chosen = session.RestorePatchCopy(@"C:\Downloads\a.msp", "{P}", @"C:\Windows\Installer\1.msp", requireSignature: false);
+        var found = session.RestorePatchCopy(@"C:\Package Cache\a.msp", "{P}", @"C:\Windows\Installer\1.msp");
+        var chosen = session.RestorePatchCopy(@"C:\Downloads\a.msp", "{P}", @"C:\Windows\Installer\1.msp");
 
-        Assert.Equal(0, signed.ExitCode); Assert.Equal(0, chosen.ExitCode);
-        Assert.Equal([@"C:\Package Cache\a.msp|{P}|C:\Windows\Installer\1.msp|True", @"C:\Downloads\a.msp|{P}|C:\Windows\Installer\1.msp|False"], ops.Patches);
+        Assert.Equal(0, found.ExitCode); Assert.Equal(0, chosen.ExitCode);
+        Assert.Equal([@"C:\Package Cache\a.msp|{P}|C:\Windows\Installer\1.msp", @"C:\Downloads\a.msp|{P}|C:\Windows\Installer\1.msp"], ops.Patches);
     }
 
     [Fact]
@@ -868,7 +871,7 @@ public sealed class RepairHostTests
         var finished = new TaskCompletionSource();
         using var session = new RepairSession(async pipe =>
         {
-            await RepairHost.RunAsync([RepairHost.Command, pipe], _ => new Recorder(), new Ops(), () => true, TimeSpan.FromSeconds(20));
+            await RepairHost.RunAsync([RepairHost.Command, pipe], _ => new Recorder(), _ => new Ops(), () => true, TimeSpan.FromSeconds(20), vault: Vault());
             finished.SetResult();
         });
         await session.OpenAsync();

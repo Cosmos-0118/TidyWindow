@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TidyWindow.Next.Tests;
 
+[Collection("Processes")]
 public sealed class OutputFormattingTests
 {
     private const string Host = "<Obj S=\"information\"><ToString>openjdk27 installed successfully!</ToString><Props><S N=\"Source\">private-script-path.ps1</S><Obj N=\"Tags\"><LST><S>PSHOST</S></LST></Obj></Props></Obj>";
@@ -60,6 +61,17 @@ public sealed class OutputFormattingTests
         Assert.Equal(CommandOutputKind.Warning, records[0].Kind);
         Assert.Equal("another native error\n", records[1].Text);
         Assert.Equal(CommandOutputKind.Error, records[1].Kind);
+    }
+
+    [Fact]
+    public void ALineBuiltToMakeThePatternsCrawlIsClassifiedPromptly()
+    {
+        // "checksum" a few thousand times with no "skip": the old pattern scanned to the end of the line for each one.
+        var line = string.Concat(Enumerable.Repeat("checksum ", 12000));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal(OutputTone.Normal, CommandOutputFormatter.Classify(line));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), clock.Elapsed.ToString());
+        Assert.Equal(OutputTone.Warning, CommandOutputFormatter.Classify("checksum mismatch, skip"));
     }
 
     [Fact]

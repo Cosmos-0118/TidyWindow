@@ -14,10 +14,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
 {
     private static bool Live => Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") == "1" && OperatingSystem.IsWindows();
 
-    [Fact]
+    [LiveFact]
     public void TheScanOfThisPcAgreesWithWindowsInstallerAndEveryRemovalPlanStaysInsideTheAllowList()
     {
-        if (!Live) return;
         var system = new WindowsInstallSystem();
         var scan = InstallRepair.Scan(system);
         var sid = RegistryRepair.CurrentSid();
@@ -34,10 +33,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [LiveFact]
     public void OnlyTheProgramsWhoseInstallerRefusesAreCalledVisualStudioOnlyOnThisPc()
     {
-        if (!Live) return;
         var system = new WindowsInstallSystem();
         var products = system.Products();
         var cached = system.Entries().Where(x => x.FromVisualStudioCache && !x.SystemComponent).ToList();
@@ -53,10 +51,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine($"{cached.Count} visible programs came from the Visual Studio package cache.");
     }
 
-    [Fact]
+    [LiveFact]
     public void TheCacheChecksNameEveryDamagedSavedCopyAndInnoUninstallerOnThisPc()
     {
-        if (!Live) return;
         var system = new WindowsInstallSystem();
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var scan = InstallRepair.Scan(system, shortcuts: false);
@@ -72,19 +69,17 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         foreach (var patch in patches) output.WriteLine($"  {patch.File} (damaged: {patch.Damaged}) worn by {string.Join(", ", patch.Programs)}");
     }
 
-    [Fact]
+    [LiveFact]
     public void EveryRealProductCodeSurvivesPackingAndUnpacking()
     {
-        if (!Live) return;
         var products = new WindowsInstallSystem().Products();
         Assert.All(products, product => Assert.Equal(product.Code, InstallRepair.Unpack(InstallRepair.Pack(product.Code)), ignoreCase: true));
         output.WriteLine($"{products.Count} real product codes round-tripped.");
     }
 
-    [Fact]
+    [LiveFact]
     public void ARealProductKeyIsCapturedByteForByteWithItsPermissions()
     {
-        if (!Live) return;
         var repair = RegistryRepair.User;
         using var list = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Installer\Products");
         var name = list?.GetSubKeyNames().FirstOrDefault(x => x.Length == 32);
@@ -100,10 +95,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine($"{path}: {first.Values.Count} values, {first.Children.Count} subkeys, permissions {first.Sddl}");
     }
 
-    [Fact]
+    [LiveFact]
     public void InstallerFilesOnThisPcAreReadByTheirOwnProductCode()
     {
-        if (!Live) return;
         var ops = new WindowsInstallerOps();
         var read = 0;
         foreach (var product in new WindowsInstallSystem().Products().Where(x => !string.IsNullOrEmpty(x.LocalPackage) && File.Exists(x.LocalPackage)).Take(10))
@@ -117,10 +111,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine($"{read} installer files matched their registered product and package codes.");
     }
 
-    [Fact]
+    [LiveFact]
     public void WingetNamesTheInstalledProgramsItKnowsAtTheirExactInstalledVersion()
     {
-        if (!Live) return;
         var fetcher = new WingetFetcher();
         var checkedCount = 0;
         // Reads only: each installed program that has an installer family WinGet knows is looked up by its exact name and version.
@@ -134,12 +127,11 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine($"{checkedCount} programs looked up.");
     }
 
-    [Theory]
+    [LiveTheory]
     [InlineData("Python 3.12.8 (64-bit)", "3.12.8150.0", "Python.Python.3.12", "3.12.8")]
     [InlineData("Python 3.13.9 (64-bit)", "3.13.9150.0", "Python.Python.3.13", "3.13.9")]
     public void WingetFindsThePackageOfABundleItDoesNotListByNameWhenThePackageHasThatVersion(string name, string version, string id, string expected)
     {
-        if (!Live) return;
         var match = new WingetFetcher().Match(name, version);
         output.WriteLine($"{name} {version}: {(match is null ? "no match" : match.Id + " " + match.Version)}");
         Assert.NotNull(match);
@@ -147,15 +139,16 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         Assert.Equal(expected, match.Version);
     }
 
-    [Fact]
+    [LiveFact]
     public void TheCachedSetupOfARealBundleOnThisPcPassesTheTrustCheckForItsOwnName()
     {
-        if (!Live) return;
         var entry = new WindowsInstallSystem().Entries().First(x => x.BundleProvider.Length > 0 && x.Name.StartsWith("Python 3.13", StringComparison.OrdinalIgnoreCase));
         var setup = InstallRepair.Candidates(entry.UninstallString).First();
         output.WriteLine($"{entry.Name}: {setup}");
-        Assert.True(WindowsInstallerOps.IsTrusted(setup.Trim('"'), entry.Name));
-        Assert.False(WindowsInstallerOps.IsTrusted(setup.Trim('"'), "Visual Studio Code"));
+        // The real cached setup: signed by its publisher (with revocation checked, which may go online), named after the bundle.
+        Assert.Null(InstallerTrust.Problem(setup.Trim('"'), entry.Name, entry.Publisher, wholeName: true));
+        Assert.NotNull(InstallerTrust.Problem(setup.Trim('"'), "Visual Studio Code", entry.Publisher, wholeName: true));
+        Assert.NotNull(InstallerTrust.Problem(setup.Trim('"'), entry.Name, "Contoso Ltd", wholeName: true));
     }
 
     [Fact]
@@ -166,10 +159,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
     }
 
     /// <summary>Downloads a vendor setup program and runs its <c>/layout</c>, so it needs TIDYWINDOW_LIVE_DOWNLOAD=1 as well. Nothing is installed; everything goes to a temp folder that is deleted.</summary>
-    [Fact]
+    [LiveFact(LiveGate.Live, LiveGate.Download)]
     public void TheOriginalInstallerOfAnInstalledBundleCanBeFetchedCheckedUnpackedAndMatchedToItsProduct()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_DOWNLOAD") != "1" || !Live) return;
         var system = new WindowsInstallSystem();
         var entry = system.Entries().First(x => x.BundleProvider.Length > 0 && x.Name.StartsWith("Python", StringComparison.OrdinalIgnoreCase));
         var fetcher = new WingetFetcher();
@@ -181,8 +173,8 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
             var files = fetcher.Download(match, Path.Combine(work, "download"), "x64", CancellationToken.None);
             output.WriteLine($"downloaded: {string.Join(", ", files.Select(Path.GetFileName))}");
             var setup = Assert.Single(files, x => x.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
-            Assert.True(WindowsInstallerOps.IsTrusted(setup, entry.Name), "The downloaded setup program is not validly signed or does not name the program.");
-            var packages = ops.ExpandBundle(setup, Path.Combine(work, "layout"), entry.Name);
+            Assert.Null(InstallerTrust.Problem(setup, entry.Name, entry.Publisher, wholeName: true));
+            var packages = ops.ExpandBundle(setup, Path.Combine(work, "layout"), entry.Name, entry.Publisher);
             output.WriteLine($"{packages.Count} packages unpacked");
             var products = system.Products();
             var matched = packages.Select(ops.ReadPackage).Where(x => x is not null).Where(x => products.Any(p => string.Equals(p.Code, x!.ProductCode, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -193,19 +185,17 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         finally { try { Directory.Delete(work, true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
     }
 
-    [Fact]
+    [LiveFact]
     public void TheInstallerServiceStateCanBeRead()
     {
-        if (!Live) return;
         var state = WindowsInstallerOps.ServiceState();
         output.WriteLine("msiserver: " + state);
         Assert.NotNull(state);
     }
 
-    [Fact]
+    [LiveFact]
     public void EveryStaleShortcutOnThisPcIsFoundAndNothingTheScanCallsStaleStillWorks()
     {
-        if (!Live) return;
         var system = new WindowsInstallSystem();
         var roots = system.ShortcutRoots();
         var files = system.Shortcuts();
@@ -265,10 +255,9 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
         output.WriteLine($"Repair would show {findings.Count} rows: {findings.Count(x => x.Level == RepairLevel.Recommended)} ticked, {findings.Count(x => x.Level == RepairLevel.Review)} for review, {findings.Count(x => x.NeedsAdmin)} needing administrator permission.");
     }
 
-    [Fact]
+    [LiveFact]
     public void TheInstallerLeftoversOnThisPcAreFoundAndEveryOneIsInsideWhatARepairMaySetAside()
     {
-        if (!Live) return;
         var system = new WindowsInstallSystem();
         var orphans = system.OrphanInstallerFolders();
         output.WriteLine($"{orphans.Count} icon folders of programs Windows Installer has never heard of:");
@@ -347,10 +336,9 @@ public sealed class ElevatedRepairTests(ITestOutputHelper output) : IDisposable
         key.SetAccessControl(security);
     }
 
-    [Fact]
+    [LiveFact(LiveGate.Elevated)]
     public async Task TheElevatedHelperRemovesAndRestoresKeysOwnedBySystemAndTheOnesInstallerRealisticallyLocks()
     {
-        if (!Enabled) return;
         Assert.True(RegistryNative.EnablePrivileges(), "The backup, restore and take-ownership privileges could not be turned on.");
         BrokenPython.PerUser(sandbox);
         // Undo what PerUser's own test lock did, then use the two layouts that matter: what the Installer service really leaves, and a key only SYSTEM can touch.

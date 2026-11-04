@@ -20,7 +20,8 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
             CreateNoWindow = !command.Elevate,
             RedirectStandardOutput = !command.Elevate,
             RedirectStandardError = !command.Elevate,
-            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            // A program's starting folder is on its DLL search path, so a program that runs as administrator must not start in a folder this account can write to.
+            WorkingDirectory = command.Elevate ? Environment.SystemDirectory : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
         };
         foreach (var argument in command.Arguments) start.ArgumentList.Add(argument);
         if (command.Elevate) start.Verb = "runas";
@@ -29,6 +30,9 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
             start.StandardOutputEncoding = Encoding.UTF8;
             start.StandardErrorEncoding = Encoding.UTF8;
             start.Environment["NO_COLOR"] = "1";
+            // Windows PowerShell started from PowerShell 7 inherits its module folders, and cannot load its own modules from them (Get-FileHash and
+            // Get-AuthenticodeSignature vanish). Give it Windows' own folders, which are also the only ones an administrator-owned run should trust.
+            if (string.Equals(command.FileName, ElevatedProgram.WindowsPowerShell, StringComparison.OrdinalIgnoreCase)) start.Environment["PSModulePath"] = DebloatProcess.SystemModulePath;
         }
         using var process = new Process { StartInfo = start };
         if (command.Elevate) Report(command, new("Approve the Windows administrator prompt. Output will appear in the separate administrator window; it cannot be captured by this launch method.", CommandOutputKind.Notice));
@@ -53,39 +57,70 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
         try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
         catch (OperationCanceledException)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
-            { throw new InvalidOperationException("The installer is still running in its own window. Check that window before trying again.", ex); }
-            // Killing the tree should end it at once; if it does not, the caller must still get control back.
-            try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(KillWait).ConfigureAwait(false); }
-            catch (TimeoutException) { }
-            await FinishReadingAsync(reading, drain, command).ConfigureAwait(false);
+            var orphaned = await EndAsync(process, command).ConfigureAwait(false);
+            await FinishReadingAsync(reading, drain, command, output, error).ConfigureAwait(false);
+            if (orphaned) Report(command, new("The program is still running in its own window; TidyWindow has no right to end it. Check that window before trying again.", CommandOutputKind.Notice));
+            // A stop is a stop, whatever was left running; only a timeout is reported by what it left behind.
             if (cancellationToken.IsCancellationRequested) throw;
+            if (orphaned) throw new InvalidOperationException("The installer is still running in its own window. Check that window before trying again.", null);
             throw new TimeoutException("The package manager did not respond in time. Check your connection and try again.");
         }
-        await FinishReadingAsync(reading, drain, command).ConfigureAwait(false);
+        await FinishReadingAsync(reading, drain, command, output, error).ConfigureAwait(false);
         return new(process.ExitCode, output.Text(), error.Text());
     }
 
-    /// <summary>Lets the output pipes finish for a moment, then stops reading them. Whatever arrived by then is kept.</summary>
-    private async Task FinishReadingAsync(Task reading, CancellationTokenSource drain, CommandSpec command)
+    /// <summary>
+    /// Ends a program that is being stopped or has run out of time. True when something is left running that this process has no right to end: a program
+    /// started through the administrator prompt, or an elevated installer inside the program's tree.
+    /// </summary>
+    private static async Task<bool> EndAsync(Process process, CommandSpec command)
     {
-        try { await reading.WaitAsync(pipeGrace).ConfigureAwait(false); return; }
+        // Windows gives a non-administrator no right to end a program it started through the permission prompt, so asking would only fail.
+        if (command.Elevate) return !process.HasExited;
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        // It ended by itself in the meantime, which is what was wanted.
+        catch (InvalidOperationException) { return false; }
+        // Win32Exception: this process may not end it. AggregateException: the program went, but part of its tree (an elevated installer) could not be ended.
+        catch (Exception ex) when (ex is Win32Exception or AggregateException) { return true; }
+        // Ending the tree should finish it at once; if it does not, the caller must still get control back.
+        try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(KillWait).ConfigureAwait(false); return false; }
+        catch (TimeoutException) { return true; }
+    }
+
+    /// <summary>Lets the output pipes finish for a moment, then stops reading them. Whatever arrived by then is kept; anything later is not shown.</summary>
+    private async Task FinishReadingAsync(Task reading, CancellationTokenSource drain, CommandSpec command, params Capture[] captures)
+    {
+        if (await FinishReadingAsync(reading, drain, pipeGrace, KillWait).ConfigureAwait(false)) return;
+        foreach (var capture in captures) capture.Close();
+        Report(command, new("Something the command started is still running in the background, so TidyWindow stopped waiting for its output.", CommandOutputKind.Notice));
+    }
+
+    /// <summary>
+    /// Waits for the output readers to end on their own for <paramref name="grace"/>, then cancels them and waits at most <paramref name="limit"/> more.
+    /// True when every reader ended by itself. Shared with the fix executor, which reads a program's pipes the same way.
+    /// </summary>
+    internal static async Task<bool> FinishReadingAsync(Task reading, CancellationTokenSource drain, TimeSpan grace, TimeSpan limit)
+    {
+        try { await reading.WaitAsync(grace).ConfigureAwait(false); return true; }
         catch (TimeoutException) { }
         drain.Cancel();
-        try { await reading.WaitAsync(KillWait).ConfigureAwait(false); }
+        try { await reading.WaitAsync(limit).ConfigureAwait(false); }
         catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { }
-        Report(command, new("Something the command started is still running in the background, so TidyWindow stopped waiting for its output.", CommandOutputKind.Notice));
+        return false;
     }
 
     private sealed class Capture
     {
         private readonly StringBuilder text = new();
+        private bool closed;
         public void Append(string value)
         {
-            lock (text) { text.Append(value); if (text.Length > 131072) text.Remove(0, text.Length - 131072); }
+            lock (text) { if (closed) return; text.Append(value); if (text.Length > 131072) text.Remove(0, text.Length - 131072); }
         }
         public string Text() { lock (text) return text.ToString(); }
+        /// <summary>Output that turns up after the command was given up on belongs to whatever is still running, not to this result.</summary>
+        public void Close() { lock (text) closed = true; }
+        public bool Closed { get { lock (text) return closed; } }
     }
 
     private static async Task ReadBoundedAsync(Stream stream, CommandSpec command, CommandOutputKind kind, Capture capture, CancellationToken stop)
@@ -96,6 +131,7 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
         var messages = new PowerShellOutputDecoder(kind);
         void Publish(IReadOnlyList<CommandOutput> values)
         {
+            if (capture.Closed) return;
             foreach (var value in values) { capture.Append(value.Text); Report(command, value); }
         }
         var atStart = true;
@@ -106,7 +142,7 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
             {
                 var characters = decoder.GetChars(bytes.AsSpan(0, count), buffer.AsSpan(), flush: false);
                 var offset = 0;
-                if (atStart && characters > 0) { atStart = false; if (buffer[0] == '\uFEFF') offset = 1; }
+                if (atStart && characters > 0) { atStart = false; if (buffer[0] == '﻿') offset = 1; }
                 if (characters > offset) Publish(messages.Feed(new string(buffer, offset, characters - offset)));
             }
         }

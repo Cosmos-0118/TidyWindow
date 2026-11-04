@@ -254,10 +254,12 @@ internal sealed class ScoutBatch
         if (used + name.Length > names.Length) Array.Resize(ref names, Math.Max(names.Length * 2, used + name.Length));
         name.CopyTo(names.AsSpan(used));
         var folder = entry.IsDirectory;
+        // Only a folder with the reparse attribute is asked whether it is a link, one extra read each. A OneDrive placeholder has the attribute but no link target, and is walked like any folder.
+        var reparse = (entry.Attributes & FileAttributes.ReparsePoint) != 0 && (!folder || ScoutFolderIndex.IsLink(entry.ToFileSystemInfo()));
         slots[Count] = new()
         {
             Directory = directory, Name = used, NameLength = name.Length, Size = folder ? 0 : entry.Length, Modified = entry.LastWriteTimeUtc.UtcTicks,
-            Flags = ScoutEntryStore.HasModified | (folder ? ScoutEntryStore.Folder : ScoutEntryStore.HasSize) | ((entry.Attributes & FileAttributes.ReparsePoint) != 0 ? ScoutEntryStore.Reparse : 0)
+            Flags = ScoutEntryStore.HasModified | (folder ? ScoutEntryStore.Folder : ScoutEntryStore.HasSize) | (reparse ? ScoutEntryStore.Reparse : 0)
                 | (System.Text.Ascii.IsValid(name) ? ScoutEntryStore.Ascii : 0)
         };
         used += name.Length;

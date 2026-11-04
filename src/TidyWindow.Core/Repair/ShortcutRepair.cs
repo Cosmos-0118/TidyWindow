@@ -27,8 +27,11 @@ public sealed record ShortcutGroup(string Id, string Name, ShortcutArea Area, bo
     public IReadOnlyList<string> Paths => [.. Links.Select(x => x.File.Path), .. Folders];
 }
 
-/// <summary>A shortcut file or folder as it was before a repair removed it, kept so Undo can put it back. A null <see cref="Data"/> is a folder.</summary>
-public sealed record ShortcutBackup(string Path, string? Data, int Attributes = 0);
+/// <summary>
+/// A shortcut file or folder as it was before a repair removed it, kept so Undo can put it back. A null <see cref="Data"/> is a folder.
+/// <see cref="Token"/> names the administrator helper's own protected copy, when the helper removed it: a put-back through the helper writes that copy, never this one.
+/// </summary>
+public sealed record ShortcutBackup(string Path, string? Data, int Attributes = 0, string? Token = null);
 
 /// <summary>Whatever removes and restores shortcut files and the empty folders around them: the signed-in user's own, or the elevated helper.</summary>
 public interface IShortcutEditor

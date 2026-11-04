@@ -107,6 +107,32 @@ public sealed class PackageTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ScoopHostNeverWaitsOnAGitSignInAndReportsErrorIdsBesideTheMessage()
+    {
+        var runner = new FakeRunner();
+        await new PackageService(runner, new FakeLocator()).SearchAsync(Ready(ManagerKind.Scoop), "git");
+        var script = Encoding.Unicode.GetString(Convert.FromBase64String(Assert.Single(runner.Commands).Arguments[^1]));
+        Assert.Contains("$env:GIT_TERMINAL_PROMPT = '0'", script);
+        Assert.Contains("$env:GCM_INTERACTIVE = 'never'", script);
+        Assert.Contains("$_.FullyQualifiedErrorId, $_.Exception.GetType().FullName, $_.CategoryInfo.Category", script);
+    }
+
+    [Fact]
+    public async Task ATermThatLooksLikeAnOptionIsNotHandedToTheCommandLineAsOne()
+    {
+        var runner = new FakeRunner();
+        await new PackageService(runner, new FakeLocator()).SearchAsync(Ready(ManagerKind.Scoop), "-h");
+        Assert.Contains("'search' '\\-h'", Encoding.Unicode.GetString(Convert.FromBase64String(Assert.Single(runner.Commands).Arguments[^1])));
+        var choco = new FakeRunner();
+        var result = await new PackageService(choco, new FakeLocator()).SearchAsync(Ready(ManagerKind.Chocolatey), "--version");
+        Assert.Contains("option", result.Error);
+        Assert.Empty(choco.Commands);
+        Assert.Equal("Enter between 2 and 100 characters.", PackageService.QueryProblem(" a "));
+        Assert.Equal("Enter between 2 and 100 characters.", PackageService.QueryProblem("ab\tc"));
+        Assert.Null(PackageService.QueryProblem(" vlc "));
+    }
+
+    [Fact]
     public async Task NoMatchExitIsEmptyButNetworkFailureIsAnError()
     {
         var runner = new FakeRunner { Handler = (_, _) => Task.FromResult(new CommandResult(unchecked((int)0x8A150014), "No package found", "")) };
@@ -171,10 +197,9 @@ public sealed class PackageTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<TimeoutException>(() => new ProcessRunner().RunAsync(PowerShell("Start-Sleep -Seconds 30", TimeSpan.FromMilliseconds(300))));
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveWingetSmokeTestWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var service = new PackageService(new ProcessRunner(), new ExecutableLocator());
         var status = (await service.DetectAsync()).Single(x => x.Definition.Kind == ManagerKind.Winget);
         Assert.Equal(ManagerHealth.Ready, status.Health);
@@ -183,10 +208,9 @@ public sealed class PackageTests(ITestOutputHelper output)
         Assert.Contains(result.Packages, x => x.Id == "Microsoft.VisualStudioCode");
     }
 
-    [Fact]
+    [LiveFact]
     public async Task LiveInstalledSourcesSearchWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1") return;
         var service = new PackageService(new ProcessRunner(), new ExecutableLocator());
         var statuses = await service.DetectAsync();
         foreach (var status in statuses)

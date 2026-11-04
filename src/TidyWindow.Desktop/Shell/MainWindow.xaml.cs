@@ -45,18 +45,21 @@ public sealed partial class MainWindow : Window
     private bool scoutResetting;
     private bool closingDialog;
     private volatile bool closeConfirmed;
+    private ContentDialog? openDialog;
+    private Task<ContentDialogResult>? openDialogShowing;
     private readonly InterruptedWork interrupted;
     private InterruptedOperation? previousRun;
     private Page page;
-    private readonly Windows.UI.ViewManagement.UISettings systemColors = new();
     private readonly AppearanceSettings appearanceSettings = new(AppearanceSettings.DefaultPath);
     private Appearance appearance;
     public MainWindow(ActivityLog log)
     {
         this.log = log;
-        toasts = new(action => DispatcherQueue.TryEnqueue(() => action()));
+        Open = this;
+        toasts = new(Post, log);
         var runner = new ProcessRunner(); var locator = new ExecutableLocator();
         var packages = new PackageService(runner, locator, new ChocolateyFeed(), new ScoopCatalog());
+        packages.Log = log;
         // Repairs to Windows-wide records go through a helper that only runs after the person approves the Windows permission prompt.
         // An uninstall that fails uses the same repair engine, so the helper is shared.
         var installSystem = new WindowsInstallSystem();
@@ -77,15 +80,15 @@ public sealed partial class MainWindow : Window
         packageQueue.Started += entry => interrupted.Begin(entry.Operation);
         // Closing from the warning stops the work on purpose but keeps the note, because the work was still cut short.
         packageQueue.Finished += _ => { if (!closeConfirmed) interrupted.End(); };
-        operationQueue = new(packageQueue, log, action => DispatcherQueue.TryEnqueue(() => action()));
+        operationQueue = new(packageQueue, log, Post);
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
         installations = new(management, model, log, operationQueue, snapshot: new InstalledSnapshot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "installed-apps.json")));
         var scoutHost = Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe");
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.
-        scout = new(new ScoutService(runner, scoutHost, worker: new PersistentScoutWorker(scoutHost), fuzzyWorker: new PersistentScoutWorker(scoutHost, killOnCancel: true)), log, action => DispatcherQueue.TryEnqueue(() => action()));
+        scout = new(new ScoutService(runner, scoutHost, worker: new PersistentScoutWorker(scoutHost), fuzzyWorker: new PersistentScoutWorker(scoutHost, killOnCancel: true)), log, Post);
         var undo = new CleanupQuarantine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Undo"));
-        cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, action => DispatcherQueue.TryEnqueue(() => action()), toasts);
+        cleanup = new(CleanupCatalog.Load(), new CleanupScanner(CleanupContext.Current), new CleanupCleaner(CleanupContext.Current, undo), undo, SystemCleanLauncher.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")), log, Post, toasts);
         _ = Task.Run(undo.Purge);
         var pathAnalyzer = new PathAnalyzer(Environment.ExpandEnvironmentVariables, Directory.Exists);
         var pathBackups = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "PathBackups");
@@ -95,15 +98,9 @@ public sealed partial class MainWindow : Window
         var machineSession = MachinePathSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var machineDoctor = new PathDoctor(new ElevatedPathStore(registry, machineSession), new PathBackup(Path.Combine(pathBackups, "machine")), pathAnalyzer, EnvironmentBroadcast.Notify, PathScope.Machine);
         pathFinder = new PathFinder(Environment.ExpandEnvironmentVariables, SafeFolders, SafeFiles);
-        paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, action => DispatcherQueue.TryEnqueue(() => action()), toasts, ChooseFolderAsync, OpenAliasSettings);
+        paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, Post, toasts, ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
         ToastStack.ItemsSource = toasts.Items;
-        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is not null) // TEMP-DEMO
-        { // TEMP-DEMO
-            toasts.Show("d1", ToastKind.Info, "Checking for updates", "", seconds: 0); // TEMP-DEMO
-            toasts.Show("d2", ToastKind.Warning, "The power plan could not be changed", "Access to the registry key HKLM Power is denied. Try again from an account with admin rights, or open Logs for the full message.", "Open Logs", () => Task.CompletedTask, 0); // TEMP-DEMO
-            toasts.Show("d3", ToastKind.Success, "Detailed messages at start-up and shutdown is on", "Windows applies this the next time you restart.", "Turn off", () => Task.CompletedTask, 30); // TEMP-DEMO
-        } // TEMP-DEMO
         Root.DataContext = model;
         repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
@@ -149,8 +146,8 @@ public sealed partial class MainWindow : Window
         CrashesPage.DataContext = crashes;
         CrashesNav.DataContext = crashes;
         PathsPage.DataContext = paths;
-        logs = new(log, action => DispatcherQueue.TryEnqueue(() => action()));
-        settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), action => DispatcherQueue.TryEnqueue(() => action()));
+        logs = new(log, Post);
+        settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), Post);
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
         model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(model.Errors) && model.Errors.Length > 0) ReportProblem("search-errors", "Search needs attention", model.Errors); };
         installations.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(installations.Errors) && installations.Errors.Length > 0) ReportProblem("installed-errors", "Some apps or updates could not be checked", installations.Errors); };
@@ -168,7 +165,7 @@ public sealed partial class MainWindow : Window
         ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0;
         scoutStatusTimer = DispatcherQueue.CreateTimer();
         scoutStatusTimer.Interval = TimeSpan.FromSeconds(3);
-        scoutStatusTimer.Tick += async (_, _) => { if (page == Page.Scout && scout.NeedsBackendCheck) await RefreshScoutBackendAsync(); };
+        scoutStatusTimer.Tick += (_, _) => { if (page == Page.Scout && scout.NeedsBackendCheck) Run(RefreshScoutBackendAsync, "checking the search index"); };
         operationQueue.StateChanged += QueueStateChanged;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
@@ -177,7 +174,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new(1100, 740));
         appearance = appearanceSettings.Load();
         Root.ActualThemeChanged += (_, _) => UpdateThemeChrome();
-        systemColors.ColorValuesChanged += SystemColorsChanged;
+        if (!SystemUi.Watch(SystemColorsChanged)) log.Write(ActivityLevel.Warning, ActivityArea.App, "Windows did not report its colour settings", "The theme and accent colour stay as they were when TidyWindow opened.");
         ApplyAppearance();
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -193,7 +190,7 @@ public sealed partial class MainWindow : Window
         // The sidebar stays open while the theme menu it launched is showing.
         AppearanceMenu.Opened += (_, _) => { sidebarMenu = true; UpdateSidebar(); };
         AppearanceMenu.Closed += (_, _) => { sidebarMenu = false; UpdateSidebar(); };
-        Root.Loaded += async (_, _) =>
+        Root.Loaded += (_, _) => Run(async () =>
         {
             WatchFirstFrames();
             ReportInterruptedRun();
@@ -201,12 +198,67 @@ public sealed partial class MainWindow : Window
             _ = CheckCrashesLaterAsync();
             await Refresh();
             if (page == Page.Installed) await installations.RefreshAsync();
-        };
+        }, "starting up");
         AppWindow.Closing += OnClosing;
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; scoutStatusTimer.Stop(); systemColors.ColorValuesChanged -= SystemColorsChanged; operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+    }
+
+    /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
+    internal static MainWindow? Open { get; private set; }
+
+    /// <summary>
+    /// Runs something on the UI thread, from any thread. Every view model reaches the window through this, so an exception in a posted
+    /// action is recorded instead of ending the process (the dispatcher raises it where the app's error handlers may never see it), and an
+    /// action the queue would not take, because the window is shutting down, is noted rather than lost without trace.
+    /// </summary>
+    public void Post(Action action)
+    {
+        var queued = DispatcherQueue.TryEnqueue(() =>
+        {
+            try { action(); }
+            catch (Exception ex) { log.Write(ActivityLevel.Error, ActivityArea.App, "A page could not update", ex.ToString()); }
+        });
+        if (!queued) log.Write(ActivityLevel.Warning, ActivityArea.App, "An update arrived after the window had closed", action.Method.DeclaringType?.ToString());
+    }
+
+    /// <summary>
+    /// The exception barrier for work started by a click, a timer or a page event. Whatever it throws is recorded in Logs and reported with a
+    /// toast, instead of ending the process the way an exception escaping an event handler does. <paramref name="doing"/> says what the work
+    /// was, in plain words that fit after "while": "refreshing the package managers". Cancelled work is not reported; leaving a page or
+    /// closing the window cancels whatever was running.
+    /// </summary>
+    public async void Run(Func<Task> work, string doing)
+    {
+        try { await work(); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Something went wrong while " + doing, ex.ToString());
+            toasts.Show("failed:" + doing, ToastKind.Warning, "Something went wrong", $"TidyWindow could not finish {doing}. The details are in Logs.", "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
+        }
+    }
+
+    /// <summary>
+    /// Shows a dialog over the window. WinUI allows one at a time, and a second ShowAsync throws (fatal from an event handler), so a dialog
+    /// asked for while another is up is not shown and answers <see cref="ContentDialogResult.None"/>, as if it had been dismissed. The window's
+    /// XamlRoot and theme are filled in when the dialog has none. Once the window has closed it answers None as well.
+    /// </summary>
+    public async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
+    {
+        if (!initialized || openDialog is not null) return ContentDialogResult.None;
+        if (dialog.XamlRoot is null) dialog.XamlRoot = Root.XamlRoot;
+        if (dialog.RequestedTheme == ElementTheme.Default) dialog.RequestedTheme = Root.ActualTheme;
+        openDialog = dialog;
+        try { return await (openDialogShowing = dialog.ShowAsync().AsTask()); }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            log.Write(ActivityLevel.Warning, ActivityArea.App, "A dialog could not open", ex.ToString());
+            return ContentDialogResult.None;
+        }
+        finally { if (ReferenceEquals(openDialog, dialog)) { openDialog = null; openDialogShowing = null; } }
     }
 
     private readonly TaskCompletionSource firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -301,7 +353,7 @@ public sealed partial class MainWindow : Window
     private bool navThumbHold;
     private bool sidebarOpen, sidebarReserved, sidebarPointer, sidebarKeyboard, sidebarMenu, keyboardUsed;
     private Microsoft.UI.Composition.CompositionPropertySet? sidebarState;
-    private readonly bool sidebarAnimations = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+    private readonly bool sidebarAnimations = SystemUi.AnimationsEnabled;
 
     private void SidebarPointerEntered(object sender, PointerRoutedEventArgs e) { sidebarPointer = true; UpdateSidebar(); PlaceNavThumb(); }
     private void SidebarPointerExited(object sender, PointerRoutedEventArgs e) { sidebarPointer = false; UpdateSidebar(); PlaceNavThumb(); }
@@ -342,7 +394,8 @@ public sealed partial class MainWindow : Window
         var extent = NavScroll.ExtentHeight;
         var viewport = NavScroll.ViewportHeight;
         var track = NavScroll.ActualHeight;
-        var canScroll = extent > viewport + 0.5 && track > 0;
+        // The thumb is at least 28 px, so a rail shorter than that shows none (and Clamp refuses a range that ends below where it starts).
+        var canScroll = extent > viewport + 0.5 && track >= 28;
         if (canScroll)
         {
             var thumb = Math.Clamp(viewport / extent * track, 28, track);
@@ -476,7 +529,7 @@ public sealed partial class MainWindow : Window
     // The incoming page is there at once and eases in over a split second, instead of snapping in.
     private void Reveal(UIElement element)
     {
-        if (!systemColors.AnimationsEnabled) { element.Opacity = 1; element.Translation = default; element.Visibility = Visibility.Visible; return; }
+        if (!SystemUi.AnimationsEnabled) { element.Opacity = 1; element.Translation = default; element.Visibility = Visibility.Visible; return; }
         element.Opacity = 0; element.Translation = new System.Numerics.Vector3(0, 8, 0);
         element.Visibility = Visibility.Visible;
         DispatcherQueue.TryEnqueue(() => { element.Opacity = 1; element.Translation = default; });
@@ -492,14 +545,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(() =>
+    private void SystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => Post(() =>
     {
         if (appearance == Appearance.System) ApplyAppearance();
         OutputPalette.Refresh();
     });
     private void ApplyAppearance()
     {
-        Root.RequestedTheme = AppearanceSettings.ThemeFor(appearance, systemColors);
+        Root.RequestedTheme = AppearanceSettings.ThemeFor(appearance, SystemUi.Settings);
         SystemThemeItem.IsChecked = appearance == Appearance.System;
         LightThemeItem.IsChecked = appearance == Appearance.Light;
         DarkThemeItem.IsChecked = appearance == Appearance.Dark;
@@ -528,7 +581,9 @@ public sealed partial class MainWindow : Window
         navSelected = BrushCache.Rgb(light ? 0xEBEBEB : 0x1F1F1F);
         navPrimary = BrushCache.Rgb(light ? 0x171717 : 0xFFFFFF);
         navMuted = BrushCache.Rgb(light ? 0x626262 : 0xA9A9A9);
-        navAccent = new SolidColorBrush(systemColors.GetColorValue(light ? Windows.UI.ViewManagement.UIColorType.Accent : Windows.UI.ViewManagement.UIColorType.AccentLight2));
+        // Windows' own default accent stands in on an installation that will not say what its accent is.
+        var usualAccent = light ? ColorHelper.FromArgb(255, 0x00, 0x78, 0xD4) : ColorHelper.FromArgb(255, 0x4C, 0xC2, 0xFF);
+        navAccent = new SolidColorBrush(SystemUi.Color(light ? Windows.UI.ViewManagement.UIColorType.Accent : Windows.UI.ViewManagement.UIColorType.AccentLight2, usualAccent));
         UpdateNavSelection();
         AppWindow.TitleBar.ButtonBackgroundColor = AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF), (byte)(light ? 0x17 : 0xFF));
@@ -665,7 +720,7 @@ public sealed partial class MainWindow : Window
         {
             using var finder = new AddFolderViewModel(pathFinder, snapshot);
             var dialog = new AddFolderDialog(finder, PickFolderAsync) { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme };
-            await dialog.ShowAsync();
+            await ShowDialogAsync(dialog);
             return dialog.Chosen;
         }
         catch (Exception ex)
@@ -711,12 +766,12 @@ public sealed partial class MainWindow : Window
         { log.Write(ActivityLevel.Warning, ActivityArea.App, "Windows settings could not open", ex.Message); }
     }
 
-    private async void ScoutClick(object sender, RoutedEventArgs e)
+    private void ScoutClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         ShowPage(Page.Scout);
         await RefreshScoutBackendAsync();
         if (initialized && page == Page.Scout) ScoutSearchBox.Focus(FocusState.Programmatic);
-    }
+    }, "opening Scout");
     private async Task RefreshScoutBackendAsync()
     {
         var wasReady = scout.Indexed;
@@ -737,14 +792,14 @@ public sealed partial class MainWindow : Window
         scoutResetting = true;
         try { ScoutSearchBox.Text = ""; ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0; }
         finally { scoutResetting = false; }
-        _ = SearchScoutAsync(false);
+        Run(() => SearchScoutAsync(false), "searching for files");
         ScoutSearchBox.Focus(FocusState.Programmatic);
     }
-    private async void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized && !scoutResetting) await SearchScoutAsync(); }
-    private async void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized && !scoutResetting) await SearchScoutAsync(false); }
-    private async void ScoutLocationChanged(object sender, SelectionChangedEventArgs e)
+    private void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized && !scoutResetting) Run(() => SearchScoutAsync(), "searching for files"); }
+    private void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized && !scoutResetting) Run(() => SearchScoutAsync(false), "searching for files"); }
+    private void ScoutLocationChanged(object sender, SelectionChangedEventArgs e) { if (initialized) Run(ScoutLocationChangedAsync, "choosing where to search"); }
+    private async Task ScoutLocationChangedAsync()
     {
-        if (!initialized) return;
         if (ScoutLocation.SelectedIndex == 2)
         {
             try
@@ -767,10 +822,11 @@ public sealed partial class MainWindow : Window
         }
         await SearchScoutAsync(false);
     }
-    private async void ScoutRefreshClick(object sender, RoutedEventArgs e)
-    { scout.Cancel(); scout.RefreshFolder(); await scout.CheckBackendAsync(); await SearchScoutAsync(false); }
+    private void ScoutRefreshClick(object sender, RoutedEventArgs e) => Run(async () =>
+    { scout.Cancel(); scout.RefreshFolder(); await scout.CheckBackendAsync(); await SearchScoutAsync(false); }, "refreshing the search index");
     private void ScoutCancelClick(object sender, RoutedEventArgs e) => scout.Cancel();
-    private async void ScoutSetupClick(object sender, RoutedEventArgs e)
+    private void ScoutSetupClick(object sender, RoutedEventArgs e) => Run(ScoutSetupAsync, "setting up instant search");
+    private async Task ScoutSetupAsync()
     {
         if (!scout.CanSetup) return;
         await RefreshScoutBackendAsync();
@@ -779,7 +835,7 @@ public sealed partial class MainWindow : Window
         var manager = model.Managers.FirstOrDefault(x => x.Status?.Health == ManagerHealth.Ready && x.Definition.Kind is ManagerKind.Winget or ManagerKind.Chocolatey);
         if (manager is null) { ShowPage(Page.Overview); return; }
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Enable instant search?", Content = "This installs Everything, a local filename index, using your package manager. Its Windows service enables fast NTFS indexing. Windows may ask for administrator permission. Folder search remains available without it.", PrimaryButtonText = "Queue installation", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await ShowDialogAsync(dialog) != ContentDialogResult.Primary) return;
         var kind = manager.Definition.Kind;
         model.QueueInstall(new(new(kind, kind == ManagerKind.Winget ? "voidtools.Everything" : "everything", "Everything", "", kind == ManagerKind.Winget ? "winget" : "chocolatey")));
         ShowPage(Page.Queue);
@@ -796,12 +852,12 @@ public sealed partial class MainWindow : Window
         catch (Exception ex) { scout.ReportError(ex.Message); log.Write(ActivityLevel.Warning, ActivityArea.App, "Scout could not open this location", ex.Message); }
     }
     private void ScoutCopyClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: ScoutRow row }) TryCopy(row.Path); }
-    private async void InstalledClick(object sender, RoutedEventArgs e)
+    private void InstalledClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         ShowPage(Page.Installed);
         if (installations.NeedsRefresh) await installations.RefreshAsync();
-    }
-    private async void InstalledRefreshClick(object sender, RoutedEventArgs e) => await installations.RefreshAsync();
+    }, "loading the installed apps");
+    private void InstalledRefreshClick(object sender, RoutedEventArgs e) => Run(() => installations.RefreshAsync(), "refreshing the installed apps");
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? installedFilterTimer;
     private void ApplyInstalledFilter() => installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1);
     private void InstalledFilterChanged(object sender, RoutedEventArgs e)
@@ -825,46 +881,54 @@ public sealed partial class MainWindow : Window
     { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
     private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);
     private void UpdateSelectedClick(object sender, RoutedEventArgs e) => installations.QueueSelected(PackageAction.Update);
-    private async void UninstallSelectedClick(object sender, RoutedEventArgs e)
+    private void UninstallSelectedClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         var rows = installations.Selected.ToArray();
         if (rows.Length == 0) return;
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Uninstall {rows.Length} apps?",
             Content = new ScrollViewer { MaxHeight = 300, Content = new TextBlock { Text = "Save your work and close these apps. Each will be uninstalled in order.\n\n" + string.Join("\n", rows.Select(x => $"{x.Name} · {x.Source}")), TextWrapping = TextWrapping.Wrap } },
             PrimaryButtonText = "Queue uninstalls", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
             operationQueue.Enqueue(rows.Where(x => x.CanAct).Select(x => PackageOperation.Manage(x.Package, PackageAction.Uninstall)));
-    }
+    }, "queueing the uninstalls");
     private void RemoveQueuedClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) operationQueue.Cancel(row); }
-    private async void StopRunningClick(object sender, RoutedEventArgs e)
+    private void StopRunningClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: QueueRow row } || row.Entry.State != QueueItemState.Running) return;
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Stop {row.Name}?",
             Content = new TextBlock { Text = "TidyWindow will end the running installer. An install or update that is stopped partway can leave the app incomplete or broken, so do this only if it has stopped responding.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
             PrimaryButtonText = "Stop it", CloseButtonText = "Keep running", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) operationQueue.Stop(row);
-    }
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) operationQueue.Stop(row);
+    }, "stopping the operation");
     private void ClearWaitingClick(object sender, RoutedEventArgs e) => operationQueue.CancelWaiting();
     private void ClearFinishedQueueClick(object sender, RoutedEventArgs e) => operationQueue.ClearFinished();
     private void QueueClick(object sender, RoutedEventArgs e) => ShowPage(Page.Queue);
     private void QueueRowClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) row.Toggle(); }
-    private sealed class OutputScrollState { public double Offset; public bool Follow = true; }
+    private sealed class OutputScrollState { public double Offset = double.NaN; public bool Follow = true; }
+    // Kept by queue row rather than by ScrollViewer: a list control reuses its containers, and a viewer's own state would carry one row's "stopped following" over to the next.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, OutputScrollState> outputScroll = new();
+    private OutputScrollState OutputScroll(FrameworkElement element) => outputScroll.GetOrCreateValue(element.DataContext ?? element);
     private void QueueOutputViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
     {
         if (sender is not ScrollViewer scroll || e.IsIntermediate) return;
-        var state = scroll.Tag as OutputScrollState ?? new();
-        // Content growing is not a request to stop following. Only a changed scroll position is.
+        var state = OutputScroll(scroll);
+        // The first position seen is the baseline (a reused viewer arrives wherever the last row left it). After that, content growing is not a
+        // request to stop following; only a changed scroll position is.
+        if (double.IsNaN(state.Offset)) { state.Offset = scroll.VerticalOffset; return; }
         if (Math.Abs(scroll.VerticalOffset - state.Offset) > 0.5) state.Follow = scroll.ScrollableHeight - scroll.VerticalOffset < 24;
-        state.Offset = scroll.VerticalOffset; scroll.Tag = state;
+        state.Offset = scroll.VerticalOffset;
     }
     private void QueueOutputSizeChanged(object sender, SizeChangedEventArgs e)
     {
         DependencyObject? parent = sender as DependencyObject;
         while (parent is not null && parent is not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
-        if (parent is not ScrollViewer scroll || scroll.Tag is OutputScrollState { Follow: false }) return;
-        DispatcherQueue.TryEnqueue(() => { if (scroll.Tag is not OutputScrollState { Follow: false }) scroll.ChangeView(null, scroll.ScrollableHeight, null, true); });
+        if (parent is not ScrollViewer scroll) return;
+        var state = OutputScroll(scroll);
+        if (!state.Follow) return;
+        DispatcherQueue.TryEnqueue(() => { if (state.Follow) scroll.ChangeView(null, scroll.ScrollableHeight, null, true); });
     }
-    private async void QueueStateChanged()
+    private void QueueStateChanged() => Run(QueueStateChangedAsync, "catching up after the queue finished");
+    private async Task QueueStateChangedAsync()
     {
         scout.SetInstallationPending(operationQueue.Snapshot.Entries.Any(x => x.State is QueueItemState.Waiting or QueueItemState.Running
             && x.Operation.Kind == PackageOperationKind.Install
@@ -875,7 +939,7 @@ public sealed partial class MainWindow : Window
         try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); if (page == Page.Installed) await installations.RefreshAsync(); }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
     }
-    private async void UninstallInstalledClick(object sender, RoutedEventArgs e)
+    private void UninstallInstalledClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: InstalledRow row } || !row.CanAct) return;
         var dialog = new ContentDialog
@@ -884,8 +948,8 @@ public sealed partial class MainWindow : Window
             Content = new TextBlock { Text = $"This removes {row.Name} using {row.Package.ManagerName}{(row.Package.Global ? " for all users" : "")}. Save your work and close the app first.\n\nThe app’s uninstaller may ask for administrator permission. Personal settings are handled by the uninstaller; Scoop’s persistent data is kept.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
             PrimaryButtonText = "Uninstall", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
-    }
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
+    }, "queueing the uninstall");
     private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
     private void SettingsClick(object sender, RoutedEventArgs e)
     {
@@ -919,42 +983,42 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { return false; }
     }
-    private async void CopyLogsClick(object sender, RoutedEventArgs e)
+    private void CopyLogsClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (logs.Rows.Count == 0) return;
         var ok = TryCopy(ActivityLog.Format(logs.Visible));
         CopyLogsLabel.Text = ok ? "Copied" : "Clipboard busy";
         await Task.Delay(1500);
         CopyLogsLabel.Text = "Copy";
-    }
-    private async void CopyEntryClick(object sender, RoutedEventArgs e)
+    }, "copying the log");
+    private void CopyEntryClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: LogRow row } || !TryCopy(ActivityLog.Format([row.Entry]))) return;
         row.SetCopied(true);
         await Task.Delay(1500);
         row.SetCopied(false);
-    }
-    private async void OpenLogsFolderClick(object sender, RoutedEventArgs e)
+    }, "copying the entry");
+    private void OpenLogsFolderClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (log.Folder is null) return;
         try { Directory.CreateDirectory(log.Folder); await Launcher.LaunchFolderPathAsync(log.Folder); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         { log.Write(ActivityLevel.Warning, ActivityArea.App, "The log folder could not be opened", ex.Message); }
-    }
-    private async void ClearLogsClick(object sender, RoutedEventArgs e)
+    }, "opening the log folder");
+    private void ClearLogsClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (log.Count == 0) return;
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Clear all logs?", Content = "This deletes every saved entry from this computer. It does not undo anything TidyWindow has done.", PrimaryButtonText = "Clear logs", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) log.Clear();
-    }
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) log.Clear();
+    }, "clearing the logs");
     private ManagerKind? Filter => SourceFilter.SelectedIndex switch { 1 => ManagerKind.Winget, 2 => ManagerKind.Chocolatey, 3 => ManagerKind.Scoop, _ => null };
-    private async void SearchTextChanged(object sender, TextChangedEventArgs e) { if (initialized) await model.SearchAsync(SearchBox.Text, Filter); }
-    private async void SourceChanged(object sender, SelectionChangedEventArgs e) { if (initialized) await model.SearchAsync(SearchBox.Text, Filter, false); }
-    private async void SearchClick(object sender, RoutedEventArgs e) => await model.SearchAsync(SearchBox.Text, Filter, false);
-    private async void SearchKeyDown(object sender, KeyRoutedEventArgs e)
-    { if (e.Key == VirtualKey.Enter) { e.Handled = true; await model.SearchAsync(SearchBox.Text, Filter, false); } }
+    private void SearchTextChanged(object sender, TextChangedEventArgs e) { if (initialized) Run(() => model.SearchAsync(SearchBox.Text, Filter), "searching for packages"); }
+    private void SourceChanged(object sender, SelectionChangedEventArgs e) { if (initialized) Run(() => model.SearchAsync(SearchBox.Text, Filter, false), "searching for packages"); }
+    private void SearchClick(object sender, RoutedEventArgs e) => Run(() => model.SearchAsync(SearchBox.Text, Filter, false), "searching for packages");
+    private void SearchKeyDown(object sender, KeyRoutedEventArgs e)
+    { if (e.Key == VirtualKey.Enter) { e.Handled = true; Run(() => model.SearchAsync(SearchBox.Text, Filter, false), "searching for packages"); } }
     private void CancelSearchClick(object sender, RoutedEventArgs e) => model.CancelSearch();
-    private async void RefreshClick(object sender, RoutedEventArgs e) => await Refresh();
+    private void RefreshClick(object sender, RoutedEventArgs e) => Run(() => Refresh(), "refreshing the package managers");
     private async Task Refresh(bool quiet = false)
     {
         await model.RefreshAsync(quiet);
@@ -962,25 +1026,23 @@ public sealed partial class MainWindow : Window
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);
     }
-    private async void BucketsToggleClick(object sender, RoutedEventArgs e)
-    { if (sender is FrameworkElement { DataContext: ManagerRow row }) await model.ToggleBucketsAsync(row); }
+    private void BucketsToggleClick(object sender, RoutedEventArgs e)
+    { if (sender is FrameworkElement { DataContext: ManagerRow row }) Run(() => model.ToggleBucketsAsync(row), "showing the buckets"); }
 
-    private async void AddBucketClick(object sender, RoutedEventArgs e)
+    private void AddBucketClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: BucketRow bucket }) return;
-        if (model.Managers.FirstOrDefault(x => x.Buckets?.Available.Contains(bucket) == true) is { } row) await model.AddBucketAsync(row, bucket);
+        if (model.Managers.FirstOrDefault(x => x.Buckets?.Available.Contains(bucket) == true) is { } row) Run(() => model.AddBucketAsync(row, bucket), "adding the bucket");
     }
 
-    private async void ManagerRecoveryClick(object sender, RoutedEventArgs e)
+    private void ManagerRecoveryClick(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: ManagerRow row })
-        {
-            if (row.Status?.Health == ManagerHealth.Restricted)
-                await new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "This manager is restricted", Content = new TextBlock { Text = row.Detail, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, CloseButtonText = "Close" }.ShowAsync();
-            else await model.RecoverAsync(row);
-        }
+        if (sender is not FrameworkElement { DataContext: ManagerRow row }) return;
+        if (row.Status?.Health == ManagerHealth.Restricted)
+            Run(() => ShowDialogAsync(new ContentDialog { Title = "This manager is restricted", Content = new TextBlock { Text = row.Detail, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, CloseButtonText = "Close" }), "showing the manager's status");
+        else Run(() => model.RecoverAsync(row), "setting up the package manager");
     }
-    private async void InstallPackageClick(object sender, RoutedEventArgs e)
+    private void InstallPackageClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;
         var content = new StackPanel { Spacing = 14, MaxWidth = 480 };
@@ -990,36 +1052,75 @@ public sealed partial class MainWindow : Window
         if (row.Package.Manager == ManagerKind.Chocolatey)
             content.Children.Add(new TextBlock { Text = "Chocolatey will open in a separate administrator window. TidyWindow itself stays unelevated.", TextWrapping = TextWrapping.Wrap, FontSize = 12 });
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Install {row.Name}?", Content = content, PrimaryButtonText = "Install package", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.QueueInstall(row);
-    }
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) model.QueueInstall(row);
+    }, "queueing the install");
     private static string Doing(PackageOperation operation) => operation.Fix is not null ? "being applied"
         : operation.Kind switch { PackageOperationKind.Install => "being installed", PackageOperationKind.Update => "being updated", _ => "being uninstalled" };
 
-    private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (closeConfirmed || !model.Busy) return;
+        if (closeConfirmed) return;
+        var running = RunningWork();
+        if (running.Count == 0) return;
         args.Cancel = true;
         if (closingDialog) return;
         closingDialog = true;
+        Run(() => ConfirmCloseAsync(running), "closing TidyWindow");
+    }
+
+    /// <summary>What closing now would cut short, one line each. Empty when nothing is running.</summary>
+    private List<string> RunningWork()
+    {
+        var what = new List<string>();
+        var running = operationQueue.Running; var waiting = operationQueue.Waiting;
+        if (running is not null) what.Add($"{running.Operation.Name} is {Doing(running.Operation)} right now.");
+        if (waiting > 0) what.Add($"{waiting} more {(waiting == 1 ? "item is" : "items are")} waiting in the queue.");
+        if (what.Count == 0 && model.Busy) what.Add("A package manager task is in progress.");
+        // The pages that change the PC, by the state each exposes. A page whose first scan is still running is left alone: a scan only reads.
+        if (cleanup.CleaningVisibility == Visibility.Visible) what.Add("Cleanup is still cleaning.");
+        if (repair.FixOverlay || repair.Changing) what.Add("Repair is still fixing a program.");
+        if (debloat.WorkOverlay && !debloat.ScanOverlay) what.Add("Debloat is still removing an app or putting one back.");
+        if (startup.Busy && !startup.ScanOverlay) what.Add("Startup is still working on a change.");
+        if (quiet.Busy && !quiet.ScanOverlay) what.Add("Quiet is still working on a change.");
+        if (tune.Busy && !tune.ScanOverlay) what.Add("Tune is still working on a change.");
+        if (paths.Busy && !paths.ScanOverlay) what.Add("Path Doctor is still working on your PATH.");
+        if (unstick.Sections.Any(section => section.Rows.Any(row => row.Busy))) what.Add("An Unstick action is still running.");
+        if (lab.Running) what.Add("Lab is still running its check.");
+        if (settings.ProgressVisibility == Visibility.Visible) what.Add("The update is still downloading.");
+        return what;
+    }
+
+    private async Task ConfirmCloseAsync(List<string> what)
+    {
         try
         {
-            var running = operationQueue.Running; var waiting = operationQueue.Waiting;
-            var what = new List<string>();
-            if (running is not null) what.Add($"{running.Operation.Name} is {Doing(running.Operation)} right now.");
-            if (waiting > 0) what.Add($"{waiting} more {(waiting == 1 ? "item is" : "items are")} waiting in the queue.");
-            if (what.Count == 0) what.Add("A package manager task is in progress.");
+            // A confirmation that is up steps aside, its handler seeing None, so the one question that matters now can be asked.
+            if (openDialog is { } open)
+            {
+                open.Hide();
+                try { if (openDialogShowing is { } showing) await showing; }
+                catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException) { }
+            }
+            var packages = operationQueue.HasWork || model.Busy;
             var dialog = new ContentDialog
             {
-                XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = "Work is still running",
-                Content = new TextBlock { Text = string.Join(" ", what) + "\n\nIf you close TidyWindow now, this work is stopped. An install or update that is cut off partway can leave an app broken or incomplete, and anything waiting in the queue is dropped. Closing now is not recommended.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+                Title = "Work is still running",
+                Content = new TextBlock
+                {
+                    Text = string.Join(" ", what) + "\n\nIf you close TidyWindow now, this work is stopped partway. " + (packages
+                        ? "An install or update that is cut off can leave an app broken or incomplete, and anything waiting in the queue is dropped. "
+                        : "A repair or cleanup that is cut off can be left half done, and may not be recorded for undo. ") + "Closing now is not recommended.",
+                    TextWrapping = TextWrapping.Wrap, MaxWidth = 440
+                },
                 CloseButtonText = "Keep open", SecondaryButtonText = "Close anyway", DefaultButton = ContentDialogButton.Close
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Secondary) return;
+            if (await ShowDialogAsync(dialog) != ContentDialogResult.Secondary) return;
             closeConfirmed = true;
             toasts.Show("closing", ToastKind.Info, "Stopping work before closing…", "", "", null, 10);
             // Ending the running command takes a moment; it is given a short time, and a command that will not end cannot keep the window open.
             try { await operationQueue.StopAllAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
             catch (TimeoutException) { }
+            catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "The queue could not be stopped cleanly before closing", ex.ToString()); }
             Close();
         }
         finally { closingDialog = false; }

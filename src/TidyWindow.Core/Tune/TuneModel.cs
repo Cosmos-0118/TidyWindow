@@ -104,7 +104,14 @@ public sealed record TuneChange(string Id, string Name, DateTimeOffset When, IRe
 
 public static class TuneCatalog
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true, Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
+    // A member the model does not know is refused rather than skipped: a misspelled "needsPro", "removeKey" or "alsoOn" would otherwise
+    // silently drop a rule or a build check, and no later check could tell.
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
     private static IReadOnlyList<TuneItem>? loaded;
 
     public static IReadOnlyList<TuneItem> Load() => loaded ??= Read();
@@ -112,7 +119,16 @@ public static class TuneCatalog
     private static IReadOnlyList<TuneItem> Read()
     {
         using var stream = typeof(TuneCatalog).Assembly.GetManifestResourceStream("tune-catalog.json") ?? throw new InvalidOperationException("The tweak catalog is missing from the app.");
-        var file = JsonSerializer.Deserialize<CatalogFile>(stream, Options) ?? throw new InvalidOperationException("The tweak catalog is empty.");
+        using var reader = new StreamReader(stream);
+        return Parse(reader.ReadToEnd());
+    }
+
+    /// <summary>Reads a catalog from its JSON text and checks it against the rules. Used for the shipped file, and by tests for bad ones.</summary>
+    /// <exception cref="JsonException">The text is not a catalog, or names a member the catalog does not have.</exception>
+    /// <exception cref="InvalidOperationException">The catalog breaks a rule.</exception>
+    public static IReadOnlyList<TuneItem> Parse(string json)
+    {
+        var file = JsonSerializer.Deserialize<CatalogFile>(json, Options) ?? throw new InvalidOperationException("The tweak catalog is empty.");
         // A catalog that breaks the rules is a bug in the app, so it is refused before anything can be written.
         var problems = TuneGuard.Validate(file.Items);
         if (problems.Count > 0) throw new InvalidOperationException("The tweak catalog is not valid: " + string.Join(" ", problems));
@@ -262,8 +278,10 @@ public sealed record TuneTargetState(TuneTarget Target, TuneValue? Current, bool
 public sealed record TuneEntry(TuneItem Item, bool Present, bool Applied, bool Partly, string? Lock, IReadOnlyList<TuneTargetState> Targets)
 {
     public string Id => Item.Id;
-    /// <summary>It can always be put back; it can be applied unless a rule says to leave it alone.</summary>
-    public bool CanChange => Present && (Lock is null || Applied || Partly);
+    /// <summary>One of its values is of a kind this page does not write (binary, a list, a 64-bit number). Such a value is never replaced, so the item is left alone whatever the rest of it looks like.</summary>
+    public bool HoldsOtherKind => Targets.Any(x => x.Current?.Kind == TuneKind.Other);
+    /// <summary>It can always be put back; it can be applied unless a rule says to leave it alone. A value of another kind locks it either way.</summary>
+    public bool CanChange => Present && !HoldsOtherKind && (Lock is null || Applied || Partly);
 }
 
 public sealed record TuneScanResult(IReadOnlyList<TuneEntry> Entries, int NotOnThisPc);

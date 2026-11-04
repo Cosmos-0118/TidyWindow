@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
 
@@ -15,17 +16,25 @@ public sealed class ToastCenter : IDisposable
     internal static readonly TimeSpan ExitTime = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(100);
     private readonly Action<Action> post;
+    private readonly ActivityLog? log;
     private readonly CancellationTokenSource lifetime = new();
     private bool attentive = true;
+    // How many toasts there are, as last counted on the UI thread: the timer thread must not read the collection itself.
+    private volatile int showing;
 
     /// <param name="post">Runs something on the UI thread.</param>
-    public ToastCenter(Action<Action> post)
+    /// <param name="log">Where a failing toast action is recorded; without one it is only reported as a toast.</param>
+    public ToastCenter(Action<Action> post, ActivityLog? log = null)
     {
-        this.post = post;
-        _ = RunAsync();
+        this.post = post; this.log = log;
+        Items.CollectionChanged += (_, _) => showing = Items.Count;
+        Loop = RunAsync();
     }
 
     public ObservableCollection<ToastItem> Items { get; } = [];
+
+    /// <summary>The timer behind every countdown. Finished once the center is disposed.</summary>
+    internal Task Loop { get; }
 
     /// <summary>False while the window is not in use. Toasts wait then, so one cannot come and go unseen.</summary>
     public bool Attentive
@@ -47,7 +56,7 @@ public sealed class ToastCenter : IDisposable
             existing.Renew(kind, title, detail, action, run, seconds);
             return;
         }
-        var item = new ToastItem(key, kind, title, detail, action, run, Close, seconds, Clock);
+        var item = new ToastItem(key, kind, title, detail, action, run, Close, Failed, seconds, Clock);
         if (!attentive) item.Hold("away", true);
         Items.Add(item);
         MakeRoom();
@@ -83,6 +92,13 @@ public sealed class ToastCenter : IDisposable
         }
     }
 
+    // A button on a message must not end the app when what it starts fails: the failure is recorded and reported like any other.
+    private void Failed(ToastItem item, Exception ex)
+    {
+        log?.Write(ActivityLevel.Error, ActivityArea.App, $"“{item.ActionLabel}” could not finish", ex.ToString());
+        Show("action-failed", ToastKind.Warning, "That could not be done", $"Something went wrong after “{item.ActionLabel}”. The details are in Logs.");
+    }
+
     private static long Clock() => Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
 
     // One timer for all toasts: whichever have run out are closed.
@@ -93,12 +109,14 @@ public sealed class ToastCenter : IDisposable
         {
             while (await timer.WaitForNextTickAsync(lifetime.Token).ConfigureAwait(false))
             {
-                if (Items.Count == 0) continue;
+                if (showing == 0) continue;
                 post(() => { foreach (var item in Items.Where(x => !x.Closing && x.Countdown.Expired).ToList()) Close(item); });
             }
         }
         catch (OperationCanceledException) { }
+        // Only once the loop is done with the token: disposing it from Dispose, while the loop could be about to read it, threw.
+        finally { lifetime.Dispose(); }
     }
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() => lifetime.Cancel();
 }

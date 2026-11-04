@@ -43,9 +43,12 @@ public sealed class SystemCleanTests : IDisposable
         public string Output = "";
         /// <summary>When set, a program that returns output (the component store analysis) waits for this before it answers.</summary>
         public TaskCompletionSource? Hold;
+        /// <summary>Whether the last program was given a token that a stop request could cancel.</summary>
+        public bool LastCancellable;
         public Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken)
         {
             Commands.Add(Path.GetFileName(fileName) + " " + string.Join(' ', arguments));
+            LastCancellable = cancellationToken.CanBeCanceled;
             ran = true; OnRun?.Invoke();
             return Task.FromResult(ExitCode);
         }
@@ -183,11 +186,44 @@ public sealed class SystemCleanTests : IDisposable
     [Fact]
     public async Task HibernationIsTurnedOffWithPowercfgAndItsFileSizeIsReported()
     {
-        Make("hiberfil.sys", 2048);
+        var hiberfil = Make("hiberfil.sys", 2048);
+        tools.OnRun = () => File.Delete(hiberfil);
         var report = await new SystemCleanJob(Context(), tools).RunAsync([Rule("hibernation", CleanupAction.Hibernation)], ["hibernation"]);
         Assert.Equal("powercfg.exe /hibernate off", Assert.Single(tools.Commands));
         Assert.Equal(2048, report.Result.FreedBytes);
     }
+
+    [Fact]
+    public async Task HibernationIsOnlyCountedAsFreedWhenTheFileIsReallyGone()
+    {
+        Make("hiberfil.sys", 2048);
+        var report = await new SystemCleanJob(Context(), tools).RunAsync([Rule("hibernation", CleanupAction.Hibernation)], ["hibernation"]);
+        Assert.Equal(0, report.Result.FreedBytes);
+        Assert.Equal(0, report.Result.Failed);
+        Assert.Contains(report.Notes, x => x.Contains("not removed the hibernation file"));
+    }
+
+    [Fact]
+    public async Task AStopRequestLetsDismFinishAndKeepsWhatItFreed()
+    {
+        Make("hiberfil.sys", 2048);
+        tools.FreeAfter = 5_000;
+        using var cancel = new CancellationTokenSource();
+        // The stop arrives while DISM is running: it is not killed, what it freed is counted, and nothing after it runs.
+        tools.OnRun = () => cancel.Cancel();
+        var rules = new[] { Rule("component-store", CleanupAction.ComponentStore), Rule("hibernation", CleanupAction.Hibernation) };
+        var report = await new SystemCleanJob(Context(), tools).RunAsync(rules, ["component-store", "hibernation"], null, cancel.Token);
+        Assert.Equal(["Dism.exe /Online /Cleanup-Image /StartComponentCleanup"], tools.Commands);
+        Assert.False(tools.LastCancellable);
+        Assert.True(report.Result.Stopped);
+        Assert.Equal(4_000, report.Result.FreedBytes);
+        Assert.Equal(0, report.Result.Failed);
+        Assert.Contains(SystemCleanJob.StoppedNote, report.Notes);
+    }
+
+    [Fact]
+    public void AComponentStoreReportWhosePartsOutweighTheWholeIsNotTrusted() =>
+        Assert.Null(ComponentStoreAnalysis.Reclaimable("a : 1 GB\nb : 1 GB\nc : 1 GB\nd : 3 GB\ne : 2 GB\n"));
 
     [Fact]
     public async Task SystemActionsAreMeasuredButNotRunByTheNormalCleaner()
@@ -472,6 +508,26 @@ public sealed class SystemCleanTests : IDisposable
         Assert.Single(report.Items);
         Assert.True(File.Exists(a));
         Assert.DoesNotContain(catalog, rule => rule.Id == SystemCleanHost.MeasureMarker);
+    }
+
+    [Fact]
+    public async Task TheHelperStopsItsWorkWhenTheAppGoesAwayMidRun()
+    {
+        // The component store estimate waits on Hold, as a long DISM run would; nothing ever releases it here.
+        tools.Hold = new TaskCompletionSource();
+        CleanupRule[] catalog = [new CleanupRule { Id = "component-store", Group = "Windows", Name = "Component store", Admin = true, Action = CleanupAction.ComponentStore }];
+        var name = HelperPipe.NewName("test");
+        var server = HelperPipe.CreateServer(name);
+        var waiting = server.WaitForConnectionAsync();
+        var host = SystemCleanHost.RunAsync([SystemCleanHost.Command, name, SystemCleanHost.EstimateMarker + ",component-store"], catalog, Context(), tools);
+        await waiting;
+        Assert.Contains("ready", await new PipeLineReader(server).ReadLineAsync() ?? "");
+
+        // The app ends without a word: its end of the pipe simply closes. The helper must not carry on with administrator rights unattended.
+        await server.DisposeAsync();
+
+        Assert.Equal(1, await host.WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.False(tools.Hold.Task.IsCompleted);
     }
 
     private sealed class Collect(List<CleanupProgress> list) : IProgress<CleanupProgress> { public void Report(CleanupProgress value) { lock (list) list.Add(value); } }

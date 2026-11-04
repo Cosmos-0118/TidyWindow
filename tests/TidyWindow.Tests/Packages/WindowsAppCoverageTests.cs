@@ -133,10 +133,9 @@ public sealed class WindowsAppCoverageTests(ITestOutputHelper output)
     }
 
     // Measures this PC against Windows' own installed-apps list. Opt in with TIDYWINDOW_LIVE_TESTS=1.
-    [Fact]
+    [LiveFact]
     public async Task LiveCoverageOfWindowsInstalledAppsWhenExplicitlyEnabled()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
         var packages = new PackageService(new ProcessRunner(), new ExecutableLocator());
         var service = new InstallationService(packages, new ProcessRunner(), new ExecutableLocator());
         var listed = new List<string>();

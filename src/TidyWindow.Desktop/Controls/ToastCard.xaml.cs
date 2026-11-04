@@ -18,7 +18,7 @@ namespace TidyWindow.Next.Desktop;
 public sealed partial class ToastCard : UserControl
 {
     private static readonly TimeSpan EnterTime = TimeSpan.FromMilliseconds(260);
-    private readonly bool animate = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+    private readonly bool animate = SystemUi.AnimationsEnabled;
     private ToastItem? item;
     private bool entered, exited, expanded, canExpand;
     private DispatcherQueueTimer? copied;
@@ -157,9 +157,12 @@ public sealed partial class ToastCard : UserControl
         bar.CenterPoint = Vector3.Zero;
         bar.Scale = new((float)item.Countdown.Fraction, 1f, 1f);
         if (item.Countdown.IsHeld || item.Closing) return;
+        // Run out but not yet closed by the next tick: there is nothing left to shrink, and the compositor refuses an animation of no length.
+        var left = item.Countdown.Remaining;
+        if (left < TimeSpan.FromMilliseconds(1)) return;
         var shrink = bar.Compositor.CreateScalarKeyFrameAnimation();
         shrink.InsertKeyFrame(1f, 0f, bar.Compositor.CreateLinearEasingFunction());
-        shrink.Duration = item.Countdown.Remaining;
+        shrink.Duration = left;
         bar.StartAnimation("Scale.X", shrink);
     }
 
@@ -232,6 +235,12 @@ public sealed partial class ToastCard : UserControl
         return timer;
     }
 
-    private async void ActionClick(object sender, RoutedEventArgs e) { if (item is not null) await item.RunAsync(); }
+    // RunAsync reports its own failures to the center; this is only the last barrier, because an exception leaving a click handler ends the app.
+    private async void ActionClick(object sender, RoutedEventArgs e)
+    {
+        if (item is null) return;
+        try { await item.RunAsync(); }
+        catch (Exception) { /* already reported; nothing a card could add */ }
+    }
     private void DismissClick(object sender, RoutedEventArgs e) => item?.Dismiss();
 }

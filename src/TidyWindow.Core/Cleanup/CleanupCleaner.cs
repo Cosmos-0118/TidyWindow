@@ -6,7 +6,7 @@ namespace TidyWindow.Next.Core;
 /// <summary>
 /// Removes what a scan found. Only files that match their rule are touched, links are never followed, and a file that is
 /// open, protected or already gone is skipped and counted instead of forced. Rules that ask for it move files into the
-/// undo folder instead of deleting them.
+/// undo folder instead of deleting them. A clean that is stopped part-way returns what it had done by then, marked as stopped.
 /// </summary>
 public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? quarantine = null)
 {
@@ -54,6 +54,7 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
 
         // A rule is reported once its last piece is done.
         var options = new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism, CancellationToken = cancellationToken };
+        var stopped = false;
         try
         {
             await Task.Run(() => Parallel.ForEach(units, options, unit =>
@@ -62,12 +63,14 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
                 if (Interlocked.Decrement(ref unit.State.Pending) == 0) progress?.Report(new CleanupProgress(unit.Finding.Rule.Name, Interlocked.Read(ref totals.Freed), Volatile.Read(ref totals.Removed)));
             }), cancellationToken).ConfigureAwait(false);
         }
+        // Whatever was removed before the stop stays removed, so it is still counted; the result says the clean did not finish.
+        catch (OperationCanceledException) { stopped = true; }
         finally
         {
             // Even a cancelled clean must record what it already moved, or those files could never be restored.
             batch?.Commit();
         }
-        return new CleanupResult(totals.Freed, totals.Removed, totals.InUse, totals.Denied, totals.Failed, batch is { Count: > 0 } ? batch.Id : null, batch?.Bytes ?? 0, timer.Elapsed);
+        return new CleanupResult(totals.Freed, totals.Removed, totals.InUse, totals.Denied, totals.Failed, batch is { Count: > 0 } ? batch.Id : null, batch?.Bytes ?? 0, timer.Elapsed, stopped);
     }
 
     private static IEnumerable<string> TopFolders(string root)
@@ -81,6 +84,13 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
         var rule = unit.Finding.Rule;
         var wholeFolders = rule.Masks.Length == 0;
         var cutoff = rule.MinAgeDays > 0 ? context.Now().AddDays(-rule.MinAgeDays).Ticks : long.MaxValue;
+        // The top-level folders were listed a moment ago. One swapped for a link since then must not be walked: the walk skips links it meets inside
+        // a folder, but not the folder it starts from. A folder that has simply gone is nothing to clean; a link in its place counts as a failure.
+        if (unit.Recurse && !CleanupPaths.IsPlainFolder(unit.Folder))
+        {
+            if (Directory.Exists(unit.Folder)) Interlocked.Increment(ref totals.Failed);
+            return;
+        }
         var filter = unit.Filter;
         var files = new List<(string Path, long Length)>();
         var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -143,6 +153,12 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
 
     private enum Outcome { Removed, Held, InUse, Denied, Failed, Gone }
 
+    /// <summary>
+    /// Windows refuses to move or delete a file another program has open with a sharing or lock violation, or because it is mapped into memory.
+    /// That is a file in use. Anything else that goes wrong (a full drive, a name too long) is a failure, and is not dressed up as "in use".
+    /// </summary>
+    private static bool IsInUse(IOException ex) => (ex.HResult & 0xFFFF) is 32 or 33 or 1224;
+
     private static Outcome Delete(string path)
     {
         try { File.Delete(path); return Outcome.Removed; }
@@ -152,11 +168,11 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
             try { File.SetAttributes(path, FileAttributes.Normal); File.Delete(path); return Outcome.Removed; }
             catch (UnauthorizedAccessException) { return Outcome.Denied; }
             catch (FileNotFoundException) { return Outcome.Gone; }
-            catch (IOException) { return Outcome.InUse; }
+            catch (IOException ex) { return IsInUse(ex) ? Outcome.InUse : Outcome.Failed; }
         }
         catch (FileNotFoundException) { return Outcome.Gone; }
         catch (DirectoryNotFoundException) { return Outcome.Gone; }
-        catch (IOException) { return Outcome.InUse; }
+        catch (IOException ex) { return IsInUse(ex) ? Outcome.InUse : Outcome.Failed; }
     }
 
     private static Outcome Hold(CleanupQuarantine.Batch batch, Unit unit, (string Path, long Length) file)
@@ -164,7 +180,9 @@ public sealed class CleanupCleaner(CleanupContext context, CleanupQuarantine? qu
         try { batch.Hold(unit.Finding.Rule.Id, unit.RootIndex, unit.Root, file.Path, file.Length); return Outcome.Held; }
         catch (UnauthorizedAccessException) { return Outcome.Denied; }
         catch (FileNotFoundException) { return Outcome.Gone; }
-        catch (IOException) { return Outcome.InUse; }
+        catch (DirectoryNotFoundException) { return Outcome.Gone; }
+        // Holding moves the file to the undo folder, which may be on another drive: a drive that is full, or an undo folder that cannot be made, is a failure, not a file in use.
+        catch (IOException ex) { return IsInUse(ex) ? Outcome.InUse : Outcome.Failed; }
     }
 
     private sealed class Totals { public long Freed; public int Removed, InUse, Denied, Failed; }

@@ -41,8 +41,16 @@ public sealed record FileFacts(bool Exists, string Company, string Description, 
 
 public sealed record StartupPlaces(string Windows, string UserProfile, IReadOnlyList<string> Scratch)
 {
+    // The corners of the Windows folder that any program can write to. A file there is no more part of Windows than one in Temp.
+    private static readonly string[] OpenUnderWindows =
+    [
+        "Temp", "Tasks", "tracing", @"System32\Tasks", @"SysWOW64\Tasks", @"System32\spool\drivers\color", @"System32\spool\PRINTERS", @"System32\spool\SERVERS",
+        @"Registration\CRMLog", @"System32\FxsTmp", @"SysWOW64\FxsTmp", @"System32\com\dmp", @"SysWOW64\com\dmp", @"System32\Microsoft\Crypto\RSA\MachineKeys", @"debug\WIA", "PLA"
+    ];
+
     public bool InWindows(string path) => Under(path, Windows);
-    public bool InScratch(string path) => Scratch.Any(x => Under(path, x));
+    /// <summary>Temporary and download folders, and the few places under Windows any program can write to: nothing is trusted for living in one of them.</summary>
+    public bool InScratch(string path) => Scratch.Any(x => Under(path, x)) || (Windows.Length > 0 && OpenUnderWindows.Any(x => Under(path, Path.Combine(Windows, x))));
 
     private static bool Under(string path, string folder)
     {
@@ -120,7 +128,9 @@ public interface IStartupWriter
 }
 
 /// <summary>Everything needed to put a removed startup item back. <see cref="Data"/> is the shortcut's bytes (base64) or the task's XML.</summary>
+/// <param name="Command">For a Run value, the command to write back. For the other kinds, the command the item was listed with, so a put-back can tell the same item from a newcomer with its name.</param>
 public sealed record StartupVault(StartupKind Kind, StartupScope Scope, string Source, string Key, string Command = "", bool Expandable = false, string Data = "");
+
 
 public enum StartupAction { Toggle, Remove, Restore }
 

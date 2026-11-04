@@ -60,7 +60,7 @@ public sealed class RepairCacheRestoreTests : IDisposable
         var result = Assert.Single(outcome.Results!);
         Assert.Equal(RepairStatus.Fixed, result.Status);
         Assert.Contains("put the update's saved file back", result.Summary, StringComparison.OrdinalIgnoreCase);
-        // A folder the person chose is their word for it: no signature is asked of the file.
+        // What the file has to prove is the helper's to decide; the request only says which file to consider.
         Assert.Equal([$"{Update} -> {Saved}"], ops.PatchRestores);
         Assert.True(sandbox.Has(program));
         Assert.True(sandbox.Has(record));
@@ -68,7 +68,7 @@ public sealed class RepairCacheRestoreTests : IDisposable
     }
 
     [Fact]
-    public async Task AnUpdateFileAlreadyInTheInstallerFolderNeedsNoSignatureButOneInAPackageCacheDoes()
+    public async Task EveryCandidateGoesToTheHelperToBeJudgedWhereverItWasFound()
     {
         var (pc, _, _) = WithDeadUpdate();
         var left = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer", "left-behind.msp");
@@ -80,7 +80,7 @@ public sealed class RepairCacheRestoreTests : IDisposable
 
         await Service(pc, ops).FixAsync(InstallRepair.Scan(pc).Findings.ToList(), "Repaired");
 
-        Assert.Equal([$"{cached} -> {Saved} (signed)", $"{left} -> {Saved}"], ops.PatchRestores);
+        Assert.Equal([$"{cached} -> {Saved}", $"{left} -> {Saved}"], ops.PatchRestores);
     }
 
     [Theory]
@@ -111,11 +111,80 @@ public sealed class RepairCacheRestoreTests : IDisposable
         File.WriteAllText(text, "x");
         var ops = new WindowsInstallerOps();
 
-        Assert.Equal(87, ops.RestorePatchCopy(text, PatchCode, target, requireSignature: false).ExitCode);
-        Assert.Equal(87, ops.RestorePatchCopy(notAnUpdate, PatchCode, target, requireSignature: false).ExitCode);
-        Assert.Equal(87, ops.RestorePatchCopy(notAnUpdate, PatchCode, Path.Combine(folder, "elsewhere.msp"), requireSignature: false).ExitCode);
+        Assert.Equal(87, ops.RestorePatchCopy(text, PatchCode, target).ExitCode);
+        Assert.Equal(87, ops.RestorePatchCopy(notAnUpdate, PatchCode, target).ExitCode);
+        Assert.Equal(87, ops.RestorePatchCopy(notAnUpdate, PatchCode, Path.Combine(folder, "elsewhere.msp")).ExitCode);
         Assert.False(File.Exists(target));
         Assert.False(File.Exists(target + ".tidywindow-new"));
+    }
+
+    private string UpdateFileAnyoneCouldWrite()
+    {
+        Directory.CreateDirectory(folder);
+        var file = Path.Combine(folder, "planted.msp");
+        File.WriteAllText(file, "this could say it was any update at all");
+        return file;
+    }
+
+    private static string InInstallerFolder(string name) => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Installer", name);
+
+    [Fact]
+    public void WithAdministratorRightsAnUpdateWindowsInstallerIsNotWaitingForIsRefused()
+    {
+        var target = InInstallerFolder("tw-never-written.msp");
+        var ops = new WindowsInstallerOps(elevated: true, patchRecord: _ => null);
+
+        var result = ops.RestorePatchCopy(UpdateFileAnyoneCouldWrite(), PatchCode, target);
+
+        Assert.Equal(87, result.ExitCode);
+        Assert.Contains("no update waiting", result.Output);
+        Assert.False(File.Exists(target));
+    }
+
+    [Fact]
+    public void WithAdministratorRightsTheFileGoesWhereWindowsInstallerSaysAndNowhereElse()
+    {
+        var asked = InInstallerFolder("tw-another-programs-file.msp");
+        var ops = new WindowsInstallerOps(elevated: true, patchRecord: _ => (InInstallerFolder("tw-the-real-one.msp"), "Contoso"));
+
+        var result = ops.RestorePatchCopy(UpdateFileAnyoneCouldWrite(), PatchCode, asked);
+
+        Assert.Equal(87, result.ExitCode);
+        Assert.Contains("no update waiting", result.Output);
+        Assert.False(File.Exists(asked));
+    }
+
+    [Fact]
+    public void WithAdministratorRightsAnUnsignedUpdateFromAFolderAnyoneCanWriteToIsRefusedWhoeverChoseIt()
+    {
+        var target = InInstallerFolder("tw-never-written.msp");
+        var ops = new WindowsInstallerOps(elevated: true, patchRecord: _ => (target, "Contoso"));
+
+        var result = ops.RestorePatchCopy(UpdateFileAnyoneCouldWrite(), PatchCode, target);
+
+        Assert.Equal(87, result.ExitCode);
+        Assert.Contains("not used with administrator rights", result.Output);
+        Assert.False(File.Exists(target));
+        Assert.False(File.Exists(target + ".tidywindow-new"));
+    }
+
+    [Fact]
+    public void AnUndoTakesOutOnlyAnUpdateFileTheHelperItselfPutThere()
+    {
+        Directory.CreateDirectory(folder);
+        var vault = new RepairVault(new ProtectedStore("repair", folder, enforce: false));
+        var ops = new WindowsInstallerOps(vault, [], elevated: true);
+
+        // Nothing here was put there by the helper, so nothing is touched, whatever the request names.
+        Assert.False(ops.RemoveCopy(InInstallerFolder("tw-someone-elses-update.msp")));
+    }
+
+    [Fact]
+    public void WindowsInstallersRecordsAreAskedForAPatchCodeThatIsNotOneAndAnswerNothing()
+    {
+        var ops = new WindowsInstallerOps(elevated: true);
+
+        Assert.Equal(87, ops.RestorePatchCopy(UpdateFileAnyoneCouldWrite(), "not a patch code", InInstallerFolder("tw-never-written.msp")).ExitCode);
     }
 
     [Fact]
@@ -134,7 +203,7 @@ public sealed class RepairCacheRestoreTests : IDisposable
     }
 
     [Fact]
-    public async Task AnUpdateFileFoundByItselfIsOnlyUsedWithAValidSignature()
+    public async Task AnUpdateFileFoundByItselfIsOfferedToTheHelper()
     {
         var (pc, _, _) = WithDeadUpdate();
         var ops = new FakeOps { PatchCandidates = [@"C:\ProgramData\Package Cache\X\kb.msp"] };
@@ -144,7 +213,7 @@ public sealed class RepairCacheRestoreTests : IDisposable
         var outcome = await Service(pc, ops).FixAsync(InstallRepair.Scan(pc).Findings.ToList(), "Repaired");
 
         Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
-        Assert.Equal([$@"C:\ProgramData\Package Cache\X\kb.msp -> {Saved} (signed)"], ops.PatchRestores);
+        Assert.Equal([$@"C:\ProgramData\Package Cache\X\kb.msp -> {Saved}"], ops.PatchRestores);
     }
 
     [Fact]

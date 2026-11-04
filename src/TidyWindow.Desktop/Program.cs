@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
 
@@ -29,8 +30,14 @@ public static class Program
     [STAThread]
     private static void Main()
     {
+        // First of all, before anything is read, started or registered: see AppElevation for why.
+        if (AppElevation.IsElevated())
+        {
+            MessageBoxW(IntPtr.Zero, AppElevation.Refusal, "TidyWindow", 0x40 /* MB_ICONINFORMATION */);
+            return;
+        }
         WinRT.ComWrappersSupport.InitializeComWrappers();
-        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is null && HandedOverToRunningInstance()) return; // TEMP-DEMO
+        if (HandedOverToRunningInstance()) return;
         // Before anything slow: the splash is on screen while the interface framework and the main window are still being set up.
         Splash = NativeSplash.Start();
 
@@ -61,15 +68,20 @@ public static class Program
             AllowSetForegroundWindow((uint)owner.ProcessId);
             var args = AppInstance.GetCurrent().GetActivatedEventArgs();
             var done = new ManualResetEventSlim();
-            var handedOver = false;
+            var handedOver = false; var gaveUp = 0;
             // The call must not run on this thread: waiting on it here would block the message loop the hand-over needs.
             Task.Run(async () =>
             {
                 try { await owner.RedirectActivationToAsync(args); handedOver = true; }
                 catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException) { }
                 finally { done.Set(); }
+                // Answered only after this launch stopped waiting: the open window has come forward, so this copy must not also open one.
+                if (handedOver && Interlocked.CompareExchange(ref gaveUp, 0, 0) == 1) App.HandedOverLate();
             });
-            return done.Wait(HandOverWait) && handedOver;
+            if (done.Wait(HandOverWait)) return handedOver;
+            Interlocked.Exchange(ref gaveUp, 1);
+            // Settled in the moment between the wait running out and this line: that still counts as handed over.
+            return done.IsSet && handedOver;
         }
         // The open copy could not be reached (for example it runs with different rights), so this launch carries on rather than silently doing nothing.
         catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException) { return false; }
@@ -78,4 +90,7 @@ public static class Program
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllowSetForegroundWindow(uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int MessageBoxW(IntPtr owner, string text, string caption, uint type);
 }

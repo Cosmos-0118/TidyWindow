@@ -128,7 +128,8 @@
         <TextBlock Text="Which program runs" Style="{StaticResource SectionTitle}" />
         <TextBlock Text="Windows runs the first copy it finds. Open a row to choose a different one." Style="{StaticResource Muted}" />
        </StackPanel>
-       <TextBox Grid.Column="1" Width="280" Text="{Binding LookupText, Mode=TwoWay}" PlaceholderText="Look up a command, e.g. ffmpeg" KeyDown="LookupKeyDown" VerticalAlignment="Center" AutomationProperties.Name="Look up a command" />
+       <TextBox Grid.Column="1" Width="280" Text="{Binding LookupText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Look up a command, e.g. ffmpeg" KeyDown="LookupKeyDown" VerticalAlignment="Center" AutomationProperties.Name="Look up a command" />
+
       </Grid>
       <Border Style="{StaticResource Card}" Background="{ThemeResource CanvasBrush}" Padding="0">
        <StackPanel>

@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -16,24 +18,31 @@ public sealed class AppUpdateService
 {
     internal const string ReleasesUrl = "https://api.github.com/repos/Cosmos-0118/TidyWindow/releases?per_page=10";
     private const long MaxDownloadBytes = 1024L * 1024 * 1024;
-    private static readonly Regex Heading = new(@"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", RegexOptions.Compiled);
-    private static readonly Regex Bullet = new(@"^\s*[-*+]\s+(.*)$", RegexOptions.Compiled);
-    private static readonly Regex Rule = new(@"^\s*([-*_])\1{2,}\s*$", RegexOptions.Compiled);
-    private static readonly Regex Image = new(@"!\[([^\]]*)\]\([^)]+\)", RegexOptions.Compiled);
-    private static readonly Regex Link = new(@"\[([^\]]+)\]\([^)]+\)", RegexOptions.Compiled);
-    private static readonly Regex Bold = new(@"(\*\*|__)(.*?)\1", RegexOptions.Compiled);
+    // Ten releases with their notes are a few hundred KB at most; an answer far beyond that is not the list this asked for.
+    internal const long MaxApiBytes = 2 * 1024 * 1024;
+    private const int MaxRedirects = 5;
+    private const int PatternTimeout = 250;
+    private static readonly Regex Heading = new(@"^\s{0,3}#{1,6}\s+(.*?)\s*#{0,6}\s*$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
+    private static readonly Regex Bullet = new(@"^\s*[-*+]\s+(.*)$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
+    private static readonly Regex Rule = new(@"^\s*([-*_])\1{2,}\s*$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
+    private static readonly Regex Image = new(@"!\[([^\]]*)\]\([^)]+\)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
+    private static readonly Regex Link = new(@"\[([^\]]+)\]\([^)]+\)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
+    private static readonly Regex Bold = new(@"(\*\*|__)(.*?)\1", RegexOptions.Compiled, TimeSpan.FromMilliseconds(PatternTimeout));
     private static readonly Lazy<HttpClient> Shared = new(CreateClient);
 
     private readonly HttpClient http;
     private readonly Func<bool> isInstalledBuild;
     private readonly string updatesFolder;
+    private readonly TimeSpan stallTimeout;
 
-    public AppUpdateService(HttpClient? http = null, Version? currentVersion = null, Func<bool>? isInstalledBuild = null, string? updatesFolder = null)
+    /// <param name="stallTimeout">How long a download may go without a single byte arriving before it is given up on, instead of showing a bar that never moves.</param>
+    public AppUpdateService(HttpClient? http = null, Version? currentVersion = null, Func<bool>? isInstalledBuild = null, string? updatesFolder = null, TimeSpan? stallTimeout = null)
     {
         this.http = http ?? Shared.Value;
         CurrentVersion = Normalize(currentVersion ?? ReadCurrentVersion());
         this.isInstalledBuild = isInstalledBuild ?? DefaultInstalled;
         this.updatesFolder = updatesFolder ?? Path.Combine(Path.GetTempPath(), "TidyWindow.Next", "Updates");
+        this.stallTimeout = stallTimeout ?? TimeSpan.FromSeconds(60);
     }
 
     public Version CurrentVersion { get; }
@@ -49,10 +58,9 @@ public sealed class AppUpdateService
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            using var request = ApiRequest(ReleasesUrl);
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            using var response = await FetchAsync(ReleasesUrl, api: true, timeout.Token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+            var json = await ReadBoundedAsync(response.Content, MaxApiBytes, timeout.Token).ConfigureAwait(false);
             return Evaluate(ParseReleases(json));
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
@@ -93,27 +101,32 @@ public sealed class AppUpdateService
         if (string.IsNullOrWhiteSpace(markdown)) return "";
         var output = new List<string>();
         var code = false;
-        foreach (var raw in markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+        try
         {
-            var line = raw.TrimEnd();
-            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal)) { code = !code; continue; }
-            if (code) { output.Add(line); continue; }
-            if (line.Trim().Length == 0)
+            foreach (var raw in markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
             {
-                if (output.Count > 0 && output[^1].Length > 0) output.Add("");
-                continue;
+                var line = raw.TrimEnd();
+                if (line.TrimStart().StartsWith("```", StringComparison.Ordinal)) { code = !code; continue; }
+                if (code) { output.Add(line); continue; }
+                if (line.Trim().Length == 0)
+                {
+                    if (output.Count > 0 && output[^1].Length > 0) output.Add("");
+                    continue;
+                }
+                if (Rule.IsMatch(line)) continue;
+                var heading = Heading.Match(line);
+                if (heading.Success)
+                {
+                    if (output.Count > 0 && output[^1].Length > 0) output.Add("");
+                    output.Add(CleanInline(heading.Groups[1].Value));
+                    continue;
+                }
+                var bullet = Bullet.Match(line);
+                output.Add(bullet.Success ? "• " + CleanInline(bullet.Groups[1].Value) : CleanInline(line));
             }
-            if (Rule.IsMatch(line)) continue;
-            var heading = Heading.Match(line);
-            if (heading.Success)
-            {
-                if (output.Count > 0 && output[^1].Length > 0) output.Add("");
-                output.Add(CleanInline(heading.Groups[1].Value));
-                continue;
-            }
-            var bullet = Bullet.Match(line);
-            output.Add(bullet.Success ? "• " + CleanInline(bullet.Groups[1].Value) : CleanInline(line));
         }
+        // Notes are text from the release page; a line built to make the patterns crawl is shown as it is rather than holding up the check.
+        catch (RegexMatchTimeoutException) { return markdown.Trim(); }
         return string.Join("\n", output).Trim();
     }
 
@@ -143,21 +156,27 @@ public sealed class AppUpdateService
         var finalPath = Path.Combine(updatesFolder, name);
         try
         {
-            using var request = DownloadRequest(asset.DownloadUrl);
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+            using var response = await FetchAsync(asset.DownloadUrl, api: false, token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var total = asset.SizeBytes > 0 ? asset.SizeBytes : response.Content.Headers.ContentLength;
             await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            // A connection that stops delivering is given up on rather than shown as a bar that never moves; the clock restarts with every piece that arrives.
+            using var stalled = CancellationTokenSource.CreateLinkedTokenSource(token);
             await using (var output = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
             {
                 var buffer = new byte[81920];
                 long received = 0;
                 while (true)
                 {
-                    var read = await input.ReadAsync(buffer, token).ConfigureAwait(false);
+                    stalled.CancelAfter(stallTimeout);
+                    int read;
+                    try { read = await input.ReadAsync(buffer, stalled.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("The download stopped arriving. Check your connection and try again."); }
                     if (read == 0) break;
                     received += read;
                     if (received > MaxDownloadBytes) throw new IOException("The download is larger than TidyWindow will store.");
+                    hash.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
                     int? percent = total is > 0 ? (int)Math.Min(100, received * 100 / total.Value) : null;
                     progress?.Report(new DownloadProgress(received, total, percent));
@@ -166,6 +185,9 @@ public sealed class AppUpdateService
             var length = new FileInfo(part).Length;
             if (asset.SizeBytes > 0 && length != asset.SizeBytes)
                 throw new IOException($"The download is {length} bytes, but the release lists {asset.SizeBytes}.");
+            // The checksum GitHub lists for the asset is the only thing that ties the bytes to the release itself, not just to the address.
+            if (asset.Sha256 is { } expected && !Convert.ToHexStringLower(hash.GetHashAndReset()).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The download does not match the checksum GitHub lists for this release, so it was not kept. Try again; if it happens again, download the release from the GitHub page.");
             var header = new byte[2];
             int got;
             await using (var check = File.OpenRead(part))
@@ -182,10 +204,45 @@ public sealed class AppUpdateService
         }
     }
 
+    // Redirects are followed by hand so that every hop is held to the same rule as the first address: a release file is served from
+    // objects.githubusercontent.com after a redirect from github.com, and nothing may send the download anywhere else.
+    private async Task<HttpResponseMessage> FetchAsync(string url, bool api, CancellationToken token)
+    {
+        for (var hop = 0; ; hop++)
+        {
+            RequireGitHubHttps(url);
+            using var request = api ? ApiRequest(url) : DownloadRequest(url);
+            var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+            if ((int)response.StatusCode is not (301 or 302 or 303 or 307 or 308)) return response;
+            var location = response.Headers.Location;
+            response.Dispose();
+            if (location is null) throw new HttpRequestException("GitHub redirected the request without saying where to.");
+            if (hop >= MaxRedirects) throw new HttpRequestException("GitHub redirected the request too many times.");
+            url = (location.IsAbsoluteUri ? location : new Uri(new Uri(url), location)).AbsoluteUri;
+        }
+    }
+
+    private static async Task<string> ReadBoundedAsync(HttpContent content, long limit, CancellationToken token)
+    {
+        if (content.Headers.ContentLength > limit) throw new InvalidDataException("GitHub's answer was larger than a list of releases can be.");
+        await using var stream = await content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        using var kept = new MemoryStream();
+        var buffer = new byte[16384];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        {
+            if (kept.Length + read > limit) throw new InvalidDataException("GitHub's answer was larger than a list of releases can be.");
+            kept.Write(buffer, 0, read);
+        }
+        return Encoding.UTF8.GetString(kept.GetBuffer(), 0, (int)kept.Length);
+    }
+
     private static HttpClient CreateClient() => new(new SocketsHttpHandler
     {
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        AutomaticDecompression = DecompressionMethods.All
+        AutomaticDecompression = DecompressionMethods.All,
+        // See FetchAsync: a redirect is only followed once its target has passed the same check as the first address.
+        AllowAutoRedirect = false
     })
     { Timeout = Timeout.InfiniteTimeSpan };
 
@@ -216,9 +273,18 @@ public sealed class AppUpdateService
             if (!match) continue;
             long size = 0;
             if (asset.TryGetProperty("size", out var sizeValue) && sizeValue.TryGetInt64(out var bytes) && bytes > 0) size = bytes;
-            return new(name, url, size);
+            return new(name, url, size, Digest(Text(asset, "digest")));
         }
         return null;
+    }
+
+    /// <summary>The hex of a "sha256:…" digest as GitHub lists it, or null for anything else: an older release without one, or another algorithm.</summary>
+    internal static string? Digest(string value)
+    {
+        const string prefix = "sha256:";
+        if (!value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || value.Length != prefix.Length + 64) return null;
+        var hex = value[prefix.Length..];
+        return hex.All(Uri.IsHexDigit) ? hex.ToLowerInvariant() : null;
     }
 
     internal static bool IsInstaller(string name, Version version) =>

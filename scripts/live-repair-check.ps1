@@ -3,7 +3,7 @@
 #   -Phase Break     deletes that Python's Package Cache folders and WinSCP's unins* files (what a cleaner or a crash does)
 #   -Phase Check     shows what Windows itself sees; run it before and after Repair
 #   -Phase Cleanup   removes whatever is left of both apps
-# Use a Python release whose setup is still validly signed (Repair refuses to run an unsigned or revoked one): 3.12.8's signing certificate has been revoked.
+# Use a Python release whose setup is still validly signed (Repair refuses to run an unsigned or revoked one, and checks revocation online): 3.12.8's signing certificate has been revoked.
 param([ValidateSet('Install', 'Break', 'Check', 'Cleanup')] [string] $Phase = 'Check',
       [string] $PythonVersion = '3.12.10',
       [string] $Backup = "$env:TEMP\tidywindow-live-backup")

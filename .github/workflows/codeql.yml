@@ -1,0 +1,52 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays, 05:23 UTC: a weekly pass picks up new queries even when nothing was pushed.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+# Every job states its own permissions; nothing is granted at the workflow level.
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze C#
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write # uploads the findings to the Security tab
+      actions: read # lets the action read the run's status on a private fork
+    steps:
+      # Actions are pinned to full commit SHAs; the version they came from is in the comment. Dependabot keeps both in step.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: csharp
+          build-mode: manual
+      - name: Build
+        # The same build as CI, run under CodeQL's tracer so generated code (XAML pages, the helpers) is analyzed too.
+        # The compiler server is turned off because compilations handed to it are invisible to the tracer.
+        shell: pwsh
+        run: |
+          dotnet restore TidyWindow.slnx --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "Restore failed." }
+          dotnet build TidyWindow.slnx -c Release --no-restore -p:UseSharedCompilation=false
+          if ($LASTEXITCODE -ne 0) { throw "Build failed." }
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:csharp

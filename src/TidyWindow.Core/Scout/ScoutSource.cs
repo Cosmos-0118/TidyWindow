@@ -35,8 +35,14 @@ internal readonly ref struct ScoutView
     /// <summary>Whether the full path has this text in it, ignoring case. For text without a separator that is whether the folder or the name has it, so no path is needed.</summary>
     public bool PathContains(string text)
     {
-        if (scratch is null || text.AsSpan().IndexOfAny(Separators) >= 0) return FullPath.Contains(text, StringComparison.OrdinalIgnoreCase);
-        return folder.AsSpan().Contains(text, StringComparison.OrdinalIgnoreCase) || Name.Contains(text, StringComparison.OrdinalIgnoreCase);
+        // The text is in the form searches compare in (no accents, lower case), so a path with such letters is compared in that form too, or Café never matches cafe.
+        if (scratch is null || text.AsSpan().IndexOfAny(Separators) >= 0)
+        {
+            var full = FullPath;
+            return full.Contains(text, StringComparison.OrdinalIgnoreCase) || (!System.Text.Ascii.IsValid(full) && ScoutQuery.Normalize(full.ToString()).Contains(text, StringComparison.Ordinal));
+        }
+        return folder.AsSpan().Contains(text, StringComparison.OrdinalIgnoreCase) || Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+            || (scratch.SearchFolder(folder!) is { } searchFolder && searchFolder.Contains(text, StringComparison.Ordinal));
     }
 
     public static ScoutView Of(ScoutEntry entry) =>
@@ -50,6 +56,17 @@ internal sealed class ScoutScratch
     private char[] name = new char[256];
     private char[] left = new char[512];
     private char[] right = new char[512];
+
+    private string? searchFolderOf;
+    private string? searchFolder;
+
+    /// <summary>A folder in the form searches compare in, or null when it is plain ASCII and has no other form. Entries of one folder come one after another, so it is worked out once for all of them.</summary>
+    public string? SearchFolder(string folder)
+    {
+        if (ReferenceEquals(searchFolderOf, folder)) return searchFolder;
+        searchFolderOf = folder;
+        return searchFolder = System.Text.Ascii.IsValid(folder) ? null : ScoutQuery.Normalize(folder);
+    }
 
     public ReadOnlySpan<char> Full(string folder, ReadOnlySpan<char> file) => Join(ref path, folder, file);
     public ReadOnlySpan<char> Left(string folder, ReadOnlySpan<char> file) => Join(ref left, folder, file);

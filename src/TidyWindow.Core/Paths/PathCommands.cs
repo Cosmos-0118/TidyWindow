@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 
 namespace TidyWindow.Next.Core;
@@ -10,7 +11,11 @@ public sealed record CommandLookup(string Command, IReadOnlyList<CommandCandidat
     public CommandCandidate? Winner => Candidates.Count > 0 ? Candidates[0] : null;
 }
 
-/// <summary>Answers "which program runs when I type this?" the way Windows decides it: folders in PATH order, then each extension in PATHEXT order.</summary>
+/// <summary>
+/// Answers "which program runs when I type this in a terminal?" the way a terminal decides it: folders in PATH order, then each extension in
+/// PATHEXT order. The current folder, which cmd tries first, and the App Paths registry key, which the Run box and Explorer also look at,
+/// are not part of the answer.
+/// </summary>
 public sealed class CommandResolver(Func<string, bool> fileExists, Func<string, bool> isAlias, IReadOnlyList<string> extensions)
 {
     public static readonly string[] Common = ["python", "python3", "pip", "node", "npm", "java", "javac", "dotnet", "git", "pwsh", "winget", "go", "rustc", "cargo"];
@@ -40,16 +45,55 @@ public sealed class CommandResolver(Func<string, bool> fileExists, Func<string, 
     }
 }
 
-public sealed record ProbeResult(string Version, bool StoreStub);
+/// <param name="Skipped">The program was not asked, because it would have opened a window instead of answering.</param>
+public sealed record ProbeResult(string Version, bool StoreStub, bool Skipped = false);
 
-/// <summary>Asks a program for its version. Only ever runs <c>--version</c> (or <c>-version</c> for Java), with a short limit, never a window.</summary>
+/// <summary>What a program file is, read from its header without running it.</summary>
+public enum ProgramKind { Unknown, Console, Windowed, Script }
+
+public static class ProgramFile
+{
+    /// <summary>
+    /// Reads a program's kind from its file header: a console program, a windowed one, a script, or something that is none of these. The
+    /// header, not the name, decides: whether a program takes a terminal or opens a window is written there by whoever built it.
+    /// </summary>
+    public static ProgramKind Kind(string file)
+    {
+        var extension = Path.GetExtension(file);
+        if (extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase) || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase)) return ProgramKind.Script;
+        try
+        {
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.None);
+            Span<byte> dos = stackalloc byte[64];
+            if (stream.ReadAtLeast(dos, dos.Length, throwOnEndOfStream: false) < dos.Length || dos[0] != (byte)'M' || dos[1] != (byte)'Z') return ProgramKind.Unknown;
+            var offset = BinaryPrimitives.ReadInt32LittleEndian(dos[60..]);
+            // The PE signature, the 20-byte file header, then the optional header, whose subsystem field sits at offset 68 in both its 32-bit and 64-bit forms.
+            Span<byte> pe = stackalloc byte[94];
+            if (offset < dos.Length || offset > stream.Length - pe.Length) return ProgramKind.Unknown;
+            stream.Position = offset;
+            if (stream.ReadAtLeast(pe, pe.Length, throwOnEndOfStream: false) < pe.Length || pe[0] != (byte)'P' || pe[1] != (byte)'E' || pe[2] != 0 || pe[3] != 0) return ProgramKind.Unknown;
+            if (BinaryPrimitives.ReadUInt16LittleEndian(pe[24..]) is not (0x10B or 0x20B)) return ProgramKind.Unknown;
+            return BinaryPrimitives.ReadUInt16LittleEndian(pe[92..]) switch { 3 => ProgramKind.Console, 2 => ProgramKind.Windowed, _ => ProgramKind.Unknown };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { return ProgramKind.Unknown; }
+    }
+}
+
+/// <summary>
+/// Asks a program for its version. Only ever runs <c>--version</c> (or <c>-version</c> for Java), with a short limit and no window of its own.
+/// Running a program at all is only safe for ones built to answer in a terminal, so a windowed program, or a file whose header cannot be
+/// read, is reported as not asked rather than started and killed four seconds later with whatever it opened.
+/// </summary>
 public static class CommandProbe
 {
     public static readonly TimeSpan Limit = TimeSpan.FromSeconds(4);
 
-    public static async Task<ProbeResult> RunAsync(string command, string file, CancellationToken cancellationToken = default)
+    /// <param name="alias">The file is a Store app alias. Its header cannot be read, and running it is the only way to tell a placeholder that opens the Store from the real program.</param>
+    public static async Task<ProbeResult> RunAsync(string command, string file, CancellationToken cancellationToken = default, bool alias = false)
     {
+        if (!alias && ProgramFile.Kind(file) is not (ProgramKind.Console or ProgramKind.Script)) return new("", false, Skipped: true);
         var start = new ProcessStartInfo(file)
+
         {
             UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true

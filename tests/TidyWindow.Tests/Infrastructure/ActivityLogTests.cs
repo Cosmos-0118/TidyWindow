@@ -140,6 +140,48 @@ public sealed class ActivityLogTests : IDisposable
     }
 
     [Fact]
+    public void ShortPathForwardSlashAndDomainFormsOfTheAccountNameAreScrubbedToo()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var name = Environment.UserName;
+        var log = Create();
+        Assert.Contains("%USERPROFILE%/tool.exe", log.Write(ActivityLevel.Error, ActivityArea.App, "x", "at " + profile.Replace('\\', '/') + "/tool.exe").Detail);
+        if (name.Length >= 4)
+        {
+            Assert.Equal(@"DESKTOP\%USERNAME% signed in", log.Write(ActivityLevel.Error, ActivityArea.App, "x", @"DESKTOP\" + name + " signed in").Detail);
+            // A bare word is left alone: an account called Admin or Test must not lose ordinary words from every message.
+            Assert.Equal("word " + name + " here", log.Write(ActivityLevel.Error, ActivityArea.App, "x", "word " + name + " here").Detail);
+        }
+        if (OperatingSystem.IsWindows())
+        {
+            var buffer = new System.Text.StringBuilder(1024);
+            if (GetShortPathNameW(profile, buffer, (uint)buffer.Capacity) is > 0 and < 1024)
+                Assert.DoesNotContain(buffer.ToString(), log.Write(ActivityLevel.Error, ActivityArea.App, "x", "at " + buffer + "\\tool.exe").Detail, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetShortPathNameW(string longPath, System.Text.StringBuilder shortPath, uint length);
+
+    [Fact]
+    public void ACrashIsSavedWholeToItsOwnFileAndNeverFoldedIntoAnEarlierOne()
+    {
+        var log = Create(folder);
+        var detail = "System.InvalidOperationException: first\n" + string.Join("\n", Enumerable.Range(0, 300).Select(i => $"   at Frame{i}()")) + "\nMIDDLE-MARKER\n" + new string('x', 5000);
+        var first = log.WriteCrash("TidyWindow hit an unexpected error", detail);
+        var second = log.WriteCrash("TidyWindow hit an unexpected error", "System.NullReferenceException: second");
+        Assert.Equal(2, log.Count); Assert.Equal(1, second.Count);
+        Assert.StartsWith("Details were saved to crash-", first.Detail);
+        var files = Directory.GetFiles(folder, "crash-*.txt");
+        Assert.Equal(2, files.Length);
+        var savedName = first.Detail!.Split(' ', '\n').First(x => x.StartsWith("crash-", StringComparison.Ordinal));
+        var saved = File.ReadAllText(Path.Combine(folder, savedName));
+        Assert.Contains("TidyWindow ", saved); Assert.Contains("Time: ", saved); Assert.Contains("MIDDLE-MARKER", saved); Assert.Contains("at Frame299()", saved);
+        // Without a folder the entry carries the text itself.
+        Assert.StartsWith("System.", Create().WriteCrash("x", "System.Exception: in memory").Detail);
+    }
+
+    [Fact]
     public void BlankMessageIsNeverStoredEmpty()
     {
         Assert.Equal("(no message)", Create().Write(ActivityLevel.Info, ActivityArea.App, "  ", "   ").Message);

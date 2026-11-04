@@ -3,10 +3,13 @@ using System.IO.Enumeration;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>A bounded, reusable index of one accessible folder. No content reads or junction traversal.</summary>
+/// <summary>A bounded, reusable index of one accessible folder. No content reads, and links (junctions, symbolic links, mount points) are never followed.</summary>
 public sealed class ScoutFolderIndex : IDisposable
 {
     private const int Capacity = 400000;
+    /// <summary>How far the folders that appeared whole since the last search are walked, per search, before the index admits it may be missing part of them.</summary>
+    private const int NewTreeBudget = 5000;
+    private static readonly EnumerationOptions Shallow = new() { RecurseSubdirectories = false, IgnoreInaccessible = false, ReturnSpecialDirectories = false, AttributesToSkip = FileAttributes.Offline };
     private readonly object gate = new();
     private ScoutEntryStore store = new();
     private readonly ConcurrentQueue<(string Path, string? Old)> changes = new();
@@ -14,10 +17,15 @@ public sealed class ScoutFolderIndex : IDisposable
     private Task? building;
     private FileSystemWatcher? watcher;
     private string? root;
+    private int epoch;
     private int skipped;
     private bool limited;
     private bool missedChanges;
     private bool disposed;
+
+    /// <summary>What one tracked change turned out to be once the file system was asked: what is at the path now (null when it is gone or cannot be indexed),
+    /// the contents of a folder that appeared whole, and whether anything about it could not be read.</summary>
+    private sealed record Update(string Path, string? Old, bool Gone, ScoutEntry? Current, List<ScoutEntry>? Children, bool Lost, int Inaccessible);
 
     public async Task<ScoutResult> SearchAsync(ScoutRequest request, IProgress<ScoutResult>? progress, CancellationToken token)
     {
@@ -25,28 +33,31 @@ public sealed class ScoutFolderIndex : IDisposable
         var query = new ScoutQuery(request.Query);
         var path = Path.GetFullPath(request.Root ?? throw new ArgumentException("Choose a folder."));
         if (!Directory.Exists(path)) throw new DirectoryNotFoundException("The selected folder is unavailable.");
-        Task build;
+        Task build; int generation;
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             if (!path.Equals(root, StringComparison.OrdinalIgnoreCase)) Start(path);
-            build = building!;
+            build = building!; generation = epoch;
         }
         while (true)
         {
             token.ThrowIfCancellationRequested();
+            // The file system is asked about the tracked changes outside the lock, so the watcher is never held up while that happens.
+            var updates = Reconcile();
             ScoutEntryStore.Snapshot snapshot; int errors; bool capped; bool dirty; bool complete;
             lock (gate)
             {
-                if (!path.Equals(root, StringComparison.OrdinalIgnoreCase)) throw new OperationCanceledException("The search folder changed.", token);
+                if (generation != epoch || !path.Equals(root, StringComparison.OrdinalIgnoreCase)) throw new OperationCanceledException("The search folder changed.", token);
                 // Asked before the entries are taken: a result can only be called complete if everything the walk found is in it.
                 complete = build.IsCompleted;
-                ApplyChanges(); snapshot = store.Capture(); errors = skipped; capped = limited; dirty = missedChanges || !changes.IsEmpty;
+                Apply(updates); snapshot = store.Capture(); errors = skipped; capped = limited; dirty = missedChanges;
             }
             // The search reads the entries where they are, outside the lock, so the walkers can keep adding to them meanwhile.
             var matches = query.Rank(new ScoutStoreSource(snapshot), request.Kind, token: token);
+            // Changes still queued are applied by the next search. Only changes that were really lost make the index say it may be out of date.
             var result = new ScoutResult(matches, "Folder index", snapshot.Live, errors, complete, capped,
-                dirty ? "Some changes could not be tracked. Refresh the folder index." : null);
+                Notice: dirty ? "Some changes could not be tracked. Refresh the folder index." : null);
             progress?.Report(result);
             if (complete) { await build.ConfigureAwait(false); return result; }
             await Task.WhenAny(build, Task.Delay(250, token)).ConfigureAwait(false);
@@ -58,14 +69,14 @@ public sealed class ScoutFolderIndex : IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             cancellation.Cancel(); watcher?.Dispose(); watcher = null;
-            root = null; building = null; store = new(); changes.Clear();
+            root = null; building = null; store = new(); changes.Clear(); epoch++;
         }
     }
     private void Start(string path)
     {
         if (!Directory.Exists(path)) throw new DirectoryNotFoundException("The selected folder is unavailable.");
         var oldCancellation = cancellation; oldCancellation.Cancel(); watcher?.Dispose(); cancellation = new();
-        var token = cancellation.Token; root = path; store = new(); skipped = 0; limited = false; missedChanges = false;
+        var token = cancellation.Token; root = path; store = new(); skipped = 0; limited = false; missedChanges = false; epoch++;
         while (changes.TryDequeue(out _)) { }
         try
         {
@@ -116,8 +127,7 @@ public sealed class ScoutFolderIndex : IDisposable
                 }
                 try
                 {
-                    var items = new FileSystemEnumerable<int>(directory.Path, (ref FileSystemEntry e) => batch.Add(directory.Id, ref e), new EnumerationOptions
-                    { RecurseSubdirectories = false, IgnoreInaccessible = false, ReturnSpecialDirectories = false, AttributesToSkip = FileAttributes.Offline });
+                    var items = new FileSystemEnumerable<int>(directory.Path, (ref FileSystemEntry e) => batch.Add(directory.Id, ref e), Shallow);
                     foreach (var added in items)
                     {
                         if (token.IsCancellationRequested) return;
@@ -160,29 +170,88 @@ public sealed class ScoutFolderIndex : IDisposable
         }
         batch.Clear(); return true;
     }
-    private void ApplyChanges()
+
+    /// <summary>One entry of a tree that appeared while the index was live. Only a folder with the reparse attribute is asked whether it is a link, one extra read each.</summary>
+    private static ScoutEntry Transform(ref FileSystemEntry e) =>
+        new(e.ToFullPath(), e.IsDirectory, e.IsDirectory ? null : e.Length, e.LastWriteTimeUtc, e.IsDirectory && (e.Attributes & FileAttributes.ReparsePoint) != 0 && IsLink(e.ToFileSystemInfo()));
+    /// <summary>True for a symbolic link, junction or mount point. A cloud placeholder (OneDrive) carries the reparse attribute too, but has no link target, so it is walked like any folder.</summary>
+    internal static bool IsLink(FileSystemInfo info)
     {
-        var count = 0;
-        while (count++ < 2000 && changes.TryDequeue(out var change))
+        try { return info.LinkTarget is not null; }
+        // What cannot be read is not followed: a loop through an unreadable junction would be worse than one folder missed.
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return true; }
+    }
+
+    // ---- changes seen by the watcher ----
+
+    /// <summary>Takes a batch of tracked changes and asks the file system what each is now. Runs outside the lock; <see cref="Apply"/> puts the answers in.</summary>
+    private List<Update> Reconcile()
+    {
+        var updates = new List<Update>();
+        var budget = NewTreeBudget;
+        while (updates.Count < 2000 && changes.TryDequeue(out var change)) updates.Add(Resolve(change.Path, change.Old, ref budget));
+        return updates;
+    }
+    private static Update Resolve(string path, string? old, ref int budget)
+    {
+        try
         {
-            if (change.Old is { } old) store.Move(old, change.Path);
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.Offline) != 0) return new(path, old, false, null, null, false, 0);
+            if ((attributes & FileAttributes.Directory) == 0)
+            {
+                var file = new FileInfo(path);
+                return new(path, old, false, new(path, false, file.Length, file.LastWriteTimeUtc), null, false, 0);
+            }
+            var directory = new DirectoryInfo(path);
+            var entry = new ScoutEntry(path, true, null, directory.LastWriteTimeUtc, (attributes & FileAttributes.ReparsePoint) != 0 && IsLink(directory));
+            // A renamed folder keeps its contents under the new name; a link is never walked. A folder that appeared whole (moved in, unpacked) sends one
+            // event for itself and none for what is inside it, so it is walked now, within the budget.
+            if (old is not null || entry.IsReparse) return new(path, old, false, entry, null, false, 0);
+            var children = new List<ScoutEntry>(); var inaccessible = 0;
+            var complete = WalkTree(path, children, ref budget, ref inaccessible);
+            return new(path, old, false, entry, children, !complete, inaccessible);
+        }
+        catch (FileNotFoundException) { return new(path, old, true, null, null, false, 0); }
+        catch (DirectoryNotFoundException) { return new(path, old, true, null, null, false, 0); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return new(path, old, false, null, null, true, 0); }
+    }
+    /// <summary>Lists a tree that appeared while the index was live. False when the budget ran out first, so part of it is still unknown.</summary>
+    private static bool WalkTree(string path, List<ScoutEntry> into, ref int budget, ref int inaccessible)
+    {
+        var pending = new Stack<string>(); pending.Push(path);
+        while (pending.TryPop(out var directory))
+        {
             try
             {
-                var attributes = File.GetAttributes(change.Path);
-                if ((attributes & FileAttributes.Offline) != 0) continue;
-                var folder = attributes.HasFlag(FileAttributes.Directory);
-                if (store.Live < Capacity || store.Contains(change.Path))
+                foreach (var entry in new FileSystemEnumerable<ScoutEntry>(directory, Transform, Shallow))
                 {
-                    var info = folder ? (FileSystemInfo)new DirectoryInfo(change.Path) : new FileInfo(change.Path);
-                    store.Upsert(change.Path, folder, info is FileInfo file ? file.Length : null, info.LastWriteTimeUtc.Ticks, attributes.HasFlag(FileAttributes.ReparsePoint));
-                    if (folder && change.Old is null) missedChanges = true; // A new/moved tree needs a refresh to discover all children.
+                    if (--budget < 0) return false;
+                    into.Add(entry);
+                    if (entry.IsFolder && !entry.IsReparse) pending.Push(entry.FullPath);
                 }
-                else limited = true;
             }
-            catch (FileNotFoundException) { store.RemoveTree(change.Path); }
-            catch (DirectoryNotFoundException) { store.RemoveTree(change.Path); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { missedChanges = true; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { inaccessible++; }
         }
+        return true;
+    }
+    private void Apply(List<Update> updates)
+    {
+        foreach (var update in updates)
+        {
+            if (update.Lost) missedChanges = true;
+            skipped += update.Inaccessible;
+            if (update.Old is { } old) store.Move(old, update.Path);
+            if (update.Gone) { store.RemoveTree(update.Path); continue; }
+            if (update.Current is null || !Upsert(update.Current)) continue;
+            if (update.Children is not null) foreach (var child in update.Children) if (!Upsert(child)) break;
+        }
+    }
+    private bool Upsert(ScoutEntry entry)
+    {
+        if (store.Live >= Capacity && !store.Contains(entry.FullPath)) { limited = true; return false; }
+        store.Upsert(entry.FullPath, entry.IsFolder, entry.Size, (entry.Modified ?? default).UtcTicks, entry.IsReparse);
+        return true;
     }
     public void Dispose() { lock (gate) { disposed = true; cancellation.Cancel(); watcher?.Dispose(); } }
 }

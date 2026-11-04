@@ -37,9 +37,9 @@ public sealed partial class DebloatView : UserControl
     private async void RemoveClick(object sender, RoutedEventArgs e)
     {
         if (Model is not { } model) return;
+        if (model.CanStop) { model.Stop(); return; }
         var rows = model.Selected();
         if (rows.Count == 0) return;
-        var careful = rows.Any(x => x.Entry.Item.Risk == DebloatRisk.Careful);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -47,10 +47,11 @@ public sealed partial class DebloatView : UserControl
             Content = new ScrollViewer { MaxHeight = 360, Content = new TextBlock { Text = DebloatViewModel.Warning(rows), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
             PrimaryButtonText = "Remove",
             CloseButtonText = "Cancel",
-            DefaultButton = careful ? ContentDialogButton.Close : ContentDialogButton.Primary,
+            // Enter must never remove something for every account: the safe button is the default, careful or not.
+            DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         await model.RemoveAsync(rows);
     }
 
@@ -70,7 +71,7 @@ public sealed partial class DebloatView : UserControl
             DefaultButton = ContentDialogButton.Primary,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         await model.PutAllBackAsync();
     }
 

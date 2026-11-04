@@ -100,14 +100,23 @@ public static partial class InstallFailure
         return AdministratorRequired().IsMatch(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
     }
 
-    /// <summary>Runs a WinGet command. If the installer says it needs administrator rights, tells the person and runs it once more through the Windows permission prompt.</summary>
-    public static async Task<CommandResult> RunAsync(ICommandRunner runner, CommandSpec command, string name, CancellationToken token)
+    /// <summary>
+    /// Runs a WinGet command. If the installer says it needs administrator rights, tells the person and runs it once more through the Windows permission prompt, with the program
+    /// <paramref name="locator"/> resolves for an elevated run (see <see cref="ElevatedProgram"/>). A program that must not run that way is not run again; the reason stays with the result.
+    /// </summary>
+    public static async Task<CommandResult> RunAsync(ICommandRunner runner, CommandSpec command, string name, CancellationToken token, IExecutableLocator? locator = null)
     {
         var result = await runner.RunAsync(command, token).ConfigureAwait(false);
         if (command.Elevate || !NeedsAdministrator(result)) return result;
+        var (file, problem) = locator?.Elevated(command.FileName) ?? ElevatedProgram.Resolve(command.FileName);
+        if (problem is not null)
+        {
+            try { command.Progress?.Report(new(problem, CommandOutputKind.Notice)); } catch { /* A display failure must not hide the reason. */ }
+            return result with { Error = (result.Error + "\n" + $"{name} needs administrator permission, which was not asked for: " + problem).Trim() };
+        }
         try { command.Progress?.Report(new($"{name} needs administrator permission. Asking Windows for it…", CommandOutputKind.Notice)); }
         catch { /* A display failure must not stop the retry. */ }
-        var elevated = await runner.RunAsync(command with { Elevate = true }, token).ConfigureAwait(false);
+        var elevated = await runner.RunAsync(command with { FileName = file, Elevate = true }, token).ConfigureAwait(false);
         // The elevated window's output cannot be captured, so keep what the first attempt said alongside the new exit code.
         return elevated with { Output = result.Output + "\n" + elevated.Output };
     }

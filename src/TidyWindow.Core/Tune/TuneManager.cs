@@ -11,8 +11,11 @@ namespace TidyWindow.Next.Core;
 /// Makes one change on this PC, after checking again that the item may be changed, and reads it back to be sure it took.
 /// A change that fails part-way is undone, so an item is never left half changed. Running it twice does the same as running it once.
 /// When <paramref name="only"/> is set, items of the other scope are refused: the administrator helper never writes to a user's registry.
+/// With a <paramref name="vault"/>, as in the administrator helper, the values an item replaces are kept there and putting it back uses only
+/// that copy: the app's own record could have been edited by any program running as the ordinary account, and it must never choose what
+/// the helper writes with administrator rights.
 /// </summary>
-public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IReadOnlyList<TuneItem> catalog, TuneScope? only = null) : ITuneChanger
+public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IReadOnlyList<TuneItem> catalog, TuneScope? only = null, ProtectedStore? vault = null) : ITuneChanger
 {
     /// <exception cref="UnauthorizedAccessException">The change needs administrator rights this process does not have.</exception>
     public TuneOutcome Change(TuneRequest request)
@@ -20,19 +23,26 @@ public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IRe
         var entry = TuneScan.Find(system, catalog, request.Id);
         if (entry is null) return new(false, "That setting is not on this PC.");
         if (only is { } scope && entry.Item.Scope != scope) return new(false, "That setting cannot be changed from here.");
-        if (request.Apply ? entry.Applied : !entry.Targets.Any(x => x.Applied)) return new(true);
+        // Nothing to write: already applied, or nothing of it is applied (then a copy kept for it says nothing useful any more).
+        if (request.Apply ? entry.Applied : !entry.Targets.Any(x => x.Applied)) { if (!request.Apply) Forget(request.Id); return new(true); }
         if (!entry.CanChange) return new(false, entry.Lock);
         var before = Capture(entry);
+        List<TuneSaved>? previous = null;
+        // The copy is kept before the first write: without it there is no exact way back.
+        if (request.Apply && !Keep(request.Id, before, out var problem, out previous)) return new(false, problem);
+        // Only the helper's own copy decides what goes back with administrator rights, never the one that arrived with the request.
+        var saved = request.Apply ? null : vault is null ? request.Saved : vault.Load<List<TuneSaved>>(request.Id);
         var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var done = new List<TuneTarget>();
         try
         {
-            if (request.Apply) Apply(entry, written); else Restore(entry, request.Saved, written, done);
+            if (request.Apply) Apply(entry, written); else Restore(entry, saved, written, done);
         }
-        catch (UnauthorizedAccessException) { Undo(entry, before, written); throw; }
+        catch (UnauthorizedAccessException) { Undo(entry, before, written); if (request.Apply) Unkeep(request.Id, previous); throw; }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException)
         {
             Undo(entry, before, written);
+            if (request.Apply) Unkeep(request.Id, previous);
             return new(false, ex.Message);
         }
         var after = TuneScan.Find(system, catalog, request.Id);
@@ -40,9 +50,48 @@ public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IRe
         if (!took)
         {
             Undo(entry, before, written);
+            if (request.Apply) Unkeep(request.Id, previous);
             return new(false, "Windows did not accept the change.");
         }
+        // Put back in full: the copy has done its work. Whatever stays applied was already so before TidyWindow touched it.
+        if (!request.Apply) Forget(request.Id);
         return new(true, null, Note(entry.Item), before);
+    }
+
+    /// <summary>Keeps the copy the item will be put back from. A setting found already applied keeps the original an earlier copy saved for it.</summary>
+    private bool Keep(string id, List<TuneSaved> before, out string problem, out List<TuneSaved>? previous)
+    {
+        problem = ""; previous = null;
+        if (vault is null) return true;
+        try
+        {
+            previous = vault.Load<List<TuneSaved>>(id);
+            vault.Save(id, Merge(before, previous));
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            problem = "The copy needed to put this setting back could not be kept, so it was not changed. " + ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>What is saved now, except that a setting found already applied keeps the original an earlier copy saved for it.</summary>
+    internal static List<TuneSaved> Merge(List<TuneSaved> now, List<TuneSaved>? earlier) =>
+        now.Select(s => s.WasApplied && earlier?.FirstOrDefault(o => string.Equals(o.Key, s.Key, StringComparison.OrdinalIgnoreCase) && string.Equals(o.Name, s.Name, StringComparison.OrdinalIgnoreCase) && !o.WasApplied) is { } kept ? kept : s).ToList();
+
+    /// <summary>Puts the copy back the way it was before a change that did not go through.</summary>
+    private void Unkeep(string id, List<TuneSaved>? previous)
+    {
+        if (vault is null) return;
+        try { if (previous is null) vault.Delete(id); else vault.Save(id, previous); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* A copy that lingers only ever puts things back the way they were. */ }
+    }
+
+    private void Forget(string id)
+    {
+        try { vault?.Delete(id); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* The setting is back; a copy that lingers does no harm. */ }
     }
 
     private static string? Note(TuneItem item) => item.Takes switch
@@ -62,6 +111,8 @@ public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IRe
     {
         foreach (var state in entry.Targets.Where(x => !x.Applied))
         {
+            // A value of a kind this page does not write is never replaced, whatever the rest of the item looks like. The scan locks such an item; this is the second check.
+            if (state.Current?.Kind == TuneKind.Other) throw new InvalidOperationException("This setting holds a kind of value this page does not change.");
             writer.Set(entry.Item.Scope, state.Target.Key, state.Target.Name, state.Target.Kind, TuneRules.Wanted(state.Target, state.Current));
             written.Add(Mark(state.Target));
         }
@@ -84,7 +135,16 @@ public sealed class LocalTuneChanger(ITuneSystem system, ITuneWriter writer, IRe
 
     private void Put(TuneScope scope, TuneTarget target, bool set, TuneKind kind, string text)
     {
-        if (set) { writer.Set(scope, target.Key, target.Name, kind == TuneKind.Other ? target.Kind : kind, text); return; }
+        if (set)
+        {
+            var actual = kind == TuneKind.Other ? target.Kind : kind;
+            // A saved copy names the kind of value it held. One of another kind is not something this page wrote, so it is not written back:
+            // the copy came from a file any program running as the user can edit. A number has to be one the registry can hold, too.
+            if (actual != target.Kind) throw new InvalidOperationException("The saved value is not the kind this setting takes, so it was not written.");
+            if (actual == TuneKind.Dword && !uint.TryParse(text, out _)) throw new InvalidOperationException("The saved value is not a number this setting can hold, so it was not written.");
+            writer.Set(scope, target.Key, target.Name, actual, text);
+            return;
+        }
         writer.Delete(scope, target.Key, target.Name);
         if (target.RemoveKey.Length > 0) writer.DeleteKey(scope, target.RemoveKey);
     }
@@ -221,13 +281,12 @@ public static class TuneHost
         if (changer is null)
         {
             if (!OperatingSystem.IsWindows()) return 66;
-            changer = new LocalTuneChanger(new WindowsTuneSystem(), new WindowsTuneWriter(), TuneCatalog.Load(), TuneScope.Machine);
+            changer = new LocalTuneChanger(new WindowsTuneSystem(), new WindowsTuneWriter(), TuneCatalog.Load(), TuneScope.Machine, new ProtectedStore("tune"));
         }
         isAdministrator ??= () => OperatingSystem.IsWindows() && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
-        try { await pipe.ConnectAsync(15000).ConfigureAwait(false); }
-        catch (Exception ex) when (ex is TimeoutException or IOException) { return 65; }
-        using var reader = new StreamReader(pipe);
+        using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
+        if (pipe is null) return 65;
+        var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
 
         async Task Reply(TuneOutcome reply)
@@ -268,34 +327,33 @@ public static class TuneHost
 }
 
 /// <summary>The app side: starts the helper through the Windows permission prompt and sends it each change over a private pipe.</summary>
-public sealed class TuneSession(Func<string, Task> launch) : ITuneChanger, IDisposable
+/// <param name="replyTimeout">How long one change may take in the helper. A registry write is immediate, so a helper that is quiet for the default two minutes is stuck and is let go.</param>
+public sealed class TuneSession(Func<string, Task> launch, TimeSpan? replyTimeout = null) : ITuneChanger, IDisposable
 {
+    public static readonly TimeSpan DefaultReplyTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan ByeTimeout = TimeSpan.FromMilliseconds(500);
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
-    private readonly object gate = new();
+    private readonly TimeSpan timeout = replyTimeout ?? DefaultReplyTimeout;
+    // One change at a time goes through the gate. The pipe itself sits behind "state", which is never held while waiting on the pipe, so
+    // closing the session never waits behind a change that is still in flight: it ends that change instead.
+    private readonly object gate = new(), state = new();
     private NamedPipeServerStream? pipe;
-    private StreamReader? reader;
+    private PipeLineReader? reader;
     private StreamWriter? writer;
+    private CancellationTokenSource? waiting;
+    private bool interrupted;
 
-    public bool IsOpen => pipe is { IsConnected: true };
+    public bool IsOpen { get { lock (state) return pipe is { IsConnected: true }; } }
 
-    public static TuneSession Elevated(string helperPath) => new(name =>
-    {
-        if (!File.Exists(helperPath)) throw new FileNotFoundException("The administrator helper is missing from this installation.", helperPath);
-        var info = new ProcessStartInfo(helperPath) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
-        info.ArgumentList.Add(TuneHost.Command); info.ArgumentList.Add(name);
-        Process process;
-        try { process = Process.Start(info) ?? throw new InvalidOperationException("The administrator helper could not be started."); }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new OperationCanceledException("Administrator permission was declined."); }
-        return process.WaitForExitAsync().ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
-    });
+    public static TuneSession Elevated(string helperPath) => new(name => HelperPipe.LaunchElevated(helperPath, TuneHost.Command, name));
 
     /// <summary>Asks for permission and connects. Throws <see cref="OperationCanceledException"/> if the person says no.</summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         if (IsOpen) return;
         Close();
-        var name = "tidywindow-tune-" + Guid.NewGuid().ToString("N");
-        var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var name = HelperPipe.NewName("tune");
+        var server = HelperPipe.CreateServer(name);
         try
         {
             var launched = Task.Run(() => launch(name), CancellationToken.None);
@@ -306,12 +364,12 @@ public sealed class TuneSession(Func<string, Task> launch) : ITuneChanger, IDisp
                 throw new IOException("The administrator helper stopped before it could connect.");
             }
             await connecting.ConfigureAwait(false);
-            var input = new StreamReader(server);
+            var input = new PipeLineReader(server);
             var output = new StreamWriter(server) { AutoFlush = true };
             await output.WriteLineAsync(JsonSerializer.Serialize(new TuneMessage("hello"), Json)).ConfigureAwait(false);
             var reply = JsonSerializer.Deserialize<TuneOutcome>(await input.ReadLineAsync().ConfigureAwait(false) ?? "", Json);
             if (reply is not { Ok: true }) throw new UnauthorizedAccessException("The helper did not get administrator permission.");
-            lock (gate) { pipe = server; reader = input; writer = output; }
+            lock (state) { pipe = server; reader = input; writer = output; interrupted = false; }
         }
         catch
         {
@@ -320,34 +378,73 @@ public sealed class TuneSession(Func<string, Task> launch) : ITuneChanger, IDisp
         }
     }
 
+    /// <exception cref="InvalidOperationException">The helper is not running.</exception>
+    /// <exception cref="IOException">The helper stopped, or did not answer in time and was let go.</exception>
     public TuneOutcome Change(TuneRequest request)
     {
         lock (gate)
         {
-            if (!IsOpen || reader is null || writer is null) throw new InvalidOperationException("The administrator helper is not running.");
+            NamedPipeServerStream current; PipeLineReader input; StreamWriter output;
+            using var limit = new CancellationTokenSource(timeout);
+            lock (state)
+            {
+                if (pipe is not { IsConnected: true } || reader is null || writer is null) throw new InvalidOperationException("The administrator helper is not running.");
+                (current, input, output) = (pipe, reader, writer);
+                waiting = limit; interrupted = false;
+            }
             TuneOutcome? reply;
             try
             {
-                writer.WriteLine(JsonSerializer.Serialize(new TuneMessage("set", request), Json));
-                reply = JsonSerializer.Deserialize<TuneOutcome>(reader.ReadLine() ?? "", Json);
+                // The pipe only takes a line once the helper reads it, so the write is bounded by the same clock as the reply.
+                output.WriteLineAsync(JsonSerializer.Serialize(new TuneMessage("set", request), Json)).WaitAsync(limit.Token).GetAwaiter().GetResult();
+                reply = JsonSerializer.Deserialize<TuneOutcome>(input.ReadLineAsync(limit.Token).GetAwaiter().GetResult() ?? "", Json);
             }
-            catch (Exception ex) when (ex is IOException or JsonException or ObjectDisposedException)
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or JsonException or ObjectDisposedException)
             {
-                CloseCore();
-                throw new IOException("The administrator helper stopped. Try again.");
+                bool timedOut;
+                lock (state) timedOut = limit.IsCancellationRequested && !interrupted;
+                Drop(current);
+                throw new IOException(timedOut ? "The administrator helper did not answer in time, so it was closed. Try again." : "The administrator helper stopped. Try again.");
             }
-            if (reply is null) { CloseCore(); throw new IOException("The administrator helper stopped. Try again."); }
+            finally { lock (state) if (waiting == limit) waiting = null; }
+            if (reply is null) { Drop(current); throw new IOException("The administrator helper stopped. Try again."); }
             return reply;
         }
     }
 
-    public void Close() { lock (gate) CloseCore(); }
-
-    private void CloseCore()
+    /// <summary>Lets go of a pipe whose helper stopped, or stopped answering. Closing the pipe is what ends the helper: its next read finds the pipe gone.</summary>
+    private void Drop(NamedPipeServerStream current)
     {
-        try { writer?.WriteLine(JsonSerializer.Serialize(new TuneMessage("bye"), Json)); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
-        try { pipe?.Dispose(); } catch (IOException) { }
-        pipe = null; reader = null; writer = null;
+        lock (state) if (ReferenceEquals(pipe, current)) { pipe = null; reader = null; writer = null; }
+        try { current.Dispose(); } catch (IOException) { }
+    }
+
+    /// <summary>Ends the session without waiting for the helper. A change still in flight fails with "the helper stopped".</summary>
+    public void Close()
+    {
+        NamedPipeServerStream? current; StreamWriter? output; bool busy;
+        lock (state)
+        {
+            current = pipe; output = writer;
+            pipe = null; reader = null; writer = null;
+            busy = waiting is not null;
+            if (waiting is { } pending) { interrupted = true; pending.Cancel(); }
+        }
+        if (current is null) return;
+        // A helper that is between changes is told to leave. One busy with a change is not reading, so it is simply cut off.
+        if (!busy && output is not null) SayBye(output);
+        try { current.Dispose(); } catch (IOException) { }
+    }
+
+    private static void SayBye(StreamWriter output)
+    {
+        try
+        {
+            var bye = output.WriteLineAsync(JsonSerializer.Serialize(new TuneMessage("bye"), Json));
+            // Bounded: a helper that has stopped reading is let go either way, and closing the pipe ends the write.
+            if (!bye.Wait(ByeTimeout)) bye.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        }
+        catch (Exception ex) when (ex is AggregateException or IOException or ObjectDisposedException or InvalidOperationException) { }
     }
 
     public void Dispose() => Close();

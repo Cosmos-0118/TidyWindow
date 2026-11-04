@@ -68,7 +68,7 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
             if (result == NoMoreItems) break;
             if (result != 0) continue;
             var product = code.ToString();
-            products.Add(new(product, context == MachineContext ? "Machine" : context == UserContext ? "User" : "Managed", sid.ToString(), Info(product, sid.ToString(), context, "ProductName") ?? "", Info(product, sid.ToString(), context, "LocalPackage")));
+            products.Add(new(product, context == MachineContext ? "Machine" : context == UserContext ? "User" : "Managed", sid.ToString(), Info(product, sid.ToString(), context, "ProductName") ?? "", Info(product, sid.ToString(), context, "LocalPackage"), Info(product, sid.ToString(), context, "Publisher") ?? ""));
         }
         return products;
     }

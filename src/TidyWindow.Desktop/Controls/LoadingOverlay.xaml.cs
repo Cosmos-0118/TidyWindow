@@ -36,7 +36,7 @@ public sealed partial class LoadingOverlay : UserControl
 
     private enum Pending { None, Show, Hide, Collapse }
     private readonly DispatcherQueueTimer timer;
-    private readonly bool animate = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+    private readonly bool animate = SystemUi.AnimationsEnabled;
     private Pending pending;
     private bool visible;
     private long shownAt;
@@ -45,12 +45,12 @@ public sealed partial class LoadingOverlay : UserControl
     {
         InitializeComponent();
         Message.Text = LiveText.Text = Text;
-        var settings = new Windows.UI.ViewManagement.UISettings();
-        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
+        // Read through the guarded helper: this runs inside InitializeComponent of every page with an overlay, where a refused setting would end the app at launch.
+        if (SystemUi.HighContrast)
         {
             // High contrast: no blur or gradients, just the user's own window and text colors.
-            var foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(settings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Foreground));
-            Layer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(settings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background)) { Opacity = 0.92 };
+            var foreground = new SolidColorBrush(SystemUi.Color(Windows.UI.ViewManagement.UIColorType.Foreground, Microsoft.UI.Colors.White));
+            Layer.Background = new SolidColorBrush(SystemUi.Color(Windows.UI.ViewManagement.UIColorType.Background, Microsoft.UI.Colors.Black)) { Opacity = 0.92 };
             LeftPane.Fill = GoldPane.Fill = QuietPane.Fill = foreground;
             Spinner.Foreground = foreground;
         }
@@ -59,8 +59,16 @@ public sealed partial class LoadingOverlay : UserControl
         timer.IsRepeating = false;
         timer.Tick += (_, _) => Tick();
         ActualThemeChanged += (_, _) => Rebuild();
-        Loaded += (_, _) => OutputPalette.Changed += Rebuild;
+        Loaded += (_, _) => { OutputPalette.Changed += Rebuild; Resume(); };
         Unloaded += (_, _) => { timer.Stop(); StopAnimation(); OutputPalette.Changed -= Rebuild; };
+    }
+
+    // Unloaded stopped the timer and the animation. Back in the tree, whatever was pending or showing carries on from where it was,
+    // so an overlay inside content that was collapsed meanwhile still appears, or still goes away.
+    private void Resume()
+    {
+        if (visible && animate) { (snap ??= BuildSnap()).Begin(); Spinner.IsActive = true; }
+        ActiveChanged();
     }
 
     private const int MaxLogLines = 300;

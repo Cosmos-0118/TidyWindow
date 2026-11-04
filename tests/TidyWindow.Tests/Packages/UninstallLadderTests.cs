@@ -22,8 +22,11 @@ public sealed class UninstallLadderTests : IDisposable
 
     private sealed class Locator : IExecutableLocator
     {
+        /// <summary>Why WinGet's program may not run as administrator; null lets it (the real rules are ElevatedProgramTests' subject).</summary>
+        public string? Problem { get; init; }
         public string? Find(ManagerKind manager) => "winget.exe";
         public string PowerShell => "powershell.exe";
+        public (string FileName, string? Problem) Elevated(string fileName) => (fileName, Problem);
     }
 
     private sealed class Host : IUninstallHost
@@ -32,8 +35,11 @@ public sealed class UninstallLadderTests : IDisposable
         public ClosedPrograms Closing = ClosedPrograms.None;
         public List<string> ClosedIn = [];
         public string Head = "";
+        /// <summary>Why an uninstaller may not run as administrator, by its path; null lets it.</summary>
+        public Func<string, string?> Problem = _ => null;
         public Task<ClosedPrograms> CloseProgramsInAsync(string folder, CancellationToken token) { ClosedIn.Add(folder); return Task.FromResult(Closing); }
         public string ReadHead(string path, int bytes) => Head;
+        public (string FileName, string? Problem) Elevated(string fileName) => (fileName, Problem(fileName));
     }
 
     /// <summary>A WinGet that lists the app until <see cref="Listed"/> says otherwise, and answers each uninstall from a script.</summary>
@@ -65,10 +71,11 @@ public sealed class UninstallLadderTests : IDisposable
 
     private static CommandResult Fail(int inner) => new(unchecked((int)0x8A150006), $"Found {Name} [PuTTY.PuTTY]\nStarting package uninstall...\nUninstall failed with exit code: {inner}", "");
 
-    private InstallationService Service(Winget runner, IInstallSystem pc, Host host, UninstallRecovery? recovery = null, RepairService? repair = null)
+    private InstallationService Service(Winget runner, IInstallSystem pc, Host host, UninstallRecovery? recovery = null, RepairService? repair = null, Locator? locator = null)
     {
         recovery ??= new UninstallRecovery(pc, host, runner, repair) { Delay = (_, _) => Task.CompletedTask };
-        return new InstallationService(new PackageService(runner, new Locator()), runner, new Locator(), null, recovery) { VerifyDelays = [], LateVerifyDelays = [] };
+        locator ??= new Locator();
+        return new InstallationService(new PackageService(runner, locator), runner, locator, null, recovery) { VerifyDelays = [], LateVerifyDelays = [] };
     }
 
     private static UninstallEntry Entry(string key, string uninstall = "", string quiet = "", string location = "", bool msi = true, string bundle = "") =>
@@ -340,6 +347,81 @@ public sealed class UninstallLadderTests : IDisposable
         Assert.Contains("did not guess", result.Detail);
     }
 
+    // ---- Administrator rights are given only to programs nobody but an administrator can replace ----
+
+    [Fact]
+    public async Task AnElevatedRetryIsRefusedWhenWinGetsProgramLivesWhereAnyoneCouldReplaceIt()
+    {
+        var runner = new Winget((_, _) => Fail(1603));
+        const string reason = @"winget.exe is installed in a folder that any program on this PC could change (C:\Users\me\x), so TidyWindow will not run it with administrator rights.";
+        var result = await Service(runner, Pc(Entry(MachineArp, $"MsiExec.exe /X{Code}")), new Host(), locator: new Locator { Problem = reason }).RunAsync(Ready(), Putty, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        // WinGet is never run as administrator; the ladder's last step still runs Windows Installer itself, which lives in the system folder.
+        Assert.DoesNotContain(runner.Uninstalls, x => x.Elevate);
+        Assert.Contains(runner.Commands, x => x.Elevate && x.FileName.EndsWith("msiexec.exe", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("Did not run the uninstall again as administrator: " + reason, result.Detail);
+        // The first failure is still what the explanation reads, and the other remedies were still tried.
+        Assert.Contains("reported error 1603", result.Detail);
+        Assert.Contains(runner.Uninstalls, x => !x.Arguments.Contains("--source"));
+    }
+
+    [Fact]
+    public async Task AnUninstallerRegisteredForTheWholePcIsNotRunFromAFolderAnyoneCouldChange()
+    {
+        const string key = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Tool_is1";
+        const string exe = @"C:\Users\Public\Tool\unins000.exe";
+        const string reason = @"unins000.exe is installed in a folder that any program on this PC could change (C:\Users\Public\Tool), so TidyWindow will not run it with administrator rights.";
+        var runner = new Winget((command, _) => command.FileName == exe ? new(0, "", "") : Fail(2)) { Id = @"ARP\Machine\X64\Tool_is1" };
+        var pc = Pc(Entry(key, $"\"{exe}\"", msi: false));
+        pc.Files.Add(exe);
+        // Whether TidyWindow has administrator rights itself or would ask for them, the program would run with them either way.
+        foreach (var administrator in new[] { true, false })
+        {
+            var host = new Host { IsAdministrator = administrator, Problem = path => path == exe ? reason : null };
+            var app = new ManagedPackage(ManagerKind.Winget, @"ARP\Machine\X64\Tool_is1", Name, "0.83.0.0");
+            var result = await Service(runner, pc, host).RunAsync(Ready(), app, PackageAction.Uninstall);
+            Assert.Equal(ActionOutcome.Failed, result.Outcome);
+            Assert.DoesNotContain(runner.Commands, x => x.FileName == exe);
+            Assert.Contains($"Did not run its own uninstaller ({exe}): {reason}", result.Detail);
+        }
+    }
+
+    [Fact]
+    public async Task APerUserUninstallerRunsAsThePersonSoItsFolderIsNotJudged()
+    {
+        const string key = @"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Tool_is1";
+        const string exe = @"C:\Users\me\AppData\Local\Tool\unins000.exe";
+        var removed = false;
+        var runner = new Winget((command, _) => command.FileName == exe ? Done(ref removed) : Fail(2)) { Id = @"ARP\User\X64\Tool_is1", Listed = () => !removed };
+        var pc = Pc(Entry(key, $"\"{exe}\"", msi: false));
+        pc.Files.Add(exe);
+        var host = new Host { Problem = _ => "never asked" };
+        var app = new ManagedPackage(ManagerKind.Winget, @"ARP\User\X64\Tool_is1", Name, "0.83.0.0");
+        var result = await Service(runner, pc, host).RunAsync(Ready(), app, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Completed, result.Outcome);
+        var direct = Assert.Single(runner.Commands, x => x.FileName == exe);
+        Assert.False(direct.Elevate);
+    }
+
+    [Fact]
+    public async Task AWholePcUninstallerIsRunFromThePathTheHostResolvedAndThePathIsShownFirst()
+    {
+        const string key = @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Tool_is1";
+        const string exe = @"C:\Program Files\Tool\unins000.exe";
+        var removed = false;
+        var runner = new Winget((command, _) => command.FileName == exe ? Done(ref removed) : Fail(2)) { Id = @"ARP\Machine\X64\Tool_is1", Listed = () => !removed };
+        var pc = Pc(Entry(key, $"\"{exe}\"", msi: false));
+        pc.Files.Add(exe);
+        var app = new ManagedPackage(ManagerKind.Winget, @"ARP\Machine\X64\Tool_is1", Name, "0.83.0.0");
+        var result = await Service(runner, pc, new Host()).RunAsync(Ready(), app, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Completed, result.Outcome);
+        var direct = Assert.Single(runner.Commands, x => x.FileName == exe);
+        Assert.True(direct.Elevate);
+        var lines = result.Detail.Split('\n');
+        Assert.Contains(lines, x => x.Contains($"Running its own uninstaller directly (Inno Setup): {exe} /VERYSILENT", StringComparison.Ordinal));
+        Assert.True(Array.FindIndex(lines, x => x.Contains("Running its own uninstaller", StringComparison.Ordinal)) < Array.FindIndex(lines, x => x.Contains("Its own uninstaller returned 0", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public async Task AnEntryForAProgramWindowsInstallerNoLongerHasIsRemovedAndTheAppLeavesTheList()
     {
@@ -381,7 +463,30 @@ public sealed class UninstallLadderTests : IDisposable
 
     // ---- Running an app's own uninstaller ----
 
-    private static NativeUninstall? Plan(UninstallEntry entry, FakePc pc, string head = "") => NativeUninstall.Plan(entry, pc, (_, _) => head);
+    private static NativeUninstall? Plan(UninstallEntry entry, FakePc pc, string head = "", Func<string, string>? machineExpand = null) => NativeUninstall.Plan(entry, pc, (_, _) => head, machineExpand);
+
+    [Fact]
+    public void AWholePcEntryIsExpandedWithThePcsVariablesNeverThePersons()
+    {
+        var pc = Pc(); pc.Files.Add(@"C:\Program Files\Tool\unins000.exe"); pc.Files.Add(@"C:\Users\me\AppData\Local\Tool\unins000.exe");
+        static string Machine(string text) => text.Replace("%ProgramFiles%", @"C:\Program Files", StringComparison.OrdinalIgnoreCase);
+        var plan = Plan(Entry(@"HKLM\x\Tool_is1", @"""%ProgramFiles%\Tool\unins000.exe""", msi: false), pc, machineExpand: Machine);
+        Assert.Equal(@"C:\Program Files\Tool\unins000.exe", plan!.FileName);
+        // A variable only the person's session has (and any program running as the person can set) is not filled in for an entry registered for the whole PC.
+        Assert.Null(Plan(Entry(@"HKLM\x\Tool_is1", @"""%LOCALAPPDATA%\Tool\unins000.exe""", msi: false), pc, machineExpand: Machine));
+    }
+
+    [Fact]
+    public void MachineVariablesExpandNestedValuesAndLeaveUnknownOnesAlone()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["SystemRoot"] = @"C:\Windows", ["TEMP"] = @"%SystemRoot%\TEMP" };
+        Assert.Equal(@"C:\Windows\TEMP\x.exe", MachineEnvironment.Expand(@"%temp%\x.exe", variables));
+        Assert.Equal(@"%LOCALAPPDATA%\x.exe", MachineEnvironment.Expand(@"%LOCALAPPDATA%\x.exe", variables));
+        Assert.Equal(@"100% C:\Windows", MachineEnvironment.Expand(@"100% %SystemRoot%", variables));
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        Assert.Equal(Path.Combine(windows, "notepad.exe"), MachineEnvironment.Expand(@"%SystemRoot%\notepad.exe"));
+        Assert.Equal(@"%USERPROFILE%\x.exe", MachineEnvironment.Expand(@"%USERPROFILE%\x.exe"));
+    }
 
     [Fact]
     public void AnMsiThatSaysInstallIsRemovedByItsCodeNotOpenedAgain()

@@ -22,7 +22,7 @@ public sealed partial class BackgroundView : UserControl
         var rows = model.SafeRows;
         if (rows.Count == 0) return;
         var list = new StackPanel { Spacing = 4 };
-        list.Children.Add(new TextBlock { Text = "These are safe to turn off: nothing you are likely to use depends on them. Items marked Careful are not included, and every change can be undone from the Turned off tab.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        list.Children.Add(new TextBlock { Text = "These are safe to turn off: nothing you are likely to use depends on them. Items marked Careful are not included, and every change can be undone from the Turned off tab. The changes apply to every user of this PC.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
         foreach (var row in rows) list.Children.Add(new TextBlock { Text = "•  " + row.Name, TextWrapping = TextWrapping.Wrap });
         var dialog = new ContentDialog
         {
@@ -34,7 +34,7 @@ public sealed partial class BackgroundView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.TurnOffSafeAsync(rows);
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.TurnOffSafeAsync(rows);
     }
 
     private async void RestoreAllClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.RestoreAllAsync(); }
@@ -79,7 +79,7 @@ public sealed partial class BackgroundView : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ActualTheme
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
         }
         if (!await model.SetAsync(row, wanted)) toggle.IsOn = row.Enabled;
     }

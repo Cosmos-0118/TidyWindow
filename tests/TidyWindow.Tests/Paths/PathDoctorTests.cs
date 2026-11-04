@@ -322,7 +322,7 @@ public sealed class MachinePathTests : IDisposable
 
     // The helper runs inside the test, on the same pipe the real one would use.
     private static MachinePathSession Session(Registry registry, bool admin = true) =>
-        new(pipe => MachinePathHost.RunAsync([MachinePathHost.Command, pipe], () => registry.Machine, value => { registry.Machine = value; registry.Writes++; }, () => admin, TimeSpan.FromSeconds(20)));
+        new(pipe => MachinePathHost.RunAsync([MachinePathHost.Command, pipe], () => registry.Machine, value => { registry.Machine = value; registry.Writes++; }, () => admin, TimeSpan.FromSeconds(20), check: (_, _) => null));
 
     [Fact]
     public async Task TheHelperReplacesTheWindowsWidePathOnlyWhenTheCallerSawTheCurrentOne()

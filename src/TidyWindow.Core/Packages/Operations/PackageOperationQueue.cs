@@ -40,8 +40,8 @@ public sealed class PackageOperationQueue
     private TaskCompletionSource idle = Completed();
     private CancellationTokenSource? stopSource;
     private Guid runningId;
-    /// <summary>How long a stopped operation gets to wind down before the queue moves on without it.</summary>
-    public TimeSpan StopGrace { get; init; } = TimeSpan.FromSeconds(15);
+    /// <summary>How long a stopped operation gets to wind down before the queue moves on without it: a little more than ending a command and its output takes at worst (see <see cref="ProcessRunner"/>).</summary>
+    public TimeSpan StopGrace { get; init; } = TimeSpan.FromSeconds(30);
     public event Action? Changed;
     /// <summary>Raised on the worker just before an operation runs.</summary>
     public event Action<QueueEntry>? Started;
@@ -263,6 +263,9 @@ public sealed class PackageOperationQueue
     private static PackageActionResult Failure(PackageOperation operation, Exception ex, CancellationTokenSource stop) =>
         ex is OperationCanceledException && stop.IsCancellationRequested
             ? new(ActionOutcome.Failed, $"Stopped {operation.Name}", operation.Fix is not null ? "This fix was stopped before it finished." : "It was stopped before it finished. An install or update that is stopped partway can leave the app incomplete; check Installed apps before trying again.")
+            // The runner ends a command that reaches its time budget, and its own words blame the connection, which a two-hour install does not deserve.
+            : ex is TimeoutException
+            ? new(ActionOutcome.Failed, $"Couldn’t {operation.Kind.ToString().ToLowerInvariant()} {operation.Name}", "It did not finish within the time TidyWindow allows, so its command was ended. An install or update that is ended partway can leave the app incomplete; check Installed apps before trying again.")
             : new(ActionOutcome.Failed, $"Couldn’t {operation.Kind.ToString().ToLowerInvariant()} {operation.Name}", ex.Message);
     private static void Notify(Action<QueueEntry>? handlers, QueueEntry entry)
     { if (handlers is not null) foreach (Action<QueueEntry> handler in handlers.GetInvocationList()) { try { handler(entry); } catch { /* Observers cannot stall the queue. */ } } }
@@ -295,6 +298,13 @@ public sealed class PackageOperationExecutor(PackageService packages, Installati
         var path = locator.Find(operation.Manager);
         if (path is null) return new(ActionOutcome.Failed, $"{operation.Name} could not be processed", "Its package manager is no longer installed. Check Overview.");
         var manager = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == operation.Manager), ManagerHealth.Ready, "", path, "");
+        // After a stop that an operation ignored, its command can hold the operation gate until it really ends. Waiting for that (this entry can be stopped too) beats failing every later entry at once.
+        if (!await packages.OperationGate.WaitAsync(0, token).ConfigureAwait(false))
+        {
+            try { progress?.Report(new("Waiting for the previous operation to finish…", CommandOutputKind.Notice)); } catch { /* A display failure must not stop the wait. */ }
+            await packages.OperationGate.WaitAsync(token).ConfigureAwait(false);
+        }
+        packages.OperationGate.Release();
         if (operation.Kind != PackageOperationKind.Install)
             return await installations.RunAsync(manager, operation.InstalledPackage ?? throw new ArgumentException("Missing installed identity."),
                 operation.Kind == PackageOperationKind.Update ? PackageAction.Update : PackageAction.Uninstall, token, progress, operation.Interactive).ConfigureAwait(false);

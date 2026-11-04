@@ -22,8 +22,8 @@ public sealed record UninstallEntry(string Key, string Name, string Version, str
     public bool NamedFromVisualStudio => Name.Contains(" from Visual Studio", StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>A product Windows Installer knows about. <see cref="Context"/> is Machine, User or Managed (installed for one user by an administrator).</summary>
-public sealed record MsiProduct(string Code, string Context, string Sid, string Name, string? LocalPackage);
+/// <summary>A product Windows Installer knows about. <see cref="Context"/> is Machine, User or Managed (installed for one user by an administrator). <see cref="Publisher"/> is who its record says made it, when it says.</summary>
+public sealed record MsiProduct(string Code, string Context, string Sid, string Name, string? LocalPackage, string Publisher = "");
 
 public sealed record RunningInstaller(int Id, string Name, DateTimeOffset? Started);
 

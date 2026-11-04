@@ -78,6 +78,8 @@ public sealed class PathBackup(string folder)
     {
         Directory.CreateDirectory(folder);
         var created = DateTime.UtcNow;
+        // Two changes inside one millisecond would otherwise share a name, and the later copy would overwrite the earlier one, losing a step of undo.
+        while (File.Exists(Path.Combine(folder, created.ToString("yyyyMMdd-HHmmss-fff") + ".json"))) created = created.AddMilliseconds(1);
         var item = new PathBackupItem(created.ToString("yyyyMMdd-HHmmss-fff"), created, raw, why);
         File.WriteAllText(Path.Combine(folder, item.Id + ".json"), JsonSerializer.Serialize(item, Json));
         foreach (var old in Directory.EnumerateFiles(folder, "*.json").OrderByDescending(x => x).Skip(Keep))
@@ -147,15 +149,19 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
         return to == 0 ? $"{entry.Raw} is now searched first." : $"Moved {entry.Raw} to position {to + 1}.";
     });
 
+    /// <summary>Adds a folder, written the way it was given: an entry typed as %LOCALAPPDATA%\Programs\x stays that way, so it follows the variable.</summary>
     public PathChange Add(string folder)
     {
-        folder = folder.Trim().Trim('"');
-        if (folder.Length == 0 || !Directory.Exists(folder)) return new(false, "That folder does not exist.");
-        var key = PathAnalyzer.Key(folder);
+        folder = Tidy(folder);
+        var real = analyzer.Expand(folder);
+        // "C:" or "bin\tools" would mean whatever folder a program happens to be in at the time, so only a whole path is taken.
+        if (folder.Length > 0 && !real.Contains('%') && !Path.IsPathFullyQualified(real)) return new(false, "Give the whole path of the folder, starting with its drive letter.");
+        if (folder.Length == 0 || real.Contains('%') || !Directory.Exists(real)) return new(false, "That folder does not exist.");
+        var key = PathAnalyzer.Key(real);
         var snapshot = Load();
         if (snapshot.Search.Any(x => PathAnalyzer.Key(x.Folder) == key)) return new(false, $"That folder is already in {Where}.");
         var raw = store.Read(target);
-        Save($"Added {folder}", PathEdit.Add(raw, folder.Length > 3 ? folder.TrimEnd('\\') : folder), raw);
+        Save($"Added {folder}", PathEdit.Add(raw, folder), raw);
         return new(true, $"Added {folder} to {Where}.");
     }
 
@@ -165,8 +171,12 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
         var snapshot = Load();
         var known = snapshot.Search.Select(x => PathAnalyzer.Key(x.Folder)).ToHashSet();
         var add = new List<string>();
-        foreach (var folder in folders.Select(x => x.Trim().Trim('"')))
-            if (folder.Length > 0 && Directory.Exists(folder) && known.Add(PathAnalyzer.Key(folder))) add.Add(folder.Length > 3 ? folder.TrimEnd('\\') : folder);
+        foreach (var folder in folders.Select(Tidy))
+        {
+            var real = analyzer.Expand(folder);
+            if (folder.Length > 0 && !real.Contains('%') && Path.IsPathFullyQualified(real) && Directory.Exists(real) && known.Add(PathAnalyzer.Key(real))) add.Add(folder);
+
+        }
         if (add.Count == 0) return new(false, $"Those folders are already in {Where}.");
         var raw = store.Read(target);
         var items = PathEdit.Items(raw);
@@ -200,6 +210,13 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
         return new(true, $"Restored {Where} from before: {item.Why.ToLowerInvariant()}.");
     }
 
+    // Without quotes or a trailing backslash (a root keeps its own), so the list stays tidy; %VARIABLES% are kept as given.
+    private static string Tidy(string folder)
+    {
+        folder = folder.Trim().Trim('"');
+        return folder.Length > 3 ? folder.TrimEnd('\\') : folder;
+    }
+
     private PathChange Edit(string why, PathEntry entry, Func<List<string>, string?> change)
     {
         var raw = store.Read(target);
@@ -213,8 +230,11 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
 
     private void Save(string why, string value, string? previous)
     {
-        backup.Record(previous ?? "", why);
-        store.Write(target, value, previous);
+        // The copy comes first, so there is always a way back. A write that fails takes its copy with it: otherwise Undo would offer to take back a change that never happened.
+        var item = backup.Record(previous ?? "", why);
+        try { store.Write(target, value, previous); }
+        catch { backup.Discard(item); throw; }
         broadcast();
     }
+
 }

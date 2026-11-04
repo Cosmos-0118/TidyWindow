@@ -1,0 +1,25 @@
+# Weekly dependency updates. The workflows pin every action to a commit SHA with the version in a comment;
+# Dependabot moves the SHA and the comment together. NuGet updates also refresh the packages.lock.json files.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      windows-app-sdk:
+        patterns:
+          - "Microsoft.WindowsAppSDK*"
+          - "Microsoft.Windows.SDK.BuildTools*"
+      test-tooling:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5

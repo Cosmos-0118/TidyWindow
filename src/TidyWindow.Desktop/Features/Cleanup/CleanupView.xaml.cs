@@ -9,7 +9,11 @@ public sealed partial class CleanupView : UserControl
 
     private CleanupViewModel? Model => DataContext as CleanupViewModel;
 
-    private async void ScanClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.ScanAsync(); }
+    private async void ScanClick(object sender, RoutedEventArgs e)
+    {
+        if (Model is not { } model) return;
+        if (model.CanStop) model.Stop(); else await model.ScanAsync();
+    }
     private async void EstimateClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.EstimateAsync(); }
     private async void UndoClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UndoAsync(); }
 
@@ -25,7 +29,7 @@ public sealed partial class CleanupView : UserControl
                 XamlRoot = XamlRoot, Title = model.CleanLabel + "?", Content = new TextBlock { Text = warning, TextWrapping = TextWrapping.Wrap },
                 PrimaryButtonText = "Clean", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) return;
         }
         await model.CleanAsync();
     }

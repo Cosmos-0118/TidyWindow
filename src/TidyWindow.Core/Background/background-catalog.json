@@ -62,7 +62,7 @@
       "topic": "Diagnostic data",
       "icon": "E774",
       "summary": "Scans the programs installed on this PC and reports compatibility information to Microsoft.",
-      "effect": "Windows stops scanning your programs for compatibility data. Updating Windows still works; Microsoft just gets less warning about apps that may not suit a new version.",
+      "effect": "Windows stops scanning your programs for compatibility data. Updates still install; Microsoft just gets less warning about apps that may not suit a new version, so a feature update may be offered to this PC later than to others.",
       "processes": [
         "CompatTelRunner.exe",
         "Microsoft Compatibility Telemetry"
@@ -202,7 +202,8 @@
       "icon": "E7B3",
       "risk": "careful",
       "summary": "Recall can save snapshots of your screen every few seconds so you can search what you saw. It stays off unless you turn it on in Settings, and it only exists on Copilot+ PCs.",
-      "effect": "Switches on the Windows setting “Turn off saving snapshots for use with Recall”. Recall can no longer save snapshots, and Windows deletes any it saved before.",
+      "effect": "Switches on the Windows setting “Turn off saving snapshots for use with Recall”, which Settings then shows as managed by your organization. Recall can no longer save snapshots, and Windows deletes any it saved before.",
+      "minBuild": 26100,
       "targets": [
         {
           "kind": "policy",
@@ -221,6 +222,7 @@
       "icon": "E7B3",
       "summary": "Takes a screenshot when you use it and analyzes it on your PC to suggest actions. It does nothing until you open it.",
       "effect": "Click to Do is no longer available. Nothing else changes.",
+      "minBuild": 26100,
       "targets": [
         {
           "kind": "policy",
@@ -258,7 +260,7 @@
       "icon": "E7FC",
       "risk": "careful",
       "summary": "Xbox sign-in, cloud game saves, networking and accessory support.",
-      "effect": "Xbox app and Game Pass games, Microsoft Store games and Xbox accessories may stop signing in or saving to the cloud. Games from other stores are not affected.",
+      "effect": "Xbox app and Game Pass games, Microsoft Store games and Xbox accessories may stop signing in or saving to the cloud. Games from other stores that sign in to Xbox, such as Sea of Thieves, Halo or Minecraft on Steam, are affected too; other games are not.",
       "targets": [
         {
           "kind": "service",
@@ -414,13 +416,17 @@
       "icon": "E72D",
       "risk": "careful",
       "summary": "Lets this PC share its internet connection with other devices.",
-      "effect": "Mobile hotspot and internet connection sharing stop working until you turn this back on.",
+      "effect": "Mobile hotspot and internet connection sharing stop working until you turn this back on. WSL 2, Windows Sandbox and Hyper-V virtual machines get their networking through the same service, so it is locked while any of them is set up on this PC.",
       "targets": [
         {
           "kind": "service",
           "name": "SharedAccess",
           "off": "disabled",
-          "defaultStart": 3
+          "defaultStart": 3,
+          "alsoNeededBy": [
+            "hns",
+            "vmcompute"
+          ]
         },
         {
           "kind": "service",
@@ -845,7 +851,7 @@
       "topic": "Screen recording",
       "icon": "E714",
       "summary": "Lets Windows record your screen in the background while you play (Game Bar clips and “record what happened”) and broadcast it.",
-      "effect": "Game Bar can't record or broadcast. Other screen recorders, such as OBS, are not affected.",
+      "effect": "Game Bar can't record or broadcast, and its capture settings show as managed by your organization. Other screen recorders, such as OBS, are not affected.",
       "processes": [
         "GameBar.exe",
         "GameBarFTServer.exe"
@@ -897,6 +903,7 @@
       "icon": "E70F",
       "summary": "The AI rewrite, summarize and write features built into Notepad.",
       "effect": "The AI buttons and menus disappear from Notepad. Notepad opens, edits and saves files exactly as before.",
+      "minBuild": 22621,
       "targets": [
         {
           "kind": "policy",
@@ -915,6 +922,7 @@
       "icon": "E790",
       "summary": "Cocreator, Generative Fill and Image Creator in Paint.",
       "effect": "Paint no longer offers Cocreator, Generative Fill or Image Creator. Drawing and editing in Paint are not affected.",
+      "minBuild": 22621,
       "targets": [
         {
           "kind": "policy",
@@ -954,6 +962,14 @@
           "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
           "name": "DODownloadMode",
           "block": 0,
+          "values": [
+            0,
+            1,
+            2,
+            3,
+            99,
+            100
+          ],
           "needsPro": true
         }
       ],
@@ -967,7 +983,7 @@
       "icon": "E7E8",
       "risk": "careful",
       "summary": "On laptops and other PCs with Modern Standby, Windows keeps Wi-Fi connected while the PC sleeps, which wakes it for background traffic and drains the battery.",
-      "effect": "Wi-Fi may disconnect while the PC sleeps, so email, messages and downloads wait until you wake it. Sleep itself is not affected. This only changes PCs that use Modern Standby.",
+      "effect": "Wi-Fi may disconnect while the PC sleeps, so email, messages and downloads wait until you wake it. Sleep itself is not affected. This only changes PCs that use Modern Standby, and the power setting then shows as managed by your organization.",
       "targets": [
         {
           "kind": "policy",
@@ -992,7 +1008,7 @@
       "topic": "Search",
       "icon": "E721",
       "summary": "Downloads the daily pictures, holidays and trending topics shown in the search box and Start menu search.",
-      "effect": "Search stops showing daily pictures and trending topics. Searching for your files and apps works as before.",
+      "effect": "Search stops showing daily pictures and trending topics, and Settings shows the search highlights switch as managed by your organization. Searching for your files and apps works as before.",
       "processes": [
         "SearchHost.exe"
       ],
@@ -1079,7 +1095,7 @@
       "icon": "E707",
       "risk": "careful",
       "summary": "Registers this PC and its location with your Microsoft account so you can find it if it is lost or stolen.",
-      "effect": "You can't locate this PC from your Microsoft account, and it stops sending its location there. Apps that use location on this PC are not affected.",
+      "effect": "You can't locate this PC from your Microsoft account, and it stops sending its location there; Settings shows Find My Device as managed by your organization. Apps that use location on this PC are not affected.",
       "targets": [
         {
           "kind": "policy",
@@ -1125,14 +1141,15 @@
       "topic": "Gaming",
       "icon": "E7FC",
       "risk": "careful",
-      "summary": "Supports the GameInput interface that some games and apps use to read controllers and other game devices.",
+      "summary": "Supports the GameInput interface that some games and apps use to read controllers and other game devices. Newer Windows builds include it; some games install their own copy under Program Files (x86).",
       "effect": "Games and apps that use GameInput may not see your controller or other game devices until you turn this back on. Most games use other ways to read controllers.",
       "targets": [
         {
           "kind": "service",
           "name": "GameInputSvc",
           "off": "disabled",
-          "defaultStart": 3
+          "defaultStart": 3,
+          "image": "%ProgramFiles(x86)%\\Microsoft GameInput\\"
         }
       ]
     }

@@ -74,10 +74,16 @@
       "packages": ["Microsoft.People", "Microsoft.SkypeApp"], "sources": ["Win11Debloat Apps.json"]
     },
     {
-      "id": "teams-consumer", "name": "Microsoft Teams (personal)", "group": "microsoft", "icon": "E8F2", "storeId": "XP8BT8DW290MPQ",
-      "summary": "The chat app pinned to the taskbar for personal accounts.",
-      "effect": "You lose Teams chat for personal accounts. Teams for work or school, installed from your organisation, is a different app and is not touched.",
-      "packages": ["MicrosoftTeams", "MSTeams"], "sources": ["Win11Debloat Apps.json"]
+      "id": "teams-consumer", "name": "Microsoft Teams (personal, old)", "group": "microsoft", "icon": "E8F2", "storeId": "XP8BT8DW290MPQ",
+      "summary": "The older Teams chat app that Windows 11 pinned to the taskbar for personal accounts.",
+      "effect": "You lose the old Teams chat for personal accounts. The current Teams app, which serves work, school and personal accounts alike, is a separate item and is not touched. Put back installs the current Teams app from the Store.",
+      "packages": ["MicrosoftTeams"], "sources": ["Win11Debloat Apps.json"]
+    },
+    {
+      "id": "teams", "name": "Microsoft Teams", "group": "microsoft", "icon": "E8F2", "risk": "careful", "storeId": "XP8BT8DW290MPQ",
+      "summary": "The current Teams app. It serves work and school accounts as well as personal ones, and an organisation can install it for you.",
+      "effect": "Teams stops working for every account on this PC, including work or school sign-ins, and Windows is told not to install it again for new accounts. Keep it if anyone on this PC uses Teams for work or school.",
+      "packages": ["MSTeams"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "todo", "name": "Microsoft To Do", "group": "microsoft", "icon": "E73A", "storeId": "9NBLGGH5R558",
@@ -136,7 +142,7 @@
     {
       "id": "xbox-app", "name": "Xbox app and Game Bar", "group": "microsoft", "topic": "Gaming", "icon": "E7FC", "risk": "careful", "storeId": "9MV0B5HZVK9Z",
       "summary": "The Xbox app, the Game Bar overlay (Win+G) and its helpers.",
-      "effect": "Win+G, game captures and the Xbox app stop working. Games from the Store and Steam still run. The sign-in components that games need are kept.",
+      "effect": "Win+G, game captures and the Xbox app stop working. Games from the Store and Steam still run, but Game Pass games cannot be installed or updated without the Xbox app. The sign-in components that games need are kept.",
       "packages": ["Microsoft.GamingApp", "Microsoft.XboxApp", "Microsoft.XboxGamingOverlay", "Microsoft.XboxGameOverlay", "Microsoft.XboxSpeechToTextOverlay"], "sources": ["Win11Debloat Apps.json"]
     },
     {
@@ -232,26 +238,26 @@
     {
       "id": "oem-hp", "name": "HP pre-installed apps", "group": "manufacturer", "topic": "HP", "icon": "E7F8", "risk": "careful",
       "summary": "HP Support Assistant, myHP, Smart, Jump Starts, Privacy Settings and other HP extras.",
-      "effect": "HP's support and update tools go. Drivers are not part of these apps and stay. HP Smart is the printer app: keep it if you print from this PC.",
-      "packages": ["AD2F1837.*"], "sources": ["Win11Debloat Apps.json"]
+      "effect": "HP's support and update tools go, and so does HP Smart, the printer app: keep this item if you print from this PC. Drivers are not part of these apps and stay. HP System Event Utility (the Fn keys), HP Audio Control and OMEN Gaming Hub are kept.",
+      "packages": ["AD2F1837.*"], "except": ["AD2F1837.HPSystemEventUtility", "AD2F1837.HPAudioControl", "AD2F1837.OMENCommandCenter"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "oem-dell", "name": "Dell pre-installed apps", "group": "manufacturer", "topic": "Dell", "icon": "E7F8", "risk": "careful",
       "summary": "Dell Update, SupportAssist, Digital Delivery, Optimizer and other Dell extras.",
-      "effect": "Dell's update and support tools go. Keep them if you want Dell to deliver BIOS and driver updates for you.",
-      "packages": ["DellInc.*", "ScreenovateTechnologies.DellMobileConnect*", "STMicroelectronicsMEMS.DellFreeFallDataProtection*"], "sources": ["Win11Debloat Apps.json"]
+      "effect": "Dell's update and support tools go. Keep them if you want Dell to deliver BIOS and driver updates for you. Dell Digital Delivery (which delivers software bought with the PC), Dell Power Manager and Alienware Command Center are kept.",
+      "packages": ["DellInc.*", "ScreenovateTechnologies.DellMobileConnect*", "STMicroelectronicsMEMS.DellFreeFallDataProtection*"], "except": ["DellInc.DellDigitalDelivery", "DellInc.DellPowerManager", "DellInc.AlienwareCommandCenter"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "oem-lenovo", "name": "Lenovo pre-installed apps", "group": "manufacturer", "topic": "Lenovo", "icon": "E7F8", "risk": "careful",
       "summary": "Lenovo Vantage, Smart Experience, Welcome and other Lenovo extras.",
-      "effect": "Vantage's hardware settings (battery limit, performance mode) and Lenovo's update tool go. Keep them if you use those. Glance, which uses the camera to notice when you look away, goes too.",
-      "packages": ["E046963F.*", "E0469640.*", "LenovoCompanyLimited.*", "MirametrixInc.GlancebyMirametrix*"], "sources": ["Win11Debloat Apps.json"]
+      "effect": "Vantage's hardware settings (battery limit, performance mode) and Lenovo's update tool go. Keep them if you use those. Glance, which uses the camera to notice when you look away, goes too. Lenovo Utility, which shows the on-screen display for the Fn keys, is kept.",
+      "packages": ["E046963F.*", "E0469640.*", "LenovoCompanyLimited.*", "MirametrixInc.GlancebyMirametrix*"], "except": ["E0469640.LenovoUtility"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "oem-asus", "name": "ASUS pre-installed apps", "group": "manufacturer", "topic": "ASUS", "icon": "E7F8", "risk": "careful",
       "summary": "MyASUS and other ASUS extras.",
-      "effect": "MyASUS settings such as battery care and fan modes go. Keep it if you use them.",
-      "packages": ["B9ECED6F.*", "AsusTeKCOMPUTERINC.*"], "sources": ["Win11Debloat Apps.json"]
+      "effect": "MyASUS settings such as battery care and fan modes go. Keep it if you use them. Armoury Crate, which controls fans, lighting and performance on ROG and TUF PCs, is kept.",
+      "packages": ["B9ECED6F.*", "AsusTeKCOMPUTERINC.*"], "except": ["B9ECED6F.ArmouryCrate"], "sources": ["Win11Debloat Apps.json", "TidyWindow debloat audit"]
     },
     {
       "id": "oem-acer", "name": "Acer pre-installed apps", "group": "manufacturer", "topic": "Acer", "icon": "E7F8", "risk": "careful",

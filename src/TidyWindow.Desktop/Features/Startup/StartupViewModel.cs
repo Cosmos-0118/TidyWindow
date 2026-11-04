@@ -218,6 +218,9 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanRestore), nameof(ScanLabel), nameof(ScanOverlay), nameof(EmptyVisibility) }) Changed(name);
     }
 
+    // Expected failures are explained by their message; anything else keeps its stack for the log.
+    private static string Detail(Exception ex) => ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString();
+
     public async Task ScanAsync()
     {
         if (Busy || lifetime.IsCancellationRequested) return;
@@ -335,10 +338,11 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed.");
             log.Write(ActivityLevel.Info, ActivityArea.App, "Startup change stopped", "Administrator permission was declined.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
+            // Whatever stopped the change (the helper could not start, a policy, a damaged file), the page is told and stays up.
             toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be changed", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be changed", Detail(ex));
         }
         finally
         {
@@ -382,10 +386,10 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed.");
             log.Write(ActivityLevel.Info, ActivityArea.App, "Startup change stopped", "Administrator permission was declined.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
             toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be removed", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be removed", Detail(ex));
         }
         finally
         {
@@ -411,10 +415,10 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             log.Write(done ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, done ? "Startup item put back" : "Startup item could not be put back", $"{change.Name}: {outcome.Error}".TrimEnd(' ', ':'));
         }
         catch (OperationCanceledException) { toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
             toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be put back", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be put back", Detail(ex));
         }
         finally { working = false; Notify(); }
         await ScanAsync();
@@ -436,11 +440,12 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             log.Write(ActivityLevel.Info, ActivityArea.App, "Startup items turned back on", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
             toasts.Show("startup", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Brief(ex.Message));
-            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup restore could not finish", ex.Message);
+            log.Write(ActivityLevel.Error, ActivityArea.App, "Startup restore could not finish", Detail(ex));
         }
+
         finally { working = false; Notify(); }
         await ScanAsync();
     }

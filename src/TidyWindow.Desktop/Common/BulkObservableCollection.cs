@@ -13,6 +13,8 @@ public sealed class BulkObservableCollection<T> : ObservableCollection<T>
     {
         var next = items as IReadOnlyList<T> ?? items.ToArray();
         if (next.Count == Count && next.SequenceEqual(this)) return false;
+        // The same guard the ordinary changes have: a listener must not swap the content from inside a notification about it.
+        CheckReentrancy();
         Items.Clear();
         foreach (var item in next) Items.Add(item);
         OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));

@@ -48,8 +48,12 @@ The downloads include .NET and the Windows App SDK. You do not need to install e
 
 | Download | How to use it |
 | --- | --- |
-| **Installer** — `TidyWindow-Setup-<version>.exe` | Download from [the latest release](https://github.com/Cosmos-0118/TidyWindow/releases/latest) and run it. Installs for your account by default, with an option to install for all users. Adds a Start menu entry. |
+| **Installer** — `TidyWindow-Setup-<version>.exe` | Download from [the latest release](https://github.com/Cosmos-0118/TidyWindow/releases/latest) and run it. Installs for all users by default and asks for administrator permission once, during setup; its first page offers a per-user install instead. Adds a Start menu entry. |
 | **Portable** — `TidyWindow-<version>-win-x64.zip` | Extract the whole archive into a folder, then run `TidyWindow.Next.exe`. Keep the helper folders alongside it. |
+
+**Where the app lives matters.** Windows-wide changes run through a helper program that starts from the install folder each time you approve an administrator prompt. In the default location, Program Files, only administrators can change that folder. A per-user install or the portable ZIP puts the app in a folder your account can write to, so any program running as you could swap the helper before your next approved prompt, and the prompt would then approve that program. If you choose one of those, put the folder somewhere only administrators can change, or accept that trade-off.
+
+Each release also carries `SHA256SUMS.txt` and a build attestation that records which workflow run produced the files; [Build from source](#build-from-source) shows how to check a download.
 
 1. Open **Overview** to check which package managers are available. It offers setup help for missing managers; you only need one to start searching for apps.
 2. Open **Install Hub**, search for an app, and review the package and source before installing. **Queue** shows progress and command output.
@@ -96,12 +100,15 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 
 ## Before a change runs
 
-TidyWindow keeps the action and its consequences visible:
+TidyWindow keeps the action and its consequences visible, and keeps the administrator part of its work apart from the rest:
 
-- **Reviewed actions.** Cleanup, Quiet, Tune, Debloat, Fixes and Lab use catalogs validated at startup, with a second allowlist that rejects actions outside them.
-- **Permissions when needed.** The app runs without administrator rights. Windows-wide changes use a separate helper, `TidyWindow.CleanHost.exe`, after you approve the Windows prompt.
-- **Saved originals.** Reversible changes save their original state before writing. Held cleanup files, installer repair backups and startup restore data survive app restarts.
+- **Reviewed actions.** Cleanup, Quiet, Tune, Debloat and Fixes come from catalogs built into the app and checked when it starts, with a second allowlist that rejects anything outside them. The helper that applies Windows-wide changes rebuilds each action from its own copy of those catalogs, so the app can only name an entry, never hand it a command. Lab has no catalog: it allows a fixed set of power-plan commands and changes the priority of one process you picked, and refuses anything else.
+- **Permissions when needed.** The app runs as your ordinary account and never asks for elevation itself. Opened with "Run as administrator", it says so and closes, because every program it starts would get those rights and it reads settings files any program can change. Windows-wide changes run in a separate helper, `TidyWindow.CleanHost.exe`, which starts with administrator rights only after you approve the Windows prompt. The two talk over a private named pipe that only your account and administrators can open.
+- **Saved originals.** Reversible changes save their original state before writing. Anything the helper later puts back with administrator rights (a removed startup item, the registry a repair backed up, the original value of a tweak) is read from a folder under `%ProgramData%\TidyWindow.Next` that only administrators can change, so a program running under your account cannot plant a replacement for the helper to write. Your own copies of those records, held cleanup files, logs and settings live in `%LOCALAPPDATA%\TidyWindow.Next`.
+- **Guarded PATH and package managers.** Path Doctor refuses to add a folder to the Windows-wide PATH when accounts without administrator rights could change it, and the helper starts package managers only from locations ordinary accounts cannot change.
 - **Checked results.** Changes are read back where supported. An unverified outcome is reported as unverified rather than claimed as a success.
+
+The helper starts from the install folder, so where TidyWindow is installed is part of this: see the note under [Get started](#get-started).
 
 Undo is specific to the tool. Cleanup holds old installers and unfinished downloads for 14 days; ordinary caches are deleted, and emptying the Recycle Bin cannot be undone. Package installs and Windows repair commands do not have a universal rollback. Fixes shows the commands it will run before you proceed.
 
@@ -110,7 +117,7 @@ Undo is specific to the tool. Cleanup holds old installers and unfinished downlo
 
 Installs, updates and uninstalls share one queue. It runs one operation at a time, rejects duplicate or conflicting requests for the same manager, package and scope, and continues after a failure. The app checks the package inventory after the command exits.
 
-Installer dialogs and Windows administrator prompts remain native windows. Chocolatey and global Scoop operations use a separate elevated window, so their output is shown there instead of inside TidyWindow. Declining elevation reports a failure and the queue moves on.
+Installer dialogs and Windows administrator prompts remain native windows. Chocolatey operations use a separate elevated window, so their output is shown there instead of inside TidyWindow. Declining elevation reports a failure and the queue moves on. Scoop keeps its script in your profile, where any program you run could change it, so TidyWindow does not run Scoop operations for all users with administrator rights; the card says to use an administrator PowerShell window for those.
 
 The queue belongs to the current session and does not resume after a crash. Closing the app is blocked while work remains.
 
@@ -118,7 +125,7 @@ The queue belongs to the current session and does not resume after a crash. Clos
 
 ## Build from source
 
-You need **Windows 10 build 19041 or later (x64)** and the **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)**. The SDK version and roll-forward policy are in [`global.json`](global.json). Package managers are optional for building.
+You need **Windows 10 build 19041 or later (x64)** and the **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)**. The SDK version and roll-forward policy are in [`global.json`](global.json); CI installs its SDK from that file too. Package managers are optional for building.
 
 ```powershell
 git clone https://github.com/Cosmos-0118/TidyWindow.git
@@ -129,13 +136,21 @@ dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --no-re
 ./artifacts/preview/TidyWindow.Next.exe
 ```
 
-Run the tests:
+Run the tests the way CI does, after that restore:
 
 ```powershell
-dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore
+dotnet build TidyWindow.slnx -c Release --no-restore
+dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
 ```
 
-The standard tests do not install packages or change Windows settings. To opt into live, read-only machine checks, set `$env:TIDYWINDOW_LIVE_TESTS = '1'` before running them.
+The standard tests do not install packages, change Windows settings or need a network. Tests that look at the real PC are opt-in through environment variables and are reported as skipped until the variable is set; `dotnet test --filter "Category!=Live"` leaves them out altogether.
+
+| Variable | What it switches on |
+| --- | --- |
+| `TIDYWINDOW_LIVE_TESTS=1` | Read-only checks of this PC's packages, services, registry, installed programs and caches. One test cleans *copies* of real cache folders made in a temp folder; nothing of yours is deleted. |
+| `TIDYWINDOW_LIVE_DOWNLOAD=1` (with the one above) | Also downloads one vendor installer and unpacks it in a temp folder. |
+| `TIDYWINDOW_RECOVERY_TESTS=1` with `TIDYWINDOW_TEST_ARTIFACTS=<folder>` | Copies your Scoop into that folder and runs the recovery scripts on the copy. |
+| `TIDYWINDOW_ELEVATED_TESTS=1`, in an administrator window | Runs the privileged repair path against a throwaway key under `HKCU`. |
 
 <details>
 <summary><b>Build a self-contained folder or installer</b></summary>
@@ -143,20 +158,25 @@ The standard tests do not install packages or change Windows settings. To opt in
 To bundle .NET and the Windows App SDK:
 
 ```powershell
-dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --self-contained true -o artifacts/publish
+dotnet restore src/TidyWindow.Desktop/TidyWindow.Desktop.csproj --locked-mode -p:SelfContained=true
+dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --no-restore --self-contained true -o artifacts/publish
 ```
 
-Use **`dotnet build`** for this app. `dotnet publish` leaves out the compiled pages (`*.xbf`) and `TidyWindow.Next.pri`, causing the app to close at startup.
+Use **`dotnet build`** for this app. `dotnet publish` leaves out the compiled pages (`*.xbf`) and `TidyWindow.Next.pri`, causing the app to close at startup. Release builds keep their debug information inside the assemblies (`DebugType=embedded` in `Directory.Build.props`), so a stack trace in the logs names source files and line numbers, and there are no separate `.pdb` files to ship or strip.
 
-To build an installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php), build the self-contained folder above, then run:
+To build an installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) (CI uses 6.7.1), build the self-contained folder above, then run:
 
 ```powershell
 pwsh installer/build.ps1 -Version 5.0.0 -PublishDir artifacts/publish
 ```
 
-The installer asks before removing settings and undo data during uninstall. The release workflow tests the app, builds both the installer and portable ZIP, and checks installation and uninstallation before attaching the files to a GitHub release.
+The installer defaults to an all-users install (see [Get started](#get-started)) and asks before removing settings and undo data during uninstall. The release workflow tests the app, builds both the installer and the portable ZIP, checks that the installer installs, starts and uninstalls, writes `SHA256SUMS.txt`, and attaches all three to the GitHub release together with a build provenance attestation. To check a download, compare its hash with `SHA256SUMS.txt`, or ask GitHub which run built it:
 
-`main` is the current app; CI builds and tests pushes and pull requests. Pushing a version tag such as `v5.0.0` runs the release workflow. An existing release keeps its title and notes when build assets are attached. Releases through v4.7.x belong to the legacy app.
+```powershell
+gh attestation verify TidyWindow-Setup-5.0.0.exe --repo Cosmos-0118/TidyWindow
+```
+
+`main` is the current app; CI builds and tests pushes and pull requests, CodeQL scans the C# code, and Dependabot proposes dependency and workflow updates weekly. Pushing a version tag such as `v5.0.0` runs the release workflow. An existing release keeps its title and notes when build assets are attached; a re-run for the same tag replaces them, and the attestation records which run made the copy that is live. Releases through v4.7.x belong to the legacy app.
 
 </details>
 
@@ -179,7 +199,7 @@ The research notes explain what each tool changes, the evidence behind it, and w
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. [Open an issue](https://github.com/Cosmos-0118/TidyWindow/issues) with the page you were using, your Windows version, and what you expected to happen. Review logs before sharing them, since package names and local paths can still appear.
+Bug reports, ideas and pull requests are welcome. [Open an issue](https://github.com/Cosmos-0118/TidyWindow/issues) with the page you were using, your Windows version, and what you expected to happen. Review logs before sharing them: the account name is replaced by `%USERPROFILE%`, but package names, other local paths and, for a crash, the stack trace can still appear.
 
 For code changes, run the tests above and keep catalog entries tied to documented Windows behavior. Research notes are part of the project: explaining why a change should exist matters as much as implementing it.
 

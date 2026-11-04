@@ -5,7 +5,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The analyzer set is pinned and raised on purpose: a newer SDK must not turn new warnings into build errors on its own. -->
+    <AnalysisLevel>10.0</AnalysisLevel>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Restore checks every package, direct and transitive, against the advisory feed. With warnings as errors, a known vulnerability
+         stops the build on purpose rather than quietly; Dependabot proposes the update that clears it. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <!-- Release builds keep their debug information inside the assemblies, so the crash records the app writes carry file and line numbers
+         and there are no separate .pdb files to ship or strip. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
+    <!-- On CI the source paths in that information take the repository-relative /_/ form, so two builds of one commit come out the same. -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <!-- Helper programs build here, and the app copies them from here. One place so a project can sit at any depth. -->
     <ArtifactsDir>$(MSBuildThisFileDirectory)artifacts/</ArtifactsDir>
   </PropertyGroup>

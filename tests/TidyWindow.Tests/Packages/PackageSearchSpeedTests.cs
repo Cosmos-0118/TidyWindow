@@ -327,6 +327,69 @@ public sealed class ChocolateyFeedTests
         var feed = new ChocolateyFeed(new HttpClient(new StubHandler(_ => throw new HttpRequestException("offline"))));
         await feed.WarmAsync();
     }
+
+    // Headers arrive, then nothing: the body is read from the network too, so the search's deadline must cover it.
+    private sealed class StalledContent : HttpContent
+    {
+        public StalledContent() => Headers.ContentType = new("application/atom+xml");
+        protected override Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context) => Task.Delay(Timeout.Infinite);
+        protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new StalledStream());
+        protected override bool TryComputeLength(out long length) { length = -1; return false; }
+        private sealed class StalledStream : Stream
+        {
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) { await Task.Delay(Timeout.Infinite, cancellationToken); return 0; }
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException(); public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { } public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException(); public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
+    [Fact]
+    public async Task ABodyThatStallsAfterTheHeadersEndsAtTheDeadlineInsteadOfHoldingTheSearch()
+    {
+        var feed = new ChocolateyFeed(new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent() })), deadline: TimeSpan.FromMilliseconds(300));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => feed.SearchAsync("git", 60).WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10));
+        // And the service treats it as the feed failing, not as the person cancelling: the command line answers instead.
+        var runner = new FastSearchFallbackTests.Runner("git|2.50\n");
+        var service = new PackageService(runner, new FastSearchFallbackTests.Locator(), feed);
+        var result = await service.SearchAsync(new(ManagerDefinition.All.Single(x => x.Kind == ManagerKind.Chocolatey), ManagerHealth.Ready, "2", "choco.exe", "Ready"), "git");
+        Assert.Null(result.Error);
+        Assert.Single(runner.Commands);
+    }
+
+    [Fact]
+    public async Task AnswersThatAreNotAPackageListAreRefusedBeforeTheyAreParsed()
+    {
+        var portal = new ChocolateyFeed(new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>sign in</html>", Encoding.UTF8, "text/html") })));
+        var refused = await Assert.ThrowsAsync<HttpRequestException>(() => portal.SearchAsync("git", 60));
+        Assert.Contains("text/html", refused.Message);
+        var huge = new ChocolateyFeed(new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[5 * 1024 * 1024]) { Headers = { ContentType = new("application/atom+xml") } } })));
+        Assert.Contains("larger", (await Assert.ThrowsAsync<HttpRequestException>(() => huge.SearchAsync("git", 60))).Message);
+    }
+
+    [Fact]
+    public async Task AFeedThatAsksForAPauseIsLeftAloneForThatLong()
+    {
+        var clock = new Clock();
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.TooManyRequests) { Headers = { RetryAfter = new(TimeSpan.FromSeconds(30)) } });
+        var feed = new ChocolateyFeed(new HttpClient(handler), clock);
+        await Assert.ThrowsAsync<HttpRequestException>(() => feed.SearchAsync("git", 60));
+        await Assert.ThrowsAsync<HttpRequestException>(() => feed.SearchAsync("git", 60));
+        Assert.Single(handler.Requests);
+        clock.Now = clock.Now.AddSeconds(31);
+        await Assert.ThrowsAsync<HttpRequestException>(() => feed.SearchAsync("git", 60));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    private sealed class Clock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.Parse("2026-11-03T00:00:00Z");
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
 }
 
 public sealed class FastSearchFallbackTests : IDisposable
@@ -334,13 +397,13 @@ public sealed class FastSearchFallbackTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "tidywindow-fallback-" + Guid.NewGuid().ToString("N"));
     public void Dispose() { try { Directory.Delete(root, true); } catch (IOException) { } }
 
-    private sealed class Locator : IExecutableLocator
+    internal sealed class Locator : IExecutableLocator
     {
         public string? Find(ManagerKind manager) => "manager.exe";
         public string PowerShell => "powershell.exe";
     }
 
-    private sealed class Runner(string output = "") : ICommandRunner
+    internal sealed class Runner(string output = "") : ICommandRunner
     {
         public List<CommandSpec> Commands { get; } = [];
         public Task<CommandResult> RunAsync(CommandSpec command, CancellationToken cancellationToken = default) { Commands.Add(command); return Task.FromResult(new CommandResult(0, output, "")); }

@@ -1,6 +1,10 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace TidyWindow.Next.Core;
 
@@ -26,12 +30,13 @@ public sealed record ActivityFilter(ActivityLevel MinLevel = ActivityLevel.Info,
 /// persistent problem stays a single line. Entries are bounded in memory and stored as JSON lines on disk.
 /// Writing never throws: a disk problem is reported through <see cref="StorageError"/>.
 /// </summary>
-public sealed class ActivityLog
+public sealed partial class ActivityLog
 {
-    private const int MaxMessage = 200, MaxDetail = 4000, RotateBytes = 1 << 20, LookBack = 25;
+    private const int MaxMessage = 200, MaxDetail = 4000, RotateBytes = 1 << 20, LookBack = 25, MaxCrashFiles = 20;
     private static readonly TimeSpan RepeatWindow = TimeSpan.FromHours(6);
     private static readonly JsonSerializerOptions Json = new() { Converters = { new JsonStringEnumConverter() } };
     private static readonly string Profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    private static readonly Regex? Personal = PersonalForms();
     private readonly object gate = new();
     private readonly List<ActivityEntry> entries = [];
     private readonly int capacity;
@@ -58,7 +63,21 @@ public sealed class ActivityLog
     /// <summary>Entries from oldest to newest.</summary>
     public IReadOnlyList<ActivityEntry> Snapshot() { lock (gate) return entries.ToArray(); }
 
-    public ActivityEntry Write(ActivityLevel level, ActivityArea area, string message, string? detail = null)
+    public ActivityEntry Write(ActivityLevel level, ActivityArea area, string message, string? detail = null) => Write(level, area, message, detail, merge: true);
+
+    /// <summary>
+    /// Records a crash with everything a bug report needs. The whole text, with the app version and the Windows build, goes to a file of its own
+    /// beside the log (crash-&lt;time&gt;.txt), and the entry points at it; the entry alone would keep only the start and end of a long stack.
+    /// Two crashes are never folded into one entry, however alike their messages. Never throws: without a folder, or when the file cannot be
+    /// written, the entry carries what it can of the text itself.
+    /// </summary>
+    public ActivityEntry WriteCrash(string message, string detail)
+    {
+        var saved = SaveCrash(detail);
+        return Write(ActivityLevel.Error, ActivityArea.App, message, saved is null ? detail : $"Details were saved to {saved} in the Logs folder.\n\n{detail}", merge: false);
+    }
+
+    private ActivityEntry Write(ActivityLevel level, ActivityArea area, string message, string? detail, bool merge)
     {
         message = Tidy(message, MaxMessage, singleLine: true) ?? "(no message)";
         detail = Tidy(detail, MaxDetail, singleLine: false);
@@ -66,7 +85,7 @@ public sealed class ActivityLog
         lock (gate)
         {
             var now = clock();
-            var repeat = FindRepeat(level, area, message, now);
+            var repeat = merge ? FindRepeat(level, area, message, now) : -1;
             if (repeat >= 0)
             {
                 var old = entries[repeat];
@@ -112,6 +131,13 @@ public sealed class ActivityLog
         return text.ToString();
     }
 
+    /// <summary>What a crash file starts with: when, which build of TidyWindow, on which Windows. The same facts a bug report asks for first.</summary>
+    public static string Platform()
+    {
+        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
+        return $"TidyWindow {version}\n{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture}), {RuntimeInformation.FrameworkDescription}";
+    }
+
     private int FindRepeat(ActivityLevel level, ActivityArea area, string message, DateTimeOffset now)
     {
         for (var i = entries.Count - 1; i >= Math.Max(0, entries.Count - LookBack); i--)
@@ -144,6 +170,26 @@ public sealed class ActivityLog
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { StorageError = ex.Message; }
     }
 
+    // The crash file is written whole and synchronously: the process is about to end, and a handler that returns before the write lands records nothing.
+    private string? SaveCrash(string detail)
+    {
+        if (Folder is null) return null;
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            var stamp = clock().ToLocalTime();
+            var name = $"crash-{stamp:yyyyMMdd-HHmmss}.txt";
+            for (var n = 2; File.Exists(Path.Combine(Folder, name)); n++) name = $"crash-{stamp:yyyyMMdd-HHmmss}-{n}.txt";
+            var text = $"{Platform()}\nTime: {stamp:yyyy-MM-dd HH:mm:ss zzz}\n\n{Scrub(detail.Replace("\r\n", "\n").Replace('\r', '\n')).Trim()}\n";
+            File.WriteAllText(Path.Combine(Folder, name), text, new UTF8Encoding(false));
+            // Only the newest few are kept; the names sort by time.
+            foreach (var old in Directory.GetFiles(Folder, "crash-*.txt").OrderDescending(StringComparer.OrdinalIgnoreCase).Skip(MaxCrashFiles))
+                try { File.Delete(old); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return name;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { StorageError = ex.Message; return null; }
+    }
+
     private void Load()
     {
         var latest = new Dictionary<string, (long Order, ActivityEntry Entry)>();
@@ -172,8 +218,7 @@ public sealed class ActivityLog
     private static string? Tidy(string? text, int max, bool singleLine)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
-        text = text.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
-        if (Profile.Length > 0) text = text.Replace(Profile, "%USERPROFILE%", StringComparison.OrdinalIgnoreCase);
+        text = Scrub(text.Replace("\r\n", "\n").Replace('\r', '\n').Trim());
         var clean = new StringBuilder(text.Length);
         foreach (var c in text)
         {
@@ -186,4 +231,47 @@ public sealed class ActivityLog
         // Errors usually name the cause at the start and the failure at the end; keep both.
         return singleLine ? text[..(max - 1)] + "…" : text[..(max * 3 / 8)] + "\n…\n" + text[^(max * 5 / 8)..];
     }
+
+    /// <summary>
+    /// Replaces the account name wherever a program is likely to have written it: the profile folder in its long, 8.3 (C:\Users\BALATH~1) and
+    /// forward-slash forms, and the bare name after a backslash or slash (DOMAIN\name, as whoami and installers print it). A bare name on its own
+    /// is left alone, because an account called "Admin" or "Test" would otherwise lose ordinary words from every message.
+    /// </summary>
+    internal static string Scrub(string text) => Personal is null ? text : Personal.Replace(text, m => m.Groups["path"].Success ? "%USERPROFILE%" : "%USERNAME%");
+
+    private static Regex? PersonalForms()
+    {
+        var paths = new List<string>();
+        void AddPath(string path)
+        {
+            if (path.Length < 4) return;
+            paths.Add(Regex.Escape(path));
+            paths.Add(Regex.Escape(path.Replace('\\', '/')));
+        }
+        AddPath(Profile);
+        if (Profile.Length > 0 && OperatingSystem.IsWindows() && ShortPath(Profile) is { } shortProfile && !shortProfile.Equals(Profile, StringComparison.OrdinalIgnoreCase)) AddPath(shortProfile);
+        var names = new[] { System.Environment.UserName, Path.GetFileName(Profile) }
+            .Where(x => x.Length >= 4).Distinct(StringComparer.OrdinalIgnoreCase).Select(Regex.Escape).ToList();
+        var parts = new List<string>();
+        if (paths.Count > 0) parts.Add("(?<path>" + string.Join("|", paths) + ")");
+        if (names.Count > 0) parts.Add(@"(?<name>(?<=[\\/])(?:" + string.Join("|", names) + @")(?=$|[\\/\s""'.,;:)\]]))");
+        if (parts.Count == 0) return null;
+        try { return new Regex(string.Join("|", parts), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(2)); }
+        catch (ArgumentException) { return null; }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static string? ShortPath(string path)
+    {
+        try
+        {
+            var buffer = new StringBuilder(1024);
+            var length = GetShortPathNameW(path, buffer, (uint)buffer.Capacity);
+            return length == 0 || length >= buffer.Capacity ? null : buffer.ToString();
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return null; }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetShortPathNameW(string longPath, StringBuilder shortPath, uint length);
 }

@@ -18,29 +18,31 @@ internal sealed class FakeStartupPc : IStartupSystem, IStartupWriter
     public HashSet<string> Running = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Writes = [];
     public bool DenyWrites;
+    /// <summary>Every place and file the scan looked at, so a test can tell what a scan of one item left alone.</summary>
+    public List<string> Reads = [];
 
     // What was read, so a test can tell a read of one item from a read of everything.
     public int FolderReads, TaskReads, StoreReads, RunningReads, OneFolderReads, OneTaskReads, OneStoreReads, OneRunningChecks;
     public List<string> Warmed = [];
 
-    public IReadOnlyList<RunValue> RunValues() => Runs;
+    public IReadOnlyList<RunValue> RunValues() { Reads.Add("runs"); return Runs; }
     public byte[]? Approved(StartupScope scope, string subKey, string name) => ApprovedState.GetValueOrDefault($"{scope}|{subKey}|{name}");
-    public IReadOnlyList<FolderItem> FolderItems() { FolderReads++; return Folder; }
-    public (IReadOnlyList<ScheduledStartup>, int) Tasks() { TaskReads++; return (TaskList, OwnedTasks); }
-    public IReadOnlyList<ServiceFacts> Services() => ServiceList;
-    public IReadOnlyList<StoreStartup> StoreTasks() { StoreReads++; return Store; }
+    public IReadOnlyList<FolderItem> FolderItems() { Reads.Add("folder"); FolderReads++; return Folder; }
+    public (IReadOnlyList<ScheduledStartup>, int) Tasks() { Reads.Add("tasks"); TaskReads++; return (TaskList, OwnedTasks); }
+    public IReadOnlyList<ServiceFacts> Services() { Reads.Add("services"); return ServiceList; }
+    public IReadOnlyList<StoreStartup> StoreTasks() { Reads.Add("store"); StoreReads++; return Store; }
     public bool LookupFailsAfterAWrite;
-    public ScheduledStartup? TaskAt(string path) { OneTaskReads++; if (LookupFailsAfterAWrite && Writes.Count > 0) throw new FileNotFoundException("0x80070002"); return TaskList.FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase)); }
-    public FolderItem? FolderItemFor(StartupScope scope, string fileName) { OneFolderReads++; return Folder.FirstOrDefault(x => x.Scope == scope && string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase)); }
+    public ScheduledStartup? TaskAt(string path) { Reads.Add("tasks"); OneTaskReads++; if (LookupFailsAfterAWrite && Writes.Count > 0) throw new FileNotFoundException("0x80070002"); return TaskList.FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase)); }
+    public FolderItem? FolderItemFor(StartupScope scope, string fileName) { Reads.Add("folder"); OneFolderReads++; return Folder.FirstOrDefault(x => x.Scope == scope && string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase)); }
     public StoreStartup? StoreTaskFor(string family, string taskId)
     {
-        OneStoreReads++;
+        Reads.Add("store"); OneStoreReads++;
         return Store.FirstOrDefault(x => string.Equals(x.Family, family, StringComparison.OrdinalIgnoreCase) && string.Equals(x.TaskId, taskId, StringComparison.OrdinalIgnoreCase));
     }
     public bool IsRunning(string exePath) { OneRunningChecks++; return Running.Contains(exePath); }
     public void Warm(IReadOnlyCollection<string> paths) => Warmed.AddRange(paths);
-    public IReadOnlyList<WindowsSetting> WindowsSettings() => Settings;
-    public FileFacts Describe(string path) => Files.GetValueOrDefault(path) ?? new(false, "", "", "", StartupTrust.Unknown);
+    public IReadOnlyList<WindowsSetting> WindowsSettings() { Reads.Add("settings"); return Settings; }
+    public FileFacts Describe(string path) { Reads.Add("describe " + path); return Files.GetValueOrDefault(path) ?? new(false, "", "", "", StartupTrust.Unknown); }
     public List<UninstallEntry> Installed = [];
     public Dictionary<string, string> Packages = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<UninstallEntry> InstalledPrograms() => Installed;
@@ -105,7 +107,7 @@ internal sealed class FakeStartupPc : IStartupSystem, IStartupWriter
         Guard(); Writes.Add($"remove-task {path}");
         removedTask = TaskList.First(x => x.Path == path);
         TaskList = [.. TaskList.Where(x => x.Path != path)];
-        return TaskXml.GetValueOrDefault(path) ?? "<Task/>";
+        return TaskXml.GetValueOrDefault(path) ?? $"<Task xmlns=\"{StartupGuard.TaskNamespace}\"/>";
     }
     public void RestoreTask(string path, string xml)
     {
@@ -650,23 +652,26 @@ public sealed class StartupChangeTests
     {
         var pc = new FakeStartupPc();
         pc.Add(@"C:\Apps\a.exe");
-        pc.FolderBytes["A.lnk"] = [9, 8, 7, 6];
+        pc.FolderBytes["A.lnk"] = StartupGuardRuleTests.Shortcut;
         pc.Folder.Add(new(StartupScope.User, "A.lnk", @"C:\Startup\A.lnk", @"C:\Apps\a.exe", ""));
         pc.TaskList.Add(new(@"\Sync", "Sync", "", "Acme", true, @"C:\Apps\a.exe", "", true, false, "me"));
-        pc.TaskXml[@"\Sync"] = "<Task>sync</Task>";
+        pc.TaskXml[@"\Sync"] = StartupGuardRuleTests.UserTask;
         var changer = new LocalStartupChanger(pc, pc);
 
         foreach (var entry in StartupScan.Run(pc).Entries.ToList())
         {
             var removed = changer.Change(Remove(entry.Id));
-            Assert.True(removed.Ok);
+            Assert.True(removed.Ok, removed.Error);
             Assert.Null(StartupScan.Find(pc, entry.Id));
+            // The command the item was listed with travels with the copy, so a put-back can tell the item from a newcomer with its name.
+            Assert.Equal(@"C:\Apps\a.exe", removed.Vault!.Command);
             Assert.True(changer.Change(Restore(entry.Id, removed.Vault!)).Ok);
             Assert.NotNull(StartupScan.Find(pc, entry.Id));
         }
 
-        Assert.Contains("restore-folder User A.lnk 4", pc.Writes);
-        Assert.Contains(@"restore-task \Sync <Task>sync</Task>", pc.Writes);
+        Assert.Contains($"restore-folder User A.lnk {StartupGuardRuleTests.Shortcut.Length}", pc.Writes);
+        Assert.Contains(@"restore-task \Sync " + StartupGuardRuleTests.UserTask, pc.Writes);
+
     }
 
     [Fact]
@@ -1348,4 +1353,3 @@ public sealed class StartupFindTests
         }
     }
 }
-

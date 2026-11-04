@@ -12,6 +12,13 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
     internal SemaphoreSlim OperationGate => installGate;
     private readonly PackageSearchCache searchCache = new();
     public void ClearSearchCache() => searchCache.Clear();
+
+    /// <summary>WinGet without a source also reads the registry and the Store's app list, which takes much longer than its own packages on a slow PC or network.</summary>
+    private static readonly TimeSpan WindowsAppsInventoryLimit = TimeSpan.FromSeconds(60);
+
+    /// <summary>Where a fast search path that stops working is noted, once per source per session, so a search that turned slow has an explanation. Searches work without it.</summary>
+    public ActivityLog? Log { get; set; }
+    private int fastPathNoted;
     public async Task<InstalledInventory> GetInstalledAsync(IReadOnlyList<ManagerStatus> managers, CancellationToken token = default)
     {
         var tasks = managers.Where(x => x.Health == ManagerHealth.Ready).Select(x => ReadInstalledAsync(x, token)).ToArray();
@@ -31,12 +38,13 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
         {
             ManagerKind.Winget when windowsApps => ["list", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Winget => ["list", "--source", "winget", "--accept-source-agreements", "--disable-interactivity"],
-            ManagerKind.Chocolatey => ["list", "--limit-output"],
+            // Chocolatey 1.x lists the remote feed unless --local-only is given; 2.x removed the option and lists local packages by default.
+            ManagerKind.Chocolatey => ChocolateyMajor(manager.Version) < 2 ? ["list", "--limit-output", "--local-only"] : ["list", "--limit-output"],
             _ => ["list"]
         };
         try
         {
-            var result = await runner.RunAsync(BuildCommand(kind, manager.Executable, arguments, TimeSpan.FromSeconds(20)), token).ConfigureAwait(false);
+            var result = await runner.RunAsync(BuildCommand(kind, manager.Executable, arguments, windowsApps ? WindowsAppsInventoryLimit : TimeSpan.FromSeconds(20)), token).ConfigureAwait(false);
             if (result.ExitCode == unchecked((int)0x8A150014)) return new(kind, []);
             if (kind == ManagerKind.Scoop && result.ExitCode == 1 && result.Output.Contains("There aren't any apps installed", StringComparison.OrdinalIgnoreCase)) return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));
@@ -68,15 +76,37 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             { return new ManagerStatus(definition, ManagerHealth.Unavailable, "", path, ex.Message); }
         })).ConfigureAwait(false);
 
+    /// <summary>Why <paramref name="query"/> cannot be searched for, or null. The one rule for every caller, so the page can refuse before any source starts.</summary>
+    public static string? QueryProblem(string query)
+    {
+        query = query.Trim();
+        return query.Length is < 2 or > 100 || query.Any(char.IsControl) ? "Enter between 2 and 100 characters." : null;
+    }
+
     public async Task<SearchResult> SearchAsync(ManagerStatus manager, string query, CancellationToken token = default)
     {
         query = query.Trim();
-        if (query.Length is < 2 or > 100 || query.Any(char.IsControl)) throw new ArgumentException("Enter between 2 and 100 characters.");
+        if (QueryProblem(query) is { } problem) throw new ArgumentException(problem);
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null)
             return new(manager.Definition.Kind, [], "This package manager is not ready. Refresh its status on Overview.");
         return await searchCache.GetAsync($"{manager.Definition.Kind}|{manager.Executable}|{query}",
             cancellation => SearchSourceAsync(manager, query, cancellation), token).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Searches through the manager's own command line: never the feed, the catalog or the cache. A health or recovery check must prove that the
+    /// manager itself can reach its source, which the fast paths (the app's own connection, the manifests on disk) say nothing about.
+    /// </summary>
+    public Task<SearchResult> ProbeSourceAsync(ManagerStatus manager, string query, CancellationToken token = default)
+    {
+        query = query.Trim();
+        if (QueryProblem(query) is { } problem) throw new ArgumentException(problem);
+        if (manager.Health != ManagerHealth.Ready || manager.Executable is null)
+            return Task.FromResult(new SearchResult(manager.Definition.Kind, [], "This package manager is not ready. Refresh its status on Overview."));
+        return SearchSourceAsync(manager, query, token, viaCommandLine: true);
+    }
+
+    private static int ChocolateyMajor(string version) => int.TryParse(version.TrimStart('v', 'V').Split('.')[0], out var major) ? major : 2;
 
     /// <summary>Gets the slow sources ready before they are searched: Chocolatey's connection and Scoop's index. Never throws and is safe to leave running.</summary>
     public Task WarmUpAsync(IReadOnlyList<ManagerStatus> managers, CancellationToken token = default) => Task.Run(async () =>
@@ -106,19 +136,27 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
                 return await Task.Run(() => scoop.Search(root, query, SearchLimit, token) is { } found ? new SearchResult(kind, found) : null, token).ConfigureAwait(false);
         }
         // A timeout or a feed that changed shape is not the person's cancelling, so it falls back instead of failing.
-        catch (Exception) when (!token.IsCancellationRequested) { }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        {
+            // Noted once per source: a search that silently took the slow road for a whole session is a mystery to whoever reads the log later.
+            if (Log is not null && (Interlocked.Or(ref fastPathNoted, 1 << (int)kind) & (1 << (int)kind)) == 0)
+                Log.Write(ActivityLevel.Info, ActivityArea.Search, $"{manager.Definition.Name} is searched through its command line", $"Its faster path stopped working: {ex.GetType().Name}: {ex.Message}");
+        }
         return null;
     }
 
-    private async Task<SearchResult> SearchSourceAsync(ManagerStatus manager, string query, CancellationToken token)
+    private async Task<SearchResult> SearchSourceAsync(ManagerStatus manager, string query, CancellationToken token, bool viaCommandLine = false)
     {
         var kind = manager.Definition.Kind;
-        if (await SearchDirectlyAsync(manager, query, token).ConfigureAwait(false) is { } direct) return direct;
+        if (!viaCommandLine && await SearchDirectlyAsync(manager, query, token).ConfigureAwait(false) is { } direct) return direct;
+        // WinGet takes the term after --query; the others take it by position, where a leading dash or slash would make it an option.
+        var switchLike = query[0] is '-' or '/';
+        if (switchLike && kind == ManagerKind.Chocolatey) return new(kind, [], "Chocolatey's command line reads a term that starts with - or / as an option, so it was not asked.");
         string[] arguments = kind switch
         {
             ManagerKind.Winget => ["search", "--query", query, "--source", "winget", "--count", "60", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Chocolatey => ["search", query, "--limit-output", "--page-size=60", "--page=0", "--source=https://community.chocolatey.org/api/v2/"],
-            _ => ["search", Regex.Escape(query)]
+            _ => ["search", (switchLike ? "\\" : "") + Regex.Escape(query)]
         };
         try
         {
@@ -150,14 +188,21 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             _ => ["install", package.Id]
         };
         if (interactive && package.Manager != ManagerKind.Scoop) args = [.. args, package.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
-        return BuildCommand(package.Manager, manager.Executable, args, interactive ? TimeSpan.FromHours(2) : TimeSpan.FromMinutes(20)) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
+        return BuildCommand(package.Manager, manager.Executable, args, OperationTimeout) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
     }
+
+    /// <summary>
+    /// How long an install, update or uninstall may run. Reaching it ends the command and everything it started, so it is a budget for the slowest honest case (a multi-gigabyte
+    /// download on a slow link, a large product's own setup), not a guess at the typical one. Reads (list, search, version) keep their own short limits.
+    /// </summary>
+    internal static readonly TimeSpan OperationTimeout = TimeSpan.FromHours(2);
 
     public async Task<CommandResult> InstallAsync(ManagerStatus manager, Package package, CancellationToken token = default, IProgress<CommandOutput>? progress = null, bool interactive = false)
     {
-        var command = InstallCommand(manager, package, interactive) with { Progress = progress };
+        // A command that asks for administrator rights is refused unless its program lives where only administrators can change it (see ElevatedProgram).
+        var command = ElevatedProgram.Checked(InstallCommand(manager, package, interactive) with { Progress = progress }, locator);
         if (!await installGate.WaitAsync(0, token).ConfigureAwait(false)) throw new InvalidOperationException("An installation is already running.");
-        try { return package.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, package.Name, token).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false); }
+        try { return package.Manager == ManagerKind.Winget ? await InstallFailure.RunAsync(runner, command, package.Name, token, locator).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false); }
         finally { installGate.Release(); }
     }
 
@@ -172,8 +217,10 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
     {
         if (kind != ManagerKind.Scoop) return new(path, arguments, timeout);
         // Only Scoop needs a PowerShell host. Arguments are literal strings, never executable user input.
+        // Scoop runs git, which must fail fast on a repository that asks for a sign-in rather than wait on a prompt nobody can see (or open a sign-in window).
+        // A failure's error id, type and category go out after its message, because the message is in the PC's language and the health check reads the ids.
         static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
-        var script = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $ErrorActionPreference = 'Stop'; try { & " + Quote(path) + " " + string.Join(" ", arguments.Select(Quote)) + "; if ($LASTEXITCODE) { exit $LASTEXITCODE } } catch { [Console]::Error.WriteLine($_); exit 1 }";
+        var script = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $ErrorActionPreference = 'Stop'; $env:GIT_TERMINAL_PROMPT = '0'; $env:GCM_INTERACTIVE = 'never'; try { & " + Quote(path) + " " + string.Join(" ", arguments.Select(Quote)) + "; if ($LASTEXITCODE) { exit $LASTEXITCODE } } catch { [Console]::Error.WriteLine($_); [Console]::Error.WriteLine(($_.FullyQualifiedErrorId, $_.Exception.GetType().FullName, $_.CategoryInfo.Category) -join ' '); exit 1 }";
         // Scoop's own launcher sets a process policy. RemoteSigned permits local Scoop scripts
         // without changing the user's saved policy; enterprise Group Policy still takes precedence.
         return new(locator.PowerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], timeout);

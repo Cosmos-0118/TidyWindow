@@ -21,6 +21,8 @@ public interface IAppxOps
 {
     /// <summary>Unlocks a package Windows marks as not removable.</summary>
     string? ClearNonRemovable(string family);
+    /// <summary>Marks a package as not removable again, after a removal that did not work: the reverse of <see cref="ClearNonRemovable"/>.</summary>
+    string? RestoreNonRemovable(string family);
     /// <summary>Removes a package for each account that has it, then for all accounts.</summary>
     string? RemovePackage(string fullName, IReadOnlyList<string> sids);
     /// <summary>Stops Windows installing a package for new accounts.</summary>
@@ -51,16 +53,24 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
         var families = entry.Packages.Select(x => x.FamilyName).Concat(StagedFamilies(entry)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var userSids = store.UserSids().Where(DebloatGuard.IsSid).ToList();
         var madeEndOfLife = new List<(string Sid, string Name)>();
+        // Families Windows had marked as not removable and that were unlocked here. A removal that does not work locks them again, so the PC is left as it was.
+        var unlocked = new List<string>();
         var errors = new List<string>();
         try
         {
             // The "do not install again" mark is not made yet: Windows makes it itself while it removes the app for everyone, and it refuses
             // (access denied) when the mark is already there. It is added afterwards for whatever Windows did not mark.
-            var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             // In the order the catalog lists them, whatever order the caller sent: see DebloatGuard.CatalogOrder. OrderBy keeps equal ones as they were.
             foreach (var package in entry.Packages.OrderBy(x => DebloatGuard.CatalogOrder(item, x.Name)))
             {
-                if (package.NonRemovable && unlocked.Add(package.FamilyName) && ops.ClearNonRemovable(package.FamilyName) is { } clearFailed) errors.Add(clearFailed);
+                if (package.NonRemovable && tried.Add(package.FamilyName))
+                {
+                    if (ops.ClearNonRemovable(package.FamilyName) is { } clearFailed) errors.Add(clearFailed);
+                    else unlocked.Add(package.FamilyName);
+                }
+                // The record that marks the package as part of Windows must go before Windows will remove it. It is not put back: it only says whether Windows
+                // treats the package as its own, and an app whose removal did not work stays installed and working without it.
                 store.DeleteInbox(package.FullName);
                 foreach (var sid in package.Users.Append(SystemSid).Distinct(StringComparer.OrdinalIgnoreCase))
                     if (store.CreateEndOfLife(sid, package.FullName)) madeEndOfLife.Add((sid, package.FullName));
@@ -74,6 +84,11 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
                 if (ops.RemoveProvisioned(staged.PackageName) is { } failed) errors.Add(failed);
             }
         }
+        catch
+        {
+            Relock(unlocked);
+            throw;
+        }
         finally
         {
             // Left behind, these marks can stop Windows Update from servicing the package, so they always go.
@@ -83,6 +98,7 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
         var (left, kept) = StillThere(entry);
         if (left.Count > 0)
         {
+            Relock(unlocked);
             var why = errors.FirstOrDefault(x => x.Length > 0);
             return new(false, $"{left.Count} app{(left.Count == 1 ? "" : "s")} could not be removed.{(why is null ? "" : " " + Trim(why))}");
         }
@@ -95,6 +111,11 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
         if (entry.Provisioned.Count > 0 || entry.Packages.Any(x => x.NonRemovable)) notes.Add("Windows will not install it again for new accounts.");
         if (kept.Count > 0) notes.Add(KeptNote(kept));
         return new(true, null, notes.Count == 0 ? null : string.Join(" ", notes), families);
+    }
+
+    private void Relock(IEnumerable<string> families)
+    {
+        foreach (var family in families) ops.RestoreNonRemovable(family);
     }
 
     /// <summary>The folders Windows kept for apps that no account has any more, such as when it refused the last step of the removal.</summary>
@@ -123,12 +144,13 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
     /// <summary>
     /// What is still installed or staged after the removal, and the folders of packages that no account has any more but that Windows still lists
     /// (it keeps them for itself when its last step is refused). Those are gone for the person, so they are reported, not failed.
+    /// Packages are matched by family, not by full name: Windows can register an app again under another version while it is being removed, and that is the same app, still there.
     /// </summary>
     private (List<string> Left, List<string> Kept) StillThere(DebloatEntry entry)
     {
         var item = entry.Item;
-        var names = entry.Packages.Select(x => x.FullName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var listed = system.Packages().Where(x => names.Contains(x.FullName)).ToList();
+        var families = entry.Packages.Select(x => x.FamilyName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var listed = system.Packages().Where(x => families.Contains(x.FamilyName)).ToList();
         var left = listed.Where(x => x.Users.Count > 0).Select(x => x.FamilyName).ToList();
         left.AddRange(system.Provisioned().Where(x => DebloatGuard.Covers(item, x.DisplayName, false) && entry.Provisioned.Any(p => string.Equals(p.PackageName, x.PackageName, StringComparison.OrdinalIgnoreCase))).Select(x => x.DisplayName));
         var kept = listed.Where(x => x.Users.Count == 0 && x.InstallLocation.Length > 0 && Directory.Exists(x.InstallLocation)).Select(x => x.InstallLocation).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -151,11 +173,12 @@ public sealed class AppxRemover(IDebloatSystem system, IAppxStore store, IAppxOp
     }
 }
 
-/// <summary>The steps for OneDrive, Edge and Recall. Each returns what went wrong, or null.</summary>
+/// <summary>The steps for OneDrive, Edge and Recall. Each says whether it worked, and may add a note (a restart that is still needed).</summary>
 public interface IDebloatPlaybooks
 {
-    string? Remove(DebloatKind kind);
-    string? Restore(DebloatKind kind);
+    /// <param name="userSid">The account that asked. The steps run as whoever approved the permission prompt, so anything per account is looked for in that account's profile instead.</param>
+    DebloatOutcome Remove(DebloatKind kind, string? userSid);
+    DebloatOutcome Restore(DebloatKind kind);
 }
 
 /// <summary>
@@ -168,32 +191,32 @@ public sealed class LocalDebloatChanger(IDebloatSystem system, AppxRemover appx,
     {
         var item = catalog.FirstOrDefault(x => string.Equals(x.Id, request.Id, StringComparison.OrdinalIgnoreCase));
         if (item is null) return new(false, "That item is not in the catalog.");
-        return request.Restore ? Restore(item, request) : Remove(item);
+        // The account id only ever decides whose profile is looked at, and a profile is only ever found through Windows' own list of them.
+        var userSid = DebloatCleanup.IsAccountSid(request.UserSid) ? request.UserSid : null;
+        return request.Restore ? Restore(item, request) : Remove(item, userSid);
     }
 
-    private DebloatOutcome Remove(DebloatItem item)
+    private DebloatOutcome Remove(DebloatItem item, string? userSid)
     {
-        var entry = DebloatScan.Find(system, catalog, item.Id);
-        if (entry is null) return new(true, "It was already gone.");
+        var entry = DebloatScan.Find(system, catalog, item.Id, userSid);
+        if (entry is null) return new(true, null, "It was already gone.");
         if (!entry.CanRemove) return new(false, entry.Lock);
         if (item.Kind == DebloatKind.Appx) return appx.Remove(entry);
 
-        string? error;
-        try { error = playbooks.Remove(item.Kind); }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { error = ex.Message; }
+        DebloatOutcome outcome;
+        try { outcome = playbooks.Remove(item.Kind, userSid); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { outcome = new(false, ex.Message); }
         // Recall is a Windows feature that stays installed when it is switched off, so it cannot be told apart by looking again; the others can.
-        var after = DebloatScan.Find(system, catalog, item.Id);
-        if (item.Kind != DebloatKind.Recall && after is not null) return new(false, error ?? $"{item.Name} is still on this PC.");
-        if (item.Kind == DebloatKind.Recall && error is not null) return new(false, error);
-        return new(true, null, item.Kind == DebloatKind.Recall ? "Restart Windows to finish." : null, []);
+        var after = DebloatScan.Find(system, catalog, item.Id, userSid);
+        if (item.Kind != DebloatKind.Recall && after is not null) return new(false, outcome.Error ?? $"{item.Name} is still on this PC.");
+        if (!outcome.Ok) return outcome;
+        return new(true, null, outcome.Note, []);
     }
 
     private DebloatOutcome Restore(DebloatItem item, DebloatRequest request)
     {
         if (item.Kind == DebloatKind.Appx) return appx.Allow(item, request.Families ?? []);
-        string? error;
-        try { error = playbooks.Restore(item.Kind); }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { error = ex.Message; }
-        return error is null ? new(true) : new(false, error);
+        try { return playbooks.Restore(item.Kind); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { return new(false, ex.Message); }
     }
 }

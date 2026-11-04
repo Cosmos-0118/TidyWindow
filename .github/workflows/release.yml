@@ -10,27 +10,33 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+# Every job states its own permissions; nothing is granted at the workflow level.
+permissions: {}
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
+# Actions are pinned to full commit SHAs, with the version they came from in the comment, so a moved tag cannot change what builds a
+# release. Dependabot (.github/dependabot.yml) moves the SHA and the comment together.
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    permissions:
+      contents: write # creates the release and attaches the files
+      id-token: write # signs the build provenance attestation
+      attestations: write # stores the attestation with the repository
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
       - name: Read version from tag
         shell: pwsh
         run: |
@@ -39,13 +45,34 @@ jobs:
           }
           "VERSION=$($Matches.version)" | Add-Content -Path $env:GITHUB_ENV
       - name: Restore locked dependencies
-        run: dotnet restore TidyWindow.slnx --locked-mode
+        # The solution restore serves the tests. The second restore sets SelfContained, so the runtime packs the self-contained build
+        # needs arrive in locked mode too and no later step restores on its own.
+        shell: pwsh
+        run: |
+          dotnet restore TidyWindow.slnx --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "Restore failed." }
+          dotnet restore src/TidyWindow.Desktop/TidyWindow.Desktop.csproj --locked-mode -p:SelfContained=true
+          if ($LASTEXITCODE -ne 0) { throw "Restore of the self-contained app failed." }
       - name: Test
+        # A test that hangs is named after five minutes (with a small dump of the test host) instead of the job timing out in silence.
+        shell: pwsh
         run: |
           dotnet build tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore
-          dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw "The test build failed." }
+          dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type mini --logger trx --results-directory artifacts/TestResults
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed." }
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: TestResults
+          path: artifacts/TestResults
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Build self-contained app
-        run: dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --self-contained true -p:DebugType=None -p:DebugSymbols=false -p:Version=${{ env.VERSION }} -o artifacts/publish
+        # Release builds carry their debug information inside the assemblies (Directory.Build.props), so crash logs keep line numbers.
+        shell: pwsh
+        run: dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --no-restore --self-contained true "-p:Version=$env:VERSION" -o artifacts/publish
       - name: Check the helpers are packaged
         shell: pwsh
         run: |
@@ -56,24 +83,44 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+        # Pinned so the compiler that makes Setup.exe changes only on purpose. Bump it together with the note in installer/TidyWindow.iss.
+        run: choco install innosetup --version=6.7.1 --no-progress -y
       - name: Build installer
         shell: pwsh
         run: ./installer/build.ps1 -Version $env:VERSION -PublishDir artifacts/publish
       - name: Check the installer installs and uninstalls
         shell: pwsh
         run: ./installer/smoke-test.ps1 -Setup "artifacts/TidyWindow-Setup-$env:VERSION.exe"
+      - name: Write checksums
+        # sha256sum format: lower-case hash, two spaces, file name; one line per file, LF line endings.
+        shell: pwsh
+        run: |
+          $files = "artifacts/TidyWindow-$env:VERSION-win-x64.zip", "artifacts/TidyWindow-Setup-$env:VERSION.exe"
+          $lines = foreach ($file in $files) { '{0}  {1}' -f (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant(), (Split-Path $file -Leaf) }
+          [IO.File]::WriteAllText((Join-Path (Get-Location) 'artifacts/SHA256SUMS.txt'), (($lines -join "`n") + "`n"))
+          Get-Content artifacts/SHA256SUMS.txt
+      - name: Attest the build provenance
+        # Records which workflow run, commit and runner made these files. Anyone can check a download with
+        #   gh attestation verify TidyWindow-Setup-<version>.exe --repo Cosmos-0118/TidyWindow
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/TidyWindow-*-win-x64.zip
+            artifacts/TidyWindow-Setup-*.exe
+            artifacts/SHA256SUMS.txt
       - name: Attach to the GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = "artifacts/TidyWindow-$env:VERSION-win-x64.zip", "artifacts/TidyWindow-Setup-$env:VERSION.exe"
-          # A release written by hand keeps its title and notes; only the files are added or replaced.
-          gh release view $env:TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $files = "artifacts/TidyWindow-$env:VERSION-win-x64.zip", "artifacts/TidyWindow-Setup-$env:VERSION.exe", "artifacts/SHA256SUMS.txt"
+          # A release written by hand keeps its title and notes; only the files are added or replaced. --clobber lets a re-run for the
+          # same tag replace the files; the attestation above records which run made the copy that is live.
+          $exists = $false
+          try { gh release view $env:TAG *> $null; $exists = $LASTEXITCODE -eq 0 } catch { $exists = $false }
+          if ($exists) {
             gh release upload $env:TAG @files --clobber
           } else {
             gh release create $env:TAG @files --title "TidyWindow $env:VERSION" --generate-notes --verify-tag
           }
-          if ($LASTEXITCODE -ne 0) { throw "Could not publish the release asset." }
+          if ($LASTEXITCODE -ne 0) { throw "Could not publish the release assets." }

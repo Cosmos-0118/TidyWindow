@@ -32,7 +32,7 @@ public sealed partial class StartupView : UserControl
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ActualTheme
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) await model.RemoveAsync(row);
+        if (await dialog.ShowGatedAsync() == ContentDialogResult.Primary) await model.RemoveAsync(row);
     }
 
     private void TabChecked(object sender, RoutedEventArgs e)
@@ -72,7 +72,7 @@ public sealed partial class StartupView : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ActualTheme
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
+            if (await dialog.ShowGatedAsync() != ContentDialogResult.Primary) { toggle.IsOn = row.Enabled; return; }
         }
         if (!await model.SetAsync(row, wanted)) toggle.IsOn = row.Enabled;
     }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TidyWindow.Next.Core;
 using Xunit;
 
@@ -287,6 +288,28 @@ public sealed class TuneCatalogTests
         var inside = new TuneTarget { Key = @"Control Panel\Mouse", Name = "MouseSpeed", Kind = TuneKind.String, Value = "0", RemoveKey = TuneGuard.ClassicMenuClsid };
         Assert.NotEmpty(TuneGuard.Validate([Item(TuneScope.User, inside)]));
     }
+
+    private const string Minimal = """{"items":[{"id":"x","name":"X","group":"comfort","scope":"user","summary":"s","effect":"e","targets":[{"key":"Control Panel\\Mouse","name":"MouseSpeed","kind":"string","value":"0","normal":"1"}]}]}""";
+
+    [Fact]
+    public void AMisspelledRuleInTheCatalogIsRefusedNotIgnored()
+    {
+        Assert.Single(TuneCatalog.Parse(Minimal));
+        // "needsPr" would silently become "no edition rule" and "removeKeys" would silently leave a key behind; the loader must refuse them.
+        Assert.Throws<JsonException>(() => TuneCatalog.Parse(Minimal.Replace("\"scope\":\"user\"", "\"scope\":\"user\",\"needsPr\":true")));
+        Assert.Throws<JsonException>(() => TuneCatalog.Parse(Minimal.Replace("\"normal\":\"1\"", "\"normal\":\"1\",\"removeKeys\":\"x\"")));
+    }
+
+    [Fact]
+    public void FileExplorerIsStartedByItsFullPathUnderTheWindowsFolder()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var path = ExplorerShell.ExplorerPath;
+        Assert.True(Path.IsPathFullyQualified(path));
+        Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), path);
+        // Whether this test run is elevated is not known; only that the question can be answered.
+        _ = ExplorerShell.IsElevated();
+    }
 }
 
 public sealed class TuneRuleTests
@@ -429,6 +452,15 @@ public sealed class TuneScanTests
     {
         var pc = new FakeTunePc().Has(TuneScope.User, Key, "MouseSpeed", "", TuneKind.Other);
         var entry = Assert.Single(TuneScan.Run(pc, [Item("mouse", Mouse())]).Entries);
+        Assert.NotNull(entry.Lock); Assert.False(entry.CanChange);
+    }
+
+    [Fact]
+    public void OneValueOfAnUnexpectedTypeLocksTheWholeItemEvenWhenTheRestIsAlreadyApplied()
+    {
+        var pc = new FakeTunePc().Has(TuneScope.User, Key, "MouseSpeed", "0", TuneKind.String).Has(TuneScope.User, Key, "MouseThreshold1", "", TuneKind.Other);
+        var entry = Assert.Single(TuneScan.Run(pc, [Item("mouse", Mouse(), Threshold())]).Entries);
+        Assert.True(entry.Partly); Assert.True(entry.HoldsOtherKind);
         Assert.NotNull(entry.Lock); Assert.False(entry.CanChange);
     }
 }
@@ -595,6 +627,37 @@ public sealed class TuneChangeTests : IDisposable
         var pc = new FakeTunePc().Has(TuneScope.User, Mouse, "MouseSpeed", "", TuneKind.Other);
         var outcome = Changer(pc, Item(TuneScope.User, Speed())).Change(new("item", true));
         Assert.False(outcome.Ok); Assert.Empty(pc.Writes);
+    }
+
+    [Fact]
+    public void TheRestOfAPartlyAppliedItemIsNotWrittenWhenOneValueIsOfAnUnexpectedType()
+    {
+        // MouseSpeed already has the tweaked value; MouseThreshold1 is binary, set by some other tool. Neither direction may touch it.
+        var pc = new FakeTunePc().Has(TuneScope.User, Mouse, "MouseSpeed", "0", TuneKind.String).Has(TuneScope.User, Mouse, "MouseThreshold1", "", TuneKind.Other);
+        var changer = Changer(pc, Item(TuneScope.User, Speed(), Threshold()));
+
+        var applied = changer.Change(new("item", true));
+        Assert.False(applied.Ok); Assert.Contains("kind of value", applied.Error); Assert.Empty(pc.Writes);
+
+        var back = changer.Change(new("item", false, [new(Mouse, "MouseSpeed", true, TuneKind.String, "1", false), new(Mouse, "MouseThreshold1", true, TuneKind.Other, "", false)]));
+        Assert.False(back.Ok); Assert.Empty(pc.Writes);
+        Assert.Equal(TuneKind.Other, pc.Read(TuneScope.User, Mouse, "MouseThreshold1")!.Kind);
+    }
+
+    [Fact]
+    public void ASavedNumberThatIsNotANumberIsNotWritten()
+    {
+        const string Advanced = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
+        var pc = new FakeTunePc().Has(TuneScope.User, Advanced, "HideFileExt", "1");
+        var changer = Changer(pc, Item(TuneScope.User, new TuneTarget { Key = Advanced, Name = "HideFileExt", Value = "0", Normal = "1" }));
+        Assert.True(changer.Change(new("item", true)).Ok);
+        pc.Writes.Clear();
+
+        var back = changer.Change(new("item", false, [new(Advanced, "HideFileExt", true, TuneKind.Dword, "not a number", false)]));
+
+        Assert.False(back.Ok); Assert.Contains("number", back.Error);
+        Assert.Empty(pc.Writes);
+        Assert.Equal("0", pc.Read(TuneScope.User, Advanced, "HideFileExt")!.Text);
     }
 
     [Fact]
@@ -829,15 +892,57 @@ public sealed class TuneHostTests
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(session.IsOpen);
     }
+
+    /// <summary>A helper that answers hello and then goes quiet on the first change, as a stuck helper would, until the app lets go of the pipe.</summary>
+    private static Func<string, Task> StuckHelper(TaskCompletionSource asked) => async pipe =>
+    {
+        using var client = await HelperPipe.ConnectAsync(pipe);
+        var reader = new PipeLineReader(client);
+        var writer = new StreamWriter(client) { AutoFlush = true };
+        await reader.ReadLineAsync();
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new TuneOutcome(true)));
+        await reader.ReadLineAsync();
+        asked.TrySetResult();
+        try { while (await reader.ReadLineAsync() is not null) { } } catch (IOException) { }
+    };
+
+    [Fact]
+    public async Task AHelperThatStopsAnsweringIsLetGoInsteadOfFreezingThePage()
+    {
+        using var session = new TuneSession(StuckHelper(new()), replyTimeout: TimeSpan.FromMilliseconds(500));
+        await session.OpenAsync();
+
+        var ex = Assert.Throws<IOException>(() => session.Change(new("x", true)));
+
+        Assert.Contains("did not answer", ex.Message);
+        Assert.False(session.IsOpen);
+    }
+
+    [Fact]
+    public async Task ClosingWhileAChangeIsInFlightDoesNotWaitForTheHelper()
+    {
+        var asked = new TaskCompletionSource();
+        using var session = new TuneSession(StuckHelper(asked));
+        await session.OpenAsync();
+        var change = Task.Run(() => session.Change(new("x", true)));
+        await asked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Well within the two minutes the change itself would wait.
+        await Task.Run(session.Close).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var ex = await Assert.ThrowsAsync<IOException>(() => change);
+        Assert.Contains("stopped", ex.Message);
+        Assert.False(session.IsOpen);
+    }
 }
 
 public sealed class TuneLiveTests
 {
     // Read-only: scans the real PC with the shipped catalog. Opt in like the other live checks.
-    [Fact]
+    [LiveFact]
     public void TheShippedCatalogCanBeReadOnThisPc()
     {
-        if (Environment.GetEnvironmentVariable("TIDYWINDOW_LIVE_TESTS") != "1" || !OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) return;
         var result = TuneScan.Run(new WindowsTuneSystem(), TuneCatalog.Load());
         Assert.NotEmpty(result.Entries);
         Assert.Equal(TuneCatalog.Load().Count, result.Entries.Count + result.NotOnThisPc);

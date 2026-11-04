@@ -1,6 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
-using System.IO.Pipes;
 using System.Text.Json;
 
 namespace TidyWindow.Next.Core;
@@ -23,10 +20,9 @@ public static class SystemCleanHost
     {
         if (args.Length < 3 || args[0] != Command) return 64;
         context ??= CleanupContext.Current;
-        using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous);
-        try { await pipe.ConnectAsync(15000).ConfigureAwait(false); }
-        catch (Exception ex) when (ex is TimeoutException or IOException) { return 65; }
-        using var reader = new StreamReader(pipe);
+        using var pipe = await HelperPipe.TryConnectAsync(args[1]).ConfigureAwait(false);
+        if (pipe is null) return 65;
+        var reader = new PipeLineReader(pipe);
         var writer = new StreamWriter(pipe) { AutoFlush = true };
         var send = new SemaphoreSlim(1, 1);
         async Task Send(HostMessage message)
@@ -40,8 +36,14 @@ public static class SystemCleanHost
         // Permission has been given and the helper is running; the app can stop saying it is waiting.
         await Send(new HostMessage("ready")).ConfigureAwait(false);
         using var cancel = new CancellationTokenSource();
-        // The app asks to stop by writing a line; the helper finishes the file it is on and returns what it has done so far.
-        _ = Task.Run(async () => { try { if (await reader.ReadLineAsync().ConfigureAwait(false) is not null) cancel.Cancel(); } catch (IOException) { } });
+        // The app asks to stop by writing a line; the helper finishes the file it is on and returns what it has done so far. A pipe that closes
+        // or breaks means the app is gone, and that counts as a stop too: nothing keeps deleting with administrator rights once nobody is watching.
+        _ = Task.Run(async () =>
+        {
+            try { await reader.ReadLineAsync().ConfigureAwait(false); }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException) { }
+            try { cancel.Cancel(); } catch (ObjectDisposedException) { }
+        });
         try
         {
             var ids = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -117,8 +119,8 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
     /// <summary>One conversation with a freshly started helper. Returns the helper's error, if any, and whether the permission prompt was declined.</summary>
     private async Task<(string? Error, bool Declined)> ConverseAsync(IReadOnlyList<string> ids, Action<HostMessage> onMessage, CancellationToken cancellationToken)
     {
-        var name = "tidywindow-clean-" + Guid.NewGuid().ToString("N");
-        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var name = HelperPipe.NewName("clean");
+        await using var server = HelperPipe.CreateServer(name);
         // Starting an elevated process waits for the permission prompt, so it never runs on the caller's thread.
         var launched = Task.Run(() => start(name, ids), CancellationToken.None);
         var connecting = server.WaitForConnectionAsync(cancellationToken);
@@ -127,41 +129,38 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
         var first = await Task.WhenAny(connecting, launched).ConfigureAwait(false);
         if (first != connecting)
         {
-            if (launched.IsCanceled) return (null, true);
+            // A declined prompt surfaces as a cancelled task or as a faulted one, depending on how the launcher threw; both mean "no".
+            if (HelperPipe.WasDeclined(launched)) return (null, true);
             if (launched.IsFaulted) return (launched.Exception!.GetBaseException().Message, false);
             return ("The helper stopped before it could report back.", false);
         }
         await connecting.ConfigureAwait(false);
 
-        using var reader = new StreamReader(server);
+        var reader = new PipeLineReader(server);
         var writer = new StreamWriter(server) { AutoFlush = true };
         using var stop = cancellationToken.Register(() => { try { writer.WriteLine("cancel"); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { } });
         string? error = null;
-        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+        try
         {
-            HostMessage? message;
-            try { message = JsonSerializer.Deserialize<HostMessage>(line, Json); }
-            catch (JsonException) { continue; }
-            if (message is null) continue;
-            if (message.Kind == "failed") error = message.Error;
-            onMessage(message);
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            {
+                HostMessage? message;
+                try { message = JsonSerializer.Deserialize<HostMessage>(line, Json); }
+                catch (JsonException) { continue; }
+                if (message is null) continue;
+                if (message.Kind == "failed") error = message.Error;
+                onMessage(message);
+            }
         }
+        catch (IOException ex) { error ??= "The helper's reply could not be read: " + ex.Message; }
         try { await launched.ConfigureAwait(false); } catch (Exception ex) when (ex is not OperationCanceledException) { error ??= ex.Message; }
         return (error, false);
     }
 
     /// <summary>Starts the real helper through the Windows permission prompt.</summary>
-    public static SystemCleanLauncher Elevated(string helperPath) => new((pipe, ids) =>
-    {
-        if (!File.Exists(helperPath)) throw new FileNotFoundException("The cleanup helper is missing from this installation.", helperPath);
-        var info = new ProcessStartInfo(helperPath) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
-        info.ArgumentList.Add(SystemCleanHost.Command); info.ArgumentList.Add(pipe); info.ArgumentList.Add(string.Join(",", ids));
-        Process process;
-        try { process = Process.Start(info) ?? throw new InvalidOperationException("The cleanup helper could not be started."); }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { throw new OperationCanceledException("Administrator permission was declined."); }
-        return process.WaitForExitAsync().ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
-    });
+    public static SystemCleanLauncher Elevated(string helperPath) =>
+        new((pipe, ids) => HelperPipe.LaunchElevated(helperPath, SystemCleanHost.Command, pipe, string.Join(",", ids)));
 
-    private static SystemCleanReport Declined(int count) => new(new CleanupResult(0, 0, 0, 0, 0, null, 0, TimeSpan.Zero), ["Administrator permission was declined, so the Windows system areas were not cleaned."]);
+    private static SystemCleanReport Declined(int count) => new(new CleanupResult(0, 0, 0, 0, 0, null, 0, TimeSpan.Zero), ["Administrator permission was declined, so the Windows system areas were not cleaned."], Declined: true);
     private static SystemCleanReport Failed(int count, string message) => new(new CleanupResult(0, 0, 0, 0, count, null, 0, TimeSpan.Zero), [message]);
 }
