@@ -900,11 +900,23 @@ public sealed partial class MainWindow : Window
     private void StopRunningClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: QueueRow row } || row.Entry.State != QueueItemState.Running) return;
+        var text = row.Entry.Operation.Fix is not null
+            ? "The fix stops after the step it is on, and the steps that put back what it changed still run. Some steps (DISM, SFC) are not ended half way, because that could leave Windows damaged, so this can take a few minutes. If it does not end, you can then stop waiting for it."
+            : "TidyWindow will end the running installer. An install or update that is stopped partway can leave the app incomplete or broken, so do this only if it has stopped responding.";
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Stop {row.Name}?",
-            Content = new TextBlock { Text = "TidyWindow will end the running installer. An install or update that is stopped partway can leave the app incomplete or broken, so do this only if it has stopped responding.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+            Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
             PrimaryButtonText = "Stop it", CloseButtonText = "Keep running", DefaultButton = ContentDialogButton.Close };
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) operationQueue.Stop(row);
     }, "stopping the operation");
+    private void StopWaitingClick(object sender, RoutedEventArgs e) => Run(async () =>
+    {
+        if (sender is not FrameworkElement { DataContext: QueueRow row } || row.Entry.State != QueueItemState.Running || !row.Entry.StopRequested) return;
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Stop waiting for {row.Name}?",
+            Content = new TextBlock { Text = $"The queue moves on, but {row.Name} is not ended: it keeps running in the background, because ending DISM or SFC half way could leave Windows damaged. When it ends it puts back what it changed, and the result goes to Logs. Another fix waits until then.\n\n" +
+                "Do this only if it is not making progress. If it never ends, end its program in Task Manager. Closing TidyWindow meanwhile leaves it running without its clean-up steps.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+            PrimaryButtonText = "Stop waiting", CloseButtonText = "Keep waiting", DefaultButton = ContentDialogButton.Close };
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) operationQueue.StopWaiting(row);
+    }, "letting the queue move on");
     private void ClearWaitingClick(object sender, RoutedEventArgs e) => operationQueue.CancelWaiting();
     private void ClearFinishedQueueClick(object sender, RoutedEventArgs e) => operationQueue.ClearFinished();
     private void QueueClick(object sender, RoutedEventArgs e) => ShowPage(Page.Queue);
@@ -1083,6 +1095,7 @@ public sealed partial class MainWindow : Window
         if (running is not null) what.Add($"{running.Operation.Name} is {Doing(running.Operation)} right now.");
         if (waiting > 0) what.Add($"{waiting} more {(waiting == 1 ? "item is" : "items are")} waiting in the queue.");
         if (what.Count == 0 && model.Busy) what.Add("A package manager task is in progress.");
+        foreach (var name in operationQueue.Lingering) what.Add($"{name} was stopped, but is still finishing in the background.");
         // The pages that change the PC, by the state each exposes. A page whose first scan is still running is left alone: a scan only reads.
         if (cleanup.CleaningVisibility == Visibility.Visible) what.Add("Cleanup is still cleaning.");
         if (repair.FixOverlay || repair.Changing) what.Add("Repair is still fixing a program.");
@@ -1119,7 +1132,8 @@ public sealed partial class MainWindow : Window
                         ? "A fix finishes the step it is on and puts back what it changed first, because ending that step half way could leave Windows damaged. Closing can take a few minutes. "
                         : packages
                         ? "An install or update that is cut off can leave an app broken or incomplete, and anything waiting in the queue is dropped. "
-                        : "A repair or cleanup that is cut off can be left half done, and may not be recorded for undo. ") + "Closing now is not recommended.",
+                        : "A repair or cleanup that is cut off can be left half done, and may not be recorded for undo. ")
+                        + (operationQueue.Lingering.Count > 0 ? "A fix you stopped waiting for keeps running after TidyWindow closes, but its clean-up steps will not run. " : "") + "Closing now is not recommended.",
                     TextWrapping = TextWrapping.Wrap, MaxWidth = 440
                 },
                 CloseButtonText = "Keep open", SecondaryButtonText = "Stop and close", DefaultButton = ContentDialogButton.Close

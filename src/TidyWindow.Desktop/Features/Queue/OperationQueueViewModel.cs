@@ -54,9 +54,11 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
     public string Chevron => expanded ? "\uE70E" : "\uE70D";
     public string ExpandName => $"{Name}, {Status}. {(expanded ? "Hide" : "Show")} command output";
     public Visibility CancelVisibility => Entry.State == QueueItemState.Waiting ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Fixes run through a helper that is not ended by stopping, so only package work offers it.</summary>
-    public Visibility StopVisibility => Entry.State == QueueItemState.Running && Entry.Operation.Fix is null ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>A fix is stopped too: it finishes the step it is on and puts back what it changed. Once stopped, a package operation has nothing more to offer, and a fix offers to stop waiting for it.</summary>
+    public Visibility StopVisibility => Entry.State == QueueItemState.Running && !Entry.StopRequested ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility StopWaitingVisibility => Entry.State == QueueItemState.Running && Entry.StopRequested && Entry.Operation.Fix is not null ? Visibility.Visible : Visibility.Collapsed;
     public string StopName => $"Stop {Name}";
+    public string StopWaitingName => $"Stop waiting for {Name}";
     public string CancelName => $"Remove {Name} from queue";
     public double OutputHeight { get; private set; } = 240;
     public void SetOutputHeight(double value) { if (OutputHeight == value) return; OutputHeight = value; Changed(nameof(OutputHeight)); }
@@ -72,7 +74,8 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
         }
         if (old.Notice != value.Notice || old.State != value.State || old.Result != value.Result) { Changed(nameof(Notice)); Changed(nameof(NoticeVisibility)); }
         if (old.State != value.State || old.Operation != value.Operation || old.Result != value.Result)
-            foreach (var name in new[] { nameof(Name), nameof(Detail), nameof(Status), nameof(StatusBrush), nameof(NoticeBrush), nameof(OutputTitle), nameof(ExpandName), nameof(CancelVisibility), nameof(StopVisibility), nameof(StopName) }) Changed(name);
+            foreach (var name in new[] { nameof(Name), nameof(Detail), nameof(Status), nameof(StatusBrush), nameof(NoticeBrush), nameof(OutputTitle), nameof(ExpandName), nameof(CancelVisibility), nameof(StopVisibility), nameof(StopName), nameof(StopWaitingVisibility), nameof(StopWaitingName) }) Changed(name);
+        else if (old.StopRequested != value.StopRequested) { Changed(nameof(StopVisibility)); Changed(nameof(StopWaitingVisibility)); }
     }
     public override string ToString() => $"{Name}. {Detail}. {Status}";
 }
@@ -106,7 +109,7 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
         this.queue = queue; this.log = log; this.post = post;
         OutputPalette.Changed += RefreshColors;
         updateTimer = new(_ => { if (!disposed) post(Apply); }, null, Timeout.Infinite, Timeout.Infinite);
-        queue.Changed += QueueChanged; queue.Finished += QueueFinished;
+        queue.Changed += QueueChanged; queue.Finished += QueueFinished; queue.Settled += QueueSettled;
         Apply();
     }
     private void RefreshColors() { foreach (var row in Rows) row.SetLightTheme(light); }
@@ -118,6 +121,10 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     public void Cancel(QueueRow row) { queue.Cancel(row.Entry.Id); Apply(); }
     public void CancelWaiting() { queue.CancelWaiting(); Apply(); }
     public void Stop(QueueRow row) { queue.StopRunning(row.Entry.Id); Apply(); }
+    /// <summary>Lets the queue move on from a fix that was asked to stop and is still finishing. The fix is not ended; it carries on in the background.</summary>
+    public void StopWaiting(QueueRow row) { queue.StopWaitingForFix(row.Entry.Id); Apply(); }
+    /// <summary>Fixes the queue stopped waiting for that are still running.</summary>
+    public IReadOnlyList<string> Lingering => queue.Lingering;
     /// <summary>For closing the app: drops everything waiting and ends the running operation. Completes once the queue is idle.</summary>
     public Task StopAllAsync() { queue.CancelWaiting(); queue.StopRunning(); Apply(); return queue.WhenIdleAsync(); }
     public QueueEntry? Running => Snapshot.Entries.FirstOrDefault(x => x.State == QueueItemState.Running);
@@ -135,6 +142,13 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
         var result = entry.Result!;
         log.Write(result.Outcome == ActionOutcome.Completed ? ActivityLevel.Success : result.Outcome == ActionOutcome.Failed ? ActivityLevel.Error : ActivityLevel.Warning,
             entry.Operation.Fix is not null ? ActivityArea.App : ActivityArea.Install, result.Message, result.Detail);
+    }
+    /// <summary>A fix the queue had stopped waiting for has ended: its real result goes to Logs, since its queue entry was closed out when the wait was given up.</summary>
+    private void QueueSettled(QueueEntry entry)
+    {
+        var result = entry.Result!;
+        log.Write(result.Outcome == ActionOutcome.Completed ? ActivityLevel.Success : result.Outcome == ActionOutcome.Failed ? ActivityLevel.Error : ActivityLevel.Warning,
+            ActivityArea.App, $"{entry.Operation.Name} has now ended: {result.Message}", result.Detail);
     }
     private void Apply()
     {
@@ -173,5 +187,5 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     }
     public QueueEntry? Find(ManagerKind manager, string id, bool global = false) => Snapshot.Find(PackageOperation.Resource(manager, id, global));
     public bool Contains(ManagerKind manager, string id, bool global = false) => Find(manager, id, global)?.State is QueueItemState.Waiting or QueueItemState.Running;
-    public void Dispose() { disposed = true; updateTimer.Dispose(); OutputPalette.Changed -= RefreshColors; queue.Changed -= QueueChanged; queue.Finished -= QueueFinished; }
+    public void Dispose() { disposed = true; updateTimer.Dispose(); OutputPalette.Changed -= RefreshColors; queue.Changed -= QueueChanged; queue.Finished -= QueueFinished; queue.Settled -= QueueSettled; }
 }

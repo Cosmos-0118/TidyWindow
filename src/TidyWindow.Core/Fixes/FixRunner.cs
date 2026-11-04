@@ -173,6 +173,8 @@ public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor 
     {
         var item = catalog.FirstOrDefault(x => x.Id.Equals(run.Id, StringComparison.OrdinalIgnoreCase));
         if (item is null) return new(ActionOutcome.Failed, "That fix is not available", "It is not in this version of TidyWindow.");
+        // One that was stopped but is still finishing a step keeps its turn until it really ends, so this one says why it has not started and can itself be stopped.
+        if (turn.CurrentCount == 0) progress.Report(new("Another fix is still finishing. This one starts when it has; stop it here to give up waiting.", CommandOutputKind.Notice));
         await turn.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
