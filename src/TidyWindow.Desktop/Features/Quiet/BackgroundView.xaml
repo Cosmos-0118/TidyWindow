@@ -69,11 +69,12 @@
   </ResourceDictionary>
  </UserControl.Resources>
 
- <Grid RowSpacing="16">
+ <!-- Spacing sits on the rows, not on the grid: a row that is hidden (the search box on the "turned off" tab) then takes no room, instead of leaving a second gap. -->
+ <Grid>
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
   <!-- Title -->
-  <Grid ColumnSpacing="12">
+  <Grid ColumnSpacing="12" Margin="0,0,0,16">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <StackPanel Spacing="4" VerticalAlignment="Center">
     <TextBlock Text="Quiet Windows" Style="{StaticResource PageTitle}" />
@@ -88,7 +89,7 @@
   </Grid>
 
   <!-- Four groups as slim tabs, each with its count -->
-  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
+  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,16">
    <StackPanel Orientation="Horizontal">
     <RadioButton GroupName="BackgroundTabs" Tag="Telemetry" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Telemetry" ToolTipService.ToolTip="Diagnostic data and usage reports sent to Microsoft">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Telemetry" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding TelemetryCount}" FontSize="11" /></Border></StackPanel>
@@ -106,7 +107,7 @@
   </Grid>
 
   <!-- Search, turning off the safe items, and the Running / On / Off filter -->
-  <Grid Grid.Row="2" ColumnSpacing="12" Visibility="{Binding ListVisibility}">
+  <Grid Grid.Row="2" ColumnSpacing="12" Margin="0,0,0,16" Visibility="{Binding ListVisibility}">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <TextBox x:Name="SearchBox" PlaceholderText="Search by name or the name in Task Manager" TextChanged="QueryChanged" AutomationProperties.Name="Search background items" VerticalAlignment="Center" />
    <Button Grid.Column="2" Click="TurnOffSafeClick" IsEnabled="{Binding CanTurnOffSafe}" Visibility="{Binding SafeVisibility}" Padding="12,7" VerticalAlignment="Center" AutomationProperties.Name="Turn off safe items" ToolTipService.ToolTip="Turns off everything in this list that is allowed to run and not marked Careful. You see the list first.">

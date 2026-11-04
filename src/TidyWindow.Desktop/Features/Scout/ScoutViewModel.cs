@@ -71,18 +71,20 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
     public bool Searching { get => searching; private set { Set(ref searching, value); Changed(nameof(ProgressVisibility)); Changed(nameof(EmptyVisibility)); } }
     public Visibility ProgressVisibility => Searching ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EmptyVisibility => Rows.Count == 0 && !Searching ? Visibility.Visible : Visibility.Collapsed;
-    private string status = "Search file and folder names";
+    private string status = "";
     public string Status { get => status; private set => Set(ref status, value); }
+    /// <summary>The resting picture shows only before anything has been searched, never over a result, an error or a no-match message.</summary>
+    public Visibility IdleVisibility => query.Length == 0 && Error.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyTitle => query.Length == 0 ? (backend.Indexing ? "Preparing instant search" : "Find files and folders") : Error.Length > 0 ? "Search needs attention" : "No matching items";
-    public string EmptyDetail => query.Length == 0 ? (Indexed ? "Search by name or path, or pick a kind such as documents or installers. Choose a folder or use the whole-computer index." : "Search by name or path, or pick a kind such as documents or installers. Until the whole-computer index is ready, Scout searches your user folder; choose another folder any time.")
-        : Error.Length > 0 ? "Open Logs for details, or choose a folder to search directly." : Notice.Length > 0 ? Notice : "Try another name or location, or loosen the filters.";
+    public string EmptyDetail => query.Length == 0 ? (Indexed ? "Type a name, or add a filter like kind:pdf." : "Searching your user folder. Choose another folder any time.")
+        : Error.Length > 0 ? "Open Logs for details, or choose a folder." : Notice.Length > 0 ? Notice : "Try another name or loosen the filters.";
     private string notice = "";
     /// <summary>Worth knowing, not a failure: instant search is off so the user folder is searched instead, the search text needs a change, or the folder index may be out of date. Never raised as a problem.</summary>
     public string Notice { get => notice; private set { if (Set(ref notice, value)) { Changed(nameof(NoticeVisibility)); Changed(nameof(EmptyDetail)); } } }
     public Visibility NoticeVisibility => Notice.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     private string error = "";
     /// <summary>A real failure only: the search threw, the index worker failed, or a location could not be opened. The shell turns each new value into a warning toast, so ordinary states never go here.</summary>
-    public string Error { get => error; private set { if (Set(ref error, value)) { Changed(nameof(ErrorVisibility)); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail)); } } }
+    public string Error { get => error; private set { if (Set(ref error, value)) { Changed(nameof(ErrorVisibility)); Changed(nameof(IdleVisibility)); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail)); } } }
     public Visibility ErrorVisibility => Error.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public ScoutViewModel(ScoutService service, ActivityLog log, Action<Action> post) { this.service = service; this.log = log; this.post = post; }
     public async Task CheckBackendAsync()
@@ -115,8 +117,8 @@ public sealed class ScoutViewModel : ObservableState, IDisposable
         query = string.Join(' ', text.Trim(), tokens.Trim()).Trim(); root = folder; kind = type;
         Chips.Reset(ScoutFilter.Parse(text).Chips.ToList()); filtering = text.Trim().Length > 0 || tokens.Trim().Length > 0;
         Changed(nameof(ChipsVisibility)); Changed(nameof(ClearVisibility));
-        Error = ""; Notice = ""; Rows.Reset([]); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail));
-        if (query.Length == 0) { Searching = false; Status = "Search file and folder names"; return; }
+        Error = ""; Notice = ""; Rows.Reset([]); Changed(nameof(IdleVisibility)); Changed(nameof(EmptyTitle)); Changed(nameof(EmptyDetail));
+        if (query.Length == 0) { Searching = false; Status = ""; return; }
         // A whole-computer search with no index falls back to the user folder instead of failing.
         var fallback = !Indexed && root is null;
         if (fallback) root = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

@@ -545,6 +545,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public Visibility SelectionVisibility => SelectedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string SelectionText => SelectedCount == 1 ? "1 selected" : $"{SelectedCount:N0} selected";
     public Visibility SelectAllShownVisibility => shownQuarantine.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>The row holding the tick and the bulk actions takes room only while it has something to show, so a short list sits right under its search.</summary>
+    public Visibility SelectionRowVisibility => SelectionVisibility == Visibility.Visible || SelectAllShownVisibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Ticks or clears every item that is shown, however many a search has narrowed the list to.</summary>
     public bool AllShownSelected
@@ -562,7 +564,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     private void SelectionChanged()
     {
         if (bulkSelecting) return;
-        Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(SelectionText)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility));
+        Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(SelectionText)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility)); Changed(nameof(SelectionRowVisibility));
     }
 
     public Task ResolveSelectedAsync(bool keep) => ResolveAsync(shownQuarantine.Where(x => x.IsSelected).ToList(), keep);

@@ -461,6 +461,7 @@
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
       <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" Padding="24" Spacing="6">
+       <local:ScoutIdleArt Visibility="{Binding IdleVisibility}" Margin="0,0,0,14" />
        <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
        <TextBlock Text="{Binding EmptyDetail}" Style="{StaticResource Muted}" TextAlignment="Center" />
       </StackPanel>
@@ -615,11 +616,10 @@
     </Grid>
     <!-- Toasts: every page reports here, so messages never push the page around -->
     <ScrollViewer x:Name="ToastScroll" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="380" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
-     <ItemsControl x:Name="ToastStack" IsTabStop="False" AutomationProperties.Name="Notifications">
+     <local:ToastList x:Name="ToastStack" IsTabStop="False" AutomationProperties.Name="Notifications">
       <!-- Only moving the others when one goes. Coming and going is played by each card itself, so nothing waits for anything else. -->
-      <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><RepositionThemeTransition IsStaggeringEnabled="False" /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate><DataTemplate><local:ToastCard /></DataTemplate></ItemsControl.ItemTemplate>
-     </ItemsControl>
+      <local:ToastList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10"><StackPanel.ChildrenTransitions><TransitionCollection><RepositionThemeTransition IsStaggeringEnabled="False" /></TransitionCollection></StackPanel.ChildrenTransitions></StackPanel></ItemsPanelTemplate></local:ToastList.ItemsPanel>
+     </local:ToastList>
     </ScrollViewer>
    </Grid>
   </Grid>

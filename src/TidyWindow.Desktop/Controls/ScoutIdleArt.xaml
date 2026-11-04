@@ -1,0 +1,32 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.ScoutIdleArt"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ IsTabStop="False" HorizontalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+ <!-- A magnifier drifts from file to folder to picture. Each one lifts, lights up and sends out a ring as it is found, then the magnifier carries on and the loop starts again.
+      Everything moves by transform and opacity only, so it stays smooth and costs next to nothing. -->
+ <Canvas Width="232" Height="116">
+  <Ellipse x:Name="Ring1" Canvas.Left="8" Canvas.Top="36" Width="56" Height="56" Opacity="0" StrokeThickness="2" RenderTransformOrigin="0.5,0.5" Stroke="{ThemeResource LoadingGoldBrush}"><Ellipse.RenderTransform><CompositeTransform x:Name="RingMove1" /></Ellipse.RenderTransform></Ellipse>
+  <Ellipse x:Name="Ring2" Canvas.Left="88" Canvas.Top="36" Width="56" Height="56" Opacity="0" StrokeThickness="2" RenderTransformOrigin="0.5,0.5" Stroke="{ThemeResource LoadingGoldBrush}"><Ellipse.RenderTransform><CompositeTransform x:Name="RingMove2" /></Ellipse.RenderTransform></Ellipse>
+  <Ellipse x:Name="Ring3" Canvas.Left="168" Canvas.Top="36" Width="56" Height="56" Opacity="0" StrokeThickness="2" RenderTransformOrigin="0.5,0.5" Stroke="{ThemeResource LoadingGoldBrush}"><Ellipse.RenderTransform><CompositeTransform x:Name="RingMove3" /></Ellipse.RenderTransform></Ellipse>
+
+  <Grid Canvas.Left="8" Canvas.Top="36" Width="56" Height="56" RenderTransformOrigin="0.5,0.5">
+   <Grid.RenderTransform><CompositeTransform x:Name="CardMove1" /></Grid.RenderTransform>
+   <Border CornerRadius="14" Background="{ThemeResource PanelBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1"><FontIcon Glyph="&#xE8A5;" FontSize="22" Foreground="{ThemeResource MutedBrush}" /></Border>
+   <Border x:Name="Hot1" CornerRadius="14" Opacity="0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="{ThemeResource LoadingAccentStart}" Offset="0" /><GradientStop Color="{ThemeResource LoadingAccentEnd}" Offset="1" /></LinearGradientBrush></Border.Background><FontIcon Glyph="&#xE8A5;" FontSize="22" Foreground="White" /></Border>
+  </Grid>
+  <Grid Canvas.Left="88" Canvas.Top="36" Width="56" Height="56" RenderTransformOrigin="0.5,0.5">
+   <Grid.RenderTransform><CompositeTransform x:Name="CardMove2" /></Grid.RenderTransform>
+   <Border CornerRadius="14" Background="{ThemeResource PanelBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1"><FontIcon Glyph="&#xE8B7;" FontSize="22" Foreground="{ThemeResource MutedBrush}" /></Border>
+   <Border x:Name="Hot2" CornerRadius="14" Opacity="0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="{ThemeResource LoadingAccentStart}" Offset="0" /><GradientStop Color="{ThemeResource LoadingAccentEnd}" Offset="1" /></LinearGradientBrush></Border.Background><FontIcon Glyph="&#xE8B7;" FontSize="22" Foreground="White" /></Border>
+  </Grid>
+  <Grid Canvas.Left="168" Canvas.Top="36" Width="56" Height="56" RenderTransformOrigin="0.5,0.5">
+   <Grid.RenderTransform><CompositeTransform x:Name="CardMove3" /></Grid.RenderTransform>
+   <Border CornerRadius="14" Background="{ThemeResource PanelBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1"><FontIcon Glyph="&#xE91B;" FontSize="22" Foreground="{ThemeResource MutedBrush}" /></Border>
+   <Border x:Name="Hot3" CornerRadius="14" Opacity="0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="{ThemeResource LoadingAccentStart}" Offset="0" /><GradientStop Color="{ThemeResource LoadingAccentEnd}" Offset="1" /></LinearGradientBrush></Border.Background><FontIcon Glyph="&#xE91B;" FontSize="22" Foreground="White" /></Border>
+  </Grid>
+
+  <FontIcon x:Name="Magnifier" Glyph="&#xE721;" FontSize="38" Canvas.Left="19" Canvas.Top="47" RenderTransformOrigin="0.5,0.5">
+   <FontIcon.RenderTransform><CompositeTransform x:Name="MagnifierMove" /></FontIcon.RenderTransform>
+  </FontIcon>
+ </Canvas>
+</UserControl>

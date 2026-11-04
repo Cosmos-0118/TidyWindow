@@ -104,6 +104,8 @@ public sealed partial class MainWindow : Window
         paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, Post, toasts, ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
         ToastStack.ItemsSource = toasts.Items;
+        // A card is read from a file in the install folder when a toast appears. If that folder was changed under the open window, a plain card is shown instead.
+        ToastStack.CardFailed = ex => log.Write(ActivityLevel.Warning, ActivityArea.App, "A message was shown in plain form", "Its card could not be loaded, usually because TidyWindow was updated or removed while it was open. Restart it to get the normal look back.\n" + ex.Message);
         Root.DataContext = model;
         repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
