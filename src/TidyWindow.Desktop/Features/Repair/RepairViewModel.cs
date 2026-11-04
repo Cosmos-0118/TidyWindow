@@ -237,7 +237,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("repair-scan", ToastKind.Warning, "The scan could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("repair-scan", ToastKind.Warning, "The scan could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Repair scan could not finish", ex.Message);
         }
         finally
@@ -363,7 +363,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         {
             var result = await service.RepairProgramAsync(product, row.Name, lifetime.Token, new Progress<RepairProgress>(OnProgress), new RepairOptions(allowDownload, installerFolders.ToList(), RemoveProgramFolders: removeProgramFolders));
             ShowResults([result], result.Status == RepairStatus.FixedAfterRestart);
-            if (result.Status == RepairStatus.NotFixed) toasts.Show("repair", ToastKind.Warning, $"{row.Name} could not be repaired", ToastCenter.Brief(result.Summary));
+            if (result.Status == RepairStatus.NotFixed) toasts.Show("repair", ToastKind.Warning, $"{row.Name} could not be repaired", ToastCenter.Flat(result.Summary));
             else toasts.Show("repair", ToastKind.Success, $"Repaired {row.Name}", result.Status == RepairStatus.FixedAfterRestart ? "Restart Windows to finish." : "See Last repair on the Problems tab for what was done.");
             log.Write(result.Status == RepairStatus.NotFixed ? ActivityLevel.Warning : ActivityLevel.Success, ActivityArea.App, $"Repaired {row.Name}", result.Summary + " " + string.Join(" ", result.Steps));
         }
@@ -371,7 +371,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.ToString());
         }
         finally { fixing = false; Notify(); }
@@ -393,7 +393,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             else if (outcome.Problems.Count == 0)
                 toasts.Show("repair", ToastKind.Success, title, outcome.RestartNeeded ? "Restart Windows to finish." : batch is null ? "" : "You can undo this any time from the Undo tab.", batch is null ? "" : "Undo", undo, 12);
             else
-                toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired", ToastCenter.Brief(string.Join(" ", outcome.Problems)), batch is null ? "" : "Undo", undo, 15);
+                toasts.Show("repair", ToastKind.Warning, $"{outcome.Fixed} of {findings.Count} repaired", ToastCenter.Flat(string.Join(" ", outcome.Problems)), batch is null ? "" : "Undo", undo, 15);
             log.Write(outcome.Problems.Count == 0 ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, title,
                 $"{outcome.Fixed} of {findings.Count} repaired. " + (outcome.Stopped ?? "") + string.Join(" ", outcome.Problems) + string.Concat((outcome.Results ?? []).Select(x => $"\n{x.Title}: {x.Status}. " + string.Join(" ", x.Steps))));
         }
@@ -406,7 +406,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         catch (Exception ex)
         {
             // Whatever went wrong (the helper could not be started, a file was in the way), the page says so and stays usable rather than taking the app down.
-            toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("repair", ToastKind.Warning, "The repair could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Repair could not finish", ex.ToString());
         }
         finally { fixing = false; RefreshHistory(); Notify(); }
@@ -443,8 +443,10 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             else
             {
                 // Nothing was put back, and the page says exactly which keys stopped it.
-                ShowResults([new($"undo:{batch.Id}", batch.Title, RepairStatus.NotFixed, outcome.Problems[0], outcome.Problems.Skip(1).Take(12).ToList())], false);
-                toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Brief(outcome.Problems[0] + " " + (outcome.Problems.Count > 1 ? outcome.Problems[1] : "")));
+                // The same reason for the same key can come up once for every copy of it; it is said once, and the toast carries all of it.
+                var problems = outcome.Problems.Distinct().ToList();
+                ShowResults([new($"undo:{batch.Id}", batch.Title, RepairStatus.NotFixed, problems[0], problems.Skip(1).Take(12).ToList())], false);
+                toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Flat(string.Join(" ", problems)));
                 log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", string.Join(" ", outcome.Problems));
             }
         }
@@ -452,7 +454,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("repair", ToastKind.Warning, "The undo could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Repair undo could not finish", ex.ToString());
         }
         finally { fixing = false; RefreshHistory(); Notify(); }
@@ -578,13 +580,13 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
             if (outcome.Problems.Count == 0)
                 toasts.Show("repair", ToastKind.Success, keep ? "Put back" : "Removed for good", rows.Count == 1 ? $"{rows[0].Name} was {verb}." : $"{outcome.Done} items were {verb}.");
             else
-                toasts.Show("repair", ToastKind.Warning, $"{outcome.Done} of {rows.Count} {verb}", ToastCenter.Brief(string.Join(" ", outcome.Problems)));
+                toasts.Show("repair", ToastKind.Warning, $"{outcome.Done} of {rows.Count} {verb}", ToastCenter.Flat(string.Join(" ", outcome.Problems)));
             log.Write(outcome.Problems.Count == 0 ? ActivityLevel.Info : ActivityLevel.Warning, ActivityArea.App, keep ? "Quarantine: put back" : "Quarantine: removed", $"{outcome.Done} of {rows.Count} {verb}. " + string.Join(" ", outcome.Problems));
         }
         catch (OperationCanceledException) { toasts.Show("repair", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            toasts.Show("repair", ToastKind.Warning, "That could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("repair", ToastKind.Warning, "That could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Quarantine could not finish", ex.Message);
         }
         finally { fixing = false; RefreshHistory(); Notify(); }

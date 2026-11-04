@@ -263,7 +263,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("background-scan", ToastKind.Warning, "Background items could not be read", ToastCenter.Brief(ex.Message));
+            toasts.Show("background-scan", ToastKind.Warning, "Background items could not be read", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Background scan could not finish", ex.Message);
         }
         finally { scanning = false; Notify(); }
@@ -359,7 +359,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             }
             else
             {
-                toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+                toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(outcome.Error ?? "Windows did not accept the change."));
                 log.Write(ActivityLevel.Warning, ActivityArea.App, "Background item could not be changed", $"{row.Name}: {outcome.Error}");
                 if (await Task.Run(() => BackgroundScan.Find(system, catalog, row.Id)) is { } current) row.Update(current);
             }
@@ -371,13 +371,13 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Background item could not be changed", ex.Message);
         }
         catch (Exception ex)
         {
             // Anything else is a fault in the app, not in Windows. It is reported like a failure rather than ending the app from a switch.
-            toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("background", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Background item could not be changed", ex.ToString());
         }
         finally
@@ -410,7 +410,7 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         catch (Exception ex)
         {
             // Each item's own failure is in the batch, so only a fault in the app gets here. It runs from a toast as well as a button, so it must never end the app.
-            toasts.Show("background", ToastKind.Warning, $"Items could not be {what}", ToastCenter.Brief(ex.Message), seconds: 15);
+            toasts.Show("background", ToastKind.Warning, $"Items could not be {what}", ToastCenter.Flat(ex.Message), seconds: 15);
             log.Write(ActivityLevel.Error, ActivityArea.App, $"Background items could not be {what}", ex.ToString());
         }
         finally
@@ -436,8 +436,8 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
         var notes = string.Join(" ", batch.Results.Select(x => x.Outcome.Note).Where(x => !string.IsNullOrEmpty(x)).Distinct());
         var title = done == 1 ? $"1 item {what}" : $"{done} items {what}";
         if (batch.Declined) toasts.Show("background", ToastKind.Info, "Administrator permission was declined", done > 0 ? $"{title} before that. The rest were not changed." : "Nothing was changed.", seconds: 12);
-        else if (failed.Count == 0) toasts.Show("background", ToastKind.Success, title, notes.Length > 0 ? ToastCenter.Brief(notes) : "Find them under Turned off to undo.", seconds: 12);
-        else toasts.Show("background", ToastKind.Warning, $"{done} of {asked} {what}", ToastCenter.Brief(string.Join(" ", failed.Select(x => $"{x.Entry.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
+        else if (failed.Count == 0) toasts.Show("background", ToastKind.Success, title, notes.Length > 0 ? ToastCenter.Flat(notes) : "Find them under Turned off to undo.", seconds: 12);
+        else toasts.Show("background", ToastKind.Warning, $"{done} of {asked} {what}", ToastCenter.Flat(string.Join(" ", failed.Select(x => $"{x.Entry.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
         log.Write(failed.Count == 0 && !batch.Declined ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, $"Background items {what}", $"{done} of {asked}.{(batch.Declined ? " Administrator permission was declined." : "")}{(failed.Count > 0 ? " Not changed: " + string.Join(", ", failed.Select(x => x.Entry.Item.Name)) + "." : "")}");
     }
 
@@ -454,13 +454,13 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
             var done = results.Count(x => x.Outcome.Ok);
             if (results.Count == 0) toasts.Show("background", ToastKind.Info, "Nothing to turn back on");
             else if (done == results.Count) toasts.Show("background", ToastKind.Success, done == 1 ? "1 item turned back on" : $"{done} items turned back on");
-            else toasts.Show("background", ToastKind.Warning, $"{done} of {results.Count} turned back on", ToastCenter.Brief(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
+            else toasts.Show("background", ToastKind.Warning, $"{done} of {results.Count} turned back on", ToastCenter.Flat(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Background items turned back on", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("background", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex)
         {
-            toasts.Show("background", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Brief(ex.Message));
+            toasts.Show("background", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Background restore could not finish", ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString());
         }
         finally { working = false; Notify(); }

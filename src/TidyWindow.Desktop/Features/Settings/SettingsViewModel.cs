@@ -189,7 +189,7 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
     {
         if (disposed) return;
         log.Write(ActivityLevel.Warning, ActivityArea.App, title, detail);
-        toasts.Show("settings-link", ToastKind.Warning, title, ToastCenter.Brief(detail));
+        toasts.Show("settings-link", ToastKind.Warning, title, ToastCenter.Flat(detail));
     }
 
     public void Dispose()
@@ -298,7 +298,7 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         phase = Phase.Idle;
         error = title + " " + Explain(ex);
         log.Write(ActivityLevel.Warning, ActivityArea.App, title, ex.Message);
-        toasts.Show("settings-update", ToastKind.Warning, title, ToastCenter.Brief(ex.Message));
+        toasts.Show("settings-update", ToastKind.Warning, title, ToastCenter.Flat(ex.Message));
         Notify();
     }
 

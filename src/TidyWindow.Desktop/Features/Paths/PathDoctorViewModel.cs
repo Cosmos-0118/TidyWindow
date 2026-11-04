@@ -349,7 +349,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
         catch (Exception ex)
         {
             // The helper may be missing, blocked by a policy or gone before it connected; whatever it was, the page stays usable and says so.
-            Toast("unlock", ToastKind.Warning, "Could not unlock editing", ToastCenter.Brief(ex.Message));
+            Toast("unlock", ToastKind.Warning, "Could not unlock editing", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor could not get administrator permission", Detail(ex));
         }
         finally
@@ -406,7 +406,7 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Path Doctor change failed", Detail(ex));
         }
         finally { busy = false; }
-        if (!result.Changed) Toast("result", ToastKind.Warning, ToastCenter.Brief(result.Message));
+        if (!result.Changed) Toast("result", ToastKind.Warning, ToastCenter.Flat(result.Message));
         else if (offerUndo) Toast("result", ToastKind.Success, result.Message, "Open a new terminal to see it. Windows that are already open keep the old PATH.", "Undo", undo ?? UndoAsync);
         else Toast("result", ToastKind.Success, result.Message);
         if (result.Changed) log.Write(ActivityLevel.Success, ActivityArea.App, "Path Doctor changed your PATH", result.Message);

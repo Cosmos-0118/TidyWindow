@@ -366,7 +366,7 @@ public sealed class CrashesViewModel(string folder, ICrashEventSource source, Ac
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            if (!quiet) toasts.Show("crash-scan", ToastKind.Warning, "Crash records could not be read", ToastCenter.Brief(ex.Message));
+            if (!quiet) toasts.Show("crash-scan", ToastKind.Warning, "Crash records could not be read", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash scan could not finish", ex.Message);
         }
         finally { scanning = false; NotifyState(); }
@@ -495,20 +495,20 @@ public sealed class CrashesViewModel(string folder, ICrashEventSource source, Ac
     {
         if (path.Length == 0 || !File.Exists(path)) { toasts.Show("crash-open", ToastKind.Info, missing); return; }
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open Explorer", ToastCenter.Brief(ex.Message)); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open Explorer", ToastCenter.Flat(ex.Message)); }
     }
 
     public void OpenReport(CrashEvent e)
     {
         if (e.ReportFolder.Length == 0 || !Directory.Exists(e.ReportFolder)) { toasts.Show("crash-open", ToastKind.Info, "Windows no longer keeps this report", "It removes old reports on its own. The details TidyWindow saved are still here."); return; }
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{e.ReportFolder}\"") { UseShellExecute = true }); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open Explorer", ToastCenter.Brief(ex.Message)); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open Explorer", ToastCenter.Flat(ex.Message)); }
     }
 
     public void SearchWeb(CrashEvent e)
     {
         try { Process.Start(new ProcessStartInfo("https://duckduckgo.com/?q=" + Uri.EscapeDataString(CrashReport.SearchText(e))) { UseShellExecute = true }); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open the browser", ToastCenter.Brief(ex.Message)); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { toasts.Show("crash-open", ToastKind.Warning, "Could not open the browser", ToastCenter.Flat(ex.Message)); }
     }
 
     public void Dispose()

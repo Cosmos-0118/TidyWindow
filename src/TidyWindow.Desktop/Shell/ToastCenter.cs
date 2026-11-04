@@ -79,8 +79,8 @@ public sealed class ToastCenter : IDisposable
 
     public bool Has(Func<string, bool> match) => Items.Any(x => !x.Closing && match(x.Key));
 
-    /// <summary>The first lines of a long message, so a toast stays short; the full text is in Logs.</summary>
-    public static string Brief(string text, int max = 240) => ToastPolicy.Brief(text, max);
+    /// <summary>A long message on one line. It is not cut here: the card shows the first lines with "Show more", and Copy puts the whole text on the clipboard.</summary>
+    public static string Flat(string text) => ToastPolicy.Flat(text);
 
     // Past the limit the oldest goes, but one that will leave by itself is let go before one the person has to deal with.
     private void MakeRoom()

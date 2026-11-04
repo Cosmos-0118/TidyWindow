@@ -150,7 +150,7 @@ public sealed class LabViewModel : ObservableState, IDisposable
         // Anything at all: this runs unobserved when the page opens, so an unexpected failure must show on the page instead of leaving it empty.
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            toasts.Show("lab-read", ToastKind.Warning, "The Lab could not read this PC", ToastCenter.Brief(ex.Message));
+            toasts.Show("lab-read", ToastKind.Warning, "The Lab could not read this PC", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Lab could not read this PC", ex.ToString());
         }
         foreach (var name in new[] { nameof(PowerName), nameof(PowerFastVisibility), nameof(PowerNormalVisibility), nameof(MemoryOnVisibility), nameof(MemoryOffVisibility), nameof(PowerText), nameof(PowerButton), nameof(PowerCanClick), nameof(PowerGoesBack), nameof(MemoryIntegrityText), nameof(MemoryIntegrityState), nameof(AppsNote), nameof(PutBackVisibility) }) Changed(name);
@@ -190,7 +190,7 @@ public sealed class LabViewModel : ObservableState, IDisposable
         // The button that starts this cannot catch anything itself, so every other failure ends here rather than closing the app.
         catch (Exception ex)
         {
-            toasts.Show("lab-check", ToastKind.Warning, "The check could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("lab-check", ToastKind.Warning, "The check could not finish", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Performance check could not finish", ex.ToString());
         }
         finally
@@ -244,7 +244,7 @@ public sealed class LabViewModel : ObservableState, IDisposable
         // Includes the note on disk being unwritable (a read-only Lab folder), which used to escape and close the app.
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            toasts.Show("lab-power", ToastKind.Warning, "The power plan could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("lab-power", ToastKind.Warning, "The power plan could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Power plan could not be changed", ex.ToString());
         }
         finally { powerBusy = false; await LoadAsync(); }
