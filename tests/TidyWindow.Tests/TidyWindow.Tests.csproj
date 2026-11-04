@@ -3,7 +3,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>
     <!-- The runner reads its settings (parallelism, long-running test reports) from this file next to the test assembly. -->
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/TidyWindow.Core/TidyWindow.Core.csproj" />
