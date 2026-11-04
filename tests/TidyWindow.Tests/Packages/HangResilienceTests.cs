@@ -112,6 +112,103 @@ public sealed class HangResilienceTests
     }
 
     [Fact]
+    public async Task APersonCanStopWaitingForAHungFixAndTheQueueMovesOnWithoutEndingIt()
+    {
+        var started = Signal(); var hung = Signal();
+        var fix = new PackageOperation(PackageOperationKind.Fix, default, "sfc", "System file check", Fix: new FixRun("sfc", []));
+        var queue = new PackageOperationQueue(async (operation, _) =>
+        {
+            if (operation.Fix is null) return Done;
+            started.SetResult(); await hung.Task; return new(ActionOutcome.Failed, "Stopped System file check", "It was stopped before it finished.");
+        }) { StopGrace = TimeSpan.FromMilliseconds(100) };
+        var settled = new List<QueueEntry>();
+        queue.Settled += entry => { lock (settled) settled.Add(entry); };
+        queue.Enqueue([fix, Install("next")]);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var id = queue.Snapshot().Entries[0].Id;
+
+        // Giving up is a choice made after asking it to stop, never the first thing offered.
+        Assert.False(queue.Snapshot().Entries[0].StopRequested);
+        Assert.False(queue.StopWaitingForFix(id));
+        Assert.True(queue.StopRunning());
+        Assert.True(queue.Snapshot().Entries[0].StopRequested);
+        Assert.False(queue.StopWaitingForFix(Guid.NewGuid()));
+        Assert.True(queue.StopWaitingForFix(id));
+
+        await queue.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        var entries = queue.Snapshot().Entries;
+        Assert.Equal("Stopped waiting for System file check", entries[0].Result!.Message);
+        Assert.Contains("not ended", entries[0].Result!.Detail);
+        Assert.Equal(ActionOutcome.Completed, entries[1].Result!.Outcome);
+        Assert.Equal(["System file check"], queue.Lingering);
+        Assert.Empty(settled);
+
+        // The fix is still there to end, and how it really ended is reported then.
+        hung.SetResult();
+        for (var i = 0; i < 100 && settled.Count == 0; i++) await Task.Delay(50);
+        var report = Assert.Single(settled);
+        Assert.Equal("Stopped System file check", report.Result!.Message);
+        Assert.Empty(queue.Lingering);
+    }
+
+    [Fact]
+    public async Task OnlyAFixCanBeLetGoOfAndAFixThatEndsOnItsOwnIsNotReportedAsGivenUp()
+    {
+        var started = Signal(); var finish = Signal();
+        var queue = new PackageOperationQueue(async (operation, token) =>
+        {
+            started.SetResult();
+            if (operation.Fix is null) { await Task.Delay(Timeout.Infinite, token); return Done; }
+            await finish.Task; return new(ActionOutcome.Failed, "Stopped System file check", "It was stopped before it finished.");
+        }) { StopGrace = TimeSpan.FromMilliseconds(100) };
+        queue.Enqueue([Install("pkg")]);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var id = queue.Snapshot().Entries[0].Id;
+        Assert.True(queue.StopRunning());
+        Assert.False(queue.StopWaitingForFix(id));
+        await queue.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(queue.Lingering);
+
+        var fixStarted = Signal();
+        var fixes = new PackageOperationQueue(async (_, _) => { fixStarted.SetResult(); await finish.Task; return new(ActionOutcome.Failed, "Stopped System file check", "It was stopped before it finished."); });
+        fixes.Enqueue([new PackageOperation(PackageOperationKind.Fix, default, "sfc", "System file check", Fix: new FixRun("sfc", []))]);
+        await fixStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(fixes.StopRunning());
+        finish.SetResult();
+        await fixes.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Stopped System file check", fixes.Snapshot().Entries[0].Result!.Message);
+        Assert.Empty(fixes.Lingering);
+    }
+
+    [Fact]
+    public async Task AFixStartedWhileAnotherIsStillFinishingSaysSoAndCanBeStopped()
+    {
+        var gate = Signal(); var firstRunning = Signal();
+        var item = new FixItem { Id = "slow", Name = "Slow fix", Group = FixGroup.Windows, Scope = FixScope.User, Summary = "s", Effect = "e", Steps = [new FixStep { Title = "wait", File = "cmd.exe" }] };
+        var first = new BlockingExecutor(firstRunning, gate);
+        var service = new FixService([item], first, null, () => false, null);
+        var firstRun = service.RunAsync(new("slow", []), new Progress(_ => { }), CancellationToken.None);
+        await firstRunning.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var notices = new List<string>();
+        using var stop = new CancellationTokenSource();
+        var second = service.RunAsync(new("slow", []), new Progress(o => { if (o.Kind == CommandOutputKind.Notice) lock (notices) notices.Add(o.Text); }), stop.Token);
+        await Task.Delay(100);
+        Assert.Contains(notices, x => x.Contains("still finishing"));
+        Assert.False(second.IsCompleted);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second.WaitAsync(TimeSpan.FromSeconds(5)));
+        gate.SetResult();
+        await firstRun.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    private sealed class BlockingExecutor(TaskCompletionSource entered, TaskCompletionSource gate) : IFixStepExecutor
+    {
+        public async Task<int> ExecuteAsync(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken)
+        { entered.TrySetResult(); await gate.Task; return 0; }
+    }
+
+    [Fact]
     public async Task StoppingIsRefusedForAnOperationThatIsNotTheRunningOne()
     {
         var started = Signal(); var release = Signal();
