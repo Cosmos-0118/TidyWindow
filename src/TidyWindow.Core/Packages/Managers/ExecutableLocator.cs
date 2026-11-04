@@ -41,36 +41,11 @@ public static partial class ElevatedProgram
         try { full = Path.GetFullPath(fileName); }
         catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException) { return $"\"{fileName}\" is not a valid path, so it cannot run with administrator rights."; }
         if (!OperatingSystem.IsWindows()) return null;
-        var file = new FileInfo(full);
-        if (!file.Exists) return $"{full} does not exist.";
-        if (file.LinkTarget is not null || file.Attributes.HasFlag(FileAttributes.ReparsePoint)) return $"{full} is a link, and a link can be pointed at any program, so it cannot run with administrator rights.";
-        var folder = file.DirectoryName ?? "";
-        foreach (var personal in new[] { Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Path.GetTempPath() })
-            if (personal.Length > 0 && IsUnder(full, personal)) return Open(full);
-        return IsOpenToOrdinaryAccounts(folder) ? Open(full) : null;
-    }
-
-    private static string Open(string path) => $"{path} is in a folder that accounts without administrator rights can change, so it cannot run with administrator rights.";
-
-    /// <summary>
-    /// The PATH guard's walk, except under Program Files\WindowsApps: that folder hides its own permissions from ordinary accounts, which the walk
-    /// would take as a reason to refuse, while every package folder inside it belongs to Windows and shows its (read-only) permissions. So inside it
-    /// the package folder and what is below it are judged, and the folders above are taken as Windows' own.
-    /// </summary>
-    [SupportedOSPlatform("windows")]
-    private static bool IsOpenToOrdinaryAccounts(string folder)
-    {
-        var apps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
-        if (!IsUnder(folder, apps) || folder.Equals(Path.TrimEndingDirectorySeparator(apps), StringComparison.OrdinalIgnoreCase)) return MachinePathGuard.IsOpenToOrdinaryAccounts(folder);
-        var target = true;
-        for (var directory = new DirectoryInfo(folder); directory is not null && !directory.FullName.Equals(Path.TrimEndingDirectorySeparator(apps), StringComparison.OrdinalIgnoreCase); directory = directory.Parent, target = false)
-        {
-            DirectorySecurity security;
-            try { security = directory.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException) { return true; }
-            if (directory.LinkTarget is not null || MachinePathGuard.Opens(security, target)) return true;
-        }
-        return false;
+        if (!File.Exists(full)) return $"{full} does not exist.";
+        // This judges the file at exactly this path, so unlike Resolve it does not follow an alias to the program it stands for: the path itself is what would be run.
+        if (IsLink(full)) return $"{full} is a link, and a link can be pointed at any program, so it cannot run with administrator rights.";
+        // The rule for what may run with administrator rights is the one in Resolve, so a folder is judged the same way whichever way the question comes.
+        return Resolve(full).Problem;
     }
 
     /// <summary>
@@ -97,18 +72,12 @@ public static partial class ElevatedProgram
                 using var package = packages.OpenSubKey(name);
                 if (package?.GetValue("PackageRootFolder") is not string folder || folder.Length == 0 || !Path.IsPathFullyQualified(folder)) continue;
                 var executable = Path.Combine(Path.GetFullPath(folder), "winget.exe");
-                if (!IsUnder(executable, apps) || !File.Exists(executable) || (bestVersion is not null && version <= bestVersion)) continue;
+                if (!IsWithin(executable, apps) || !File.Exists(executable) || (bestVersion is not null && version <= bestVersion)) continue;
                 best = executable; bestVersion = version;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException) { return null; }
         return best is not null && ProtectedPathProblem(best) is null ? best : null;
-    }
-
-    private static bool IsUnder(string path, string root)
-    {
-        var trimmed = Path.TrimEndingDirectorySeparator(root);
-        return path.Equals(trimmed, StringComparison.OrdinalIgnoreCase) || path.StartsWith(trimmed + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }
 

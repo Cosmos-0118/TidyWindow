@@ -101,6 +101,19 @@ public sealed class ScoutInputHardeningTests : IDisposable
         Assert.Null(found.Notice);
     }
 
+    [Fact]
+    public async Task AFolderMovedBeforeTheIndexHasSeenItIsStillWalked()
+    {
+        using var index = new ScoutFolderIndex();
+        Assert.Empty((await index.SearchAsync(new("leaf", root), null, CancellationToken.None)).Entries);
+        // Made and moved with no search in between, as happens when the index is slow to look: every change is read after the move.
+        var tree = Directory.CreateDirectory(Path.Combine(root, "tree", "deep")).FullName;
+        System.IO.File.WriteAllText(Path.Combine(tree, "leaf.txt"), "x");
+        Directory.Move(Path.Combine(root, "tree"), Path.Combine(root, "moved"));
+        var found = await Until(index, r => r.Entries.Count == 1);
+        Assert.Equal(Path.Combine(root, "moved", "deep", "leaf.txt"), Assert.Single(found.Entries).FullPath);
+    }
+
     // Waits for the watcher to deliver, with a generous bound; the outcome never depends on how quickly it does.
     private async Task<ScoutResult> Until(ScoutFolderIndex index, Func<ScoutResult, bool> ready)
     {

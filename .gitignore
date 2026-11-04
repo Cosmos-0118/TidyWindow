@@ -19,3 +19,6 @@ Thumbs.db
 
 # Windows ETW/perf trace captures that can land in the repo root
 *.etl
+
+# Claude Code scratch files (one-off check scripts and their results)
+.claude/scratch/

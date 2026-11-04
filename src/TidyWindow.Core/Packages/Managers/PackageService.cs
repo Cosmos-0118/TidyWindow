@@ -52,7 +52,8 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             var apps = PackageOutputParser.Parse(kind, result.Output, int.MaxValue, windowsApps)
                 .Select(x => new InstalledApp(kind, x.Id, x.Name, x.Version, x.Source)).ToArray();
             var clean = PackageOutputParser.Clean(result.Output);
-            if (apps.Length == 0 && !string.IsNullOrWhiteSpace(clean) &&
+            // WinGet's words for "none" differ by the language of Windows, so there a run that succeeded with no rows is an empty list unless the output is laid out as a table that could not be read.
+            if (apps.Length == 0 && !string.IsNullOrWhiteSpace(clean) && (kind != ManagerKind.Winget || PackageOutputParser.LooksLikeTable(clean)) &&
                 !Regex.IsMatch(clean, @"(?m)^\s*-{2,}[\s-]*$|0 packages|no (?:installed |applications |apps |packages)|aren't any installed", RegexOptions.IgnoreCase))
                 return new(kind, [], "The installed-package inventory could not be read. The manager may have a damaged configuration or an unsupported output format.");
             return new(kind, apps);
@@ -167,7 +168,7 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
                 return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));
             var packages = PackageOutputParser.Parse(kind, result.Output);
-            if (packages.Count == 0 && !string.IsNullOrWhiteSpace(result.Output) &&
+            if (packages.Count == 0 && !string.IsNullOrWhiteSpace(result.Output) && (kind != ManagerKind.Winget || PackageOutputParser.LooksLikeTable(result.Output)) &&
                 !result.Output.Contains("No matches", StringComparison.OrdinalIgnoreCase) &&
                 !result.Output.Contains("No package", StringComparison.OrdinalIgnoreCase))
                 return new(kind, [], "The manager returned no installable rows. Its output format may have changed, or Scoop may require another bucket.");

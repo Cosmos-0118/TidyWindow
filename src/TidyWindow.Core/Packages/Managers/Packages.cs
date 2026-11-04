@@ -66,7 +66,14 @@ public static partial class ElevatedProgram
 
     /// <summary>The program to run with administrator rights (an alias replaced by the program it stands for) and the reason it must not be run that way, if any.</summary>
     public static (string FileName, string? Problem) Resolve(string fileName) =>
-        Resolve(fileName, File.Exists, OperatingSystem.IsWindows() ? AppExecutionAlias.Target : (_ => null), folder => OperatingSystem.IsWindows() ? Access(folder) : FolderAccess.Unknown);
+        Resolve(fileName, File.Exists, OperatingSystem.IsWindows() ? AppExecutionAlias.Target : (_ => null), folder => OperatingSystem.IsWindows() ? Access(folder) : FolderAccess.Unknown, IsLink);
+
+    /// <summary>A link (symbolic link, junction) can be pointed at any program after it has been checked.</summary>
+    private static bool IsLink(string path)
+    {
+        try { var file = new FileInfo(path); return file.LinkTarget is not null || file.Attributes.HasFlag(FileAttributes.ReparsePoint); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return true; }
+    }
 
     /// <summary>The command made ready for an elevated run, or an exception saying why its program (or the <paramref name="script"/> that program would run) must not run with administrator rights.</summary>
     public static CommandSpec Checked(CommandSpec command, IExecutableLocator locator, string? script = null)
@@ -78,7 +85,7 @@ public static partial class ElevatedProgram
         return command with { FileName = file };
     }
 
-    internal static (string FileName, string? Problem) Resolve(string fileName, Func<string, bool> fileExists, Func<string, string?> aliasTarget, Func<string, FolderAccess> access)
+    internal static (string FileName, string? Problem) Resolve(string fileName, Func<string, bool> fileExists, Func<string, string?> aliasTarget, Func<string, FolderAccess> access, Func<string, bool>? isLink = null)
     {
         var name = Path.GetFileName(fileName) is { Length: > 0 } file ? file : fileName;
         var found = Locate(fileName, fileExists);
@@ -88,6 +95,8 @@ public static partial class ElevatedProgram
             if (!Path.IsPathFullyQualified(target) || !fileExists(target)) return (found, $"{name} stands for a packaged program that is not there ({target}), so TidyWindow will not run it with administrator rights.");
             found = Path.GetFullPath(target);
         }
+        // An alias was followed above to the program it stands for; any other link is refused, and so is the program the alias leads to if that is one.
+        if (isLink?.Invoke(found) == true) return (found, $"{found} is a link, and a link can be pointed at any program, so TidyWindow will not run it with administrator rights.");
         var folder = Path.GetDirectoryName(found) ?? found;
         if (UserPlaces().Any(place => IsWithin(folder, place))) return (found, Open(name, folder));
         return access(folder) switch

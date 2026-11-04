@@ -97,6 +97,8 @@ public static partial class InstallFailure
     public static bool NeedsAdministrator(CommandResult result)
     {
         if (result.ExitCode == 0) return false;
+        // WinGet's own code for "this command needs administrator rights" does not depend on the language it speaks; the words below only cover what an installer printed in English.
+        if (unchecked((uint)result.ExitCode) == 0x8A150019) return true;
         return AdministratorRequired().IsMatch(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
     }
 

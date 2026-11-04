@@ -17,6 +17,20 @@ public static partial class PackageOutputParser
     private static partial Regex Words();
 
     public static string Clean(string text) => Ansi().Replace(text, "").Replace("\b", "");
+
+    /// <summary>
+    /// Whether the output holds something shaped like a table: a line of dashes under a header, or a line of three or more cells apart by runs of spaces. WinGet's own words for "nothing
+    /// found" change with the language of Windows, but a message is never laid out like that, so a successful run with no rows parsed is a table the parser could not read only when this is true.
+    /// </summary>
+    public static bool LooksLikeTable(string output)
+    {
+        foreach (var line in Clean(output).Split('\n'))
+        {
+            if (Regex.IsMatch(line, @"^\s*-{2,}[\s-]*$")) return true;
+            if (Regex.Split(line.Trim(), @" {2,}").Length >= 3) return true;
+        }
+        return false;
+    }
     // WinGet names what it did not install from a source by where Windows keeps it: the registry's uninstall list (ARP) or a Store package (MSIX).
     // Registry key names are free text, so the characters allowed are a fixed set with no double quotes, pipes, percent signs or redirection.
     // Letters and digits of any script are allowed (WinGet prints them as they are); a cut-off name ends in "…", which is not one of them.

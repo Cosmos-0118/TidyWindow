@@ -122,6 +122,21 @@ public sealed class ProtectedStoreTests : IDisposable
         Assert.Contains("parent", ProtectedStore.Problem(inheriting));
     }
 
+    // Runs for real only with the administrator rights in effect (an elevated run, or any run with User Account Control off): the helper must trust what it saved itself.
+    // Checked by hand on Windows 11 build 26300 with User Account Control off: the file is still owned by Administrators.
+    [Fact]
+    public void ARecordTheHelperSavedIsReadBackWhoeverOwnsTheFileOnThisPc()
+    {
+        if (!OperatingSystem.IsWindows() || !new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) return;
+        var store = new ProtectedStore("startup", root, enforce: true);
+        store.Save("run|machine|Run|Updater", new Copy(@"C:\Apps\upd.exe", 1));
+        var file = Directory.EnumerateFiles(Path.Combine(root, "startup"), "*.json").Single();
+        var owner = new FileInfo(file).GetAccessControl(AccessControlSections.Owner).GetOwner(typeof(SecurityIdentifier));
+        Assert.True(store.Load<Copy>("run|machine|Run|Updater") is { } copy && copy == new Copy(@"C:\Apps\upd.exe", 1), $"The record was refused. Its owner is {owner}.");
+        Assert.Single(Directory.EnumerateFiles(Path.Combine(root, "startup"), "*.json"));
+        Assert.Empty(Directory.GetParent(root)!.EnumerateDirectories(Path.GetFileName(root) + ".untrusted-*"));
+    }
+
     private static DirectorySecurity Security(SecurityIdentifier owner, params (SecurityIdentifier Who, FileSystemRights Rights)[] rules)
     {
         var security = new DirectorySecurity();
