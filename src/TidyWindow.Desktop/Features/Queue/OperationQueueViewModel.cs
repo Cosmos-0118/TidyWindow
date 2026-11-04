@@ -18,10 +18,24 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
     public string Name => Entry.Operation.Name;
     public string Detail => Entry.Operation.Fix is not null ? $"Fix · {Entry.Operation.Id}"
         : $"{Entry.Operation.Kind} · {ManagerDefinition.All.Single(x => x.Kind == Entry.Operation.Manager).Name} · {Entry.Operation.Id}" + (Entry.Operation.Interactive ? " · Installer options" : "");
+    private CommandProgress? progress;
+    private bool progressRead;
+    /// <summary>How far along the running command is, such as "Downloading 42%": the download watcher's reading when there is one, else a percentage the command printed. Read once per change.</summary>
+    private CommandProgress? Progress
+    {
+        get
+        {
+            if (Entry.State != QueueItemState.Running) return null;
+            if (!progressRead) { progress = Entry.Progress ?? CommandProgressReader.Latest(Entry.Output); progressRead = true; }
+            return progress;
+        }
+    }
+    public double ProgressValue => Progress?.Percent ?? 0;
+    public Visibility ProgressVisibility => Progress is null ? Visibility.Collapsed : Visibility.Visible;
     public string Status => Entry.State switch
     {
         QueueItemState.Waiting => "Queued",
-        QueueItemState.Running => "Running",
+        QueueItemState.Running => Progress?.Text ?? "Running",
         QueueItemState.Cancelled => "Removed",
         _ => Entry.Result?.Outcome switch { ActionOutcome.Completed => "Completed", ActionOutcome.Failed => "Failed", ActionOutcome.RestartRequired => "Restart required", _ => "Check result" }
     };
@@ -50,8 +64,12 @@ public sealed class QueueRow(QueueEntry entry) : ObservableState
     public void Update(QueueEntry value)
     {
         var old = Entry; Entry = value;
+        if (old.Progress != value.Progress) { progressRead = false; foreach (var name in new[] { nameof(Status), nameof(ExpandName), nameof(ProgressValue), nameof(ProgressVisibility) }) Changed(name); }
         if (old.Output != value.Output || old.OutputSegments != value.OutputSegments || old.State != value.State || old.Result != value.Result)
-        { formatted = null; Changed(nameof(Output)); if (expanded) Changed(nameof(OutputDocument)); }
+        {
+            formatted = null; progressRead = false; Changed(nameof(Output)); if (expanded) Changed(nameof(OutputDocument));
+            foreach (var name in new[] { nameof(Status), nameof(ExpandName), nameof(ProgressValue), nameof(ProgressVisibility) }) Changed(name);
+        }
         if (old.Notice != value.Notice || old.State != value.State || old.Result != value.Result) { Changed(nameof(Notice)); Changed(nameof(NoticeVisibility)); }
         if (old.State != value.State || old.Operation != value.Operation || old.Result != value.Result)
             foreach (var name in new[] { nameof(Name), nameof(Detail), nameof(Status), nameof(StatusBrush), nameof(NoticeBrush), nameof(OutputTitle), nameof(ExpandName), nameof(CancelVisibility), nameof(StopVisibility), nameof(StopName) }) Changed(name);

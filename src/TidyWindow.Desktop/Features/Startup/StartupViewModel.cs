@@ -42,7 +42,9 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
         _ => "Windows setting"
     };
 
-    private string Publisher => current.Publisher.Length > 0 ? current.Publisher : current.Kind == StartupKind.WindowsSetting ? "Windows" : "Unknown publisher";
+    // A setting of this user that can be cleared is not Windows' own, so it is not credited to Windows.
+    private bool WindowsOwnSetting => current.Kind == StartupKind.WindowsSetting && !current.CanChange;
+    private string Publisher => current.Publisher.Length > 0 ? current.Publisher : WindowsOwnSetting ? "Windows" : "Unknown publisher";
     public string Sub => $"{Publisher} · {Kind}";
     // Locked items say why right on the row, so nobody has to guess why there is no switch.
     public string Note => current.Reason;
@@ -67,6 +69,7 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     {
         StartupKind.StartupFolder => "the Startup folder",
         StartupKind.ScheduledTask => "Task Scheduler",
+        StartupKind.WindowsSetting => "your sign-in settings in the registry",
         _ => "the registry list of programs that start with Windows"
     };
     public string AutomationName => $"{Name} starts with Windows";
@@ -107,7 +110,7 @@ public sealed class StartupRow(StartupEntry entry) : ObservableState
     }
 
     // Says where the name came from, so a person can tell a signed company from a guess, and admits it when nothing could name the publisher.
-    private string PublisherFact() => current.Kind == StartupKind.WindowsSetting ? "" : current.PublisherFrom switch
+    private string PublisherFact() => WindowsOwnSetting ? "" : current.PublisherFrom switch
     {
         PublisherSource.FileProperties => $"{current.Publisher}, as the program's own file details say",
         PublisherSource.Package => $"{current.Publisher}, as its Store package says",
@@ -148,6 +151,7 @@ public sealed class ChangeRow(StartupChange change) : ObservableState
         StartupKind.Service => "Background service",
         StartupKind.StoreApp => "Microsoft Store app",
         StartupKind.StartupFolder => "Startup folder",
+        StartupKind.WindowsSetting => "Windows setting",
         _ => "Startup entry"
     };
     public string Sub => $"{Kind} · {(Change.Removed ? "removed" : "turned off")} {When}";
@@ -206,7 +210,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
     public StartupTab Tab { get => tab; set { if (Set(ref tab, value)) ApplyFilter(); } }
     public StartupFilter Filter { get => filter; set { if (Set(ref filter, value)) ApplyFilter(); } }
 
-    private IEnumerable<StartupRow> Apps() => all.Where(x => x.Entry.CanChange && x.Entry.Kind is StartupKind.RunKey or StartupKind.StartupFolder or StartupKind.StoreApp);
+    private IEnumerable<StartupRow> Apps() => all.Where(x => x.Entry.CanChange && x.Entry.Kind is StartupKind.RunKey or StartupKind.StartupFolder or StartupKind.StoreApp or StartupKind.WindowsSetting);
     private IEnumerable<StartupRow> Background() => all.Where(x => x.Entry.CanChange && x.Entry.Kind is StartupKind.ScheduledTask or StartupKind.Service);
     private IEnumerable<StartupRow> Locked() => all.Where(x => !x.Entry.CanChange);
     private void Notify()

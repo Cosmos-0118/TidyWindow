@@ -266,6 +266,7 @@ public sealed class ElevatedPathStore(IPathStore inner, MachinePathSession sessi
 {
     public string? Read(PathScope scope) => inner.Read(scope);
     public string? Variable(PathScope scope, string name) => inner.Variable(scope, name);
+    public void WriteVariable(string name, string? value) => inner.WriteVariable(name, value);
 
     public void Write(PathScope scope, string value, string? previous)
     {

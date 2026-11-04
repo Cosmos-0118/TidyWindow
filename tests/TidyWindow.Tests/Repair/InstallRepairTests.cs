@@ -89,7 +89,7 @@ public sealed class InstallRepairTests
                 Entry("", "NoName", @"C:\gone.exe")
             ]
         };
-        pc.Files.UnionWith([@"C:\Program Files\Fine\unins000.exe", @"C:\Program Files\Unquoted App\uninstall.exe", @"C:\Program Files\Variable\remove.exe"]);
+        pc.Files.UnionWith([@"C:\Program Files\Fine\unins000.exe", @"C:\Program Files\Fine\unins000.dat", @"C:\Program Files\Unquoted App\uninstall.exe", @"C:\Program Files\Variable\remove.exe"]);
         pc.OnPath.Add("rundll32.exe");
 
         Assert.Empty(InstallRepair.Scan(pc).Findings);

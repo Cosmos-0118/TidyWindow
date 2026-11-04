@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using TidyWindow.Next.Core;
 
 namespace TidyWindow.Next.Desktop;
 
@@ -29,8 +30,14 @@ public static class Program
     [STAThread]
     private static void Main()
     {
+        // First of all, before anything is read, started or registered: see AppElevation for why.
+        if (AppElevation.IsElevated())
+        {
+            MessageBoxW(IntPtr.Zero, AppElevation.Refusal, "TidyWindow", 0x40 /* MB_ICONINFORMATION */);
+            return;
+        }
         WinRT.ComWrappersSupport.InitializeComWrappers();
-        if (HandedOverToRunningInstance()) return;
+        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is null && HandedOverToRunningInstance()) return; // TEMP-DEMO
         // Before anything slow: the splash is on screen while the interface framework and the main window are still being set up.
         Splash = NativeSplash.Start();
 
@@ -83,4 +90,7 @@ public static class Program
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllowSetForegroundWindow(uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int MessageBoxW(IntPtr owner, string text, string caption, uint type);
 }

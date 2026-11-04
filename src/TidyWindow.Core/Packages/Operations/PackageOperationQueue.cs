@@ -16,7 +16,7 @@ public sealed record PackageOperation(PackageOperationKind Kind, ManagerKind Man
     public static PackageOperation Manage(ManagedPackage package, PackageAction action) =>
         new(action == PackageAction.Update ? PackageOperationKind.Update : PackageOperationKind.Uninstall, package.Manager, package.Id, package.Name, InstalledPackage: package);
 }
-public sealed record QueueEntry(Guid Id, PackageOperation Operation, QueueItemState State, PackageActionResult? Result = null, string Output = "", string Notice = "", IReadOnlyList<CommandOutput>? OutputSegments = null);
+public sealed record QueueEntry(Guid Id, PackageOperation Operation, QueueItemState State, PackageActionResult? Result = null, string Output = "", string Notice = "", IReadOnlyList<CommandOutput>? OutputSegments = null, CommandProgress? Progress = null);
 public sealed record QueueSnapshot(long Revision, IReadOnlyList<QueueEntry> Entries, long Completions = 0, long StateVersion = 0)
 {
     public bool HasWork => Entries.Any(x => x.State is QueueItemState.Waiting or QueueItemState.Running);
@@ -46,7 +46,10 @@ public sealed class PackageOperationQueue
     /// <summary>Raised on the worker just before an operation runs.</summary>
     public event Action<QueueEntry>? Started;
     public event Action<QueueEntry>? Finished;
-    public QueueSnapshot Snapshot() { lock (gate) return new(revision, entries.ToArray(), completions, stateVersion); }
+    // Output of the running operation is kept here and only turned into the entry's text when a snapshot is read. Doing it for every chunk
+    // rebuilt a 128 KB string (a large-object-heap allocation) per chunk, which a progress line redrawn many times a second made constant.
+    private readonly Dictionary<Guid, OutputBuffer> buffers = [];
+    public QueueSnapshot Snapshot() { lock (gate) { Publish(); return new(revision, entries.ToArray(), completions, stateVersion); } }
     public Task WhenIdleAsync() { lock (gate) return idle.Task; }
 
     public IReadOnlyList<QueueEntry> Enqueue(IEnumerable<PackageOperation> operations)
@@ -114,27 +117,63 @@ public sealed class PackageOperationQueue
         {
             var index = entries.FindIndex(x => x.Id == id && x.State == QueueItemState.Running);
             if (index < 0) return;
-            var entry = entries[index];
-            if (output.Kind == CommandOutputKind.Notice) entry = entry with { Notice = output.Text };
+            if (output.Kind is CommandOutputKind.Notice or CommandOutputKind.Transfer)
+            {
+                var entry = entries[index];
+                if (output.Kind == CommandOutputKind.Notice) entry = entry with { Notice = output.Text };
+                else
+                {
+                    var progress = CommandProgressReader.Latest(output.Text);
+                    if (progress == entry.Progress) return;
+                    entry = entry with { Progress = progress };
+                }
+                entries[index] = entry;
+            }
             else
             {
-                var segments = entry.OutputSegments?.ToList() ?? [];
-                if (segments.Count > 0 && segments[^1].Kind == output.Kind)
-                    segments[^1] = segments[^1] with { Text = segments[^1].Text + output.Text };
-                else segments.Add(output);
-                var length = segments.Sum(x => x.Text.Length);
-                while (length > 65536 && segments.Count > 0)
-                {
-                    var excess = length - 65536;
-                    if (segments[0].Text.Length <= excess) { length -= segments[0].Text.Length; segments.RemoveAt(0); }
-                    else { segments[0] = segments[0] with { Text = segments[0].Text[excess..] }; length -= excess; }
-                }
-                while (segments.Count > 512) segments.RemoveAt(0);
-                entry = entry with { Output = string.Concat(segments.Select(x => x.Text)), OutputSegments = segments.ToArray() };
+                if (!buffers.TryGetValue(id, out var buffer)) buffers[id] = buffer = new();
+                buffer.Append(output);
             }
-            entries[index] = entry; revision++;
+            revision++;
         }
         Notify(Changed);
+    }
+    /// <summary>Turns output that arrived since the last read into the text and segments of its entry. Call with the lock held.</summary>
+    private void Publish()
+    {
+        foreach (var (id, buffer) in buffers)
+        {
+            if (!buffer.Dirty) continue;
+            var index = entries.FindIndex(x => x.Id == id);
+            if (index >= 0) entries[index] = entries[index] with { Output = buffer.Text(), OutputSegments = buffer.Segments() };
+            buffer.Dirty = false;
+        }
+    }
+    /// <summary>The newest output of one operation: at most 65,536 characters in at most 512 runs, where a run is consecutive output of one kind.</summary>
+    private sealed class OutputBuffer
+    {
+        private const int MaxLength = 65536, MaxRuns = 512;
+        private sealed record Run(CommandOutputKind Kind, System.Text.StringBuilder Text);
+        private readonly List<Run> runs = [];
+        private int length;
+        /// <summary>Whether output has arrived that the entry does not show yet.</summary>
+        public bool Dirty { get; set; }
+        public void Append(CommandOutput output)
+        {
+            if (runs.Count > 0 && runs[^1].Kind == output.Kind) runs[^1].Text.Append(output.Text);
+            else runs.Add(new(output.Kind, new(output.Text)));
+            length += output.Text.Length;
+            while (length > MaxLength && runs.Count > 0)
+            {
+                var excess = length - MaxLength;
+                if (runs[0].Text.Length <= excess) { length -= runs[0].Text.Length; runs.RemoveAt(0); }
+                else { runs[0].Text.Remove(0, excess); length -= excess; }
+            }
+            while (runs.Count > MaxRuns) { length -= runs[0].Text.Length; runs.RemoveAt(0); }
+            Dirty = true;
+        }
+        public CommandOutput[] Segments() => runs.Select(x => new CommandOutput(x.Text.ToString(), x.Kind)).ToArray();
+        public string Text() => string.Concat(runs.Select(x => x.Text.ToString()));
     }
     private async Task DrainAsync()
     {
@@ -146,6 +185,7 @@ public sealed class PackageOperationQueue
             lock (gate)
             {
                 var closed = false;
+                Publish(); buffers.Clear();
                 for (var i = 0; i < entries.Count; i++)
                     if (entries[i].State == QueueItemState.Running)
                     {
@@ -189,6 +229,7 @@ public sealed class PackageOperationQueue
             lock (gate)
             {
                 stopSource = null; runningId = default;
+                Publish(); buffers.Remove(current.Id);
                 var index = entries.FindIndex(x => x.Id == current.Id);
                 finished = entries[index] with { State = QueueItemState.Finished, Result = result };
                 entries[index] = finished;
@@ -237,7 +278,8 @@ public sealed class PackageOperationQueue
 
 /// <param name="windowsApps">Reads what Windows lists as installed. Apps installed outside a package manager are invisible to
 /// the manager's own list, so this stops an installer being run over an existing installation. Null skips the check.</param>
-public sealed class PackageOperationExecutor(PackageService packages, InstallationService installations, IExecutableLocator locator, Func<InstalledInventory>? windowsApps = null)
+/// <param name="downloads">Reads how far a WinGet download has got, which WinGet itself does not print when its output is piped. Null shows no percentage.</param>
+public sealed class PackageOperationExecutor(PackageService packages, InstallationService installations, IExecutableLocator locator, Func<InstalledInventory>? windowsApps = null, ICommandRunner? downloads = null)
 {
     private async Task<InstalledApp?> FindOnWindowsAsync(Package package)
     {
@@ -251,6 +293,8 @@ public sealed class PackageOperationExecutor(PackageService packages, Installati
 
     public async Task<PackageActionResult> ExecuteAsync(PackageOperation operation, IProgress<CommandOutput>? progress, CancellationToken token)
     {
+        using var download = progress is not null && downloads is not null && operation.Manager == ManagerKind.Winget ? new WingetDownloadWatcher(progress, downloads) : null;
+        progress = download ?? progress;
         var path = locator.Find(operation.Manager);
         if (path is null) return new(ActionOutcome.Failed, $"{operation.Name} could not be processed", "Its package manager is no longer installed. Check Overview.");
         var manager = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == operation.Manager), ManagerHealth.Ready, "", path, "");

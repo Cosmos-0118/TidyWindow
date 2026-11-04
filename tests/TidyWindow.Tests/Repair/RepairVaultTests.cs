@@ -60,6 +60,7 @@ public sealed class RepairVaultTests : IDisposable
         public bool StopInstallerService() => true;
         public RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath) => new(0, "");
         public bool RemoveCopy(string path) => true;
+        public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath) => new(0, "");
     }
 
     private RepairSession Session(Recorder? editor = null, Links? links = null, Folders? folders = null) =>

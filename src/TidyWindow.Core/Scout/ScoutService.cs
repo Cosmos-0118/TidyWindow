@@ -50,7 +50,7 @@ public sealed class ScoutService(ICommandRunner runner, string hostPath, IScoutE
         if (found.Count >= FuzzyBelow) return false;
         var query = new ScoutQuery(request.Query);
         // Wildcards and many-word queries are precise; typo search is for a short name that matched nothing exactly.
-        return !query.HasWildcards && query.Terms.Count <= 3 && !found.Any(x => query.Score(x) >= ScoutQuery.ExactScore);
+        return !query.HasWildcards && query.Terms.Count is > 0 and <= 3 && !found.Any(x => query.Score(x) >= ScoutQuery.ExactScore);
     }
 
     public void RefreshFolder() => folder.Refresh();

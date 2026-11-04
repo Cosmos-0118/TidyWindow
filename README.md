@@ -79,6 +79,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 | **Fixes** | Run standard Windows repairs for system files, Windows Update, networking, audio and more. Inspect the commands first and follow their live output. |
 | **Unstick** | One-press fixes for things that get stuck: restart File Explorer, Start, search, the clipboard, notifications or media keys, unstick screenshots and folder previews, refresh the display, flush DNS or restart WSL. Each runs at once and takes seconds. A separate section restarts sound, Bluetooth, the camera or the print queue, and rescans hardware, and asks for administrator permission once. |
 | **Lab** | Compare a 15-second performance check with the previous one, switch power plans or temporarily change one app's priority. |
+| **Crashes** | See which apps crash or freeze most, what failed each time, and which Windows problems (blue screens, failing services, driver resets) happened. Search forgives typos and understands `app:chrome since:7d`. Reads Windows' own records only when opened. |
 | **Queue** | Follow installs, updates and uninstalls from every page, one operation at a time. |
 | **Logs** | Review outcomes and problems that need attention, without a stream of routine activity. |
 
@@ -102,7 +103,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 TidyWindow keeps the action and its consequences visible, and keeps the administrator part of its work apart from the rest:
 
 - **Reviewed actions.** Cleanup, Quiet, Tune, Debloat and Fixes come from catalogs built into the app and checked when it starts, with a second allowlist that rejects anything outside them. The helper that applies Windows-wide changes rebuilds each action from its own copy of those catalogs, so the app can only name an entry, never hand it a command. Lab has no catalog: it allows a fixed set of power-plan commands and changes the priority of one process you picked, and refuses anything else.
-- **Permissions when needed.** The app runs as your ordinary account and never asks for elevation itself. Windows-wide changes run in a separate helper, `TidyWindow.CleanHost.exe`, which starts with administrator rights only after you approve the Windows prompt. The two talk over a private named pipe that only your account and administrators can open.
+- **Permissions when needed.** The app runs as your ordinary account and never asks for elevation itself. Opened with "Run as administrator", it says so and closes, because every program it starts would get those rights and it reads settings files any program can change. Windows-wide changes run in a separate helper, `TidyWindow.CleanHost.exe`, which starts with administrator rights only after you approve the Windows prompt. The two talk over a private named pipe that only your account and administrators can open.
 - **Saved originals.** Reversible changes save their original state before writing. Anything the helper later puts back with administrator rights (a removed startup item, the registry a repair backed up, the original value of a tweak) is read from a folder under `%ProgramData%\TidyWindow.Next` that only administrators can change, so a program running under your account cannot plant a replacement for the helper to write. Your own copies of those records, held cleanup files, logs and settings live in `%LOCALAPPDATA%\TidyWindow.Next`.
 - **Guarded PATH and package managers.** Path Doctor refuses to add a folder to the Windows-wide PATH when accounts without administrator rights could change it, and the helper starts package managers only from locations ordinary accounts cannot change.
 - **Checked results.** Changes are read back where supported. An unverified outcome is reported as unverified rather than claimed as a success.
@@ -116,7 +117,7 @@ Undo is specific to the tool. Cleanup holds old installers and unfinished downlo
 
 Installs, updates and uninstalls share one queue. It runs one operation at a time, rejects duplicate or conflicting requests for the same manager, package and scope, and continues after a failure. The app checks the package inventory after the command exits.
 
-Installer dialogs and Windows administrator prompts remain native windows. Chocolatey and global Scoop operations use a separate elevated window, so their output is shown there instead of inside TidyWindow. Declining elevation reports a failure and the queue moves on.
+Installer dialogs and Windows administrator prompts remain native windows. Chocolatey operations use a separate elevated window, so their output is shown there instead of inside TidyWindow. Declining elevation reports a failure and the queue moves on. Scoop keeps its script in your profile, where any program you run could change it, so TidyWindow does not run Scoop operations for all users with administrator rights; the card says to use an administrator PowerShell window for those.
 
 The queue belongs to the current session and does not resume after a crash. Closing the app is blocked while work remains.
 
@@ -193,6 +194,7 @@ The research notes explain what each tool changes, the evidence behind it, and w
 | [Debloat](docs/debloat-research.md) | How apps are removed for every account, the protected list, OneDrive and Edge checks, and put back. |
 | [Fixes](docs/fixes-research.md) | Standard Windows repair commands, scope and limitations. |
 | [Unstick](docs/unstick-research.md) | The instant restarts and why each is safe, what was left out, and what was checked on a real PC. |
+| [Crashes](docs/crashes-research.md) | Where Windows keeps crash records, what is left out, how a scan stays cheap, and the search syntax. |
 | [Lab](docs/lab-research.md) | What the performance check measures and how comparisons work. |
 
 ## Contributing

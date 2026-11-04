@@ -136,6 +136,9 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
     private List<DebloatRow> all = [];
     private int notOnThisPc;
 
+    /// <summary>Raised after apps were removed or put back, so pages that list what is installed know their list is out of date.</summary>
+    public event Action? AppsChanged;
+
     /// <summary>The rows of the open tab, already narrowed by the search.</summary>
     public BulkObservableCollection<DebloatRow> Rows { get; } = new();
     public BulkObservableCollection<DebloatRemovedRow> Removed { get; } = new();
@@ -387,6 +390,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} removed, {failed:N0} could not be", ToastCenter.Brief(firstError ?? ""), seconds: 15);
         }
         // One read of the PC settles what is really gone, whatever each step reported.
+        AppsChanged?.Invoke();
         await ScanAsync();
     }
 
@@ -423,6 +427,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         }
         finally { row.Busy = false; working = false; Notify(); }
         RefreshRemoved();
+        AppsChanged?.Invoke();
         await ScanAsync();
     }
 
@@ -457,6 +462,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         }
         if (batch is not null) ReportPutBack(batch, rows.Count);
         RefreshRemoved();
+        AppsChanged?.Invoke();
         await ScanAsync();
     }
 

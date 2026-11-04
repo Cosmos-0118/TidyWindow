@@ -134,9 +134,9 @@ public sealed partial class ArchiveQuery
         return new(match.Groups["op"].Value, (long)(number * scale), not);
     }
 
-    private static string Format(long bytes) => bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):0.#} GB" : bytes >= 1L << 20 ? $"{bytes / (double)(1L << 20):0.#} MB" : bytes >= 1L << 10 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes} B";
+    internal static string Format(long bytes) => bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):0.#} GB" : bytes >= 1L << 20 ? $"{bytes / (double)(1L << 20):0.#} MB" : bytes >= 1L << 10 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes} B";
 
-    private static bool Period(string value, DateTimeOffset now, out DateTimeOffset from, out DateTimeOffset to, out string label) => Period(value, now, out from, out to, out label, out _);
+    internal static bool Period(string value, DateTimeOffset now, out DateTimeOffset from, out DateTimeOffset to, out string label) => Period(value, now, out from, out to, out label, out _);
 
     /// <summary>A day, month, year or named period as the span of time it covers, in the person's own time zone.</summary>
     private static bool Period(string value, DateTimeOffset now, out DateTimeOffset from, out DateTimeOffset to, out string label, out DateTimeOffset begin)

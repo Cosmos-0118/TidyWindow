@@ -142,7 +142,7 @@ public sealed class RepairSourcesTests : IDisposable
             return [new(Ghost, "Ghost Game", "1.2", "Ghost Co", key.GetValue("UninstallString") as string ?? "", "", Folder, "", false, false, false, false)];
         };
         pc.Folders.Add(Folder);
-        if (uninstallerElsewhere) { pc.FolderFiles[Folder] = [@"C:\Games\Ghost\ghost.exe", @"C:\Games\Ghost\unins001.exe"]; pc.Files.Add(@"C:\Games\Ghost\unins001.exe"); }
+        if (uninstallerElsewhere) { pc.FolderFiles[Folder] = [@"C:\Games\Ghost\ghost.exe", @"C:\Games\Ghost\unins001.exe"]; pc.Files.UnionWith([@"C:\Games\Ghost\unins001.exe", @"C:\Games\Ghost\unins001.dat"]); }
         return pc;
     }
 
@@ -173,7 +173,7 @@ public sealed class RepairSourcesTests : IDisposable
     public async Task AnEntryWithNoUninstallerAnywhereGetsItBackFromTheOriginalInstallerWhenThatIsAllowed()
     {
         var pc = InnoGame(uninstallerElsewhere: false);
-        var fetcher = new FakeFetcher { Found = new("Ghost.Game", "Ghost Game", "1.2"), OnReinstall = () => pc.Files.Add(@"C:\Games\Ghost\unins000.exe") };
+        var fetcher = new FakeFetcher { Found = new("Ghost.Game", "Ghost Game", "1.2"), OnReinstall = () => pc.Files.UnionWith([@"C:\Games\Ghost\unins000.exe", @"C:\Games\Ghost\unins000.dat"]) };
 
         var outcome = await Service(pc, new FakeOps(), fetcher).FixAsync([Entry(pc)], "x", options: new(Download: true));
 

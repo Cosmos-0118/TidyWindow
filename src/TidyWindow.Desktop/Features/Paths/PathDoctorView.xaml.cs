@@ -12,6 +12,7 @@ public sealed partial class PathDoctorView : UserControl
 
     private async void RefreshClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.CheckAgainAsync(); }
     private async void UndoClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.UndoAsync(); }
+    private async void JavaFixClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.FixJavaHomeAsync(); }
     private async void AddClick(object sender, RoutedEventArgs e) { if (Model is { } model) await model.AddFolderAsync(); }
 
     private async void LookupKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

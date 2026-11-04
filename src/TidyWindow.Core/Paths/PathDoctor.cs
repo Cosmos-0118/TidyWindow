@@ -12,6 +12,8 @@ public interface IPathStore
     string? Variable(PathScope scope, string name);
     /// <param name="previous">The value the caller based this edit on. A store that cannot trust the caller's view refuses to write if the stored value has since changed.</param>
     void Write(PathScope scope, string value, string? previous);
+    /// <summary>Sets one of the user's own variables, or removes it when <paramref name="value"/> is null.</summary>
+    void WriteVariable(string name, string? value) => throw new NotSupportedException("This store cannot change environment variables.");
 }
 
 [SupportedOSPlatform("windows")]
@@ -33,6 +35,13 @@ public sealed class RegistryPathStore : IPathStore
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment", writable: true) ?? throw new InvalidOperationException("Windows has no user environment to change.");
         // Written as an expandable string: plain text would turn %USERPROFILE% and friends into literal words and break every program that relies on them.
         key.SetValue("Path", value, Microsoft.Win32.RegistryValueKind.ExpandString);
+    }
+
+    public void WriteVariable(string name, string? value)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment", writable: true) ?? throw new InvalidOperationException("Windows has no user environment to change.");
+        if (value is null) key.DeleteValue(name, throwOnMissingValue: false);
+        else key.SetValue(name, value, Microsoft.Win32.RegistryValueKind.String);
     }
 
     /// <summary>Only the elevated helper calls this: the same write as above, on the Windows-wide list.</summary>
@@ -108,6 +117,25 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
     public PathSnapshot Load() => analyzer.Analyze(store.Read(PathScope.Machine), store.Read(target));
     public PathBackupItem? LastBackup => backup.Latest();
     public string? Variable(string name) => store.Variable(PathScope.User, name) ?? store.Variable(PathScope.Machine, name);
+
+    /// <summary>Points one of the user's variables somewhere new. A user value beats a Windows-wide one of the same name, so this works even when the old value was set for everyone.</summary>
+    public PathChange SetVariable(string name, string value)
+    {
+        if (store.Variable(PathScope.User, name) == value) return new(false, $"{name} already points there.");
+        store.WriteVariable(name, value);
+        broadcast();
+        return new(true, $"{name} now points to {value}.");
+    }
+
+    /// <summary>Puts a user variable back the way it was; null removes it again.</summary>
+    public PathChange RestoreVariable(string name, string? value)
+    {
+        store.WriteVariable(name, value);
+        broadcast();
+        return new(true, value is null ? $"Removed {name} again." : $"{name} is back to {value}.");
+    }
+
+    public string? UserVariable(string name) => store.Variable(PathScope.User, name);
 
     public PathChange Remove(PathEntry entry) => Edit($"Removed {entry.Raw}", entry, items => { items.RemoveAt(entry.Index); return $"Removed {entry.Raw} from {Where}."; });
 

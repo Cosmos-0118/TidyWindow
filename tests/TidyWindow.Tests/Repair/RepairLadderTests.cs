@@ -92,6 +92,10 @@ public sealed class FakePc : IInstallSystem
     public bool InstallLockExists() => Lock;
     public bool InstallRollbackExists() => Rollback;
     public IReadOnlyList<DeadPatch> DeadPatches() => Patches;
+    public HashSet<string> DamagedCopies = new(StringComparer.OrdinalIgnoreCase);
+    public bool SavedCopyDamaged(MsiProduct product) => DamagedCopies.Contains(product.Code);
+    public HashSet<string> NeedVisualStudio = new(StringComparer.OrdinalIgnoreCase);
+    public bool RefusesWithoutVisualStudio(MsiProduct product) => NeedVisualStudio.Contains(product.Code);
     public bool InstallerBusy() => false;
     public IReadOnlyList<RunningInstaller> Installers() => [];
     public IReadOnlyList<string> PendingRestart() => [];
@@ -140,6 +144,21 @@ public sealed class FakeOps : IInstallerOps
     public Func<string, int>? BundleExitFor;
     public Action? OnRepairBundle;
     public IReadOnlyList<string> FilesIn(string folder) => Folders.GetValueOrDefault(folder) ?? [];
+    public Dictionary<string, string> PatchCodes = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string[]> PatchFolders = new(StringComparer.OrdinalIgnoreCase), Archives = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> PatchCandidates = [], PatchRestores = [];
+    public int PatchExit;
+    public Action? OnRestorePatch;
+    public string? ReadPatchCode(string path) => PatchCodes.GetValueOrDefault(path);
+    public IReadOnlyList<string> CandidatePatches(string patchCode) => PatchCandidates;
+    public IReadOnlyList<string> PatchesIn(string folder) => PatchFolders.GetValueOrDefault(folder) ?? [];
+    public IReadOnlyList<string> ExpandArchive(string zipPath, string folder) => Archives.GetValueOrDefault(zipPath) ?? [];
+    public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath)
+    {
+        PatchRestores.Add($"{mspPath} -> {targetPath}");
+        if (PatchExit == 0) OnRestorePatch?.Invoke();
+        return new(PatchExit, PatchExit == 0 ? "" : "refused");
+    }
     public IReadOnlyList<string> ExpandBundle(string exePath, string folder, string programName, string publisher) { Expanded.Add(exePath); return Bundles.GetValueOrDefault(exePath) ?? []; }
     public List<string> RestoredTo = [], Removed = [];
     public bool RemoveWorks = true;
@@ -758,6 +777,8 @@ public sealed class RepairHostTests : IDisposable
         public List<string> Restored = [], Removed = [];
         public RunResult RestoreBundleCopy(string exePath, string programName, string publisher, string targetPath) { Restored.Add($"{exePath}|{programName}|{publisher}|{targetPath}"); return new(0, ""); }
         public bool RemoveCopy(string path) { Removed.Add(path); return true; }
+        public List<string> Patches = [];
+        public RunResult RestorePatchCopy(string mspPath, string patchCode, string targetPath) { Patches.Add($"{mspPath}|{patchCode}|{targetPath}"); return new(0, ""); }
     }
 
     private RepairSession Session(Recorder editor, Ops ops, bool admin = true) =>
@@ -797,6 +818,20 @@ public sealed class RepairHostTests : IDisposable
         Assert.Equal(3010, result.ExitCode);
         Assert.Equal("{X}", ops.Reinstalled!.Code);
         Assert.True(session.StopInstallerService());
+    }
+
+    [Fact]
+    public async Task TheHelperIsToldWhichUpdateFileToConsiderAndNotWhetherToCheckIt()
+    {
+        var ops = new Ops();
+        using var session = Session(new Recorder(), ops);
+        await session.OpenAsync();
+
+        var found = session.RestorePatchCopy(@"C:\Package Cache\a.msp", "{P}", @"C:\Windows\Installer\1.msp");
+        var chosen = session.RestorePatchCopy(@"C:\Downloads\a.msp", "{P}", @"C:\Windows\Installer\1.msp");
+
+        Assert.Equal(0, found.ExitCode); Assert.Equal(0, chosen.ExitCode);
+        Assert.Equal([@"C:\Package Cache\a.msp|{P}|C:\Windows\Installer\1.msp", @"C:\Downloads\a.msp|{P}|C:\Windows\Installer\1.msp"], ops.Patches);
     }
 
     [Fact]

@@ -32,18 +32,24 @@ public sealed partial class ScoutQuery
 {
     public const int ExactScore = 20000;
     public string Text { get; }
-    public IReadOnlyList<string> Terms { get; }
+    // An array, so that going through the words for every entry makes no enumerator to throw away.
+    private readonly string[] termList;
+    public IReadOnlyList<string> Terms => termList;
+    /// <summary>The filters typed with the words (kind:image, size:&gt;1gb, -draft…). Terms are only what is left.</summary>
+    public ScoutFilter Filter { get; }
     private readonly string whole;
     private readonly Dictionary<string, Regex> globs = new();
     private readonly string? home;
     /// <param name="home">The user's profile folder. Files there rank above equally good matches in system folders.</param>
-    public ScoutQuery(string text, string? home = null)
+    /// <param name="now">What "today" means for date filters.</param>
+    public ScoutQuery(string text, string? home = null, DateTimeOffset? now = null)
     {
         // A drive root keeps its separator in TrimEndingDirectorySeparator; trimming it by hand makes "C:" + "\" line up with every path on that drive.
         this.home = string.IsNullOrWhiteSpace(home) ? null : home.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         Text = text.Trim();
         if (Text.Length is < 1 or > 200 || Text.Any(char.IsControl)) throw new ArgumentException("Enter a name or path between 1 and 200 characters.");
-        Terms = Words().Matches(Text).Select(x => Normalize(x.Value.Trim('"'))).Where(x => x.Length > 0).Select(Shorthand).ToArray();
+        Filter = ScoutFilter.Parse(Text, now);
+        termList = Words().Matches(Filter.Plain).Select(x => Normalize(x.Value.Trim('"'))).Where(x => x.Length > 0).Select(Shorthand).ToArray();
         foreach (var term in Terms)
         {
             if (term.AsSpan().IndexOfAny('*', '?') < 0) continue;
@@ -51,9 +57,18 @@ public sealed partial class ScoutQuery
             if (term.AsSpan().IndexOfAny(":|<>") >= 0 || term[0] == '!') throw new ArgumentException("A wildcard term can use * and ?, but not : | < > or a leading !, which the index would read as search commands.");
             globs[term] = new Regex("^" + GlobPattern(term) + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
         }
-        if (Terms.Count is < 1 or > 12) throw new ArgumentException("Enter between 1 and 12 search terms; quote a phrase to keep it together.");
-        whole = Normalize(Text.Trim('"'));
+        if (Terms.Count > 12) throw new ArgumentException("Enter between 1 and 12 search terms; quote a phrase to keep it together.");
+        if (Terms.Count == 0 && !Filter.Narrows) throw new ArgumentException(Filter.IsEmpty ? "Enter between 1 and 12 search terms; quote a phrase to keep it together." : "Add a name, or a filter such as kind:image or size:>100mb, to say what to look for.");
+        whole = Normalize(Filter.Plain.Trim('"'));
     }
+    /// <summary>Whether matches are looked for in whole paths, because the search asks for a folder (in:downloads).</summary>
+    public bool NeedsPathMatch => Filter.RequiredPaths.Count > 0;
+    /// <summary>The order the index should return candidates in, so the limit on candidates keeps the ones the person wants most.</summary>
+    public uint NativeSort => Filter.Sort switch
+    {
+        ScoutSort.Newest => 14, ScoutSort.Oldest => 13, ScoutSort.Largest => 6, ScoutSort.Smallest => 5, ScoutSort.Name => 1,
+        _ => Terms.Count == 0 || Filter.HasDates ? 14u : 1u
+    };
     /// <summary>A bare extension such as .png means every file ending that way.</summary>
     private static string Shorthand(string term) =>
         term.Length is >= 2 and <= 9 && term[0] == '.' && term.Skip(1).All(char.IsLetterOrDigit) ? "*" + term : term;
@@ -61,32 +76,48 @@ public sealed partial class ScoutQuery
     public bool HasWildcards => globs.Count > 0;
     public static string Normalize(string text) => string.Concat(text.Normalize(NormalizationForm.FormKD).EnumerateRunes()
         .Where(x => Rune.GetUnicodeCategory(x) != UnicodeCategory.NonSpacingMark).Select(x => Rune.ToLowerInvariant(x).ToString())).Normalize(NormalizationForm.FormC);
-    private static string Prefix(ScoutItemKind kind) => kind == ScoutItemKind.Files ? "file: " : kind == ScoutItemKind.Folders ? "folder: " : "";
+    private static string Prefix(ScoutItemKind kind) => kind == ScoutItemKind.Files ? "file:" : kind == ScoutItemKind.Folders ? "folder:" : "";
     // File names cannot contain a quote, so dropping one never loses a match and keeps user text from escaping its quotes.
     private static string Literal(string term) => "\"" + term.Replace("\"", "") + "\"";
     // Written the way the helper builds its own prefix filter, so a drive root becomes C:\ and not C:\\.
-    private static string Scope(string? root) => root is null ? "" : " " + Literal(Path.GetFullPath(root).TrimEnd('\\') + "\\");
+    private static string Scope(string? root) => root is null ? "" : Literal(Path.GetFullPath(root).TrimEnd('\\') + "\\");
 
     // All user input is quoted literal text or a wildcard checked by the constructor, never an Everything operator.
     private IEnumerable<string> Pieces(bool inPath) => Terms.Select(term => globs.ContainsKey(term)
         ? (inPath ? "nopath:" : "") + term.Replace("\"", "")
         : "nowildcards:" + Literal(term));
 
-    /// <summary>Matches in file and folder names. The quickest query, and the one most searches need.</summary>
-    public string NameExpression(ScoutItemKind kind, string? root) => Prefix(kind) + string.Join(" ", Pieces(false)) + Scope(root);
+    /// <summary>The folders a result must be in (in:downloads), as terms matched against whole paths.</summary>
+    private IEnumerable<string> PathPieces() => Filter.RequiredPaths.Select(choices => choices.Count == 1
+        ? "nowildcards:" + Literal(choices[0])
+        : "<" + string.Join("|", choices.Select(x => "nowildcards:" + Literal(x))) + ">");
+
+    private string Compose(ScoutItemKind kind, IEnumerable<string> pieces, string? root, bool withPaths)
+    {
+        var parts = new List<string>();
+        if (Prefix(kind) is { Length: > 0 } prefix) parts.Add(prefix);
+        parts.AddRange(pieces);
+        if (withPaths) parts.AddRange(PathPieces());
+        if (Filter.Native() is { Length: > 0 } filters) parts.Add(filters);
+        if (Scope(root) is { Length: > 0 } scope) parts.Add(scope);
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>Matches in file and folder names. The quickest query, and the one most searches need. A search for a folder (in:) matches whole paths instead.</summary>
+    public string NameExpression(ScoutItemKind kind, string? root) => Compose(kind, Pieces(NeedsPathMatch), root, NeedsPathMatch);
 
     /// <summary>Matches anywhere in the full path, so terms may fall in folder names. Slower; used for several words or when names alone find little.</summary>
-    public string PathExpression(ScoutItemKind kind, string? root) => Prefix(kind) + string.Join(" ", Pieces(true)) + Scope(root);
+    public string PathExpression(ScoutItemKind kind, string? root) => Compose(kind, Pieces(true), root, true);
 
     /// <summary>The whole text as one exact file or folder name; null when the text cannot be a name.</summary>
     public string? ExactExpression(ScoutItemKind kind) =>
-        globs.Count > 0 || Text.Contains('"') ? null : Prefix(kind) + "wholefilename:" + Literal(Text.Trim('"'));
+        globs.Count > 0 || Terms.Count == 0 || Filter.Plain.Contains('"') ? null : Compose(kind, ["wholefilename:" + Literal(Filter.Plain.Trim('"'))], null, false);
 
     /// <summary>The whole text as a file name with any one extension, so readme fetches readme.txt. Everything's broad name passes are capped, filled in
     /// name order, and cannot be told to put such a name first, so without this pass a person's own readme.txt can hide behind a thousand README.md.
     /// Null when the text cannot be such a name.</summary>
     public string? ExactStemExpression(ScoutItemKind kind) =>
-        globs.Count > 0 || Text.Contains('"') || RegexLiteral(Text) is not { } literal ? null : Prefix(kind) + "regex:\"^" + literal + "([.][^.]+)?$\"";
+        globs.Count > 0 || Terms.Count == 0 || Filter.Plain.Contains('"') || RegexLiteral(Filter.Plain.Trim()) is not { } literal ? null : (Prefix(kind) is { Length: > 0 } prefix ? prefix + " " : "") + "regex:\"^" + literal + "([.][^.]+)?$\"";
 
     // Written without a backslash: Everything takes one in a term as a path separator. A character class stands in for each escape; the few characters
     // that would still need one cannot be in a file name or are too rare to matter.
@@ -107,9 +138,9 @@ public sealed partial class ScoutQuery
     /// Variants are native wildcards, which Everything evaluates far faster than one large pattern.</summary>
     public string? SmartExpression(ScoutItemKind kind, string? root)
     {
-        if (globs.Count > 0 || Terms.Count > 3 || Terms.Any(term => term.Length is < 3 or > 24 || term.IndexOfAny(['"', '<', '>', '|', '!', '*', '?']) >= 0)) return null;
+        if (globs.Count > 0 || Terms.Count is < 1 or > 3 || Terms.Any(term => term.Length is < 3 or > 24 || term.IndexOfAny(['"', '<', '>', '|', '!', '*', '?']) >= 0)) return null;
         var groups = Terms.Select(term => "<" + string.Join("|", SmartVariants(term)) + ">");
-        return Prefix(kind) + string.Join(" ", groups) + Scope(root);
+        return Compose(kind, groups, root, false);
     }
 
     private static IEnumerable<string> SmartVariants(string term)
@@ -133,10 +164,16 @@ public sealed partial class ScoutQuery
     }
     public int Score(ScoutEntry entry)
     {
+        var view = ScoutView.Of(entry);
+        return Score(in view);
+    }
+
+    internal int Score(in ScoutView entry)
+    {
         var name = entry.SearchName; var stem = Path.GetFileNameWithoutExtension(name);
-        if (name == whole || !entry.IsFolder && stem == whole) return ExactScore + Bonus(entry.FullPath);
+        if (name.SequenceEqual(whole) || !entry.IsFolder && stem.SequenceEqual(whole)) return ExactScore + Bonus(entry.FullPath);
         var score = 0;
-        foreach (var term in Terms)
+        foreach (var term in termList)
         {
             if (globs.TryGetValue(term, out var glob))
             {
@@ -145,8 +182,7 @@ public sealed partial class ScoutQuery
             }
             var at = name.IndexOf(term, StringComparison.Ordinal);
             if (at >= 0) { score += at == 0 ? 1000 : at > 0 && !char.IsLetterOrDigit(name[at - 1]) ? 800 : 600; continue; }
-            // The term is folded (no accents, lower case, narrow), so a path with such letters is compared folded too, or Café never matches cafe.
-            if (entry.SearchPath is { } folded ? folded.Contains(term, StringComparison.Ordinal) : entry.FullPath.Contains(term, StringComparison.OrdinalIgnoreCase)) { score += 100; continue; }
+            if (entry.PathContains(term)) { score += 100; continue; }
             if (term.Length >= 3 && IsSubsequence(term, stem)) { score += 60; continue; }
             if (term.Length >= 4 && stem.Length <= 80 && TypoWord(term, stem)) { score += 40; continue; }
             return -1;
@@ -157,7 +193,7 @@ public sealed partial class ScoutQuery
     private static readonly string[] Junk = ["\\node_modules\\", "\\.git\\", "\\$Recycle.Bin\\", "\\Windows\\", "\\WinSxS\\", "\\Program Files", "\\ProgramData\\", "\\msys64\\", "\\site-packages\\", "\\.nuget\\", "\\.gradle\\", "\\__pycache__\\", "\\.cache\\"];
     private static readonly string[] Personal = ["\\Desktop\\", "\\Documents\\", "\\Downloads\\", "\\Pictures\\", "\\Videos\\", "\\Music\\", "\\OneDrive"];
     /// <summary>Small adjustments that only separate matches of the same quality: your own folders first, system and tooling folders last, shallower before deeper.</summary>
-    private int Bonus(string path)
+    private int Bonus(ReadOnlySpan<char> path)
     {
         var bonus = 0;
         if (home is not null && path.StartsWith(home, StringComparison.OrdinalIgnoreCase) && path.Length > home.Length && path[home.Length] == Path.DirectorySeparatorChar)
@@ -174,28 +210,84 @@ public sealed partial class ScoutQuery
     {
         token.ThrowIfCancellationRequested();
         if (limit <= 0) return [];
-        var top = new PriorityQueue<(ScoutEntry Entry, int Score), (int Score, int Order)>(); var index = 0;
-        foreach (var entry in entries)
+        return Rank(new ScoutListSource(entries as IReadOnlyList<ScoutEntry> ?? entries.ToArray()), kind, limit, token);
+    }
+
+    /// <summary>The best <paramref name="limit"/> entries of a source, judged without making an object for any entry that is not in the result.</summary>
+    internal IReadOnlyList<ScoutEntry> Rank(ScoutSource source, ScoutItemKind kind, int limit = 150, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        if (limit <= 0) return [];
+        var scratch = new ScoutScratch();
+        // Without words to rank by, or when the person chose an order, the filtered matches are simply put in that order (newest first by default).
+        if (Terms.Count == 0 || Filter.Sort != ScoutSort.Best) return Ordered(source, scratch, kind, limit, token);
+        var top = new PriorityQueue<(int Index, int Score), (int Score, int Order)>();
+        var count = source.Count;
+        for (var index = 0; index < count; index++)
         {
-            if ((index++ & 1023) == 0) token.ThrowIfCancellationRequested();
-            if (kind == ScoutItemKind.Files && entry.IsFolder || kind == ScoutItemKind.Folders && !entry.IsFolder) continue;
-            var score = Score(entry); if (score < 0) continue;
-            var item = (entry, score); var priority = (score, -index);
+            if ((index & 1023) == 0) token.ThrowIfCancellationRequested();
+            if (!source.TryView(index, scratch, out var view)) continue;
+            if (kind == ScoutItemKind.Files && view.IsFolder || kind == ScoutItemKind.Folders && !view.IsFolder) continue;
+            if (!Filter.Allows(in view)) continue;
+            var score = Score(in view); if (score < 0) continue;
+            var item = (index, score); var priority = (score, -(index + 1));
             if (top.Count < limit) top.Enqueue(item, priority);
             else if (priority.CompareTo(top.PeekPriority()) > 0) { top.Dequeue(); top.Enqueue(item, priority); }
         }
-        return top.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Score).ThenBy(x => x.Entry.FullPath, StringComparer.OrdinalIgnoreCase).Select(x => x.Entry).ToArray();
+        var byPath = Comparer<int>.Create((left, right) => source.ComparePath(left, right, scratch));
+        return top.UnorderedItems.Select(x => x.Element).OrderByDescending(x => x.Score).ThenBy(x => x.Index, byPath).Select(x => source.Entry(x.Index)).ToArray();
     }
-    private static bool IsSubsequence(string needle, string text)
+
+    /// <summary>What a match is sorted by, kept small so that choosing the best few of very many matches needs no object for the rest.</summary>
+    private readonly record struct Match(int Index, int Score, long Key, string? Name);
+
+    private IReadOnlyList<ScoutEntry> Ordered(ScoutSource source, ScoutScratch scratch, ScoutItemKind kind, int limit, CancellationToken token)
+    {
+        var sort = Filter.Sort;
+        // Smaller keys come first: a descending order is the same key with its sign turned.
+        int Compare(Match left, Match right)
+        {
+            var order = left.Key.CompareTo(right.Key);
+            if (order == 0 && sort == ScoutSort.Name) order = string.CompareOrdinal(left.Name, right.Name);
+            if (order == 0) order = right.Score.CompareTo(left.Score);
+            return order != 0 ? order : source.ComparePath(left.Index, right.Index, scratch);
+        }
+        // The worst of the best so far sits on top, so it is the one to replace.
+        var best = new PriorityQueue<Match, Match>(Comparer<Match>.Create((left, right) => Compare(right, left)));
+        var count = source.Count;
+        for (var index = 0; index < count; index++)
+        {
+            if ((index & 1023) == 0) token.ThrowIfCancellationRequested();
+            if (!source.TryView(index, scratch, out var view)) continue;
+            if (kind == ScoutItemKind.Files && view.IsFolder || kind == ScoutItemKind.Folders && !view.IsFolder) continue;
+            if (!Filter.Allows(in view)) continue;
+            var score = Terms.Count == 0 ? 0 : Score(in view); if (score < 0) continue;
+            var key = sort switch
+            {
+                ScoutSort.Oldest => (view.Modified ?? DateTimeOffset.MaxValue).UtcTicks,
+                ScoutSort.Largest => -(view.Size ?? -1),
+                ScoutSort.Smallest => view.Size ?? long.MaxValue,
+                ScoutSort.Name => 0,
+                _ => -(view.Modified ?? DateTimeOffset.MinValue).UtcTicks
+            };
+            var match = new Match(index, score, key, sort == ScoutSort.Name ? view.SearchName.ToString() : null);
+            if (best.Count < limit) best.Enqueue(match, match);
+            else if (Compare(match, best.Peek()) < 0) { best.Dequeue(); best.Enqueue(match, match); }
+        }
+        var result = new ScoutEntry[best.Count];
+        for (var i = result.Length - 1; i >= 0; i--) result[i] = source.Entry(best.Dequeue().Index);
+        return result;
+    }
+    private static bool IsSubsequence(string needle, ReadOnlySpan<char> text)
     {
         var i = 0; foreach (var c in text) if (i < needle.Length && c == needle[i]) i++;
         return i == needle.Length;
     }
-    private static bool TypoWord(string term, string stem)
+    private static bool TypoWord(string term, ReadOnlySpan<char> stem)
     {
         if (DistanceAtMostOne(term, stem)) return true;
-        foreach (var range in stem.AsSpan().SplitAny(" ._-()[]"))
-            if (DistanceAtMostOne(term, stem.AsSpan()[range])) return true;
+        foreach (var range in stem.SplitAny(" ._-()[]"))
+            if (DistanceAtMostOne(term, stem[range])) return true;
         return false;
     }
     private static bool DistanceAtMostOne(ReadOnlySpan<char> left, ReadOnlySpan<char> right)

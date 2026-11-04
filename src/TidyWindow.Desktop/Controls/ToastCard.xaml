@@ -3,42 +3,45 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="using:TidyWindow.Next.Desktop"
  HorizontalContentAlignment="Stretch" IsTabStop="False">
- <Border x:Name="Card" Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10"
+ <Border x:Name="Card" Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8"
   PointerEntered="PointerOver" PointerExited="PointerAway" GotFocus="FocusInside" LostFocus="FocusOutside"
   AutomationProperties.Name="{Binding Announcement}" AutomationProperties.LiveSetting="Polite">
   <Grid>
-   <Grid ColumnSpacing="12" Padding="16,14,10,16">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-    <Grid VerticalAlignment="Top" Margin="0,2,0,0" AutomationProperties.AccessibilityView="Raw">
-     <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource GoodBrush}" Visibility="{Binding SuccessVisibility}" />
-     <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource WarnBrush}" Visibility="{Binding WarningVisibility}" />
-     <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource MutedBrush}" Visibility="{Binding InfoVisibility}" />
+   <!-- A tight hanging indent: the status mark has a narrow lane of its own, and the title, the detail and the buttons all start on one line to its right,
+        so a title that wraps never leaves a word under the mark. The first row is one 20px line, so the mark, the title and the close button stay level on it. -->
+   <Grid Padding="14,12,8,14" ColumnSpacing="8">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <!-- A solid status glyph; which one and its colour are set in code from the kind. -->
+    <FontIcon x:Name="Mark" FontSize="16" Height="20" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw" />
+    <!-- Shortened while closed, so a long message never makes a tall toast. Opening it shows everything, scrolling if the detail is very long. -->
+    <Grid Grid.Column="1" ColumnSpacing="6">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+     <TextBlock x:Name="TitleText" Style="{StaticResource ItemTitle}" LineHeight="20" LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" IsTextTrimmedChanged="TrimmedChanged" Text="{Binding Title}" />
+     <Border Grid.Column="1" Visibility="{Binding CountVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="5,0" Height="18" Margin="0,1,0,0" VerticalAlignment="Top">
+      <TextBlock Text="{Binding CountText}" FontSize="11" FontWeight="Medium" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+     </Border>
     </Grid>
-    <StackPanel Grid.Column="1" Spacing="3">
-     <!-- Shortened while closed, so a long message never makes a tall toast. Opening it shows everything, scrolling if it is very long. -->
-     <Grid ColumnSpacing="8" x:Name="ShortTitle">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock x:Name="TitleText" Text="{Binding Title}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" IsTextTrimmedChanged="TrimmedChanged" />
-      <TextBlock Grid.Column="1" Text="{Binding CountText}" Visibility="{Binding CountVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-     </Grid>
-     <TextBlock x:Name="DetailText" Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" IsTextTrimmedChanged="TrimmedChanged" />
-     <ScrollViewer x:Name="FullText" Visibility="Collapsed" MaxHeight="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
-      <StackPanel Spacing="6" Padding="0,0,10,0">
-       <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-       <TextBlock Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-      </StackPanel>
-     </ScrollViewer>
-     <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
-      <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ActionClick" FontSize="12" Padding="12,5" />
-      <HyperlinkButton x:Name="MoreButton" Content="Show more" Visibility="Collapsed" Click="MoreClick" FontSize="12" Padding="8,4" />
-      <HyperlinkButton x:Name="CopyButton" Content="Copy" Visibility="Collapsed" Click="CopyClick" FontSize="12" Padding="8,4" ToolTipService.ToolTip="Copy this message" />
-     </StackPanel>
+    <!-- Copy and close are small, quiet and centred on the title line, so they never compete with the message. -->
+    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top" Margin="0,-2,0,0">
+     <Button x:Name="CopyButton" Click="CopyClick" Visibility="Collapsed" Background="Transparent" BorderThickness="0" CornerRadius="4" Width="24" Height="24" Padding="0" Foreground="{ThemeResource MutedBrush}" AutomationProperties.Name="Copy this message" ToolTipService.ToolTip="Copy this message"><FontIcon x:Name="CopyIcon" Glyph="&#xE8C8;" FontSize="12" /></Button>
+     <Button Click="DismissClick" Background="Transparent" BorderThickness="0" CornerRadius="4" Width="24" Height="24" Padding="0" Foreground="{ThemeResource MutedBrush}" AutomationProperties.Name="Dismiss" ToolTipService.ToolTip="Dismiss"><FontIcon Glyph="&#xE711;" FontSize="10" /></Button>
     </StackPanel>
-    <Button Grid.Column="2" Click="DismissClick" Background="Transparent" BorderThickness="0" CornerRadius="6" VerticalAlignment="Top" Padding="6" AutomationProperties.Name="Dismiss" ToolTipService.ToolTip="Dismiss"><FontIcon Glyph="&#xE711;" FontSize="11" /></Button>
+    <!-- The detail runs on under the buttons, since they only take the first line. -->
+    <TextBlock x:Name="DetailText" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,8,0" Text="{Binding Detail}" Visibility="{Binding DetailVisibility}" Style="{StaticResource Muted}" LineHeight="18" LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" IsTextTrimmedChanged="TrimmedChanged" />
+    <ScrollViewer x:Name="FullText" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,0" Visibility="Collapsed" MaxHeight="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
+     <TextBlock Text="{Binding Detail}" Padding="0,0,8,0" Style="{StaticResource Muted}" LineHeight="18" LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+    </ScrollViewer>
+    <!-- Shown only when there is a button, so a plain message has no empty strip under it. The button is compact and neutral, like the rest of the card;
+         "Show more" is a quiet button pulled left by its own padding, so its text starts where the text above starts. -->
+    <StackPanel x:Name="ActionsRow" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="4" Margin="0,10,0,0" Visibility="Collapsed">
+     <Button Content="{Binding ActionLabel}" Visibility="{Binding ActionVisibility}" Click="ActionClick" FontSize="12" FontWeight="Medium" Padding="10,4" MinHeight="0" CornerRadius="6" VerticalAlignment="Center" />
+     <Button x:Name="MoreButton" Content="Show more" Visibility="Collapsed" Click="MoreClick" Background="Transparent" BorderThickness="0" CornerRadius="6" FontSize="12" Foreground="{ThemeResource MutedBrush}" Padding="8,4" MinHeight="0" VerticalAlignment="Center" />
+    </StackPanel>
    </Grid>
-   <!-- Runs down to nothing so the person can see the toast is about to go. It stops while the toast is being read. -->
-   <Border x:Name="BarTrack" Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Visibility="{Binding TimerVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="0,0,10,10">
-    <Border x:Name="BarFill" Background="{ThemeResource MutedBrush}" HorizontalAlignment="Stretch" />
+   <!-- A hairline that runs down to nothing so the person can see the toast is about to go. It stops while the toast is being read. -->
+   <Border x:Name="BarTrack" Height="2" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Visibility="{Binding TimerVisibility}" CornerRadius="0,0,8,8">
+    <Border x:Name="BarFill" Background="{ThemeResource MutedBrush}" Opacity="0.35" HorizontalAlignment="Stretch" />
    </Border>
   </Grid>
  </Border>

@@ -36,6 +36,16 @@ try {
     # The files being present is not enough: a package without the compiled pages installs fine and then dies on start. A startup crash
     # can also depend on timing (a missing [STAThread] failed only some of the time), so the app is started several times in a row.
     $launches = 4
+    # The app declines to start with a full administrator token (User Account Control on, and this console elevated), and would sit on its message
+    # looking like a window that stayed open. GitHub's Windows runners have User Account Control off, so there the launches below do run.
+    Add-Type -Namespace TidyWindowSmoke -Name Token -MemberDefinition '[DllImport("advapi32.dll", SetLastError = true)] public static extern bool GetTokenInformation(IntPtr token, int informationClass, out int information, int length, out int returned);'
+    $elevationType = 0; $returned = 0
+    [void][TidyWindowSmoke.Token]::GetTokenInformation([Security.Principal.WindowsIdentity]::GetCurrent().Token, 18, [ref]$elevationType, 4, [ref]$returned)
+    if ($elevationType -eq 2) {
+        $launches = 0
+        Write-Warning 'This console is elevated, so the app would decline to start: the launch checks were skipped.'
+        if ($env:GITHUB_ACTIONS) { Write-Host '::warning::The launch checks were skipped because the runner has a full administrator token.' }
+    }
     for ($n = 1; $n -le $launches; $n++) {
         $app = Start-Process -FilePath $exe -WorkingDirectory $dir -PassThru
         Start-Sleep -Seconds 8

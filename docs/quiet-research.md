@@ -65,4 +65,4 @@ Items that do not exist on a PC are not shown; the footer counts them.
 
 ## Not verified
 
-Reading and the safety rules are covered by tests, with a read-only scan of a real Windows 11 PC. Writing to services, scheduled tasks and policy values needs administrator rights and is checked by hand in the app. The Game recording policy is documented for Windows 10 and 11 (it is also in the DISA STIGs); whether Windows Home honors it was not confirmed.
+Reading and the safety rules are covered by tests, with a read-only scan of a real Windows 11 PC. Writing to services, scheduled tasks and policy values needs administrator rights. It was checked by hand in the app on 4 November 2026 on Windows 11 Pro (build 26300): the page works as designed. The Game recording policy is documented for Windows 10 and 11 (it is also in the DISA STIGs); whether Windows Home honors it was not confirmed.

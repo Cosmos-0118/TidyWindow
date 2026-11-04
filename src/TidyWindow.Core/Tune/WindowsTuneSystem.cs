@@ -130,12 +130,7 @@ public static class ExplorerShell
     /// True when this process holds the administrator rights the Windows permission prompt grants (a "full" token). An account whose token was
     /// never split, because it has no administrator rights or because the prompt is turned off, does not count: what it starts is no different from what it runs.
     /// </summary>
-    public static bool IsElevated()
-    {
-        using var identity = WindowsIdentity.GetCurrent();
-        // 18 is TokenElevationType; 2 is TokenElevationTypeFull.
-        return GetTokenInformation(identity.Token, 18, out var type, sizeof(int), out _) && type == 2;
-    }
+    public static bool IsElevated() => AppElevation.IsElevated();
 
     /// <exception cref="InvalidOperationException">TidyWindow is running as administrator, so File Explorer was left alone.</exception>
     public static async Task RestartAsync()
@@ -180,8 +175,4 @@ public static class ExplorerShell
         if (IsElevated()) throw new InvalidOperationException(ElevatedReason);
         Process.Start(new ProcessStartInfo(ExplorerPath) { UseShellExecute = true })?.Dispose();
     }
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetTokenInformation(IntPtr token, int informationClass, out int information, int length, out int returned);
 }

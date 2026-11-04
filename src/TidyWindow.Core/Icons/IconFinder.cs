@@ -111,7 +111,10 @@ public static partial class IconCommand
         if (name == "cmd") { Shell(args, expand, found, depth); return; }
         if (name == "rundll32")
         {
-            var library = Split(args).Program;
+            // rundll32 takes switches before the library ("/d acproxy.dll,Entry"); they are not part of its name.
+            var rest = args.TrimStart();
+            while (rest.Length > 1 && rest[0] == '/' && char.IsLetter(rest[1])) { var space = rest.IndexOf(' '); rest = space < 0 ? "" : rest[(space + 1)..].TrimStart(); }
+            var library = Split(rest).Program;
             if (library.IndexOfAny(['\\', '/']) >= 0) found.Add(new(expand(library).Trim('"'), ""));
             return;
         }

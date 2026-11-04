@@ -99,4 +99,20 @@ public sealed class StartupGuardTests : IDisposable
         var source = File.ReadAllText(Path.Combine(root.FullName, "src", "TidyWindow.Desktop", "Program.cs"));
         Assert.Matches(@"\[STAThread\]\s+(?:(?:private|public|internal)\s+)?static\s+void\s+Main\b", source);
     }
+
+    [Fact]
+    public void TheEntryPointDeclinesAnAdministratorTokenBeforeItDoesAnythingElse()
+    {
+        // Started as administrator, whatever ran first would already be running with those rights on data any program can change.
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TidyWindow.slnx"))) root = root.Parent;
+        Assert.NotNull(root);
+        var source = File.ReadAllText(Path.Combine(root.FullName, "src", "TidyWindow.Desktop", "Program.cs"));
+        var main = source[source.IndexOf("static void Main()", StringComparison.Ordinal)..];
+        var refusal = main.IndexOf("AppElevation.IsElevated()", StringComparison.Ordinal);
+        Assert.True(refusal >= 0, "Main does not check for an administrator token.");
+        foreach (var later in new[] { "InitializeComWrappers", "HandedOverToRunningInstance", "NativeSplash.Start", "Application.Start" })
+            Assert.True(main.IndexOf(later, StringComparison.Ordinal) > refusal, $"{later} runs before the check for an administrator token.");
+        Assert.Contains("return;", main[refusal..main.IndexOf("InitializeComWrappers", StringComparison.Ordinal)]);
+    }
 }

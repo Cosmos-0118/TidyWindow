@@ -133,7 +133,7 @@ Rows show the app's own logo, read from the `AppxManifest.xml` in its package fo
 
 - The unit tests (`tests/TidyWindow.Tests/Debloat/`) use a fake PC and cover the guard, the scan and its locks, each step of the removal pipeline and its rollback, OneDrive detection, Edge, Recall, put back, putting everything back at once, reading the package store, the OneDrive and Edge cleanup rules, and the helper's validation.
 - One opt-in live test (`TIDYWINDOW_LIVE_TESTS=1`) does a read-only scan of the real PC.
-- Writing to the registry, DISM, the Appx commands and the OneDrive and Edge uninstallers needs administrator rights and was run by hand on one Windows 11 PC with the apps listed above. Other Windows builds, other editions and PCs with manufacturer software were not tested.
+- Writing to the registry, DISM, the Appx commands and the OneDrive and Edge uninstallers needs administrator rights and was run by hand on one Windows 11 PC with the apps listed above. On 4 November 2026 the developer used the page again by hand on Windows 11 Pro (build 26300) and reports that it works very well. Other Windows builds, other editions and PCs with manufacturer software were not tested.
 - Windows Home, Pro and Enterprise were not compared, and policy-managed PCs can block any of these steps. A blocked step is reported as a failure and rolled back.
 
 ## Widgets keep coming back

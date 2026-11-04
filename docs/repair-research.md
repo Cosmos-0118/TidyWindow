@@ -112,4 +112,49 @@ A pending restart is reported (Info, nothing to fix); an item whose repair needs
 
 Verified here: all of the above against a throwaway registry tree with real permissions (the Python 3.13 case, a machine-wide product with S-1-5-18 and both Uninstall views, shared components and upgrade code that must survive, Burn bundle, ghost, leftover links, locked keys, partial failures) and read-only checks of this PC with `TIDYWINDOW_LIVE_TESTS=1`.
 Also verified on this PC, elevated, on throwaway keys: the privileged path (backup, restore and take-ownership privileges) for keys owned by Administrators and by SYSTEM, removed and restored with their owner and permissions; and, read-only, that WinGet matches the installed Python by name and version (`Python.Python.3.13 3.13.16`).
-Not verified (needs the friend's laptop or a VM, see `docs/repair-validation.md`): `msiexec /fvomus` on a real Python 3.13.9 whose Package Cache was cleared, the download and `/layout` of a real setup program through the repair (the live test for it exists and is opt-in with `TIDYWINDOW_LIVE_DOWNLOAD=1`, but was not run here), `/repair` of a downloaded Burn setup program, `winget install --force` of an Inno or NSIS program, and that the Python 3.13.16 installer then runs without the `core.msi` prompt.
+On 4 November 2026 the developer used the Repair page by hand on Windows 11 Pro (build 26300) and reports that it works very well; that report did not itemize the cases below. Not itemized, so still not recorded as verified (needs the friend's laptop or a VM, see `docs/repair-validation.md`): `msiexec /fvomus` on a real Python 3.13.9 whose Package Cache was cleared, the download and `/layout` of a real setup program through the repair (the live test for it exists and is opt-in with `TIDYWINDOW_LIVE_DOWNLOAD=1`, but was not run here), `/repair` of a downloaded Burn setup program, `winget install --force` of an Inno or NSIS program, and that the Python 3.13.16 installer then runs without the `core.msi` prompt.
+
+## Cache and update-file repair (November 2026)
+
+A research report listed where the ladder above still left a program broken. Each gap, what was built for it, and how far it was proven on a real PC (details in `docs/repair-validation.md`, section 4c):
+
+| Gap | What Repair does now | Proven |
+|---|---|---|
+| An update (patch) whose saved `.msp` in `C:\Windows\Installer` is gone | Looks for the update's own file first (a folder the person chose, Undo, then the Package Cache and WinGet/scoop temp folders), checks its patch code, and puts it back. A file needs its publisher's valid signature unless it already lies where only administrators can write, even in a folder the person chose, because a patch code can be written into any file and Windows Installer applies the update with full rights. The helper decides this itself, and takes the place the file goes from Windows Installer's own record, not from the request. Removing the update's registration stays as the fallback. | Yes, with a real file-carrying, non-removable update (see "What Windows does instead of failing") |
+| A saved copy that exists but is garbage (empty, cut short, another product's) | `PackageHealth` reads the file; a certainly-damaged copy is treated like a missing one. Unreadable is never called damaged. | Yes |
+| Saved copy of a program with no source (stripped cache) | Nothing is added to the scan, because nothing is wrong until a repair needs the source. The repair says to locate the installer and fixes from a chosen folder. | Yes (real Error 1706) |
+| Inno Setup `unins000.exe` without its `unins000.dat` | The scan reports it; Repair asks WinGet to reinstall the same version, which writes a new `unins001.exe/.dat` pair and repoints the entry. The check is that the entry's uninstaller works, not that the old file name came back. | Yes, on CPU-Z MSI 2.20.2 |
+| Burn cache moved by `HKLM\Software\Policies\WiX\Burn\PackageCache` | That folder (and `\Package Cache` under it) is searched as well as the two standard ones. | Yes |
+| `1603` from a custom action that needs a window | One more run with `/qb` (progress bar), only when the log shows a failed custom action. | Yes |
+| WinGet downloads that are `.zip` | Unpacked (entry and size limits) and matched by product and package code. | Yes (download stood in; WinGet itself not asked) |
+| A false failure when the client says 1603 but the install server finished | The log decides: a clean reconfiguration is a success (3010 is "fixed after restart"). | Yes, on the real Epic Games Launcher |
+| Programs Visual Studio installed, whose installer refuses to run | See below. | Yes, against this PC's real packages |
+
+### What Windows does instead of failing
+
+The expectation was that a missing update file makes a repair fail with 1612 or 1714. On this Windows build (11, 10.0.26300) it does not. With the saved copy of a non-removable, file-carrying update deleted and its original hidden, `/fomus`, `/fvomus`, `REINSTALL=ALL` and `/x` all returned 0, and the log says "Could not find source for missing patch ... orphaning this patch": the update is dropped from the program's records without a word, and nothing is reported. The scan cannot see that afterwards. This is why the restore runs *before* anything else touches the program (`RepairProgramAsync` and the scan's missing-update finding), and why the restore is worth having even where no error ever shows. Whether Office or SQL Server updates fail with 1612/1714 on older Windows is not proven.
+
+### Programs Visual Studio installed
+
+Some packages Visual Studio installs refuse to run outside it. The real example on this PC is "Microsoft .NET SDK 10.0.403 (x64) from Visual Studio", whose launch condition is `NOT Installed OR ALLOWMSIUNINSTALL` with the message "was installed with Visual Studio ... use the Visual Studio Installer and select 'Modify'". A repair is refused with 1603 after an administrator prompt.
+
+- The name alone was the old test (`" from Visual Studio"`), applied only to the Programs list.
+- The *source* alone is not enough: 203 entries on this PC (197 hidden) were installed from `C:\ProgramData\Microsoft\VisualStudio\Packages`, and only the .NET SDK refuses. IIS Express, Web Deploy, LocalDB and the SQL CLR types repair like any program.
+- The package itself is therefore the authority: `PackageHealth.RefusesWithoutVisualStudio` reads the saved installer's `LaunchCondition` table and looks for "Visual Studio Installer" in a message. `UninstallEntry.FromVisualStudioCache` (the `InstallSource` registry value) only decides which few installers are worth opening for the Programs list, and `NamedFromVisualStudio` stays as the fallback when the saved installer cannot be read.
+- `RepairProgramAsync` now stops before the administrator prompt for such a program and says to use the Visual Studio Installer, so the check no longer lives only in one view.
+- A live test (`TIDYWINDOW_LIVE_TESTS=1`) asserts, for every visible program from that cache on this PC, that the name marker and the installer's own launch condition agree.
+
+### Left out on purpose
+
+- **Cumulative-update `.exe` extraction.** It means running vendor setup programs with vendor-specific switches. Cannot be tested here; would need a signature check before anything runs and a real failing case. Only `.msp` files are used.
+- **Squirrel `Update.exe`.** Discord and similar keep a single `Update.exe` at the root, so there is no spare copy to retarget; the WinGet reinstall already covers a missing one.
+- **Registering a restored source (`MsiSourceListAddSourceEx`).** Low value: the folders involved are temporary.
+- **A log-driven "find the missing file and retry" loop.** Updates are restored up front and the missing-source case is handled live, so no failure was found that a second pass fixes.
+- **Real 1612/1714.** Not reproducible on this Windows build (above); would need an older Windows or a real Office or SQL Server product, ideally in a VM.
+
+### Other findings from doing it
+
+- Windows saves `.msp` files read-only; replacing or deleting one needs the attributes cleared first (a bug in the first version, fixed, and covered by Undo).
+- A product whose components use registry values as key paths looked "gone" to the scan (only file paths counted) and its record was about to be purged; registry key paths now count as proof the program is there.
+- A refused, unsigned candidate left a half-placed `.tidywindow-new` file in `C:\Windows\Installer`; a refused copy is now always removed.
+- `ClearStaleRollbackFolders` stands down while Windows Installer still lists saved rollback information, as the scan and the Cleanup rule already did.

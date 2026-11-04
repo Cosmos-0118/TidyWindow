@@ -222,7 +222,7 @@ public sealed class StartupGuardRuleTests : IDisposable
     [InlineData(@"\Acme\Sync", null)]
     [InlineData(@"\Sync", null)]
     [InlineData(@"\Microsoft\Office\Update", null)]
-    [InlineData(@"\Microsoft\Windows\Defrag\ScheduledDefrag", "Windows")]
+    [InlineData(@"\Microsoft\Windows\Defrag\ScheduledDefrag", null)]
     [InlineData("Sync", "not valid")]
     [InlineData(@"\Acme\", "not valid")]
     [InlineData(@"\Acme\\Sync", "not valid")]
@@ -230,7 +230,7 @@ public sealed class StartupGuardRuleTests : IDisposable
     [InlineData("\\Acme\\Sy\nnc", "not valid")]
     [InlineData("\\Acme\\Sync ", "not valid")]
     [InlineData(@"\Acme\Sy|nc", "not valid")]
-    public void OnlyPlainTaskPathsOutsideWindowsOwnFolderMayBeChanged(string path, string? problem)
+    public void OnlyPlainTaskPathsMayBeChanged(string path, string? problem)
     {
         var found = StartupGuard.TaskPathProblem(path);
         if (problem is null) Assert.Null(found);

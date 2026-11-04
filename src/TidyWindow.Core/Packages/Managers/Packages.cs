@@ -28,7 +28,8 @@ public sealed record Package(ManagerKind Manager, string Id, string Name, string
     public string ManagerName => ManagerDefinition.All.Single(x => x.Kind == Manager).Name;
 }
 public sealed record SearchResult(ManagerKind Manager, IReadOnlyList<Package> Packages, string? Error = null);
-public enum CommandOutputKind { Output, Error, Notice, Information, Warning, Progress, Success }
+/// <summary>Transfer carries how far a download has got ("Downloading 42%", or empty once it is over). It is shown beside the operation and never added to its output.</summary>
+public enum CommandOutputKind { Output, Error, Notice, Information, Warning, Progress, Success, Transfer }
 public sealed record CommandOutput(string Text, CommandOutputKind Kind = CommandOutputKind.Output);
 public sealed record CommandSpec(string FileName, IReadOnlyList<string> Arguments, TimeSpan Timeout, bool Elevate = false)
 {

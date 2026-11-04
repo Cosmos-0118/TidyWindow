@@ -34,6 +34,42 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
     }
 
     [LiveFact]
+    public void OnlyTheProgramsWhoseInstallerRefusesAreCalledVisualStudioOnlyOnThisPc()
+    {
+        var system = new WindowsInstallSystem();
+        var products = system.Products();
+        var cached = system.Entries().Where(x => x.FromVisualStudioCache && !x.SystemComponent).ToList();
+        foreach (var entry in cached)
+        {
+            var product = products.FirstOrDefault(p => string.Equals(p.Code, InstallRepair.ProductCode(entry), StringComparison.OrdinalIgnoreCase));
+            var refuses = product is not null && system.RefusesWithoutVisualStudio(product);
+            output.WriteLine($"  {entry.Name}: named from VS {entry.NamedFromVisualStudio}, installer refuses {refuses}");
+            // The name Visual Studio gives them and the package's own launch condition must agree.
+            if (entry.NamedFromVisualStudio) Assert.True(refuses, entry.Name);
+            else Assert.False(refuses, entry.Name);
+        }
+        output.WriteLine($"{cached.Count} visible programs came from the Visual Studio package cache.");
+    }
+
+    [LiveFact]
+    public void TheCacheChecksNameEveryDamagedSavedCopyAndInnoUninstallerOnThisPc()
+    {
+        var system = new WindowsInstallSystem();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var scan = InstallRepair.Scan(system, shortcuts: false);
+        output.WriteLine($"Scan took {watch.ElapsedMilliseconds} ms: {scan.Products.Count} products, {scan.Findings.Count} findings.");
+        foreach (var finding in scan.Findings.Where(x => x.Detail.Contains("damaged") || x.Detail.Contains("unins") || x.Kind == RepairKind.MissingPatch))
+            output.WriteLine($"  [{finding.Kind}] {finding.Title}: {finding.Detail}");
+        // Every saved copy and update file on this PC, checked directly: a healthy PC has no damaged ones.
+        var damaged = scan.Products.Where(system.SavedCopyDamaged).Select(x => $"{x.Name} ({x.LocalPackage})").ToList();
+        output.WriteLine($"{damaged.Count} damaged saved copies.");
+        foreach (var line in damaged) output.WriteLine("  " + line);
+        var patches = system.DeadPatches();
+        output.WriteLine($"{patches.Count} dead or damaged update files.");
+        foreach (var patch in patches) output.WriteLine($"  {patch.File} (damaged: {patch.Damaged}) worn by {string.Join(", ", patch.Programs)}");
+    }
+
+    [LiveFact]
     public void EveryRealProductCodeSurvivesPackingAndUnpacking()
     {
         var products = new WindowsInstallSystem().Products();

@@ -52,7 +52,7 @@ Windows 11 build 26300, signed in as a standard user (not elevated), checked on 
 - **Notifications service.** Research on the same build shows `WpnUserService` grants Start and Stop to the Interactive User (`IU`), so a signed-in user can restart it with the service control manager. `cbdhsvc` and `NPSMSvc` have a failure action that restarts them after three seconds, which is why closing their own `svchost.exe` is enough.
 - **`TextInputManagementService`.** Its descriptor is `D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWRPLOCRRC;;;BA)(A;;CCLCSWRPLOCRRC;;;IU)...`. Only `SY` has Stop (`WP`); Administrators have Start only. The advice to restart that service therefore cannot work, and closing `TextInputHost.exe` is used instead.
 
-Not measured: the effect of each close on a stuck system, because that needs the fault to be present. The runner is checked against a fake Windows (see Tests below), and the real calls were exercised only as described above.
+The runner is checked against a fake Windows (see Tests below), and the real calls were exercised as described above. On 4 November 2026 the developer used the Unstick page by hand on Windows 11 Pro (build 26300) and reports that it works well.
 
 ## How it stays safe
 

@@ -62,7 +62,7 @@ public sealed class RepairGroup(string name) : ObservableState
 }
 
 /// <summary>One program in the full list, for removing an entry by hand.</summary>
-public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys, MsiProduct? repairable = null) : ObservableState
+public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys, MsiProduct? repairable = null, bool managedByVisualStudio = false) : ObservableState
 {
     private ImageSource? icon;
     public UninstallEntry Entry { get; } = entry;
@@ -77,7 +77,7 @@ public sealed class ProgramRow(UninstallEntry entry, IReadOnlyList<string> keys,
     /// <summary>The Windows Installer product this row can be repaired as, when it still has its saved installer copy.</summary>
     public MsiProduct? RepairProduct { get; } = repairable;
     /// <summary>Programs installed by Visual Studio refuse to run on their own ("use the Visual Studio Installer and select Modify"), so there is nothing to offer for them here.</summary>
-    public bool ManagedByVisualStudio => Entry.Name.Contains(" from Visual Studio", StringComparison.OrdinalIgnoreCase);
+    public bool ManagedByVisualStudio { get; } = managedByVisualStudio;
     public Visibility RepairVisibility => RepairProduct is null || ManagedByVisualStudio ? Visibility.Collapsed : Visibility.Visible;
     public string Sub => string.Join(" · ", new[] { Entry.Publisher, Entry.Version, Hidden ? "Hidden sub-package" : "" }.Where(x => x.Length > 0));
     public string Where => Entry.Key.StartsWith("HKCU", StringComparison.OrdinalIgnoreCase) ? "Just for you" : "All users";
@@ -272,9 +272,17 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         everyProgram = scan.Entries
             .Where(x => x.Name.Trim().Length > 0 && !x.IsUpdate)
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(x => new ProgramRow(x, InstallRepair.RemovalKeys(x, scan.Products), Repairable(x, scan.Products))).ToList();
+            .Select(x => NewRow(x, scan.Products)).ToList();
         if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
         Relist();
+    }
+
+    private ProgramRow NewRow(UninstallEntry entry, IReadOnlyList<MsiProduct> products)
+    {
+        var product = Repairable(entry, products);
+        // Only what Visual Studio installed is worth opening the installer file for; the package itself says whether it refuses to run on its own.
+        var refuses = entry.NamedFromVisualStudio || (product is not null && !entry.SystemComponent && entry.FromVisualStudioCache && system.RefusesWithoutVisualStudio(product));
+        return new ProgramRow(entry, InstallRepair.RemovalKeys(entry, products), product, refuses);
     }
 
     /// <summary>The product a list entry stands for, when Windows Installer still has the installer copy it needs to repair it.</summary>

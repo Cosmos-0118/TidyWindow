@@ -86,6 +86,7 @@ internal static class ScoutHost
         Native.Everything_SetMatchCase(false);
         Native.Everything_SetRequestFlags(RequestFlags);
         Native.Everything_SetOffset(0);
+        Native.Everything_SetSort(query.NativeSort);
 
         var homePrefix = Home.Length > 0 ? Home.TrimEnd('\\') + "\\" : null;
         if (!fuzzyOnly)
@@ -95,17 +96,17 @@ internal static class ScoutHost
             // The name with any extension (readme -> readme.txt), before the capped broad passes can crowd it out with a thousand README.md.
             if (query.ExactStemExpression(request.Kind) is { } stem) { Run(stem, matchPath: false, 128, rootPrefix, out _); Trace("exact stem"); }
             // Your own files first: a search of the profile cannot be crowded out by millions of system files.
-            if (rootPrefix is null && homePrefix is not null) { Run(query.NameExpression(request.Kind, Home), matchPath: false, 1000, homePrefix, out _); Trace("your files"); }
-            Run(query.NameExpression(request.Kind, request.Root), matchPath: false, 2000, rootPrefix, out total);
+            if (rootPrefix is null && homePrefix is not null) { Run(query.NameExpression(request.Kind, Home), query.NeedsPathMatch, 1000, homePrefix, out _); Trace("your files"); }
+            Run(query.NameExpression(request.Kind, request.Root), query.NeedsPathMatch, 2000, rootPrefix, out total);
             Trace("names");
-            if (query.Terms.Count > 1 || candidates.Count < 100)
+            if (query.Terms.Count > 1 || candidates.Count < 100 && query.Terms.Count > 0 && !query.NeedsPathMatch)
             {
                 Run(query.PathExpression(request.Kind, request.Root), matchPath: true, 2000, rootPrefix, out var inPaths);
                 total = Math.Max(total, inPaths);
                 Trace("paths");
             }
         }
-        if (fuzzyOnly || inlineFuzzy && candidates.Count < ScoutService.FuzzyBelow && query.Terms.Count <= 3 && !query.HasWildcards && !candidates.Any(x => query.Score(x) >= ScoutQuery.ExactScore))
+        if (fuzzyOnly || inlineFuzzy && candidates.Count < ScoutService.FuzzyBelow && query.Terms.Count is > 0 and <= 3 && !query.HasWildcards && !candidates.Any(x => query.Score(x) >= ScoutQuery.ExactScore))
         {
             if (query.SmartExpression(request.Kind, request.Root) is { } smart)
             {
@@ -158,6 +159,7 @@ internal static class Native
     [DllImport(Library)] internal static extern void Everything_SetRequestFlags(uint value);
     [DllImport(Library)] internal static extern void Everything_SetMax(uint value);
     [DllImport(Library)] internal static extern void Everything_SetOffset(uint value);
+    [DllImport(Library)] internal static extern void Everything_SetSort(uint value);
     [DllImport(Library)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool Everything_QueryW([MarshalAs(UnmanagedType.Bool)] bool wait);
     [DllImport(Library)] internal static extern uint Everything_GetLastError();
     [DllImport(Library)] internal static extern uint Everything_GetTotResults();

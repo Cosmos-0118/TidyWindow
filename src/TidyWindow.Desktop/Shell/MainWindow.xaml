@@ -66,6 +66,17 @@
      <Button x:Name="LabNav" Style="{StaticResource NavButton}" Click="LabClick" AutomationProperties.Name="Lab">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE9D9;" FontSize="15" /><TextBlock x:Name="LabLabel" Text="Lab" FontSize="13" /></StackPanel>
      </Button>
+     <Button x:Name="CrashesNav" Style="{StaticResource NavButton}" Click="CrashesClick" AutomationProperties.Name="Crashes">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+       <Grid>
+        <FontIcon Glyph="&#xE7BA;" FontSize="15" />
+        <!-- Something new since the page was last opened; visible even when the sidebar is only the icon rail. -->
+        <Ellipse Width="8" Height="8" Fill="{ThemeResource WarnBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" Visibility="{Binding UnseenVisibility}" />
+       </Grid>
+       <TextBlock x:Name="CrashesLabel" Text="Crashes" FontSize="13" />
+       <Border Background="{ThemeResource WarnSoftBrush}" CornerRadius="8" Padding="6,0" VerticalAlignment="Center" Visibility="{Binding UnseenVisibility}"><TextBlock Text="{Binding UnseenText}" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
+      </StackPanel>
+     </Button>
      <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
@@ -316,7 +327,7 @@
         <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
        </Grid>
       </Border>
-      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Installed packages">
+      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" ContainerContentChanging="InstalledRowRealized" AutomationProperties.Name="Installed packages">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,12" MinHeight="68">
@@ -363,21 +374,68 @@
       <Button Grid.Column="2" Click="ScoutRefreshClick" Padding="10,7" AutomationProperties.Name="Refresh search index" ToolTipService.ToolTip="Refresh search index"><FontIcon Glyph="&#xE72C;" FontSize="12" /></Button>
      </Grid>
      <Grid Grid.Row="1" ColumnSpacing="10" RowSpacing="8">
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ScoutLocationColumn" Width="180" /><ColumnDefinition Width="130" /></Grid.ColumnDefinitions>
-      <TextBox x:Name="ScoutSearchBox" PlaceholderText="Search names and paths" MaxLength="200" Height="38" VerticalContentAlignment="Center" TextChanged="ScoutTextChanged" AutomationProperties.Name="Search file and folder names" />
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ScoutLocationColumn" Width="180" /><ColumnDefinition Width="170" /></Grid.ColumnDefinitions>
+      <TextBox x:Name="ScoutSearchBox" PlaceholderText="Search names and paths, or add kind:pdf size:&gt;10mb date:7d…" MaxLength="200" Height="38" VerticalContentAlignment="Center" TextChanged="ScoutTextChanged" AutomationProperties.Name="Search file and folder names" />
       <ComboBox x:Name="ScoutLocation" Grid.Column="1" SelectedIndex="0" SelectionChanged="ScoutLocationChanged" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" AutomationProperties.Name="Search location">
          <ComboBoxItem Content="Home" /><ComboBoxItem Content="This PC" /><ComboBoxItem Content="Choose folder…" /><ComboBoxItem x:Name="ScoutFolderChoice" Visibility="Collapsed" />
       </ComboBox>
-      <ComboBox x:Name="ScoutType" Grid.Column="2" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" AutomationProperties.Name="Search item type">
-       <ComboBoxItem Content="All items" /><ComboBoxItem Content="Files" /><ComboBoxItem Content="Folders" />
-      </ComboBox>
+      <ComboBox x:Name="ScoutType" Grid.Column="2" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" AutomationProperties.Name="Filter by kind of file" ToolTipService.ToolTip="Only show this kind of file" />
+      <!-- The other filters. Each one is added to the search as a filter you could type, so the two always agree. -->
+      <Grid Grid.Row="2" Grid.ColumnSpan="3" ColumnSpacing="8">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <ComboBox x:Name="ScoutModified" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" MinWidth="150" AutomationProperties.Name="Filter by date modified" ToolTipService.ToolTip="Only show things changed this recently" />
+       <ComboBox x:Name="ScoutSize" Grid.Column="1" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" MinWidth="190" AutomationProperties.Name="Filter by size" ToolTipService.ToolTip="Only show files of this size" />
+       <ComboBox x:Name="ScoutSort" Grid.Column="2" SelectedIndex="0" SelectionChanged="ScoutTypeChanged" MinWidth="150" AutomationProperties.Name="Sort results" ToolTipService.ToolTip="How the results are ordered" />
+       <Button Grid.Column="4" Padding="10,7" Background="Transparent" AutomationProperties.Name="Search tips" ToolTipService.ToolTip="Search tips">
+        <FontIcon Glyph="&#xE897;" FontSize="14" />
+        <Button.Flyout>
+         <Flyout Placement="BottomEdgeAlignedRight">
+          <StackPanel Spacing="10" MaxWidth="480">
+           <TextBlock Text="Search tips" Style="{StaticResource ItemTitle}" />
+           <TextBlock Style="{StaticResource Muted}" Text="Type a name, or only a filter, to find files. Every word has to match. The boxes above add the same filters for you." />
+           <TextBlock FontFamily="Cascadia Mono, Consolas" FontSize="12" LineHeight="20" TextWrapping="Wrap">
+            <Run Text="invoice 2026" /><Run Text="         both words" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="&quot;tax return&quot;" /><Run Text="       exact phrase" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="-draft" /><Run Text="               leave out" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="*.png  d?ta*" /><Run Text="        wildcards" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="kind:image|video" /><Run Text="   either kind. Also document," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    pdf, spreadsheet, installer," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    archive, code, folder…" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="ext:psd|ai" /><Run Text="          exact extensions" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="size:&gt;100mb" /><Run Text="        also &lt; &gt;= &lt;= =" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="size:1mb..10mb" /><Run Text="     a range" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="size:empty" /><Run Text="         or tiny, small," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    medium, large, huge" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="date:today" /><Run Text="         or yesterday, week, month," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    7d, 2w, 3m, 1y, 2026-10-25," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    2026-10, 2026" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="after:2026-10-01" /><Run Text="   before:2026-11-01" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="in:downloads" /><Run Text="       inside a folder" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="name:setup" /><Run Text="          in the file name only" Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="sort:newest" /><Run Text="        or oldest, largest," Foreground="{ThemeResource MutedBrush}" /><LineBreak />
+            <Run Text="                    smallest, name" Foreground="{ThemeResource MutedBrush}" />
+           </TextBlock>
+           <TextBlock Style="{StaticResource Muted}" Text="Try: kind:installer in:downloads size:&gt;50mb" />
+          </StackPanel>
+         </Flyout>
+        </Button.Flyout>
+       </Button>
+      </Grid>
      </Grid>
      <StackPanel Grid.Row="2" Spacing="8">
+      <!-- How the typed filters were read. -->
+      <ItemsControl ItemsSource="{Binding Chips}" Visibility="{Binding ChipsVisibility}" AutomationProperties.Name="How the search was read">
+       <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+       <ItemsControl.ItemTemplate><DataTemplate>
+        <Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="9,2"><TextBlock Text="{Binding}" FontSize="12" Foreground="{ThemeResource MutedBrush}" /></Border>
+       </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
       <Grid ColumnSpacing="10">
-       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
        <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
-       <Button Grid.Column="1" Content="Stop" Click="ScoutCancelClick" Visibility="{Binding ProgressVisibility}" Padding="10,4" FontSize="12" />
+       <HyperlinkButton Grid.Column="1" Click="ScoutClearClick" Visibility="{Binding ClearVisibility}" Padding="4,0" FontSize="12" Content="Clear search and filters" />
+       <Button Grid.Column="2" Content="Stop" Click="ScoutCancelClick" Visibility="{Binding ProgressVisibility}" Padding="10,4" FontSize="12" />
       </Grid>
       <ProgressBar IsIndeterminate="True" Visibility="{Binding ProgressVisibility}" Height="2" />
      </StackPanel>
@@ -419,6 +477,7 @@
     <local:UnstickView x:Name="UnstickPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:SettingsView x:Name="SettingsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:LabView x:Name="LabPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:CrashesView x:Name="CrashesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
@@ -449,6 +508,7 @@
              <StackPanel Spacing="4">
               <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" local:TrimTip.Enabled="True" />
               <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" local:TrimTip.Enabled="True" />
+              <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" Visibility="{Binding ProgressVisibility}" Height="3" Margin="0,2,0,0" IsTabStop="False" AutomationProperties.AccessibilityView="Raw" />
              </StackPanel>
              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
               <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" />

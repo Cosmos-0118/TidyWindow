@@ -12,6 +12,11 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     // Registry programs and Store apps have no package name to show; their WinGet id is a registry path.
     public string Detail => Package.Origin == AppOrigin.Package ? $"{Package.ManagerName}{(Package.Global ? " · all users" : "")} · {Package.Id}" : Source;
     public string Id => Package.Id;
+    /// <summary>Set once the row's picture and publisher were asked for, so scrolling past it again asks for nothing.</summary>
+    internal bool DetailsRequested;
+    internal bool PublisherRequested;
+    /// <summary>Shown from the saved list while the real one is still being read: it can be looked at, not acted on.</summary>
+    internal bool FromSnapshot;
 
     private ImageSource? icon;
     public ImageSource? Icon => icon;
@@ -114,10 +119,12 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public Visibility ErrorVisibility => Errors.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     private readonly IconService icons;
     private readonly PublisherService publishers;
+    private readonly InstalledSnapshot? snapshot;
     private bool listening;
-    public InstallationsViewModel(InstallationService service, WorkspaceViewModel workspace, ActivityLog log, OperationQueueViewModel queue, IconService? iconService = null, PublisherService? publisherService = null)
+    private int generation;
+    public InstallationsViewModel(InstallationService service, WorkspaceViewModel workspace, ActivityLog log, OperationQueueViewModel queue, IconService? iconService = null, PublisherService? publisherService = null, InstalledSnapshot? snapshot = null)
     {
-        this.service = service; this.workspace = workspace; this.log = log; this.queue = queue; queue.StateChanged += NotifyState;
+        this.service = service; this.workspace = workspace; this.log = log; this.queue = queue; this.snapshot = snapshot; queue.StateChanged += NotifyState;
         icons = iconService ?? IconService.Shared; publishers = publisherService ?? PublisherService.Shared;
         workspace.PropertyChanged += WorkspaceChanged;
     }
@@ -149,7 +156,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
             {
                 index.TryGetValue(PackageOperation.Resource(row.Package.Manager, row.Package.Id, row.Package.Global), out var entry);
                 row.SetQueueEntry(entry);
-                row.CanAct = !Refreshing && workspace.CanQueue && entry?.State is not (QueueItemState.Waiting or QueueItemState.Running);
+                row.CanAct = !Refreshing && !row.FromSnapshot && workspace.CanQueue && entry?.State is not (QueueItemState.Waiting or QueueItemState.Running);
                 if (!row.CanAct) row.IsSelected = false;
             }
         }
@@ -167,12 +174,20 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         try { foreach (var row in all) row.IsSelected = false; }
         finally { selecting = false; }
     }
+    /// <summary>Puts <see cref="all"/> in the order the page shows: apps with an update first, then by name. Done once per read, not once per keystroke in the search box.</summary>
+    private void SortAll()
+    {
+        var sorted = all.OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToList();
+        all.Clear();
+        all.AddRange(sorted);
+    }
+
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
         var shown = all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
             (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToArray();
+            .ToArray();
         // A new filter starts the list over (one reset instead of clearing and re-adding every row, which would re-measure on each step).
         if (keepPosition) Rows.Sync(shown, x => x.Package.Key); else Rows.Reset(shown);
         foreach (var name in new[] { nameof(EmptyVisibility), nameof(EmptyTitle), nameof(EmptyDetail), nameof(TableHeaderVisibility) }) Changed(name);
@@ -191,65 +206,167 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     private async Task ReadAsync()
     {
         Errors = "";
-        if (loaded) Updating = true; else { Refreshing = true; all.Clear(); ApplyFilter(); }
+        var mine = Interlocked.Increment(ref generation);
+        // Nothing here is cleared before the first answer: the page shows what it already has (the last read, or the saved list from the last run) and
+        // changes only what differs, instead of covering everything until every package manager has finished.
+        Updating = true;
         try
         {
             var managers = workspace.Managers.Select(x => x.Status).Where(x => x is not null).Cast<ManagerStatus>().ToArray();
-            var pending = managers.Select(x => service.ReadAsync(x, token: lifetime.Token)).ToList();
+            if (!loaded)
+            {
+                var saved = await SavedListAsync(managers);
+                if (saved.Count > 0) ShowSaved(saved);
+                else { Updating = false; Refreshing = true; all.Clear(); ApplyFilter(); }
+            }
+
+            var done = new HashSet<ManagerKind>();
+            // The list arrives as soon as a manager knows what is installed; its check for updates (the slow part) fills in the rest afterwards.
+            var early = new Progress<ManagedInventory>(partial => { if (mine == generation && !done.Contains(partial.Manager)) Apply(partial, partial: true); });
+            var pending = managers.Select(x => service.ReadAsync(x, token: lifetime.Token, installedReady: early)).ToList();
             while (pending.Count > 0)
             {
                 var completed = await Task.WhenAny(pending); pending.Remove(completed);
                 var inventory = await completed;
-                inventories[inventory.Manager] = inventory;
-                // An app that did not change keeps its row, with its selection, so only what really changed is touched on screen.
-                var previous = new Dictionary<string, InstalledRow>();
-                foreach (var old in all.Where(x => x.Package.Manager == inventory.Manager)) previous.TryAdd(old.Package.Key, old);
-                var reused = new HashSet<InstalledRow>();
-                var current = new List<InstalledRow>(inventory.Packages.Count);
-                foreach (var package in inventory.Packages)
-                {
-                    if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { current.Add(old); continue; }
-                    var row = new InstalledRow(package) { Compact = compact };
-                    // What was found before comes back with the list, so a refresh does not blank it.
-                    if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
-                    if (publishers.TryGet(package, out var named)) row.SetPublisher(named);
-                    row.PropertyChanged += SelectionChanged;
-                    current.Add(row);
-                }
-                foreach (var old in all.Where(x => x.Package.Manager == inventory.Manager && !reused.Contains(x))) old.PropertyChanged -= SelectionChanged;
-                all.RemoveAll(x => x.Package.Manager == inventory.Manager);
-                all.AddRange(current);
-                Errors = string.Join("\n", inventories.Values.Where(x => x.Error is not null || x.UpdateError is not null)
-                    .Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error ?? "Updates could not be checked. " + x.UpdateError}"));
-                ApplyFilter(keepPosition: true);
-                if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
-                _ = LoadDetailsAsync(current);
+                done.Add(inventory.Manager);
+                Apply(inventory, partial: false);
             }
             loaded = true; NeedsRefresh = false;
-            await LogCoverageAsync();
+            // Whatever is still from the saved list belongs to a manager that was not read this time, so it is gone.
+            if (all.Any(x => x.FromSnapshot)) { Drop(all.Where(x => x.FromSnapshot).ToList()); ApplyFilter(keepPosition: true); }
+            if (snapshot is not null && inventories.Values.All(x => x.Error is null))
+            {
+                var packages = all.Select(x => x.Package).ToArray();
+                _ = Task.Run(() => snapshot.Save(packages));
+            }
+            // Neither of these is needed to use the page, so neither holds it up.
+            _ = BackfillPublishersAsync(mine);
+            _ = LogCoverageAsync();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Errors = ex.Message; log.Write(ActivityLevel.Warning, ActivityArea.Install, "Installed packages could not be checked", ex.ToString()); }
-        finally { Refreshing = false; Updating = false; NotifyState(); }
+        finally
+        {
+            // A read that failed before its first answer must not leave rows that can never be acted on.
+            if (!loaded && all.Any(x => x.FromSnapshot)) { Drop(all.Where(x => x.FromSnapshot).ToList()); ApplyFilter(keepPosition: true); }
+            Refreshing = false; Updating = false; NotifyState();
+        }
     }
-    // Icons and publishers arrive a moment after the list, a few at a time, and a row without them keeps its glyph and its package line.
-    private void ReloadIcons() => _ = LoadDetailsAsync(all, everyRow: true);
 
-    private async Task LoadDetailsAsync(IReadOnlyList<InstalledRow> rows, bool everyRow = false)
+    private InstalledRow MakeRow(ManagedPackage package)
     {
-        // What is on screen first.
-        var shown = Rows.ToHashSet();
-        var queued = rows.Where(x => everyRow || x.Icon is null || x.Publisher.Length == 0).OrderBy(x => shown.Contains(x) ? 0 : 1).ToList();
-        try { await Task.WhenAll(queued.Select(LoadRowAsync)); }
-        catch (OperationCanceledException) { }
+        var row = new InstalledRow(package) { Compact = compact };
+        // What was found before comes back with the list, so a refresh does not blank it.
+        if (icons.TryGet(row.IconQuery, out var cached) && cached is not null) row.SetIcon(cached);
+        if (publishers.TryGet(package, out var named)) row.SetPublisher(named);
+        row.PropertyChanged += SelectionChanged;
+        return row;
     }
+
+    private void Drop(IReadOnlyList<InstalledRow> rows)
+    {
+        foreach (var row in rows) row.PropertyChanged -= SelectionChanged;
+        var gone = rows.ToHashSet();
+        all.RemoveAll(gone.Contains);
+    }
+
+    /// <summary>The list from the last run, for the managers that can be read now. Empty when there is none.</summary>
+    private async Task<IReadOnlyList<ManagedPackage>> SavedListAsync(IReadOnlyList<ManagerStatus> managers)
+    {
+        if (snapshot is null) return [];
+        var ready = managers.Where(x => x.Health == ManagerHealth.Ready).Select(x => x.Definition.Kind).ToHashSet();
+        var saved = await Task.Run(snapshot.Load, lifetime.Token);
+        return saved.Where(x => ready.Contains(x.Manager)).ToArray();
+    }
+
+    private void ShowSaved(IReadOnlyList<ManagedPackage> saved)
+    {
+        all.Clear();
+        foreach (var package in saved) { var row = MakeRow(package); row.FromSnapshot = true; all.Add(row); }
+        SortAll();
+        ApplyFilter();
+        NotifyState();
+    }
+
+    /// <summary>Puts one manager's answer on the page. A row that did not change keeps its place, its picture and its selection, so only what really changed is touched on screen.</summary>
+    /// <param name="partial">What is installed, before the check for updates is known: the update information already on the page is kept until the real answer arrives.</param>
+    private void Apply(ManagedInventory inventory, bool partial)
+    {
+        inventories[inventory.Manager] = inventory;
+        var previous = new Dictionary<string, InstalledRow>();
+        foreach (var old in all.Where(x => x.Package.Manager == inventory.Manager)) previous.TryAdd(old.Package.Key, old);
+        var reused = new HashSet<InstalledRow>();
+        var current = new List<InstalledRow>(inventory.Packages.Count);
+        foreach (var listed in inventory.Packages)
+        {
+            var package = listed;
+            // What the page already knew about updates (from the last read in this run, not from the saved list) is kept until the real answer replaces it.
+            if (partial && previous.TryGetValue(package.Key, out var before) && !before.FromSnapshot)
+                package = package with { AvailableVersion = before.Package.AvailableVersion, Held = package.Held || before.Package.Held, Note = before.Package.Note.Length > 0 ? before.Package.Note : package.Note };
+            if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { old.FromSnapshot = false; current.Add(old); continue; }
+            // The saved list is only a first guess: a row that is not confirmed by the first real answer is a new row, not the saved one.
+            current.Add(MakeRow(package));
+        }
+        Drop(all.Where(x => x.Package.Manager == inventory.Manager && !reused.Contains(x)).ToList());
+        all.RemoveAll(x => x.Package.Manager == inventory.Manager);
+        all.AddRange(current);
+        SortAll();
+        Errors = string.Join("\n", inventories.Values.Where(x => x.Error is not null || x.UpdateError is not null)
+            .Select(x => $"{ManagerDefinition.All.Single(m => m.Kind == x.Manager).Name}: {x.Error ?? "Updates could not be checked. " + x.UpdateError}"));
+        ApplyFilter(keepPosition: true);
+        if (!listening) { IconService.DarkChanged += ReloadIcons; listening = true; }
+        // The first rows to show lift the cover: from here the page is usable while the rest is read.
+        if (Refreshing && all.Count > 0) { Refreshing = false; Updating = true; }
+        else NotifyState();
+    }
+
+    /// <summary>
+    /// A row is about to be shown. Its picture is asked for now rather than when the list is read: a list of hundreds is only ever looked at a screenful at a time,
+    /// and reading every program's icon from disk is what made a slow PC crawl.
+    /// </summary>
+    public void Realized(InstalledRow row)
+    {
+        if (row.DetailsRequested) return;
+        row.DetailsRequested = true;
+        _ = LoadRowAsync(row);
+    }
+
+    // A theme change gives Store apps a different logo, so the rows that were already shown ask again. The others ask when they are shown.
+    private void ReloadIcons() { foreach (var row in all.Where(x => x.DetailsRequested).ToList()) _ = LoadRowAsync(row); }
 
     private async Task LoadRowAsync(InstalledRow row)
     {
-        var icon = icons.LoadAsync(row.IconQuery, lifetime.Token);
-        var publisher = publishers.FindAsync(row.Package);
-        if (await icon is { } image) row.SetIcon(image);
-        row.SetPublisher(await publisher);
+        try
+        {
+            var publisher = row.PublisherRequested ? null : publishers.FindAsync(row.Package);
+            row.PublisherRequested = true;
+            if (await icons.LoadAsync(row.IconQuery, lifetime.Token) is { } image) row.SetIcon(image);
+            if (publisher is not null) row.SetPublisher(await publisher);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// Names the publisher of the rows nobody has scrolled to yet, one at a time and after the list has settled, because searching by publisher should find them too.
+    /// One at a time keeps a slow PC's disk and processor free for what the person is doing.
+    /// </summary>
+    private async Task BackfillPublishersAsync(int mine)
+    {
+        try
+        {
+            await Task.Delay(750, lifetime.Token);
+            foreach (var row in all.ToArray())
+            {
+                if (mine != generation) return;
+                if (row.PublisherRequested) continue;
+                row.PublisherRequested = true;
+                row.SetPublisher(await publishers.FindAsync(row.Package));
+                lifetime.Token.ThrowIfCancellationRequested();
+            }
+            // The search box may be waiting on a publisher name that only now exists.
+            if (mine == generation && query.Length > 0) ApplyFilter(keepPosition: true);
+        }
+        catch (OperationCanceledException) { }
     }
 
     // Records how much of Windows' own installed-apps list this page shows, so a gap in detection is visible in Logs instead of silent.

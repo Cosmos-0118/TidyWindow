@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Queue, Logs, Settings }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Crashes, Queue, Logs, Settings }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -35,12 +35,14 @@ public sealed partial class MainWindow : Window
     private readonly FixSession fixSession;
     private readonly UnstickViewModel unstick;
     private readonly LabViewModel lab;
+    private readonly CrashesViewModel crashes;
     private readonly SettingsViewModel settings;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
     private long reconciledCompletions;
     private bool initialized;
+    private bool scoutResetting;
     private bool closingDialog;
     private volatile bool closeConfirmed;
     private ContentDialog? openDialog;
@@ -66,7 +68,7 @@ public sealed partial class MainWindow : Window
         var repairService = new RepairService(installSystem, RegistryRepair.User, repairSession, repairSession.OpenAsync, repairSession.Close, repairHistory, new WindowsInstallerOps(), repairSession, new WingetFetcher(), FileShortcutEditor.User(), repairSession, FileFolderEditor.User(), repairSession);
         var uninstallRecovery = new UninstallRecovery(installSystem, new WindowsUninstallHost(), runner, repairService) { AllowDownload = true };
         var management = new InstallationService(packages, runner, locator, new SkippedUpdates(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "skipped-updates.json")), uninstallRecovery);
-        var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows);
+        var executor = new PackageOperationExecutor(packages, management, locator, InstalledInventory.ReadWindows, runner);
         // Fixes share the queue, and so its live output. Machine-wide fixes run in a helper that sends its output back as it is produced.
         fixSession = FixSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var fixStore = new FixRunStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Fixes"));
@@ -81,7 +83,7 @@ public sealed partial class MainWindow : Window
         operationQueue = new(packageQueue, log, Post);
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
-        installations = new(management, model, log, operationQueue);
+        installations = new(management, model, log, operationQueue, snapshot: new InstalledSnapshot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "installed-apps.json")));
         var scoutHost = Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe");
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.
         scout = new(new ScoutService(runner, scoutHost, worker: new PersistentScoutWorker(scoutHost), fuzzyWorker: new PersistentScoutWorker(scoutHost, killOnCancel: true)), log, Post);
@@ -99,6 +101,12 @@ public sealed partial class MainWindow : Window
         paths = new(pathDoctor, machineDoctor, machineSession, new CommandResolver(File.Exists, IsStoreAlias, CommandResolver.DefaultExtensions()), new PathSetup(Environment.ExpandEnvironmentVariables, Directory.Exists, File.Exists, SafeSubdirectories), log, Post, toasts, ChooseFolderAsync, OpenAliasSettings);
         InitializeComponent();
         ToastStack.ItemsSource = toasts.Items;
+        if (Environment.GetEnvironmentVariable("TW_TOAST_DEMO") is not null) // TEMP-DEMO
+        { // TEMP-DEMO
+            toasts.Show("d1", ToastKind.Info, "Checking for updates", "", seconds: 0); // TEMP-DEMO
+            toasts.Show("d2", ToastKind.Warning, "The power plan could not be changed", "Access to the registry key HKLM Power is denied. Try again from an account with admin rights, or open Logs for the full message.", "Open Logs", () => Task.CompletedTask, 0); // TEMP-DEMO
+            toasts.Show("d3", ToastKind.Success, "Detailed messages at start-up and shutdown is on", "Windows applies this the next time you restart.", "Turn off", () => Task.CompletedTask, 30); // TEMP-DEMO
+        } // TEMP-DEMO
         Root.DataContext = model;
         repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
@@ -127,6 +135,8 @@ public sealed partial class MainWindow : Window
         var labStore = new LabStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Lab"));
         lab = new(new PowerMode(new PowerCfgProcess(), labStore), labStore, new ProcessBoost(new LiveProcesses()), tuneSystem, log, toasts, OpenTune, PowerSource.HasBattery());
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
+        // Crash records are read from Windows' own event log when the page opens or is refreshed, and a short while after launch to show whether anything is new. Nothing watches the log.
+        crashes = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Crashes"), new WindowsEventSource(), log, toasts);
         unstick = new(new UnstickRunner(new WindowsUnstickSystem(), (run, progress, token) => fixService.RunAsync(run, progress, token)), log, toasts);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
@@ -134,9 +144,13 @@ public sealed partial class MainWindow : Window
         QuietPage.DataContext = quiet;
         TunePage.DataContext = tune;
         DebloatPage.DataContext = debloat;
+        // Debloat removes apps behind the package managers' backs, so the Installed list is read again the next time it is opened.
+        debloat.AppsChanged += () => installations.NeedsRefresh = true;
         FixesPage.DataContext = fixes;
         UnstickPage.DataContext = unstick;
         LabPage.DataContext = lab;
+        CrashesPage.DataContext = crashes;
+        CrashesNav.DataContext = crashes;
         PathsPage.DataContext = paths;
         logs = new(log, Post);
         settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), Post);
@@ -150,6 +164,11 @@ public sealed partial class MainWindow : Window
         QueueButton.DataContext = operationQueue;
         QueuePage.DataContext = operationQueue;
         ScoutPage.DataContext = scout;
+        ScoutType.ItemsSource = ScoutChoices.Types.Select(x => x.Label).ToArray();
+        ScoutModified.ItemsSource = ScoutChoices.Modified.Select(x => x.Label).ToArray();
+        ScoutSize.ItemsSource = ScoutChoices.Sizes.Select(x => x.Label).ToArray();
+        ScoutSort.ItemsSource = ScoutChoices.Sorts.Select(x => x.Label).ToArray();
+        ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0;
         scoutStatusTimer = DispatcherQueue.CreateTimer();
         scoutStatusTimer.Interval = TimeSpan.FromSeconds(3);
         scoutStatusTimer.Tick += (_, _) => { if (page == Page.Scout && scout.NeedsBackendCheck) Run(RefreshScoutBackendAsync, "checking the search index"); };
@@ -182,6 +201,7 @@ public sealed partial class MainWindow : Window
             WatchFirstFrames();
             ReportInterruptedRun();
             ApplyResponsiveLayout();
+            _ = CheckCrashesLaterAsync();
             await Refresh();
             if (page == Page.Installed) await installations.RefreshAsync();
         }, "starting up");
@@ -189,7 +209,7 @@ public sealed partial class MainWindow : Window
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -496,7 +516,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Crashes => CrashesPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -548,7 +568,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (CrashesNav, Page.Crashes), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -576,6 +596,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonInactiveForegroundColor = ColorHelper.FromArgb(255, (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9), (byte)(light ? 0x62 : 0xA9));
         foreach (var manager in model.Managers) manager.SetLightTheme(light);
         logs.SetLightTheme(light);
+        crashes.SetLightTheme(light);
         operationQueue.SetLightTheme(light);
     }
     private void ThemeClick(object sender, RoutedEventArgs e)
@@ -632,6 +653,30 @@ public sealed partial class MainWindow : Window
     {
         ShowPage(Page.Unstick);
         _ = unstick.LoadAsync();
+    }
+
+    private void CrashesClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Crashes);
+        _ = OpenCrashesAsync();
+    }
+
+    private async Task OpenCrashesAsync()
+    {
+        try { await crashes.OpenAsync(); }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash history could not be opened", ex.Message); }
+    }
+
+    // A single quiet look a little after launch, so the sidebar can say whether anything crashed since the page was last opened. It reads only what is new, on a low-priority thread.
+    private async Task CheckCrashesLaterAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            if (!initialized) return;
+            await crashes.CheckQuietlyAsync();
+        }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash records could not be checked at startup", ex.Message); }
     }
 
     private void LabClick(object sender, RoutedEventArgs e)
@@ -740,10 +785,24 @@ public sealed partial class MainWindow : Window
         if (initialized && !wasReady && scout.Indexed && page == Page.Scout) await SearchScoutAsync(false);
     }
     private string? ScoutRoot => ScoutLocation.SelectedIndex switch { 1 => null, >= 2 => scoutFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), _ => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) };
-    private ScoutItemKind ScoutKind => (ScoutItemKind)Math.Clamp(ScoutType.SelectedIndex, 0, 2);
-    private Task SearchScoutAsync(bool debounce = true) => scout.SearchAsync(ScoutSearchBox.Text, ScoutRoot, ScoutKind, debounce, ScoutLocation.SelectedIndex >= 2);
-    private void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized) Run(() => SearchScoutAsync(), "searching for files"); }
-    private void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized) Run(() => SearchScoutAsync(false), "searching for files"); }
+    /// <summary>The drop-down choices as filters, added to whatever was typed.</summary>
+    private string ScoutTokens => string.Join(' ', new[]
+    {
+        Choice(ScoutChoices.Types, ScoutType), Choice(ScoutChoices.Modified, ScoutModified), Choice(ScoutChoices.Sizes, ScoutSize), Choice(ScoutChoices.Sorts, ScoutSort)
+    }.Where(x => x.Length > 0));
+    private static string Choice((string Label, string Token)[] choices, ComboBox box) => choices[Math.Clamp(box.SelectedIndex, 0, choices.Length - 1)].Token;
+    private Task SearchScoutAsync(bool debounce = true) => scout.SearchAsync(ScoutSearchBox.Text, ScoutRoot, ScoutItemKind.All, debounce, ScoutLocation.SelectedIndex >= 2, ScoutTokens);
+    private void ScoutClearClick(object sender, RoutedEventArgs e)
+    {
+        // One search for all of it: the box and the four drop-downs are reset first and the changes they raise are ignored.
+        scoutResetting = true;
+        try { ScoutSearchBox.Text = ""; ScoutType.SelectedIndex = ScoutModified.SelectedIndex = ScoutSize.SelectedIndex = ScoutSort.SelectedIndex = 0; }
+        finally { scoutResetting = false; }
+        Run(() => SearchScoutAsync(false), "searching for files");
+        ScoutSearchBox.Focus(FocusState.Programmatic);
+    }
+    private void ScoutTextChanged(object sender, TextChangedEventArgs e) { if (initialized && !scoutResetting) Run(() => SearchScoutAsync(), "searching for files"); }
+    private void ScoutTypeChanged(object sender, SelectionChangedEventArgs e) { if (initialized && !scoutResetting) Run(() => SearchScoutAsync(false), "searching for files"); }
     private void ScoutLocationChanged(object sender, SelectionChangedEventArgs e) { if (initialized) Run(ScoutLocationChangedAsync, "choosing where to search"); }
     private async Task ScoutLocationChangedAsync()
     {
@@ -805,8 +864,25 @@ public sealed partial class MainWindow : Window
         if (installations.NeedsRefresh) await installations.RefreshAsync();
     }, "loading the installed apps");
     private void InstalledRefreshClick(object sender, RoutedEventArgs e) => Run(() => installations.RefreshAsync(), "refreshing the installed apps");
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? installedFilterTimer;
+    private void ApplyInstalledFilter() => installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1);
     private void InstalledFilterChanged(object sender, RoutedEventArgs e)
-    { if (initialized) installations.Filter(InstalledSearch.Text, InstalledFilter.SelectedIndex == 1); }
+    {
+        if (!initialized) return;
+        if (sender is not TextBox) { installedFilterTimer?.Stop(); ApplyInstalledFilter(); return; }
+        // Typing: the list is narrowed once the person pauses, not once per letter, which on a slow PC made every keystroke wait for the list.
+        if (installedFilterTimer is null)
+        {
+            installedFilterTimer = DispatcherQueue.CreateTimer();
+            installedFilterTimer.Interval = TimeSpan.FromMilliseconds(150);
+            installedFilterTimer.IsRepeating = false;
+            installedFilterTimer.Tick += (_, _) => ApplyInstalledFilter();
+        }
+        installedFilterTimer.Stop();
+        installedFilterTimer.Start();
+    }
+    private void InstalledRowRealized(ListViewBase sender, ContainerContentChangingEventArgs args)
+    { if (!args.InRecycleQueue && args.Item is InstalledRow row) installations.Realized(row); }
     private void UpdateInstalledClick(object sender, RoutedEventArgs e)
     { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
     private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);

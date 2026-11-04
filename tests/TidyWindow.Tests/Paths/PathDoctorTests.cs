@@ -30,6 +30,7 @@ public sealed class PathDoctorTests : IDisposable
         public string? Read(PathScope scope) => scope == PathScope.Machine ? Machine : User;
         public string? Variable(PathScope scope, string name) => Variables.GetValueOrDefault(name);
         public void Write(PathScope scope, string value, string? previous) { if (scope == PathScope.Machine) Machine = value; else User = value; }
+        public void WriteVariable(string name, string? value) { if (value is null) Variables.Remove(name); else Variables[name] = value; }
     }
 
     [Fact]
@@ -210,6 +211,34 @@ public sealed class PathDoctorTests : IDisposable
         Assert.Empty(PathAdvice.JavaHome(null, elsewhere, Directory.Exists));
         Assert.Contains("runs", PathAdvice.JavaHome(home, elsewhere, Directory.Exists).Single());
         Assert.Contains("gone", PathAdvice.JavaHome(Folder("old", create: false), inHome, Directory.Exists).Single());
+    }
+
+    [Fact]
+    public void JavaHomeIsOnlyOfferedAFixWhenTheRunningJavaIsAWholeJdk()
+    {
+        var jdk = Folder("jdk2"); var bin = Path.Combine(jdk, "bin");
+        Directory.CreateDirectory(bin);
+        var java = new CommandLookup("java", [new(Path.Combine(bin, "java.exe"), PathScope.User, 0, false)]);
+        var shim = new CommandLookup("java", [new(Path.Combine(Folder("shims"), "java.exe"), PathScope.User, 0, false)]);
+        Assert.Null(PathAdvice.JavaHomeFix(java, _ => false));
+        Assert.Equal(jdk, PathAdvice.JavaHomeFix(java, f => f.EndsWith("javac.exe")));
+        Assert.Null(PathAdvice.JavaHomeFix(shim, _ => true));
+        Assert.Null(PathAdvice.JavaHomeFix(new CommandLookup("java", []), _ => true));
+    }
+
+    [Fact]
+    public void ChangingJavaHomeIsUndoable()
+    {
+        store.Variables["JAVA_HOME"] = @"C:\old";
+        var doctor = Doctor();
+        Assert.True(doctor.SetVariable("JAVA_HOME", @"C:\new").Changed);
+        Assert.Equal(@"C:\new", store.Variables["JAVA_HOME"]);
+        Assert.False(doctor.SetVariable("JAVA_HOME", @"C:\new").Changed);
+        doctor.RestoreVariable("JAVA_HOME", @"C:\old");
+        Assert.Equal(@"C:\old", store.Variables["JAVA_HOME"]);
+        doctor.RestoreVariable("JAVA_HOME", null);
+        Assert.False(store.Variables.ContainsKey("JAVA_HOME"));
+        Assert.Equal(3, broadcasts);
     }
 
     private static CommandLookup Nothing(string command) => new(command, []);

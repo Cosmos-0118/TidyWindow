@@ -72,6 +72,12 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
                 if (StartupGuard.FolderItemProblem(entry.Key, contents) is { } badFile) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, badFile + " It was left alone.", entry); }
                 if (!Keep(request.Id, copy, out problem)) { writer.RestoreFolderItem(copy.Scope, copy.Key, contents); return new(false, problem, entry); }
                 break;
+            case StartupKind.WindowsSetting:
+                if (entry.Scope != StartupScope.User || StartupLocations.SettingFor(entry.Key) is null) return new(false, "That kind of item cannot be removed from startup.", entry);
+                var (text, expandable) = writer.ClearSetting(entry.Key);
+                copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, text, expandable);
+                if (!Keep(request.Id, copy, out problem)) { writer.RestoreSetting(copy.Key, copy.Command, copy.Expandable); return new(false, problem, entry); }
+                break;
             default:
                 var xml = writer.RemoveTask(entry.Key);
                 copy = new(entry.Kind, entry.Scope, entry.Source, entry.Key, entry.Command, Data: xml);
@@ -79,7 +85,11 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
                 if (!Keep(request.Id, copy, out problem)) { writer.RestoreTask(copy.Key, copy.Data); return new(false, problem, entry); }
                 break;
         }
-        return StartupScan.Find(system, request.Id) is null
+        // The item is already gone and the copy is the only way back, so a failure to look again must never cost the caller that copy.
+        StartupEntry? remaining;
+        try { remaining = StartupScan.Find(system, request.Id); }
+        catch (Exception ex) when (ex is IOException or COMException or Win32Exception or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidOperationException) { remaining = null; }
+        return remaining is null
             ? new(true, null, null, copy)
             : new(false, "Windows did not accept the change.", entry, copy);
     }
@@ -133,7 +143,10 @@ public sealed class LocalStartupChanger(IStartupSystem system, IStartupWriter wr
                 if (StartupGuard.TaskDefinitionProblem(copy.Data, copy.Scope) is { } badTask) return new(false, badTask + " It was not put back.");
                 writer.RestoreTask(copy.Key, copy.Data);
                 break;
-
+            case StartupKind.WindowsSetting:
+                if (copy.Scope != StartupScope.User || StartupLocations.SettingFor(copy.Key) is null) return new(false, "That kind of item cannot be put back.");
+                writer.RestoreSetting(copy.Key, copy.Command, copy.Expandable);
+                break;
             default:
                 return new(false, "That kind of item cannot be put back.");
         }

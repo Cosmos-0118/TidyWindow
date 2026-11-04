@@ -84,13 +84,20 @@ public static partial class RepairFolders
         return FolderKind.None;
     }
 
-    /// <summary>Folders under the signed-in account's own profile are changed by the account itself; the rest need the administrator helper.</summary>
+    /// <summary>
+    /// Folders under the signed-in account's own profile are changed by the account itself; the rest need the administrator helper.
+    /// The one exception is Windows Installer's per-user icon store: it sits in the profile, but the installer service locks it so that only SYSTEM and Administrators can change it.
+    /// </summary>
     public static bool IsMachine(string path, Func<string, string?>? env = null)
     {
         env ??= Env;
         var full = Clean(path);
         var profile = Clean(env("USERPROFILE"));
-        return full is null || profile is null || !(full.StartsWith(profile + "\\", StringComparison.OrdinalIgnoreCase));
+        if (full is null || profile is null || !full.StartsWith(profile + "\\", StringComparison.OrdinalIgnoreCase)) return true;
+        var roaming = Clean(env("APPDATA"));
+        if (roaming is null) return false;
+        var icons = Path.Combine(roaming, "Microsoft", "Installer");
+        return Is(full, icons) || full.StartsWith(icons + "\\", StringComparison.OrdinalIgnoreCase);
     }
 }
 

@@ -118,6 +118,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     private readonly HashSet<string> told = [];
     private string undoText = "", machineUndoText = "", missingCommands = "", lookupText = "";
     private int machineFixable;
+    private string? javaFix;
+    private string javaNote = "";
 
     public ObservableCollection<CommandRow> Commands { get; } = [];
     public ObservableCollection<PathRow> UserFolders { get; } = [];
@@ -142,6 +144,10 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     public Visibility UndoVisibility => undoText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     public string MissingCommands { get => missingCommands; private set { Set(ref missingCommands, value); Changed(nameof(MissingVisibility)); } }
     public Visibility MissingVisibility => missingCommands.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>The Java warning stays on the page after its toast is dismissed, since nothing in the folder lists shows it.</summary>
+    public string JavaNote { get => javaNote; private set { Set(ref javaNote, value); Changed(nameof(JavaNoteVisibility)); Changed(nameof(JavaFixVisibility)); } }
+    public Visibility JavaNoteVisibility => javaNote.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility JavaFixVisibility => javaNote.Length > 0 && javaFix is not null ? Visibility.Visible : Visibility.Collapsed;
     public string LookupText { get => lookupText; set => Set(ref lookupText, value); }
     public bool MachineUnlocked => unlocked;
     public Visibility MachineLockedVisibility => unlocked ? Visibility.Collapsed : Visibility.Visible;
@@ -169,15 +175,19 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
         {
             // Everything that touches the disk or the registry happens here, so the window only has to build rows afterwards.
             var names = CommandResolver.Common.Concat(custom).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var (state, lookups, notes, tools, backup, machineBackup) = await Task.Run(() =>
+            var (state, lookups, notes, fix, tools, backup, machineBackup) = await Task.Run(() =>
             {
                 var s = doctor.Load();
                 var found = names.Select(n => resolver.Find(n, s)).ToList();
-                var java = PathAdvice.JavaHome(doctor.Variable("JAVA_HOME"), found.First(x => x.Command == "java"), Directory.Exists);
-                return (s, found, java, setup.Find(s, n => resolver.Find(n, s)), doctor.LastBackup, machineDoctor.LastBackup);
+                var javaLookup = found.First(x => x.Command == "java");
+                var java = PathAdvice.JavaHome(doctor.Variable("JAVA_HOME"), javaLookup, Directory.Exists);
+                var fix = java.Count > 0 ? PathAdvice.JavaHomeFix(javaLookup, File.Exists) : null;
+                return (s, found, java, fix, setup.Find(s, n => resolver.Find(n, s)), doctor.LastBackup, machineDoctor.LastBackup);
             }, lifetime.Token);
             if (current != generation) return;
             snapshot = state;
+            javaFix = fix;
+            JavaNote = notes.Count == 0 ? "" : notes[0];
             SyncLock();
             machineFixable = state.Machine.Count(x => x.NeedsFixing);
             Fill(UserFolders, state.User, true); Fill(MachineFolders, state.Machine, unlocked);
@@ -281,7 +291,8 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
                 "A Store shortcut comes before the real program. Turn the shortcut off in Windows settings, or pick the working copy under Programs.",
                 "Open settings", () => { openAliasSettings(); return Task.CompletedTask; }));
 
-        foreach (var note in notes) advice.Add(("java:" + note, "Java is set up two different ways", note, "", null));
+        foreach (var note in notes)
+            advice.Add(("java:" + note, "Java is set up two different ways", note, javaFix is null ? "" : "Use the Java that runs", javaFix is null ? null : FixJavaHomeAsync));
 
         toasts.RemoveWhere(key => IsAdvice(key) && advice.All(a => a.Key != key));
         foreach (var item in advice)
@@ -302,6 +313,14 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     }
 
     public async Task FixAllAsync() => await ApplyAsync(() => doctor.FixProblems());
+
+    /// <summary>Points JAVA_HOME at the Java a terminal already runs, so build tools and terminals agree.</summary>
+    public async Task FixJavaHomeAsync()
+    {
+        if (javaFix is not { } home) return;
+        var before = doctor.UserVariable("JAVA_HOME");
+        await ApplyAsync(() => doctor.SetVariable("JAVA_HOME", home), undo: () => ApplyAsync(() => doctor.RestoreVariable("JAVA_HOME", before), offerUndo: false));
+    }
     public async Task RemoveAsync(PathRow row) => await ApplyAsync(() => For(row).Remove(row.Entry), undo: UndoFor(row));
     public async Task MoveAsync(PathRow row, int delta) => await ApplyAsync(() => For(row).Move(row.Entry, row.Entry.Index + delta), undo: UndoFor(row));
     public async Task MakeFirstAsync(CandidateRow row) { if (row.Entry is { } entry) await ApplyAsync(() => doctor.Move(entry, 0)); }

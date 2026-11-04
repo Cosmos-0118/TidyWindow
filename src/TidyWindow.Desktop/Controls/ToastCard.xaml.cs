@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace TidyWindow.Next.Desktop;
@@ -28,6 +29,7 @@ public sealed partial class ToastCard : UserControl
         DataContextChanged += (_, e) => Attach(e.NewValue as ToastItem);
         Loaded += (_, _) => Enter();
         Unloaded += (_, _) => { copied?.Stop(); Release(); };
+        ActualThemeChanged += (_, _) => UpdateMark();
     }
 
     private void Attach(ToastItem? next)
@@ -39,6 +41,7 @@ public sealed partial class ToastCard : UserControl
         item.PropertyChanged += ItemChanged; item.Renewed += Renewed; item.HoldChanged += SyncBar;
         // A toast that was told to go before its card existed has nothing to show.
         if (item.Closing) Card.Opacity = 0;
+        UpdateMark();
         UpdateActions();
     }
 
@@ -51,7 +54,32 @@ public sealed partial class ToastCard : UserControl
     private void ItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ToastItem.Closing) && item is { Closing: true }) Exit();
-        else if (e.PropertyName is nameof(ToastItem.Kind) or nameof(ToastItem.Detail)) UpdateActions();
+        else if (e.PropertyName == nameof(ToastItem.Kind)) { UpdateMark(); UpdateActions(); }
+        else if (e.PropertyName is nameof(ToastItem.Detail) or nameof(ToastItem.ActionLabel)) UpdateActions();
+    }
+
+    // ----- The status mark -----
+
+    // One solid glyph per kind: a disc with a tick, a triangle with an exclamation mark, a disc with an "i".
+    private void UpdateMark()
+    {
+        if (item is null) return;
+        var (glyph, brush) = item.Kind switch
+        {
+            ToastKind.Success => ("", "GoodBrush"),
+            ToastKind.Warning => ("", "WarnBrush"),
+            _ => ("", "InfoBrush"),
+        };
+        Mark.Glyph = glyph;
+        Mark.Foreground = ThemeBrush(brush);
+    }
+
+    // A {ThemeResource} cannot be chosen in code, so the brush is read from the theme the card is showing now and read again when it changes.
+    private Brush? ThemeBrush(string key)
+    {
+        var theme = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast ? "HighContrast" : ActualTheme == ElementTheme.Dark ? "Default" : "Light";
+        return Application.Current.Resources.ThemeDictionaries.TryGetValue(theme, out var found) && found is ResourceDictionary colours && colours.TryGetValue(key, out var value)
+            ? value as Brush : null;
     }
 
     // ----- Coming and going -----
@@ -156,14 +184,21 @@ public sealed partial class ToastCard : UserControl
         if (!expanded) canExpand = TitleText.IsTextTrimmed || DetailText.Visibility == Visibility.Visible && DetailText.IsTextTrimmed;
         MoreButton.Visibility = canExpand || expanded ? Visibility.Visible : Visibility.Collapsed;
         CopyButton.Visibility = item.Detail.Length > 0 && (canExpand || expanded || item.Kind == ToastKind.Warning) ? Visibility.Visible : Visibility.Collapsed;
+        // On its own, "Show more" is pulled left by its padding so its text lines up with the message; next to a button it just follows it.
+        MoreButton.Margin = item.ActionVisibility == Visibility.Visible ? new Thickness(0) : new Thickness(-8, 0, 0, 0);
+        ActionsRow.Visibility = item.ActionVisibility == Visibility.Visible || MoreButton.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void MoreClick(object sender, RoutedEventArgs e)
     {
         expanded = !expanded;
-        ShortTitle.Visibility = DetailText.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
-        if (item is { Detail.Length: 0 }) DetailText.Visibility = Visibility.Collapsed;
-        FullText.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        // The title stays in its row beside the icon and just stops being cut; the detail swaps to a scrolling, selectable copy.
+        TitleText.MaxLines = expanded ? 0 : 2;
+        TitleText.TextTrimming = expanded ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+        TitleText.IsTextSelectionEnabled = expanded;
+        var hasDetail = item is { Detail.Length: > 0 };
+        DetailText.Visibility = !expanded && hasDetail ? Visibility.Visible : Visibility.Collapsed;
+        FullText.Visibility = expanded && hasDetail ? Visibility.Visible : Visibility.Collapsed;
         MoreButton.Content = expanded ? "Show less" : "Show more";
         // Open for reading: the toast stays until it is closed again or dismissed.
         item?.Hold("open", expanded);
@@ -178,18 +213,25 @@ public sealed partial class ToastCard : UserControl
             var package = new DataPackage();
             package.SetText(item.CopyText);
             Clipboard.SetContent(package);
-            CopyButton.Content = "Copied";
+            ShowCopyResult("", "Copied");
         }
-        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { CopyButton.Content = "Could not copy"; }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { ShowCopyResult("", "Could not copy"); }
         copied ??= CreateResetTimer();
         copied.Stop(); copied.Start();
+    }
+
+    // The icon briefly says what happened (a tick, or a cross), then goes back to the copy icon.
+    private void ShowCopyResult(string glyph, string tip)
+    {
+        CopyIcon.Glyph = glyph;
+        ToolTipService.SetToolTip(CopyButton, tip);
     }
 
     private DispatcherQueueTimer CreateResetTimer()
     {
         var timer = DispatcherQueue.CreateTimer();
         timer.Interval = TimeSpan.FromSeconds(1.6); timer.IsRepeating = false;
-        timer.Tick += (_, _) => CopyButton.Content = "Copy";
+        timer.Tick += (_, _) => { CopyIcon.Glyph = ""; ToolTipService.SetToolTip(CopyButton, "Copy this message"); };
         return timer;
     }
 
