@@ -88,6 +88,30 @@ public sealed class HangResilienceTests
     }
 
     [Fact]
+    public async Task AFixThatIsFinishingItsCurrentStepIsWaitedForAndNotGivenUpOn()
+    {
+        var started = Signal(); var release = Signal();
+        var fix = new PackageOperation(PackageOperationKind.Fix, default, "sfc", "System file check", Fix: new FixRun("sfc", []));
+        var queue = new PackageOperationQueue(async (operation, _) =>
+        {
+            if (operation.Fix is null) return Done;
+            // A step that must not be ended half way ignores the stop; the steps that put things back run after it.
+            started.SetResult(); await release.Task; return new(ActionOutcome.Failed, "Stopped System file check", "It was stopped before it finished.");
+        }) { StopGrace = TimeSpan.FromMilliseconds(100) };
+        queue.Enqueue([fix]);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(queue.StopRunning());
+        var idle = queue.WhenIdleAsync();
+        // Well past the grace an ordinary operation gets: the queue is still busy, so a window waiting on it has not been told it may close.
+        await Task.Delay(600);
+        Assert.False(idle.IsCompleted);
+        Assert.Equal(QueueItemState.Running, queue.Snapshot().Entries[0].State);
+        release.SetResult();
+        await idle.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Stopped System file check", queue.Snapshot().Entries[0].Result!.Message);
+    }
+
+    [Fact]
     public async Task StoppingIsRefusedForAnOperationThatIsNotTheRunningOne()
     {
         var started = Signal(); var release = Signal();

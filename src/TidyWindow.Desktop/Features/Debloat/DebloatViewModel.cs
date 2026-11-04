@@ -208,7 +208,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     private void SelectionChanged()
     {
-        foreach (var name in new[] { nameof(SelectedCount), nameof(HasSelection), nameof(CanRemove), nameof(CanSuggest), nameof(SelectedText), nameof(RemoveLabel) }) Changed(name);
+        foreach (var name in new[] { nameof(SelectedCount), nameof(HasSelection), nameof(CanRemove), nameof(CanRemoveOrStop), nameof(CanSuggest), nameof(SelectedText), nameof(RemoveLabel) }) Changed(name);
     }
 
     public async Task ScanAsync()
