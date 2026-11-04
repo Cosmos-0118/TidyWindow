@@ -112,7 +112,7 @@ public sealed class UnstickViewModel : ObservableState, IDisposable
         row.Busy = false;
         row.Finished(result, clock.Elapsed, DateTime.Now);
         log.Write(result.Ok ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, $"Unstick: {row.Name}", result.Message);
-        toasts.Show("unstick-" + row.Action.Id, result.Ok ? ToastKind.Success : ToastKind.Warning, result.Ok ? row.Name : $"{row.Name} did not finish", ToastCenter.Brief(result.Message), seconds: result.Ok ? 5 : 8);
+        toasts.Show("unstick-" + row.Action.Id, result.Ok ? ToastKind.Success : ToastKind.Warning, result.Ok ? row.Name : $"{row.Name} did not finish", ToastCenter.Flat(result.Message), seconds: result.Ok ? 5 : 8);
         if (row.Action.Targets.Count > 0) row.SetActive(await Task.Run(() => runner.IsActive(row.Action)).ConfigureAwait(true));
     }
 

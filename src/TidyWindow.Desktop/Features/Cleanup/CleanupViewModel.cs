@@ -207,7 +207,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
                 cancellationToken: token);
             if (current != generation) return;
             if (report.Declined) problem = "Administrator permission was declined, so the size of system areas is not shown. Tick the item again to retry.";
-            else if (report.Error is not null) problem = "The sizes could not be measured: " + ToastCenter.Brief(report.Error);
+            else if (report.Error is not null) problem = "The sizes could not be measured: " + ToastPolicy.Brief(report.Error);
             else
             {
                 foreach (var row in rows) row.Exact = report.Items.FirstOrDefault(x => x.Id == row.Finding.Rule.Id);
@@ -218,7 +218,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         catch (OperationCanceledException) { problem = "Measuring was stopped."; }
         catch (Exception ex)
         {
-            problem = "The sizes could not be measured: " + ToastCenter.Brief(ex.Message);
+            problem = "The sizes could not be measured: " + ToastPolicy.Brief(ex.Message);
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup could not measure administrator areas", ex.Message);
         }
         finally
@@ -283,7 +283,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
                 cancellationToken: token);
             if (current != generation || token.IsCancellationRequested) return;
             if (report.Declined) problem = "Administrator permission was declined, so the estimate was not made. Press Estimate to try again.";
-            else if (report.Error is not null) problem = "The estimate could not be made: " + ToastCenter.Brief(report.Error);
+            else if (report.Error is not null) problem = "The estimate could not be made: " + ToastPolicy.Brief(report.Error);
             else
             {
                 foreach (var row in rows) row.Exact = report.Items.FirstOrDefault(x => x.Id == row.Finding.Rule.Id) ?? row.Exact;
@@ -295,7 +295,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            problem = "The estimate could not be made: " + ToastCenter.Brief(ex.Message);
+            problem = "The estimate could not be made: " + ToastPolicy.Brief(ex.Message);
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup could not estimate administrator areas", ex.Message);
         }
         finally
@@ -422,7 +422,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         catch (OperationCanceledException) { toasts.Show("clean", ToastKind.Info, "Cleaning stopped", "Anything already removed stays removed."); }
         catch (Exception ex)
         {
-            toasts.Show("clean", ToastKind.Warning, "Cleaning could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("clean", ToastKind.Warning, "Cleaning could not finish", ToastPolicy.Brief(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Cleanup could not finish", ex.Message);
         }
         finally
@@ -500,7 +500,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         // An undo folder a scanner is holding, or one that lost its permissions, is a warning, not the end of the app.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            toasts.Show("clean", ToastKind.Warning, "Undo could not finish", ToastCenter.Brief(ex.Message));
+            toasts.Show("clean", ToastKind.Warning, "Undo could not finish", ToastPolicy.Brief(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Cleanup undo could not finish", ex.ToString());
             return;
         }

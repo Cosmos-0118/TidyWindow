@@ -242,7 +242,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("debloat-scan", ToastKind.Warning, "Installed apps could not be read", ToastCenter.Brief(ex.Message));
+            toasts.Show("debloat-scan", ToastKind.Warning, "Installed apps could not be read", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Apps scan could not finish", ex.Message);
         }
         finally { scanning = false; Notify(); }
@@ -385,7 +385,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         // Whatever the helper or WinGet threw (a helper Windows would not start, a reply that was not JSON, a timeout) ends as a toast; an unhandled exception here would end the app.
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            toasts.Show("debloat", ToastKind.Warning, "Removal stopped", ToastCenter.Brief(ex.Message));
+            toasts.Show("debloat", ToastKind.Warning, "Removal stopped", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Removal could not finish", ex.ToString());
             failed = -1;
         }
@@ -395,7 +395,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         {
             if (skipped > 0) toasts.Show("debloat", ToastKind.Info, "Removal stopped", $"{done:N0} removed, {skipped:N0} left as they were." + (failed > 0 ? $" {failed:N0} could not be removed." : ""), seconds: 12);
             else if (failed == 0) toasts.Show("debloat", ToastKind.Success, done == 1 ? $"{rows[0].Name} removed" : $"{done:N0} items removed", restart ? "Restart Windows to finish removing Recall." : "You can put them back from the Removed tab.", seconds: 12);
-            else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} removed, {failed:N0} could not be", ToastCenter.Brief(firstError ?? ""), seconds: 15);
+            else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} removed, {failed:N0} could not be", ToastCenter.Flat(firstError ?? ""), seconds: 15);
         }
         // One read of the PC settles what is really gone, whatever each step reported.
         AppsChanged?.Invoke();
@@ -423,14 +423,14 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
             }
             else
             {
-                toasts.Show("debloat", ToastKind.Warning, $"{row.Name} could not be put back", ToastCenter.Brief(outcome.Error ?? "Windows did not accept it."));
+                toasts.Show("debloat", ToastKind.Warning, $"{row.Name} could not be put back", ToastCenter.Flat(outcome.Error ?? "Windows did not accept it."));
                 log.Write(ActivityLevel.Warning, ActivityArea.App, "Could not put back", $"{row.Name}: {outcome.Error}");
             }
         }
         catch (OperationCanceledException) { toasts.Show("debloat", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            toasts.Show("debloat", ToastKind.Warning, $"{row.Name} could not be put back", ToastCenter.Brief(ex.Message));
+            toasts.Show("debloat", ToastKind.Warning, $"{row.Name} could not be put back", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Could not put back", ex.ToString());
         }
         finally { row.Busy = false; working = false; Notify(); }
@@ -460,7 +460,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            toasts.Show("debloat", ToastKind.Warning, "Putting things back stopped", ToastCenter.Brief(ex.Message), seconds: 15);
+            toasts.Show("debloat", ToastKind.Warning, "Putting things back stopped", ToastCenter.Flat(ex.Message), seconds: 15);
             log.Write(ActivityLevel.Error, ActivityArea.App, "Put everything back could not finish", ex.ToString());
         }
         finally
@@ -481,7 +481,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
         var title = done == 1 ? "1 item put back" : $"{done:N0} items put back";
         if (batch.Declined) toasts.Show("debloat", ToastKind.Info, "Administrator permission was declined", done > 0 ? $"{title} before that. The rest were not changed." : "Nothing was changed.", seconds: 12);
         else if (failed.Count == 0) toasts.Show("debloat", ToastKind.Success, title, "Installed again where that is possible.", seconds: 10);
-        else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} of {asked:N0} put back", ToastCenter.Brief(string.Join(" ", failed.Select(x => $"{x.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
+        else toasts.Show("debloat", ToastKind.Warning, $"{done:N0} of {asked:N0} put back", ToastCenter.Flat(string.Join(" ", failed.Select(x => $"{x.Item.Name}: {x.Outcome.Error}"))), seconds: 15);
         log.Write(failed.Count == 0 && !batch.Declined ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, "Put everything back", $"{done} of {asked}.{(batch.Declined ? " Administrator permission was declined." : "")}{(failed.Count > 0 ? " Not put back: " + string.Join(", ", failed.Select(x => x.Item.Name)) + "." : "")}");
     }
 

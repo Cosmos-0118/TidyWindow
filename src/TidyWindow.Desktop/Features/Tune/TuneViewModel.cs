@@ -256,7 +256,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("tune-scan", ToastKind.Warning, "Settings could not be read", ToastCenter.Brief(ex.Message));
+            toasts.Show("tune-scan", ToastKind.Warning, "Settings could not be read", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Tune scan could not finish", ex.Message);
         }
         finally { scanning = false; Notify(); }
@@ -348,7 +348,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
                 log.Write(ActivityLevel.Success, ActivityArea.App, enable ? "Tweak turned on" : "Tweak turned off", $"{row.Name}.{(outcome.Note is { } note ? " " + note : "")}");
                 return Attempt.Done;
             }
-            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(outcome.Error ?? "Windows did not accept the change."));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Tweak could not be changed", $"{row.Name}: {outcome.Error}");
             if (await Task.Run(() => TuneScan.Find(system, catalog, row.Id)) is { } current) row.Update(current);
             return Attempt.Failed;
@@ -361,14 +361,14 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Tweak could not be changed", ex.Message);
             return Attempt.Failed;
         }
         catch (Exception ex)
         {
             // Anything else is a fault in the app, not in Windows. It is reported like a failure rather than ending the app from a switch.
-            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("tune", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Tweak could not be changed", ex.ToString());
             return Attempt.Failed;
         }
@@ -412,7 +412,7 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
         }
         catch (Exception ex)
         {
-            toasts.Show("tune-explorer", ToastKind.Warning, "File Explorer could not be restarted", ToastCenter.Brief(ex.Message));
+            toasts.Show("tune-explorer", ToastKind.Warning, "File Explorer could not be restarted", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "File Explorer could not be restarted", ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException ? ex.Message : ex.ToString());
         }
         finally { working = false; Notify(); }
@@ -432,13 +432,13 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
             if (results.Any(x => x.Outcome.Ok && catalog.FirstOrDefault(c => string.Equals(c.Id, x.Change.Id, StringComparison.OrdinalIgnoreCase)) is { Takes: TuneEffect.Explorer })) explorerStale = true;
             if (results.Count == 0) toasts.Show("tune", ToastKind.Info, "Nothing to put back");
             else if (done == results.Count) toasts.Show("tune", ToastKind.Success, done == 1 ? "1 tweak put back" : $"{done} tweaks put back");
-            else toasts.Show("tune", ToastKind.Warning, $"{done} of {results.Count} put back", ToastCenter.Brief(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
+            else toasts.Show("tune", ToastKind.Warning, $"{done} of {results.Count} put back", ToastCenter.Flat(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Tweaks put back", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("tune", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex)
         {
-            toasts.Show("tune", ToastKind.Warning, "Could not put everything back", ToastCenter.Brief(ex.Message));
+            toasts.Show("tune", ToastKind.Warning, "Could not put everything back", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Tweaks could not all be put back", ex is IOException or UnauthorizedAccessException or InvalidOperationException ? ex.Message : ex.ToString());
         }
         finally { working = false; Notify(); }

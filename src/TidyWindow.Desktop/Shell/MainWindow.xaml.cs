@@ -288,7 +288,7 @@ public sealed partial class MainWindow : Window
         var title = $"Last session ended while {last.Kind} {last.Name}";
         var detail = $"{last.Source} was {last.Kind} {last.Name} when TidyWindow last stopped (started {last.Started:g}). It may be incomplete or damaged. Check it under Installed apps, and run it again if needed.";
         log.Write(ActivityLevel.Warning, ActivityArea.Install, title, detail);
-        toasts.Show("interrupted-run", ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Installed apps",
+        toasts.Show("interrupted-run", ToastKind.Warning, title, ToastCenter.Flat(detail), "Open Installed apps",
             async () => { ShowPage(Page.Installed); if (installations.NeedsRefresh) await installations.RefreshAsync(); }, 0);
     }
 
@@ -961,7 +961,7 @@ public sealed partial class MainWindow : Window
     }
 
     private void ReportProblem(string key, string title, string detail) =>
-        toasts.Show(key, ToastKind.Warning, title, ToastCenter.Brief(detail), "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
+        toasts.Show(key, ToastKind.Warning, title, ToastCenter.Flat(detail), "Open Logs", () => { ShowPage(Page.Logs); return Task.CompletedTask; }, 15);
 
     private void SearchShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ShowPage(Page.Install); args.Handled = true; }
 

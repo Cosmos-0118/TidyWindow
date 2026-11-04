@@ -253,7 +253,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            toasts.Show("startup-scan", ToastKind.Warning, "Startup could not be read", ToastCenter.Brief(ex.Message));
+            toasts.Show("startup-scan", ToastKind.Warning, "Startup could not be read", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Warning, ActivityArea.App, "Startup scan could not finish", ex.Message);
         }
         finally { scanning = false; Notify(); }
@@ -328,7 +328,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             }
             else
             {
-                toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+                toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(outcome.Error ?? "Windows did not accept the change."));
                 log.Write(ActivityLevel.Warning, ActivityArea.App, "Startup item could not be changed", $"{row.Name}: {outcome.Error}");
                 if (outcome.Entry is { } current) row.Update(current);
             }
@@ -341,7 +341,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         catch (Exception ex)
         {
             // Whatever stopped the change (the helper could not start, a policy, a damaged file), the page is told and stays up.
-            toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Brief(ex.Message));
+            toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be changed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be changed", Detail(ex));
         }
         finally
@@ -377,7 +377,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             }
             else
             {
-                toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+                toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Flat(outcome.Error ?? "Windows did not accept the change."));
                 log.Write(ActivityLevel.Warning, ActivityArea.App, "Startup item could not be removed", $"{row.Name}: {outcome.Error}");
             }
         }
@@ -388,7 +388,7 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
         }
         catch (Exception ex)
         {
-            toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Brief(ex.Message));
+            toasts.Show("startup", ToastKind.Warning, $"{row.Name} could not be removed", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be removed", Detail(ex));
         }
         finally
@@ -411,13 +411,13 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             var outcome = await service.RestoreAsync(change);
             done = outcome.Ok;
             if (done) toasts.Show("startup", ToastKind.Success, $"{change.Name} will start with Windows");
-            else toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Brief(outcome.Error ?? "Windows did not accept the change."));
+            else toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Flat(outcome.Error ?? "Windows did not accept the change."));
             log.Write(done ? ActivityLevel.Success : ActivityLevel.Warning, ActivityArea.App, done ? "Startup item put back" : "Startup item could not be put back", $"{change.Name}: {outcome.Error}".TrimEnd(' ', ':'));
         }
         catch (OperationCanceledException) { toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex)
         {
-            toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Brief(ex.Message));
+            toasts.Show("startup", ToastKind.Warning, $"{change.Name} could not be put back", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Startup item could not be put back", Detail(ex));
         }
         finally { working = false; Notify(); }
@@ -436,13 +436,13 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
             var done = results.Count(x => x.Outcome.Ok);
             if (results.Count == 0) toasts.Show("startup", ToastKind.Info, "Nothing to turn back on");
             else if (done == results.Count) toasts.Show("startup", ToastKind.Success, done == 1 ? "1 item turned back on" : $"{done} items turned back on");
-            else toasts.Show("startup", ToastKind.Warning, $"{done} of {results.Count} turned back on", ToastCenter.Brief(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
+            else toasts.Show("startup", ToastKind.Warning, $"{done} of {results.Count} turned back on", ToastCenter.Flat(string.Join(" ", results.Where(x => !x.Outcome.Ok).Select(x => $"{x.Change.Name}: {x.Outcome.Error}"))), seconds: 15);
             log.Write(ActivityLevel.Info, ActivityArea.App, "Startup items turned back on", $"{done} of {results.Count}.");
         }
         catch (OperationCanceledException) { toasts.Show("startup", ToastKind.Info, "Administrator permission was declined", "Nothing was changed."); }
         catch (Exception ex)
         {
-            toasts.Show("startup", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Brief(ex.Message));
+            toasts.Show("startup", ToastKind.Warning, "Could not turn everything back on", ToastCenter.Flat(ex.Message));
             log.Write(ActivityLevel.Error, ActivityArea.App, "Startup restore could not finish", Detail(ex));
         }
 

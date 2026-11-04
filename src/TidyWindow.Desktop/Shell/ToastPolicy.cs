@@ -28,10 +28,13 @@ public static class ToastPolicy
         return text.Length <= max ? text : text[..(max - 1)].TrimEnd() + "…";
     }
 
-    /// <summary>The first part of a long message on one line, so a toast stays short.</summary>
+    /// <summary>A message on one line with nothing cut off. What a toast shows of it is the card's business (it trims, and "Show more" opens it); what Copy takes is all of it.</summary>
+    public static string Flat(string text) => string.Join(" ", text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    /// <summary>The first part of a long message on one line, for text that is shown in place and has nowhere to expand.</summary>
     public static string Brief(string text, int max = 240)
     {
-        var flat = string.Join(" ", text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        var flat = Flat(text);
         return flat.Length <= max ? flat : flat[..(max - 1)].TrimEnd() + "…";
     }
 }

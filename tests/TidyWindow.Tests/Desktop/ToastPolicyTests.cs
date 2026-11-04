@@ -43,6 +43,18 @@ public sealed class ToastPolicyTests
         Assert.Equal("one two three", ToastPolicy.Brief("one\r\ntwo\n\nthree"));
         Assert.True(ToastPolicy.Brief(new string('a', 500)).Length <= 240);
     }
+
+    [Fact]
+    public void FlatKeepsEveryWordSoCopyingAToastGivesTheWholeMessage()
+    {
+        var long_ = string.Join("\n", Enumerable.Range(1, 40).Select(i => $"Key {i}: There is no protected copy of this to put back."));
+        var flat = ToastPolicy.Flat(long_);
+        Assert.DoesNotContain('\n', flat);
+        Assert.Contains("Key 40:", flat);
+        Assert.True(flat.Length > 240);
+        // What reaches the toast is cut only by the screen limit, far above any ordinary message.
+        Assert.Equal(flat, ToastPolicy.Clamp(flat, ToastPolicy.MaxDetail));
+    }
 }
 
 public sealed class CountdownTests
