@@ -334,7 +334,7 @@
      <TextBlock Text="Folders and shortcuts that repairs removed are kept here, not deleted. Put one back where it was, or remove it for good. A folder is deleted by itself 30 days after it was set aside." Style="{StaticResource Muted}" TextWrapping="Wrap" />
      <local:ArchiveToolbar DataContext="{Binding QuarantineState}" />
      <!-- Choosing several: the tick selects everything that is shown, and the bar appears with what can be done to the chosen ones. -->
-     <Grid ColumnSpacing="12" MinHeight="34">
+     <Grid ColumnSpacing="12" MinHeight="34" Visibility="{Binding SelectionRowVisibility}">
       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <CheckBox IsChecked="{Binding AllShownSelected, Mode=TwoWay}" Visibility="{Binding SelectAllShownVisibility}" Content="Select all shown" FontSize="12" MinWidth="0" AutomationProperties.Name="Select every item that is shown" />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding SelectionVisibility}" VerticalAlignment="Center">

@@ -76,11 +76,12 @@
   </ResourceDictionary>
  </UserControl.Resources>
 
- <Grid RowSpacing="16">
+ <!-- Spacing sits on the rows, not on the grid: a row that is hidden (the search box on the "turned off" tab) then takes no room, instead of leaving a second gap. -->
+ <Grid>
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
   <!-- Title -->
-  <Grid ColumnSpacing="12">
+  <Grid ColumnSpacing="12" Margin="0,0,0,16">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <StackPanel Spacing="4" VerticalAlignment="Center">
     <TextBlock Text="Startup" Style="{StaticResource PageTitle}" />
@@ -95,7 +96,7 @@
   </Grid>
 
   <!-- Four groups as slim tabs, each with its count -->
-  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
+  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,16">
    <StackPanel Orientation="Horizontal">
     <RadioButton GroupName="StartupTabs" Tag="Apps" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Apps" ToolTipService.ToolTip="Programs that open when you sign in to Windows">
      <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Apps" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding AppsCount}" FontSize="11" /></Border></StackPanel>
@@ -113,7 +114,7 @@
   </Grid>
 
   <!-- Search and the On / Off filter -->
-  <Grid Grid.Row="2" ColumnSpacing="12" Visibility="{Binding ListVisibility}">
+  <Grid Grid.Row="2" ColumnSpacing="12" Margin="0,0,0,16" Visibility="{Binding ListVisibility}">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
    <TextBox x:Name="SearchBox" PlaceholderText="Search by name, publisher or command" TextChanged="QueryChanged" AutomationProperties.Name="Search startup items" VerticalAlignment="Center" />
    <Border Grid.Column="2" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
