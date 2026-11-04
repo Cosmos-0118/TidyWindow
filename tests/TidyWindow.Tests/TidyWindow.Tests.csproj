@@ -11,6 +11,7 @@
     <Compile Include="../../src/TidyWindow.Desktop/Shell/AppearanceSettings.cs" Link="Desktop/AppearanceSettings.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Common/BulkObservableCollection.cs" Link="Desktop/BulkObservableCollection.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Shell/ToastPolicy.cs" Link="Desktop/ToastPolicy.cs" />
+    <Compile Include="../../src/TidyWindow.Desktop/Shell/CloseNotice.cs" Link="Desktop/CloseNotice.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Common/ObservableState.cs" Link="Desktop/ObservableState.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Common/BrushCache.cs" Link="Desktop/BrushCache.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Shell/ToastItem.cs" Link="Desktop/ToastItem.cs" />

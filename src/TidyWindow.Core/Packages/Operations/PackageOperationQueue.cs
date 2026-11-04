@@ -244,12 +244,19 @@ public sealed class PackageOperationQueue
             Notify(Changed);
         }
     }
-    /// <summary>Runs one operation and always comes back with a result: a failure, a stop, or an operation that ignored the stop is an outcome, never a hang.</summary>
+    /// <summary>Runs one operation and always comes back with a result: a failure, a stop, or an operation that ignored the stop is an outcome, never a hang. The exception is a fix, which is waited for.</summary>
     private async Task<PackageActionResult> RunOneAsync(QueueEntry entry, CancellationTokenSource stop)
     {
         Task<PackageActionResult> work;
         try { work = execute(entry.Operation, new OutputProgress(output => AppendOutput(entry.Id, output)), stop.Token); }
         catch (Exception ex) { return Failure(entry.Operation, ex, stop); }
+        // A fix is never given up on. Its runner always comes back, and it does so only after the step it is on has finished (DISM and SFC are not ended half way, because that
+        // damages Windows) and the steps that put things back have run; moving on before then would let the app close in the middle of that.
+        if (entry.Operation.Fix is not null)
+        {
+            try { return await work.ConfigureAwait(false); }
+            catch (Exception ex) { return Failure(entry.Operation, ex, stop); }
+        }
         var gaveUp = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var watch = stop.Token.Register(() => _ = Task.Delay(StopGrace).ContinueWith(_ => gaveUp.TrySetResult(), TaskScheduler.Default));
         if (await Task.WhenAny(work, gaveUp.Task).ConfigureAwait(false) != work)

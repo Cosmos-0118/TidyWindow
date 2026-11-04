@@ -45,6 +45,8 @@ public sealed partial class MainWindow : Window
     private bool scoutResetting;
     private bool closingDialog;
     private volatile bool closeConfirmed;
+    // From the moment the person has chosen to close while work runs until the window really closes: the work is being stopped or finished, and closing is not yet allowed.
+    private volatile bool finishingForClose;
     private ContentDialog? openDialog;
     private Task<ContentDialogResult>? openDialogShowing;
     private readonly InterruptedWork interrupted;
@@ -79,7 +81,8 @@ public sealed partial class MainWindow : Window
         previousRun = interrupted.Take();
         packageQueue.Started += entry => interrupted.Begin(entry.Operation);
         // Closing from the warning stops the work on purpose but keeps the note, because the work was still cut short.
-        packageQueue.Finished += _ => { if (!closeConfirmed) interrupted.End(); };
+        // A run that ended because the app is closing is still unfinished work, and the note about it stays; one that finished properly in the meantime is not.
+        packageQueue.Finished += entry => { if ((!finishingForClose && !closeConfirmed) || entry.Result is { Outcome: not ActionOutcome.Failed }) interrupted.End(); };
         operationQueue = new(packageQueue, log, Post);
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
@@ -1060,6 +1063,8 @@ public sealed partial class MainWindow : Window
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (closeConfirmed) return;
+        // The window stays until the work has been brought to a safe stop; the waiting dialog has the one way out.
+        if (finishingForClose) { args.Cancel = true; return; }
         var running = RunningWork();
         if (running.Count == 0) return;
         args.Cancel = true;
@@ -1102,28 +1107,77 @@ public sealed partial class MainWindow : Window
                 catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException) { }
             }
             var packages = operationQueue.HasWork || model.Busy;
+            var fix = operationQueue.Running?.Operation.Fix is not null;
             var dialog = new ContentDialog
             {
                 Title = "Work is still running",
                 Content = new TextBlock
                 {
-                    Text = string.Join(" ", what) + "\n\nIf you close TidyWindow now, this work is stopped partway. " + (packages
+                    Text = string.Join(" ", what) + "\n\nTidyWindow stops this work before it closes. " + (fix
+                        ? "A fix finishes the step it is on and puts back what it changed first, because ending that step half way could leave Windows damaged. Closing can take a few minutes. "
+                        : packages
                         ? "An install or update that is cut off can leave an app broken or incomplete, and anything waiting in the queue is dropped. "
                         : "A repair or cleanup that is cut off can be left half done, and may not be recorded for undo. ") + "Closing now is not recommended.",
                     TextWrapping = TextWrapping.Wrap, MaxWidth = 440
                 },
-                CloseButtonText = "Keep open", SecondaryButtonText = "Close anyway", DefaultButton = ContentDialogButton.Close
+                CloseButtonText = "Keep open", SecondaryButtonText = "Stop and close", DefaultButton = ContentDialogButton.Close
             };
             if (await ShowDialogAsync(dialog) != ContentDialogResult.Secondary) return;
-            closeConfirmed = true;
-            toasts.Show("closing", ToastKind.Info, "Stopping work before closing…", "", "", null, 10);
-            // Ending the running command takes a moment; it is given a short time, and a command that will not end cannot keep the window open.
-            try { await operationQueue.StopAllAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
-            catch (TimeoutException) { }
-            catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "The queue could not be stopped cleanly before closing", ex.ToString()); }
-            Close();
+            await FinishThenCloseAsync();
         }
         finally { closingDialog = false; }
+    }
+
+    /// <summary>
+    /// Stops the queue and closes the window once it is safe to. A fix whose current step must not be ended half way (DISM, SFC) finishes that step, and the steps that put
+    /// things back still run, so the window waits for all of it instead of for a fixed time. It cannot hang the window: the dialog it shows has "Close now", which closes
+    /// at once after the risk has been said.
+    /// </summary>
+    private async Task FinishThenCloseAsync()
+    {
+        finishingForClose = true;
+        try
+        {
+            Task idle;
+            try { idle = operationQueue.StopAllAsync(); }
+            catch (Exception ex)
+            {
+                log.Write(ActivityLevel.Warning, ActivityArea.App, "The queue could not be stopped cleanly before closing", ex.ToString());
+                idle = Task.CompletedTask;
+            }
+            if (!idle.IsCompleted)
+            {
+                var text = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 440 };
+                void Update() => text.Text = CloseNotice.Finishing(operationQueue.Running);
+                Update();
+                var waiting = new ContentDialog
+                {
+                    Title = "Finishing before closing",
+                    Content = new StackPanel { Spacing = 14, Children = { new ProgressBar { IsIndeterminate = true }, text } },
+                    SecondaryButtonText = "Close now"
+                };
+                // Escape or a click outside must not count as an answer: only the work ending, or "Close now", closes this dialog.
+                waiting.Closing += (_, e) => { if (e.Result == ContentDialogResult.None && !idle.IsCompleted) e.Cancel = true; };
+                // The work may end before the dialog is up, and then there is nothing to hide yet.
+                waiting.Opened += (_, _) => { if (idle.IsCompleted) waiting.Hide(); };
+                operationQueue.Refreshed += Update;
+                _ = idle.ContinueWith(_ => Post(waiting.Hide), TaskScheduler.Default);
+                try
+                {
+                    var answer = await ShowDialogAsync(waiting);
+                    // A dialog that could not be shown at all (another is up, or it failed to open) must not mean closing at once: keep the old short wait as the fallback.
+                    if (answer != ContentDialogResult.Secondary && !idle.IsCompleted)
+                    {
+                        try { await idle.WaitAsync(TimeSpan.FromSeconds(10)); }
+                        catch (TimeoutException) { }
+                    }
+                }
+                finally { operationQueue.Refreshed -= Update; }
+            }
+            closeConfirmed = true;
+            Close();
+        }
+        finally { finishingForClose = false; }
     }
 }
 
