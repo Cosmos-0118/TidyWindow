@@ -1,0 +1,118 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Catppuccin Mocha + compact two-line prompt
+#   ╭─ ~/Developer/fluxget  main *  v22.1.0  took 3s
+#   ╰─ ❯
+
+palette = 'catppuccin_mocha'
+add_newline = true
+command_timeout = 500
+scan_timeout = 20
+
+format = """
+[╭─](surface2) $directory$git_branch$git_status$nodejs$python$rust$golang$java$dotnet$cmd_duration
+[╰─](surface2)$character"""
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
+vimcmd_symbol = '[❮](bold mauve)'
+
+[directory]
+style = 'bold blue'
+format = '[$path]($style)[$read_only]($read_only_style) '
+home_symbol = '~'
+truncation_length = 3
+truncation_symbol = '…/'
+truncate_to_repo = true
+read_only = " \U000f033e"
+read_only_style = 'red'
+
+[git_branch]
+symbol = " "
+style = 'bold mauve'
+format = '[$symbol$branch(:$remote_branch)]($style) '
+
+[git_status]
+style = 'bold peach'
+format = '([$all_status$ahead_behind]($style) )'
+conflicted = '=${count}'
+ahead = '⇡${count}'
+behind = '⇣${count}'
+diverged = '⇕⇡${ahead_count}⇣${behind_count}'
+untracked = '?'
+stashed = '$'
+modified = '*'
+staged = '+'
+renamed = '»'
+deleted = '✘'
+
+[cmd_duration]
+min_time = 2000
+format = '[took $duration]($style)'
+style = 'yellow'
+
+[nodejs]
+symbol = " "
+style = 'green'
+format = '[$symbol($version )]($style)'
+
+[python]
+symbol = " "
+style = 'yellow'
+format = '[$symbol($version )(\($virtualenv\) )]($style)'
+
+[rust]
+symbol = " "
+style = 'peach'
+format = '[$symbol($version )]($style)'
+
+[golang]
+symbol = " "
+style = 'sapphire'
+format = '[$symbol($version )]($style)'
+
+[java]
+symbol = " "
+style = 'red'
+format = '[$symbol($version )]($style)'
+
+[dotnet]
+symbol = " "
+style = 'lavender'
+format = '[$symbol($version )]($style)'
+
+# keep the prompt quiet
+[package]
+disabled = true
+[docker_context]
+disabled = true
+
+[palettes.catppuccin_mocha]
+rosewater = '#f5e0dc'
+flamingo = '#f2cdcd'
+pink = '#f5c2e7'
+mauve = '#cba6f7'
+red = '#f38ba8'
+maroon = '#eba0ac'
+peach = '#fab387'
+yellow = '#f9e2af'
+green = '#a6e3a1'
+teal = '#94e2d5'
+sky = '#89dceb'
+sapphire = '#74c7ec'
+blue = '#89b4fa'
+lavender = '#b4befe'
+text = '#cdd6f4'
+subtext1 = '#bac2de'
+subtext0 = '#a6adc8'
+overlay2 = '#9399b2'
+overlay1 = '#7f849c'
+overlay0 = '#6c7086'
+surface2 = '#585b70'
+surface1 = '#45475a'
+surface0 = '#313244'
+base = '#1e1e2e'
+mantle = '#181825'
+crust = '#11111b'
+

@@ -65,7 +65,7 @@ Scout can search a chosen folder on its own. Searching Home or This PC uses [Eve
 
 | Tool | What you can do |
 | --- | --- |
-| **Overview** | Check the status and versions of WinGet, Chocolatey and Scoop, with setup help when needed. |
+| **Overview** | Check the status and versions of WinGet, Chocolatey and Scoop, with setup help when needed. Below them, an optional **Configure your terminal** section sets up a themed PowerShell 7 and Windows Terminal (Catppuccin Mocha, Starship prompt, fuzzy search). Files are backed up first, and each step can be undone. |
 | **Install Hub** | Search all available package sources together, see what is already installed, and review an install before it starts. |
 | **Installed** | Browse installed packages, check available versions, update, uninstall or hold packages. |
 | **Scout** | Find files and folders by name or path, filter by type or location, copy a path or open its folder. |

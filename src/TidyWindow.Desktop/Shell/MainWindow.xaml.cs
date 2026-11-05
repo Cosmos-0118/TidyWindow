@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
     private readonly LabViewModel lab;
     private readonly CrashesViewModel crashes;
     private readonly SettingsViewModel settings;
+    private readonly TerminalViewModel terminal;
     private readonly PathFinder pathFinder;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer scoutStatusTimer;
     private string? scoutFolder;
@@ -86,6 +87,9 @@ public sealed partial class MainWindow : Window
         operationQueue = new(packageQueue, log, Post);
         fixes = new(FixCatalog.Load(), operationQueue, fixStore, toasts, () => ShowPage(Page.Queue));
         model = new(packages, log, operationQueue);
+        // The terminal look is optional and only touches files in the person's own profile; installing its apps goes through the same queue as everything else.
+        terminal = new(new TerminalSetup(TerminalPaths.ForCurrentUser()), runner, operationQueue, log, toasts,
+            () => model.Managers.Any(x => x.Definition.Kind == ManagerKind.Winget && x.Status?.Health == ManagerHealth.Ready), ConfirmAsync, OpenLinkAsync);
         installations = new(management, model, log, operationQueue, snapshot: new InstalledSnapshot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "installed-apps.json")));
         var scoutHost = Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe");
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.
@@ -107,6 +111,7 @@ public sealed partial class MainWindow : Window
         // A card is read from a file in the install folder when a toast appears. If that folder was changed under the open window, a plain card is shown instead.
         ToastStack.CardFailed = ex => log.Write(ActivityLevel.Warning, ActivityArea.App, "A message was shown in plain form", "Its card could not be loaded, usually because TidyWindow was updated or removed while it was open. Restart it to get the normal look back.\n" + ex.Message);
         Root.DataContext = model;
+        TerminalSection.DataContext = terminal;
         repair = new(installSystem, repairService, repairHistory, log, toasts, chooseFolder: PickFolderAsync);
         // Turning off a machine-wide item (a service, or something for every user) goes through a helper that only runs after the permission prompt.
         var startupSystem = new WindowsStartupSystem();
@@ -202,13 +207,14 @@ public sealed partial class MainWindow : Window
             ApplyResponsiveLayout();
             _ = CheckCrashesLaterAsync();
             await Refresh();
+            await terminal.RefreshAsync();
             if (page == Page.Installed) await installations.RefreshAsync();
         }, "starting up");
         AppWindow.Closing += OnClosing;
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -528,6 +534,8 @@ public sealed partial class MainWindow : Window
         UpdateNavSelection();
         foreach (var other in Enum.GetValues<Page>()) if (other != next) PageElement(other).Visibility = Visibility.Collapsed;
         Reveal(PageElement(next));
+        // The font or a tool may have been installed outside TidyWindow since the list was last read.
+        if (next == Page.Overview && initialized) Run(terminal.RefreshAsync, "checking the terminal setup");
         if (page == Page.Install) SearchBox.Focus(FocusState.Programmatic);
     }
 
@@ -953,7 +961,7 @@ public sealed partial class MainWindow : Window
         if (operationQueue.HasWork || operationQueue.Snapshot.Completions <= reconciledCompletions) return;
         reconciledCompletions = operationQueue.Snapshot.Completions;
         // Quietly: the person may already be queueing the next job, so nothing is covered or locked while this catches up.
-        try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); if (page == Page.Installed) await installations.RefreshAsync(); }
+        try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); await terminal.RefreshAsync(); if (page == Page.Installed) await installations.RefreshAsync(); }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
     }
     private void UninstallInstalledClick(object sender, RoutedEventArgs e) => Run(async () =>
@@ -1043,6 +1051,22 @@ public sealed partial class MainWindow : Window
         if (SearchBox.Text.Trim().Length >= 2 && !model.Searching && model.Packages.Count == 0)
             await model.SearchAsync(SearchBox.Text, Filter, false);
     }
+    private void TerminalActClick(object sender, RoutedEventArgs e)
+    { if (sender is FrameworkElement { DataContext: TerminalRow row } button) Run(() => terminal.Act(row, (button.Tag as string) == "secondary"), "setting up the terminal"); }
+
+    /// <summary>Asks before something that changes files outside TidyWindow. Answers false when the person cancels or the window cannot show the question.</summary>
+    private async Task<bool> ConfirmAsync(string title, string body, string primary)
+    {
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = title, Content = new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap, MaxWidth = 440 }, PrimaryButtonText = primary, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        return await ShowDialogAsync(dialog) == ContentDialogResult.Primary;
+    }
+
+    private static async Task OpenLinkAsync(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return;
+        await Launcher.LaunchUriAsync(uri);
+    }
+
     private void BucketsToggleClick(object sender, RoutedEventArgs e)
     { if (sender is FrameworkElement { DataContext: ManagerRow row }) Run(() => model.ToggleBucketsAsync(row), "showing the buckets"); }
 
