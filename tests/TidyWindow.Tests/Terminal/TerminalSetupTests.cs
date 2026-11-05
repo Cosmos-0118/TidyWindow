@@ -198,6 +198,14 @@ public sealed class TerminalSetupTests : IDisposable
         finally { Environment.SetEnvironmentVariable("PATH", oldPath, EnvironmentVariableTarget.Process); }
     }
 
+    [Fact]
+    public void The_profile_keeps_Starship_warnings_out_of_the_prompt_in_big_folders()
+    {
+        // The Starship config scans folders for only a few milliseconds, so a folder like System32 times out and Starship would print a warning above every prompt.
+        Assert.Contains("scan_timeout", TerminalKit.Starship);
+        Assert.Matches(@"\$env:STARSHIP_LOG\s*=\s*'error'", TerminalKit.Profile);
+    }
+
     private sealed class FakeRunner(Action effect) : ICommandRunner
     {
         public Task<CommandResult> RunAsync(CommandSpec command, CancellationToken cancellationToken = default) { effect(); return Task.FromResult(new CommandResult(0, "", "")); }

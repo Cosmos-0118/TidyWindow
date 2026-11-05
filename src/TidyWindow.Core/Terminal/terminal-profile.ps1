@@ -12,6 +12,7 @@ if (-not [Environment]::UserInteractive -or $Host.Name -ne 'ConsoleHost') { retu
 $env:POWERSHELL_TELEMETRY_OPTOUT   = '1'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT   = '1'
 $env:STARSHIP_CONFIG               = "$HOME\.config\starship.toml"
+$env:STARSHIP_LOG                  = 'error'   # scan_timeout is kept short for speed; this hides the "scan timed out" warning in big folders
 $env:BAT_THEME                     = 'OneHalfDark'
 $fdSkip = '--exclude .git --exclude node_modules --exclude AppData --exclude .cache --exclude .nuget --exclude .gradle --exclude __pycache__ --exclude target --exclude "WPS*" --exclude "*.tmp"'
 $env:FZF_DEFAULT_COMMAND           = "fd --type f --hidden $fdSkip"
