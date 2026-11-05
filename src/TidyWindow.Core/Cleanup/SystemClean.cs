@@ -13,6 +13,12 @@ public interface ISystemTools
 {
     /// <summary>Runs a program to completion and returns its exit code.</summary>
     Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken);
+    /// <summary>
+    /// Runs a Windows program that has a window and starts helpers of its own (Disk Cleanup), and does not rely on it to behave: the run ends when every process it started has
+    /// ended, its windows are hidden so nobody can close it half way, and it is ended if it does nothing for <paramref name="stallLimit"/>.
+    /// </summary>
+    async Task<ToolOutcome> RunWindowToolAsync(string fileName, string[] arguments, TimeSpan timeout, TimeSpan stallLimit, CancellationToken cancellationToken) =>
+        new(await RunAsync(fileName, arguments, timeout, cancellationToken).ConfigureAwait(false), ToolEnd.Finished);
     /// <summary>Like <see cref="RunAsync"/>, but also returns what the program printed.</summary>
     Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken);
     /// <summary>Turns one Disk Cleanup handler on or off for the unattended run that follows.</summary>
@@ -28,6 +34,9 @@ public sealed class WindowsSystemTools : ISystemTools
 
     public async Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken) =>
         (await RunForOutputAsync(fileName, arguments, timeout, cancellationToken).ConfigureAwait(false)).ExitCode;
+
+    public Task<ToolOutcome> RunWindowToolAsync(string fileName, string[] arguments, TimeSpan timeout, TimeSpan stallLimit, CancellationToken cancellationToken) =>
+        SupervisedTool.RunAsync(fileName, arguments, timeout, stallLimit, lockWindows: true, endWithUs: true, cancellationToken, alsoWatch: ["TiWorker", "TrustedInstaller"]);
 
     public async Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -88,6 +97,11 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
     private static readonly TimeSpan ComponentStoreLimit = TimeSpan.FromMinutes(45);
     private static readonly TimeSpan CleanmgrLimit = TimeSpan.FromMinutes(60);
     private static readonly TimeSpan ComponentStoreAnalysisLimit = TimeSpan.FromMinutes(10);
+    /// <summary>Disk Cleanup that has done no work at all for this long (a good run takes seconds), neither itself nor the Windows servicing behind it, is finished or stuck (a handler can hang for good, which on some Windows builds it does about half the time); either way it is ended and started again.</summary>
+    private static readonly TimeSpan CleanmgrStallLimit = TimeSpan.FromSeconds(45);
+    /// <summary>How many times a hung Disk Cleanup is started again before its handlers are tried one at a time, and how many tries each of those gets.</summary>
+    private const int CleanmgrAttempts = 3, HandlerAttempts = 2;
+    private const string StalledNote = "Windows Disk Cleanup kept stopping responding and was ended. Whatever it had removed stays removed.";
     internal const string StoppedNote = "Cleaning was stopped before it finished. Anything already removed stays removed.";
     private const string FreeSpaceNote = "The space freed here is approximate: it is measured from the change in free space on the system drive while Windows worked.";
 
@@ -114,7 +128,7 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
             progress?.Report(new CleanupProgress(finding.Rule.Name, freed, removed, Starting: true));
             try
             {
-                var (bytes, count, note) = await RunActionAsync(finding, cancellationToken).ConfigureAwait(false);
+                var (bytes, count, note) = await RunActionAsync(finding, progress, cancellationToken).ConfigureAwait(false);
                 freed += bytes; removed += count;
                 if (note is not null) notes.Add(note);
                 progress?.Report(new CleanupProgress(finding.Rule.Name, freed, removed));
@@ -176,7 +190,27 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
         catch (Exception ex) when (ex is TimeoutException or InvalidOperationException or System.ComponentModel.Win32Exception) { return Unknown(ex.Message); }
     }
 
-    private async Task<(long Freed, int Removed, string? Note)> RunActionAsync(CleanupFinding finding, CancellationToken token)
+    /// <summary>
+    /// Runs Disk Cleanup under watch (see <see cref="SupervisedTool"/>) and says how it ended. One that goes idle is hung, so it is ended and started again, up to
+    /// <paramref name="attempts"/> times, and the person is told each time: its handlers can hang at random, and a restart usually gets past it. A program that ran out of
+    /// time is an error. Any other failure is an error code. A run still hung after its last try is returned as stalled for the caller to deal with.
+    /// </summary>
+    private async Task<ToolOutcome> RunDiskCleanupAsync(string system32, string step, int attempts, IProgress<CleanupProgress>? progress, CancellationToken token)
+    {
+        ToolOutcome run;
+        var attempt = 0;
+        do
+        {
+            if (attempt > 0) progress?.Report(new CleanupProgress(step, 0, 0, Starting: true, Detail: $"Windows Disk Cleanup stopped responding, so it was ended and started again (try {attempt + 1} of {attempts})."));
+            run = await tools.RunWindowToolAsync(Path.Combine(system32, "cleanmgr.exe"), [$"/sagerun:{HandlerSlot}"], CleanmgrLimit, CleanmgrStallLimit, token).ConfigureAwait(false);
+        }
+        while (run.End == ToolEnd.Stalled && ++attempt < attempts);
+        if (run.End == ToolEnd.TimedOut) throw new TimeoutException("Windows Disk Cleanup did not finish in time.");
+        if (run.End == ToolEnd.Finished && run.ExitCode != 0) throw new InvalidOperationException($"Windows Disk Cleanup reported error code {run.ExitCode}.");
+        return run;
+    }
+
+    private async Task<(long Freed, int Removed, string? Note)> RunActionAsync(CleanupFinding finding, IProgress<CleanupProgress>? progress, CancellationToken token)
     {
         var windows = context.Variable("WINDIR") ?? throw new InvalidOperationException("The Windows folder is unknown.");
         var drive = context.Variable("SYSTEMDRIVE") ?? throw new InvalidOperationException("The system drive is unknown.");
@@ -201,13 +235,13 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
                 var folder = finding.Roots.FirstOrDefault() ?? Path.Combine(drive + Path.DirectorySeparatorChar, "Windows.old");
                 tools.ClearCleanupHandlers(HandlerSlot);
                 tools.SetCleanupHandler("Previous Installations", HandlerSlot, true);
-                int exit;
-                try { exit = await tools.RunAsync(Path.Combine(system32, "cleanmgr.exe"), [$"/sagerun:{HandlerSlot}"], CleanmgrLimit, token).ConfigureAwait(false); }
+                ToolOutcome run;
+                try { run = await RunDiskCleanupAsync(system32, finding.Rule.Name, CleanmgrAttempts, progress, token).ConfigureAwait(false); }
                 finally { tools.SetCleanupHandler("Previous Installations", HandlerSlot, false); }
-                if (exit != 0) throw new InvalidOperationException($"Windows Disk Cleanup reported error code {exit}.");
+                var stalled = run.End == ToolEnd.Stalled ? StalledNote : null;
                 return Directory.Exists(folder)
-                    ? (0, 0, "Windows did not remove the previous Windows installation. It may need a restart first.")
-                    : (finding.Bytes, finding.Files, null);
+                    ? (0, 0, "Windows did not remove the previous Windows installation. It may need a restart first." + (stalled is null ? "" : " " + stalled))
+                    : (finding.Bytes, finding.Files, stalled);
             }
             case CleanupAction.DiskCleanup:
             {
@@ -215,21 +249,37 @@ public sealed class SystemCleanJob(CleanupContext context, ISystemTools tools)
                 var handlers = finding.Rule.Handlers.Where(handler => context.HandlerFolders(handler) is not null).ToList();
                 var before = tools.FreeBytes(drive);
                 var armed = new List<string>();
-                int exit;
+                var skipped = new List<string>();
+                var stalled = false;
                 try
                 {
                     tools.ClearCleanupHandlers(HandlerSlot);
                     foreach (var handler in handlers) { tools.SetCleanupHandler(handler, HandlerSlot, true); armed.Add(handler); }
-                    exit = await tools.RunAsync(Path.Combine(system32, "cleanmgr.exe"), [$"/sagerun:{HandlerSlot}"], CleanmgrLimit, token).ConfigureAwait(false);
+                    var run = await RunDiskCleanupAsync(system32, finding.Rule.Name, CleanmgrAttempts, progress, token).ConfigureAwait(false);
+                    if (run.End == ToolEnd.Stalled)
+                    {
+                        // Still hung after every try with everything switched on. One handler is the likely cause, so each gets a run of its own: the others are still cleaned,
+                        // and only the one that hangs is given up on.
+                        stalled = handlers.Count == 1;
+                        if (handlers.Count > 1)
+                            foreach (var handler in handlers)
+                            {
+                                tools.ClearCleanupHandlers(HandlerSlot);
+                                tools.SetCleanupHandler(handler, HandlerSlot, true);
+                                if ((await RunDiskCleanupAsync(system32, finding.Rule.Name, HandlerAttempts, progress, token).ConfigureAwait(false)).End == ToolEnd.Stalled) skipped.Add(handler);
+                            }
+                    }
                 }
                 finally
                 {
                     foreach (var handler in armed)
                         try { tools.SetCleanupHandler(handler, HandlerSlot, false); } catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException or System.Security.SecurityException) { }
                 }
-                if (exit != 0) throw new InvalidOperationException($"Windows Disk Cleanup reported error code {exit}.");
                 var gained = Math.Max(0, tools.FreeBytes(drive) - before);
-                return (gained, gained > 0 ? 1 : 0, FreeSpaceNote);
+                var note = FreeSpaceNote;
+                if (stalled) note += " " + StalledNote;
+                if (skipped.Count > 0) note += $" Windows Disk Cleanup kept hanging on {string.Join(", ", skipped)} even after a retry, so {(skipped.Count == 1 ? "that one was" : "those were")} skipped. The rest was cleaned.";
+                return (gained, gained > 0 ? 1 : 0, note);
             }
             case CleanupAction.Hibernation:
             {
