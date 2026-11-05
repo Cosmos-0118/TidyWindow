@@ -7,7 +7,7 @@ TidyWindow is a Windows-specific desktop app built with C#, .NET 10 and WinUI 3.
 | Path | Contents |
 | --- | --- |
 | [`src/TidyWindow.Desktop/`](../src/TidyWindow.Desktop/) | WinUI app. `Shell/` is the main window, `Features/` has one folder per page (view and view model together), and `Controls/`, `Common/` and `Styles/` are shared. |
-| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Fixes/`, `Unstick/`, `Lab/`, `Crashes/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
+| [`src/TidyWindow.Core/`](../src/TidyWindow.Core/) | Everything that does the work, one folder per area: `Packages/` (managers, search, queue), `Repair/`, `Cleanup/`, `Scout/`, `Paths/`, `Startup/`, `Background/`, `Tune/`, `Debloat/`, `Drivers/`, `Fixes/`, `Unstick/`, `Lab/`, `Crashes/`, plus `Infrastructure/` (process runner, logs, output) and `Icons/`. Each area keeps its catalog next to its code. |
 | [`src/TidyWindow.CleanHost/`](../src/TidyWindow.CleanHost/) | The elevated helper for Windows-wide changes. |
 | [`src/TidyWindow.SearchHost/`](../src/TidyWindow.SearchHost/) | The Scout worker that talks to Everything. |
 | [`tests/TidyWindow.Tests/`](../tests/TidyWindow.Tests/) | Unit tests, in folders that mirror `TidyWindow.Core` (and `Desktop/` for the UI code they link). |
@@ -64,9 +64,15 @@ What this does not cover: the helper is whatever `CleanHost\TidyWindow.CleanHost
 
 Debloat is the one page that removes software. The page scans without administrator rights and sends the helper only catalog item IDs. The helper loads the catalog again, checks each request against a protected list, removes the app for every account, rescans to confirm, and records the result so **Removed** can put it back. See [Debloat research](debloat-research.md).
 
+Drivers is the other page whose helper does not rebuild an action from a catalog, because Windows Update decides what is on offer. The app sends one update id; the helper searches Windows Update itself, installs only an update it finds in those results, refuses one older than the driver in use or one with licence terms to accept, saves the driver in use into `ProtectedStore` first, installs, and reads the PC again. It is never given a path, link or driver package. The search that fills the page is a separate, read-only run of the same program as the ordinary account (`CleanHost --driver-scan`), so cancelling can end it. See [Drivers research](drivers-research.md).
+
 Reversible changes save original state before writing and read back the result where supported. Cleanup holds old installers and unfinished downloads for 14 days; ordinary cache rules delete their files. Held files, installer repair backups and startup restore data survive app restarts. Windows repair commands and package operations have their own effects and do not have a universal undo mechanism.
 
 The per-tool research notes linked from the [README](../README.md#documentation) describe the contracts and limitations in more detail.
+
+## Drivers
+
+Drivers asks Windows Update for drivers that are not installed (the list in Settings, Windows Update, Optional updates) only when you press the button, and shows each beside the driver in use, read from Windows' device records in the registry. An offer is judged by the version at the end of its title when both versions can be read, otherwise by date; one older than what is installed has no button. Installs run one at a time through the administrator helper, can be stopped only before they begin to change anything, and keep a copy of the replaced driver so **Put earlier driver back** can restore it. Policies that limit drivers (an update server, Intune or Group Policy, blocked Windows Update access) are reported, not worked around. Records of what TidyWindow installed are kept in `%LOCALAPPDATA%\TidyWindow.Next\Drivers`; the copies the helper restores from are in `%ProgramData%\TidyWindow.Next\drivers`.
 
 ## Crashes
 
