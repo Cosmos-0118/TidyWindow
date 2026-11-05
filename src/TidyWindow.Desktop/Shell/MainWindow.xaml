@@ -57,9 +57,6 @@
      <Button x:Name="DebloatNav" Style="{StaticResource NavButton}" Click="DebloatClick" AutomationProperties.Name="Debloat">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE738;" FontSize="15" /><TextBlock x:Name="DebloatLabel" Text="Debloat" FontSize="13" /></StackPanel>
      </Button>
-     <Button x:Name="DriversNav" Style="{StaticResource NavButton}" Click="DriversClick" AutomationProperties.Name="Drivers">
-      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE772;" FontSize="15" /><TextBlock x:Name="DriversLabel" Text="Drivers" FontSize="13" /></StackPanel>
-     </Button>
      <Button x:Name="FixesNav" Style="{StaticResource NavButton}" Click="FixesClick" AutomationProperties.Name="Fixes">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xEC7A;" FontSize="15" /><TextBlock x:Name="FixesLabel" Text="Fixes" FontSize="13" /></StackPanel>
      </Button>
@@ -510,7 +507,6 @@
     <local:BackgroundView x:Name="QuietPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:TuneView x:Name="TunePage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:DebloatView x:Name="DebloatPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
-    <local:DriversView x:Name="DriversPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:FixesView x:Name="FixesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:UnstickView x:Name="UnstickPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:SettingsView x:Name="SettingsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
