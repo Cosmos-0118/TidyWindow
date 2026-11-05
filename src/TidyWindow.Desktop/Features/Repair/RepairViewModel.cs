@@ -201,14 +201,16 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     }
     public Visibility EmptyVisibility => scanned && !scanning && Groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public string ProgramCount => allPrograms.Count == 1 ? "1 program" : $"{allPrograms.Count:N0} programs";
-    public Visibility NoProgramsVisibility => scanned && Programs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    public string NoProgramsText => allPrograms.Count == 0 ? "No programs were found." : "No program matches your search.";
+    public Visibility IdleVisibility => !scanned && !scanning ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility NoProgramsVisibility => !scanning && Programs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string NoProgramsTitle => !scanned ? "No programs listed yet" : allPrograms.Count == 0 ? "No programs found" : $"No programs match “{query.Trim()}”";
+    public string NoProgramsDetail => !scanned ? "Press Scan to list what is installed." : allPrograms.Count == 0 ? "Press Scan again to refresh the list." : "Try fewer words, or tick Show hidden sub-packages.";
 
     public string Query { get => query; set { if (Set(ref query, value)) ApplyFilter(); } }
 
     private void Notify()
     {
-        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanFix), nameof(ScanLabel), nameof(FixLabel), nameof(ScanOverlay), nameof(FixOverlay), nameof(EmptyVisibility), nameof(NoProgramsVisibility) }) Changed(name);
+        foreach (var name in new[] { nameof(Busy), nameof(CanScan), nameof(CanFix), nameof(ScanLabel), nameof(FixLabel), nameof(ScanOverlay), nameof(FixOverlay), nameof(EmptyVisibility), nameof(IdleVisibility), nameof(NoProgramsVisibility), nameof(NoProgramsTitle), nameof(NoProgramsDetail) }) Changed(name);
     }
 
     private IEnumerable<RepairRow> SelectedRows() => Groups.SelectMany(x => x.Rows).Where(x => x.IsSelected && x.Finding.CanFix);
@@ -319,7 +321,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var shown = words.Length == 0 ? allPrograms : allPrograms.Where(x => words.All(w => x.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || x.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase))).ToList();
         if (keepPosition) Programs.Sync(shown, x => x.Entry.Key); else Programs.Reset(shown);
-        Changed(nameof(NoProgramsVisibility)); Changed(nameof(NoProgramsText));
+        Changed(nameof(NoProgramsVisibility)); Changed(nameof(NoProgramsTitle)); Changed(nameof(NoProgramsDetail));
     }
 
     /// <summary>Fixes everything ticked on the Problems tab.</summary>

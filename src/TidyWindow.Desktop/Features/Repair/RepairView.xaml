@@ -256,13 +256,19 @@
         </StackPanel>
        </DataTemplate></ItemsControl.ItemTemplate>
       </ItemsControl>
+      <!-- Placeholders: sit below the options, so they never cover them. Same look as the Search page. -->
+      <StackPanel Visibility="{Binding IdleVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24,32">
+       <local:RepairIdleArt Margin="0,0,0,14" />
+       <TextBlock Text="Look for leftovers" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="Press Scan to find installs and uninstalls that were cancelled or crashed." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
+      <StackPanel Visibility="{Binding EmptyVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24,32">
+       <local:RepairIdleArt Margin="0,0,0,14" />
+       <TextBlock Text="No leftovers found" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="Installs and uninstalls should work normally. If one app still fails, look for it under All programs." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
      </StackPanel>
     </ScrollViewer>
-    <StackPanel Visibility="{Binding EmptyVisibility}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" Padding="24" Spacing="8">
-     <FontIcon Glyph="&#xE73E;" FontSize="28" Foreground="{ThemeResource GoodBrush}" />
-     <TextBlock Text="No leftovers found" Style="{StaticResource EmptyTitle}" />
-     <TextBlock Text="Installing and uninstalling should work normally. If one app still fails, find it under All programs (tick Show hidden sub-packages if it is not listed), then repair it or remove its entry by hand." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
-    </StackPanel>
    </Grid>
 
    <!-- Tab 2: every program, for removing one entry by hand -->
@@ -296,7 +302,10 @@
         </Border>
        </DataTemplate></ListView.ItemTemplate>
       </ListView>
-      <TextBlock Text="{Binding NoProgramsText}" Visibility="{Binding NoProgramsVisibility}" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      <StackPanel Visibility="{Binding NoProgramsVisibility}" local:EmptyState.Animate="True" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400" Spacing="6" Padding="24">
+       <TextBlock Text="{Binding NoProgramsTitle}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="{Binding NoProgramsDetail}" Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
      </Grid>
     </Border>
    </Grid>
@@ -314,13 +323,14 @@
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        
       </ListView>
-      <StackPanel Visibility="{Binding UndoState.EmptyVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="6">
-       <TextBlock Text="Nothing to undo yet" Style="{StaticResource EmptyTitle}" />
-       <TextBlock Text="When you repair something, it will be listed here." Style="{StaticResource Muted}" TextAlignment="Center" />
+      <StackPanel Visibility="{Binding UndoState.EmptyVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Padding="24" Spacing="6">
+       <local:RepairIdleArt Margin="0,0,0,14" />
+       <TextBlock Text="Nothing to undo yet" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="When you repair something, it will be listed here." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
       </StackPanel>
-      <StackPanel Visibility="{Binding UndoState.NoMatchVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="8">
-       <TextBlock Text="{Binding UndoState.NoMatchText}" Style="{StaticResource EmptyTitle}" />
-       <TextBlock Text="Try fewer words, another date range, or search by what was changed." Style="{StaticResource Muted}" TextAlignment="Center" />
+      <StackPanel Visibility="{Binding UndoState.NoMatchVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Padding="24" Spacing="6">
+       <TextBlock Text="{Binding UndoState.NoMatchText}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="Try fewer words, another date range, or search by what was changed." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
        <Button Click="ClearUndoSearchClick" Content="Clear search and filters" HorizontalAlignment="Center" Padding="12,7" FontSize="12" />
       </StackPanel>
      </Grid>
@@ -351,13 +361,14 @@
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        
       </ListView>
-      <StackPanel Visibility="{Binding QuarantineState.EmptyVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="6">
-       <TextBlock Text="Nothing in quarantine" Style="{StaticResource EmptyTitle}" />
-       <TextBlock Text="Folders and shortcuts that a repair removes will wait here until you decide." Style="{StaticResource Muted}" TextAlignment="Center" />
+      <StackPanel Visibility="{Binding QuarantineState.EmptyVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Padding="24" Spacing="6">
+       <local:RepairIdleArt Margin="0,0,0,14" />
+       <TextBlock Text="Nothing in quarantine" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="Folders and shortcuts that a repair removes will wait here until you decide." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
       </StackPanel>
-      <StackPanel Visibility="{Binding QuarantineState.NoMatchVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,48" Spacing="8">
-       <TextBlock Text="{Binding QuarantineState.NoMatchText}" Style="{StaticResource EmptyTitle}" />
-       <TextBlock Text="Try fewer words, another date range, or search by path." Style="{StaticResource Muted}" TextAlignment="Center" />
+      <StackPanel Visibility="{Binding QuarantineState.NoMatchVisibility}" local:EmptyState.Animate="True" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Padding="24" Spacing="6">
+       <TextBlock Text="{Binding QuarantineState.NoMatchText}" Style="{StaticResource EmptyTitle}" TextWrapping="Wrap" />
+       <TextBlock Text="Try fewer words, another date range, or search by path." Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" />
        <Button Click="ClearQuarantineSearchClick" Content="Clear search and filters" HorizontalAlignment="Center" Padding="12,7" FontSize="12" />
       </StackPanel>
      </Grid>
