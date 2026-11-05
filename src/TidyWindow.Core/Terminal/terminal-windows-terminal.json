@@ -1,0 +1,68 @@
+{
+  "schemes": [
+    {
+      "yellow": "#F9E2AF",
+      "blue": "#89B4FA",
+      "brightRed": "#F38BA8",
+      "foreground": "#CDD6F4",
+      "brightGreen": "#A6E3A1",
+      "purple": "#F5C2E7",
+      "cyan": "#94E2D5",
+      "brightYellow": "#F9E2AF",
+      "name": "Catppuccin Mocha",
+      "cursorColor": "#F5E0DC",
+      "green": "#A6E3A1",
+      "brightBlack": "#585B70",
+      "brightBlue": "#89B4FA",
+      "brightWhite": "#A6ADC8",
+      "black": "#45475A",
+      "red": "#F38BA8",
+      "brightCyan": "#94E2D5",
+      "background": "#1E1E2E",
+      "white": "#BAC2DE",
+      "brightPurple": "#F5C2E7",
+      "selectionBackground": "#585B70"
+    }
+  ],
+  "themes": [
+    {
+      "window": {
+        "applicationTheme": "dark"
+      },
+      "tab": {
+        "background": "#181825FF",
+        "showCloseButton": "hover",
+        "unfocusedBackground": "#11111BFF"
+      },
+      "name": "Catppuccin Mocha",
+      "tabRow": {
+        "background": "#11111BFF",
+        "unfocusedBackground": "#11111BFF"
+      }
+    }
+  ],
+  "settings": {
+    "theme": "Catppuccin Mocha",
+    "initialCols": 120,
+    "initialRows": 30,
+    "alwaysShowTabs": true,
+    "showTabsInTitlebar": true,
+    "useAcrylicInTabRow": false
+  },
+  "defaults": {
+    "font": {
+      "face": "CaskaydiaCove NFM",
+      "size": 12,
+      "weight": "normal"
+    },
+    "startingDirectory": "%USERPROFILE%",
+    "colorScheme": "Catppuccin Mocha",
+    "bellStyle": "none",
+    "tabColor": "#CBA6F7",
+    "useAcrylic": true,
+    "opacity": 92,
+    "cursorShape": "bar",
+    "padding": "12",
+    "scrollbarState": "hidden"
+  }
+}
