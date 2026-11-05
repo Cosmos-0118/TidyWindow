@@ -17,6 +17,8 @@ public sealed class CleanupScanner(CleanupContext context)
         var pieces = new ConcurrentBag<Piece>();
         var now = context.Now();
         var options = new ParallelOptions { MaxDegreeOfParallelism = context.Parallelism, CancellationToken = cancellationToken };
+        // Reading folders on a spinning disk with dozens of walkers only adds seeking, and a small machine feels it. Decided once the folders are known.
+        var background = false;
 
         void Report(int index, CleanupFinding finding) { findings[index] = finding; progress?.Report(finding); }
         CleanupFinding Finish(int index, RuleState state)
@@ -29,6 +31,8 @@ public sealed class CleanupScanner(CleanupContext context)
         await Task.Run(() =>
         {
             var roots = CleanupPaths.Plan(rules, context);
+            var load = CleanupLoad.ForScan(context, roots.SelectMany(x => x));
+            options.MaxDegreeOfParallelism = load.Workers; background = load.Background;
             // Cheap pass: list each folder's top level, so the expensive walks below can be shared out evenly.
             Parallel.For(0, rules.Count, options, index =>
             {
@@ -57,7 +61,7 @@ public sealed class CleanupScanner(CleanupContext context)
                 var folders = new List<string>();
                 foreach (var root in state.Roots)
                 {
-                    var top = new Tally(root, filter, recurse: false, rule.Recurse ? folders : null, cancellationToken);
+                    var top = new Tally(root, filter, recurse: false, rule.Recurse ? folders : null, cancellationToken, background);
                     top.Run();
                     state.Add(top);
                 }
@@ -69,7 +73,7 @@ public sealed class CleanupScanner(CleanupContext context)
 
         await Parallel.ForEachAsync(pieces, options, (piece, token) =>
         {
-            var tally = new Tally(piece.Folder, piece.Filter, recurse: true, null, token);
+            var tally = new Tally(piece.Folder, piece.Filter, recurse: true, null, token, background);
             tally.Run();
             piece.State.Add(tally);
             if (piece.State.Complete()) Report(piece.Rule, Finish(piece.Rule, piece.State));
@@ -106,7 +110,7 @@ public sealed class CleanupScanner(CleanupContext context)
     private sealed record Piece(int Rule, RuleState State, string Folder, CleanupFilter Filter);
 
     /// <summary>Adds up the matching files of one folder. Names, sizes and times come from the directory listing itself, so there is no extra lookup per file and nothing is allocated per entry.</summary>
-    private sealed class Tally(string folder, CleanupFilter filter, bool recurse, List<string>? subfolders, CancellationToken token)
+    private sealed class Tally(string folder, CleanupFilter filter, bool recurse, List<string>? subfolders, CancellationToken token, bool background)
         : FileSystemEnumerator<byte>(folder, CleanupFilter.Options(recurse))
     {
         private int seen;
@@ -116,6 +120,7 @@ public sealed class CleanupScanner(CleanupContext context)
 
         public void Run()
         {
+            using var scope = CleanupIo.Background.Begin(background);
             try { while (MoveNext()) { } }
             finally { Dispose(); }
         }

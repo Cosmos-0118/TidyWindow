@@ -447,6 +447,14 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
     private void OnStep(IReadOnlyList<CleanupRow> rows, CleanupProgress step)
     {
         var row = rows.FirstOrDefault(x => x.Name == step.Name);
+        if (step.Partial)
+        {
+            // A running tally. A rule already reported as finished can still have a late tally on its way; it must not bring the row back to "Working…".
+            if (row is null || row.StateText == "Cleaned") return;
+            row.StateText = "Working…";
+            BeginProgress($"Cleaning {step.Name}", $"{ByteSize.Format(step.FreedBytes)} freed so far · {step.Removed:N0} files", indeterminate: false);
+            return;
+        }
         if (step.Starting)
         {
             if (row is not null) row.StateText = "Working…";

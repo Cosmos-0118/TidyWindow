@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace TidyWindow.Next.Core;
 
 /// <summary>One line on the pipe between TidyWindow and its elevated helper.</summary>
-public sealed record HostMessage(string Kind, string? Name = null, long Freed = 0, int Removed = 0, SystemCleanReport? Report = null, string? Error = null, bool Starting = false, List<MeasuredItem>? Measured = null);
+public sealed record HostMessage(string Kind, string? Name = null, long Freed = 0, int Removed = 0, SystemCleanReport? Report = null, string? Error = null, bool Starting = false, List<MeasuredItem>? Measured = null, bool Partial = false);
 
 /// <summary>
 /// The elevated side. It is a separate process because TidyWindow itself never runs as administrator. It takes rule names only,
@@ -59,7 +59,7 @@ public static class SystemCleanHost
                 await Send(new HostMessage("measured", Measured: items.ToList())).ConfigureAwait(false);
                 return 0;
             }
-            var progress = new Relay(step => _ = Send(new HostMessage("progress", step.Name, step.FreedBytes, step.Removed, Starting: step.Starting)));
+            var progress = new Relay(step => _ = Send(new HostMessage("progress", step.Name, step.FreedBytes, step.Removed, Starting: step.Starting, Partial: step.Partial)));
             var report = await job.RunAsync(catalog ?? CleanupCatalog.Load(), ids, progress, cancel.Token).ConfigureAwait(false);
             await Send(new HostMessage("done", Report: report)).ConfigureAwait(false);
             return 0;
@@ -88,7 +88,7 @@ public sealed class SystemCleanLauncher(Func<string, IReadOnlyList<string>, Task
         {
             switch (message.Kind)
             {
-                case "progress": progress?.Report(new CleanupProgress(message.Name ?? "", message.Freed, message.Removed, message.Starting)); break;
+                case "progress": progress?.Report(new CleanupProgress(message.Name ?? "", message.Freed, message.Removed, message.Starting, message.Partial)); break;
                 case "done": report = message.Report; break;
             }
         }, cancellationToken).ConfigureAwait(false);

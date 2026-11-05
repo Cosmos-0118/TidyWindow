@@ -55,7 +55,8 @@ public sealed record CleanupResult(long FreedBytes, int Removed, int InUse, int 
     public int Skipped => InUse + Denied + Failed;
 }
 
-public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, bool Starting = false);
+/// <param name="Partial">A running tally while a rule is still being cleaned, a few times a second. It is not the end of the rule: only a report without it is.</param>
+public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, bool Starting = false, bool Partial = false);
 
 /// <summary>Machine facts the engine depends on, replaceable in tests.</summary>
 public sealed class CleanupContext
@@ -71,6 +72,11 @@ public sealed class CleanupContext
     public Func<string, string[]?> HandlerFolders { get; init; } = CleanupNative.VolumeCacheFolders;
     /// <summary>Parallel folder operations. Directory work is latency bound, so more than the core count helps.</summary>
     public int Parallelism { get; init; } = Math.Clamp(Environment.ProcessorCount * 2, 4, 32);
+    /// <summary>
+    /// Keeps the PC usable while it works: fewer workers on slow disks and small machines, and Windows' background mode (low CPU, I/O and memory priority).
+    /// Parallelism is then only a ceiling. Off, a run uses Parallelism workers at normal priority.
+    /// </summary>
+    public bool LowImpact { get; init; } = true;
 }
 
 public static class CleanupCatalog
