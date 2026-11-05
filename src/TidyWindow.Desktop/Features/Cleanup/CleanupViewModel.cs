@@ -458,7 +458,7 @@ public sealed class CleanupViewModel : ObservableState, IDisposable
         if (step.Starting)
         {
             if (row is not null) row.StateText = "Working…";
-            BeginProgress($"Cleaning {step.Name}", "Windows is doing this itself and it can take several minutes. Keep TidyWindow open.", indeterminate: true);
+            BeginProgress($"Cleaning {step.Name}", step.Detail ?? "Windows is doing this itself and it can take several minutes. Keep TidyWindow open.", indeterminate: true);
             return;
         }
         if (row is not null && row.StateText != "Cleaned") { row.StateText = "Cleaned"; stepsDone = Math.Min(stepsTotal, stepsDone + 1); }

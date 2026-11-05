@@ -179,7 +179,7 @@ public sealed class GentleCleanTests : IDisposable
         if (!OperatingSystem.IsWindows()) return;
         // cmd starts a detached ping and exits at once, as Disk Cleanup does with its helper: the parent is gone, the work is not.
         var timer = Stopwatch.StartNew();
-        var outcome = await SupervisedTool.RunAsync(Cmd, ["/c", "start", "/b", "ping", "-n", "4", "127.0.0.1", ">nul"], TimeSpan.FromSeconds(60), Timeout.InfiniteTimeSpan, hideWindows: true, endWithUs: true, CancellationToken.None);
+        var outcome = await SupervisedTool.RunAsync(Cmd, ["/c", "start", "/b", "ping", "-n", "4", "127.0.0.1", ">nul"], TimeSpan.FromSeconds(60), Timeout.InfiniteTimeSpan, lockWindows: true, endWithUs: true, CancellationToken.None);
 
         Assert.Equal(ToolEnd.Finished, outcome.End);
         Assert.True(timer.Elapsed > TimeSpan.FromSeconds(2), $"The run ended after {timer.Elapsed.TotalSeconds:0.0} s, while its helper was still working.");
@@ -190,17 +190,34 @@ public sealed class GentleCleanTests : IDisposable
     {
         if (!OperatingSystem.IsWindows() || !File.Exists(PowerShell)) return;
         var timer = Stopwatch.StartNew();
-        var outcome = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(3), hideWindows: false, endWithUs: true, CancellationToken.None);
+        var outcome = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(3), lockWindows: false, endWithUs: true, CancellationToken.None);
 
         Assert.Equal(ToolEnd.Stalled, outcome.End);
         Assert.True(timer.Elapsed < TimeSpan.FromSeconds(60), $"The stalled program was only ended after {timer.Elapsed.TotalSeconds:0} s.");
     }
 
     [Fact]
+    public async Task AQuietProgramIsNotCalledStalledWhileAServiceWorkingForItIsBusy()
+    {
+        if (!OperatingSystem.IsWindows() || !File.Exists(PowerShell)) return;
+        // A busy cmd stands in for the Windows servicing worker: the supervised program is silent, but the work done on its behalf is not.
+        using var busy = Process.Start(new ProcessStartInfo(Cmd, "/c for /l %i in (1,1,2000000000) do @rem") { UseShellExecute = false, CreateNoWindow = true })!;
+        try
+        {
+            var watched = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(3), lockWindows: false, endWithUs: true, CancellationToken.None, alsoWatch: ["cmd"]);
+            Assert.Equal(ToolEnd.TimedOut, watched.End);
+        }
+        finally { try { busy.Kill(true); } catch (InvalidOperationException) { } }
+        // The same program with nothing busy behind it is still ended as stalled.
+        var alone = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(3), lockWindows: false, endWithUs: true, CancellationToken.None, alsoWatch: ["cmd"]);
+        Assert.Equal(ToolEnd.Stalled, alone.End);
+    }
+
+    [Fact]
     public async Task AProgramThatRunsPastItsTimeIsEnded()
     {
         if (!OperatingSystem.IsWindows() || !File.Exists(PowerShell)) return;
-        var outcome = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan, hideWindows: false, endWithUs: true, CancellationToken.None);
+        var outcome = await SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan, lockWindows: false, endWithUs: true, CancellationToken.None);
 
         Assert.Equal(ToolEnd.TimedOut, outcome.End);
     }
@@ -213,7 +230,7 @@ public sealed class GentleCleanTests : IDisposable
         var timer = Stopwatch.StartNew();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(100), Timeout.InfiniteTimeSpan, hideWindows: false, endWithUs: true, cancel.Token));
+            SupervisedTool.RunAsync(PowerShell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120"], TimeSpan.FromSeconds(100), Timeout.InfiniteTimeSpan, lockWindows: false, endWithUs: true, cancel.Token));
 
         Assert.True(timer.Elapsed < TimeSpan.FromSeconds(30));
     }
@@ -222,7 +239,7 @@ public sealed class GentleCleanTests : IDisposable
     public async Task AProgramThatFinishesNormallyKeepsItsExitCode()
     {
         if (!OperatingSystem.IsWindows()) return;
-        var outcome = await SupervisedTool.RunAsync(Cmd, ["/c", "exit", "7"], TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(10), hideWindows: true, endWithUs: true, CancellationToken.None);
+        var outcome = await SupervisedTool.RunAsync(Cmd, ["/c", "exit", "7"], TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(10), lockWindows: true, endWithUs: true, CancellationToken.None);
 
         Assert.Equal(ToolEnd.Finished, outcome.End);
         Assert.Equal(7, outcome.ExitCode);
@@ -232,55 +249,141 @@ public sealed class GentleCleanTests : IDisposable
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool EnumWindows(WindowCallback callback, IntPtr parameter);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr window);
 
-    /// <summary>Every top-level window of the named programs, shown or not, and whether any is showing.</summary>
-    private static (int Windows, bool AnyVisible) WindowsOf(string program)
+    /// <summary>How many windows of the named programs are showing, and how many of those still accept input.</summary>
+    private static (int Showing, int Enabled) WindowsOf(string program)
     {
         var pids = Process.GetProcessesByName(program).Select(x => (uint)x.Id).ToHashSet();
-        int count = 0; var visible = false;
+        int showing = 0, enabled = 0;
         EnumWindows((window, _) =>
         {
             GetWindowThreadProcessId(window, out var owner);
-            if (pids.Contains(owner)) { count++; visible |= IsWindowVisible(window); }
+            if (pids.Contains(owner) && IsWindowVisible(window)) { showing++; if (IsWindowEnabled(window)) enabled++; }
             return true;
         }, IntPtr.Zero);
-        return (count, visible);
+        return (showing, enabled);
     }
 
-    private static async Task<(bool Existed, bool StillVisible)> WatchCharmap(bool hide)
+    private static async Task<(bool Showed, bool StillAcceptsInput)> WatchCharmap(bool locked)
     {
         var charmap = Path.Combine(Environment.SystemDirectory, "charmap.exe");
         using var cancel = new CancellationTokenSource();
-        var run = SupervisedTool.RunAsync(charmap, [], TimeSpan.FromSeconds(60), Timeout.InfiniteTimeSpan, hideWindows: hide, endWithUs: true, cancel.Token, startHidden: false);
-        bool existed = false, visible = false;
+        var run = SupervisedTool.RunAsync(charmap, [], TimeSpan.FromSeconds(60), Timeout.InfiniteTimeSpan, lockWindows: locked, endWithUs: true, cancel.Token);
+        bool showed = false, accepts = false;
         var watch = Stopwatch.StartNew();
         while (watch.Elapsed < TimeSpan.FromSeconds(5) && !run.IsCompleted)
         {
             await Task.Delay(400);
-            var (count, any) = WindowsOf("charmap");
-            existed |= count > 0;
+            var (showing, enabled) = WindowsOf("charmap");
+            showed |= showing > 0;
             // The watch needs a moment to catch a window that has only just appeared.
-            if (watch.Elapsed > TimeSpan.FromSeconds(2)) visible |= any;
+            if (watch.Elapsed > TimeSpan.FromSeconds(2)) accepts |= enabled > 0;
         }
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
         // Ending a job is asynchronous: give the processes a moment to go.
         for (var i = 0; i < 50 && Process.GetProcessesByName("charmap").Length > 0; i++) await Task.Delay(100);
         Assert.Empty(Process.GetProcessesByName("charmap"));
-        return (existed, visible);
+        return (showed, accepts);
     }
 
     [Fact]
-    public async Task AToolsWindowIsHiddenSoNobodyCanCloseItHalfWay()
+    public async Task AToolsWindowStaysShowingButCannotBeUsedSoNobodyCanCloseItHalfWay()
     {
         if (!OperatingSystem.IsWindows() || !File.Exists(Path.Combine(Environment.SystemDirectory, "charmap.exe"))) return;
-        var (shown, shownVisible) = await WatchCharmap(hide: false);
-        // Started visibly and left alone, the program's window shows, so the check below means something. A machine with no desktop to show it on proves nothing either way.
-        if (!shown) return;
-        Assert.True(shownVisible, "Control run: the program's window should be showing.");
+        var (showedFree, acceptsFree) = await WatchCharmap(locked: false);
+        // Left alone, the program's window shows and takes input, so the check below means something. A machine with no desktop to show it on proves nothing either way.
+        if (!showedFree) return;
+        Assert.True(acceptsFree, "Control run: the program's window should be taking input.");
 
-        var (existed, visible) = await WatchCharmap(hide: true);
-        Assert.True(existed);
-        Assert.False(visible, "The program's window was left showing.");
+        var (showed, accepts) = await WatchCharmap(locked: true);
+        Assert.True(showed, "The window should stay showing: a hidden Disk Cleanup window is not worth the risk.");
+        Assert.False(accepts, "The program's window was left taking input.");
+    }
+
+    // ---- A hung Disk Cleanup is ended and started again ----
+
+    private sealed class HangingTools(params ToolEnd[] ends) : ISystemTools
+    {
+        private readonly Queue<ToolEnd> script = new(ends);
+        public readonly List<string> Armed = [];
+        public int Runs;
+        /// <summary>Handlers switched on at the moment each run started.</summary>
+        public readonly List<string[]> RunsWith = [];
+        /// <summary>When set, a run hangs whenever this handler is switched on.</summary>
+        public string? BadHandler;
+        public Task<int> RunAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<(int ExitCode, string Output)> RunForOutputAsync(string fileName, string[] arguments, TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult((0, ""));
+        public Task<ToolOutcome> RunWindowToolAsync(string fileName, string[] arguments, TimeSpan timeout, TimeSpan stallLimit, CancellationToken cancellationToken)
+        {
+            Runs++; RunsWith.Add([.. Armed]);
+            var end = BadHandler is not null ? (Armed.Contains(BadHandler) ? ToolEnd.Stalled : ToolEnd.Finished) : script.Count > 0 ? script.Dequeue() : ToolEnd.Finished;
+            return Task.FromResult(new ToolOutcome(0, end));
+        }
+        public void SetCleanupHandler(string handler, int slot, bool enabled) { if (enabled) { if (!Armed.Contains(handler)) Armed.Add(handler); } else Armed.Remove(handler); }
+        public void ClearCleanupHandlers(int slot) => Armed.Clear();
+        public long FreeBytes(string drive) => 1_000;
+    }
+
+    private SystemCleanJob JobWith(ISystemTools tools) => new(new CleanupContext
+    {
+        Variable = name => name switch { "WINDIR" => Path.Combine(root, "Windows"), "SYSTEMDRIVE" => root, _ => null },
+        IsAdministrator = true, Now = () => Now, RunningProcesses = () => new HashSet<string>(), HandlerFolders = _ => []
+    }, tools);
+
+    private static CleanupRule DiskCleanup(params string[] handlers) => new() { Id = "drivers", Group = "Windows", Name = "Old driver versions", Admin = true, Action = CleanupAction.DiskCleanup, Handlers = handlers };
+
+    [Fact]
+    public async Task AHungDiskCleanupIsStartedAgainAndTheRunSucceedsWhenTheRetryWorks()
+    {
+        var tools = new HangingTools(ToolEnd.Stalled, ToolEnd.Stalled, ToolEnd.Finished);
+        var progress = new Collect();
+        var report = await JobWith(tools).RunAsync([DiskCleanup("A", "B")], ["drivers"], progress);
+        var seen = progress.Seen;
+
+        Assert.Equal(3, tools.Runs);
+        Assert.Equal(0, report.Result.Failed);
+        Assert.DoesNotContain(report.Notes, x => x.Contains("hanging") || x.Contains("kept stopping"));
+        // The person is told each time it is started again.
+        Assert.Contains(seen, x => x.Detail is { } d && d.Contains("try 2 of 3"));
+        Assert.Contains(seen, x => x.Detail is { } d && d.Contains("try 3 of 3"));
+    }
+
+    [Fact]
+    public async Task WhenEveryTryHangsTheHandlersAreRunOneAtATimeAndOnlyTheBadOneIsSkipped()
+    {
+        var tools = new HangingTools { BadHandler = "Device Driver Packages" };
+        var report = await JobWith(tools).RunAsync([DiskCleanup("Setup Log Files", "Device Driver Packages", "Temporary Setup Files")], ["drivers"]);
+
+        // Three tries together, then each handler alone: the two good ones finish at once, the bad one is tried twice.
+        Assert.Equal(3 + 1 + 2 + 1, tools.Runs);
+        Assert.Contains(tools.RunsWith, armed => armed.SequenceEqual(["Setup Log Files"]));
+        Assert.Contains(tools.RunsWith, armed => armed.SequenceEqual(["Temporary Setup Files"]));
+        Assert.Contains(report.Notes, x => x.Contains("Device Driver Packages") && x.Contains("skipped") && !x.Contains("Setup Log Files"));
+        Assert.Empty(tools.Armed);
+    }
+
+    [Fact]
+    public async Task ASingleHandlerThatNeverRecoversIsReportedNotRetriedForever()
+    {
+        var tools = new HangingTools { BadHandler = "Device Driver Packages" };
+        var report = await JobWith(tools).RunAsync([DiskCleanup("Device Driver Packages")], ["drivers"]);
+
+        Assert.Equal(3, tools.Runs);
+        Assert.Contains(report.Notes, x => x.Contains("kept stopping responding"));
+        Assert.Empty(tools.Armed);
+    }
+
+    [Fact]
+    public async Task AStopRequestIsNotMistakenForAHang()
+    {
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        var tools = new HangingTools();
+        var report = await JobWith(tools).RunAsync([DiskCleanup("A")], ["drivers"], null, cancel.Token);
+
+        Assert.True(report.Result.Stopped);
+        Assert.Equal(0, tools.Runs);
     }
 }

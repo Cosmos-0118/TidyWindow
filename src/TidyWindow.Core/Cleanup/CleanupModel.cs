@@ -55,8 +55,9 @@ public sealed record CleanupResult(long FreedBytes, int Removed, int InUse, int 
     public int Skipped => InUse + Denied + Failed;
 }
 
+/// <param name="Detail">Plain-language news about the step that is running, such as a program that hung and was started again.</param>
 /// <param name="Partial">A running tally while a rule is still being cleaned, a few times a second. It is not the end of the rule: only a report without it is.</param>
-public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, bool Starting = false, bool Partial = false);
+public sealed record CleanupProgress(string Name, long FreedBytes, int Removed, bool Starting = false, bool Partial = false, string? Detail = null);
 
 /// <summary>Machine facts the engine depends on, replaceable in tests.</summary>
 public sealed class CleanupContext

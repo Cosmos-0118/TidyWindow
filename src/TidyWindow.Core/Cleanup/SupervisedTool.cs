@@ -21,7 +21,7 @@ public sealed record ToolOutcome(int ExitCode, ToolEnd End);
 /// Runs one of Windows' own programs (Disk Cleanup, for one) and does not trust the program to behave. Disk Cleanup hands its real work to child processes and
 /// can exit while they are still going, can be closed by the person from its own window, and can sit finished but idle until someone moves the mouse.
 /// So the program starts inside a job object, which tracks it and everything it starts: the run is over when the last of them has ended, not when the first
-/// one has. Its windows are hidden as they appear, so there is nothing to close. A run that does no work for the stall limit is ended, and the job dies with this
+/// one has. Its windows are switched off as they appear, so they cannot be closed or cancelled. A run that does no work for the stall limit is ended, and the job dies with this
 /// process unless told otherwise, so a crash can never leave a Windows tool running unattended.
 /// </summary>
 internal static class SupervisedTool
@@ -37,6 +37,9 @@ internal static class SupervisedTool
         public uint PageFaults, TotalProcesses, ActiveProcesses, TerminatedProcesses;
         public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoCounters { public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes; }
 
     private delegate bool WindowCallback(IntPtr window, IntPtr parameter);
 
@@ -57,6 +60,11 @@ internal static class SupervisedTool
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetProcessIoCounters(IntPtr process, out IoCounters counters);
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr handle);
@@ -70,17 +78,20 @@ internal static class SupervisedTool
     private static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindowAsync(IntPtr window, int command);
+    private static extern bool IsWindowEnabled(IntPtr window);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnableWindow(IntPtr window, [MarshalAs(UnmanagedType.Bool)] bool enable);
 
     /// <param name="stallLimit">How long all of the program's processes may do nothing before it is ended; <see cref="Timeout.InfiniteTimeSpan"/> for never.</param>
-    /// <param name="hideWindows">Hide any window the program opens, so nobody can close it half way.</param>
+    /// <param name="lockWindows">Switch off every window the program opens, so nobody can close or cancel it half way. The windows stay showing: Disk Cleanup is no more reliable with its window hidden, and the person can see it is working.</param>
     /// <param name="endWithUs">End the program if this process ends. Off for programs that must be allowed to finish what they started (the component store cleanup).</param>
-    /// <param name="startHidden">Ask the program to start with its window hidden. Programs may ignore that, which is why windows are also watched for; tests turn it off to prove the watch works alone.</param>
+    /// <param name="alsoWatch">Names of Windows services (without .exe) that do work on the program's behalf outside its own processes, such as the servicing worker behind Disk Cleanup. Their activity counts as the program being busy.</param>
     /// <exception cref="OperationCanceledException">A stop was requested; the program has been ended.</exception>
-    public static async Task<ToolOutcome> RunAsync(string fileName, string[] arguments, TimeSpan timeout, TimeSpan stallLimit, bool hideWindows, bool endWithUs, CancellationToken cancellationToken, bool startHidden = true)
+    public static async Task<ToolOutcome> RunAsync(string fileName, string[] arguments, TimeSpan timeout, TimeSpan stallLimit, bool lockWindows, bool endWithUs, CancellationToken cancellationToken, string[]? alsoWatch = null)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Supervised programs run on Windows only.");
-        var start = new ProcessStartInfo(fileName) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = startHidden ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal };
+        var start = new ProcessStartInfo(fileName) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = lockWindows ? ProcessWindowStyle.Normal : ProcessWindowStyle.Hidden };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         var job = CreateJob(endWithUs);
         try
@@ -92,9 +103,17 @@ internal static class SupervisedTool
             var lastWork = Stopwatch.StartNew();
             var seen = (Cpu: -1L, Io: ulong.MaxValue);
             var pids = new HashSet<uint>();
+            var service = (Cpu: 0L, Io: 0UL); var serviceAt = Stopwatch.StartNew();
             while (true)
             {
                 bool running;
+                // Work done for the program by Windows services shows in no process of its own, so it is looked at separately, every couple of seconds.
+                if (alsoWatch is { Length: > 0 } && serviceAt.Elapsed > TimeSpan.FromSeconds(2))
+                {
+                    serviceAt.Restart();
+                    var now = ServiceWork(alsoWatch);
+                    if (now != service) { service = now; lastWork.Restart(); }
+                }
                 if (tracked)
                 {
                     if (!QueryInformationJobObject(job, JobObjectBasicAndIoAccounting, out var info, Marshal.SizeOf<Accounting>(), IntPtr.Zero)) { tracked = false; continue; }
@@ -112,7 +131,7 @@ internal static class SupervisedTool
                 if (cancellationToken.IsCancellationRequested) { End(job, process, tracked); cancellationToken.ThrowIfCancellationRequested(); }
                 if (clock.Elapsed > timeout) { End(job, process, tracked); return new ToolOutcome(Exit(process), ToolEnd.TimedOut); }
                 if (stallLimit != Timeout.InfiniteTimeSpan && lastWork.Elapsed > stallLimit) { End(job, process, tracked); return new ToolOutcome(Exit(process), ToolEnd.Stalled); }
-                if (hideWindows) HideWindows(job, process, tracked, pids);
+                if (lockWindows) LockWindows(job, process, tracked, pids);
                 try { await Task.Delay(Poll, cancellationToken).ConfigureAwait(false); }
                 catch (OperationCanceledException) { End(job, process, tracked); throw; }
             }
@@ -125,6 +144,27 @@ internal static class SupervisedTool
     {
         try { process.WaitForExit(2000); return process.HasExited ? process.ExitCode : -1; }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return -1; }
+    }
+
+    /// <summary>Processor time and bytes moved so far by every running process of the named services. Anything that cannot be read counts as nothing.</summary>
+    private static (long Cpu, ulong Io) ServiceWork(string[] names)
+    {
+        long cpu = 0; ulong io = 0;
+        foreach (var name in names)
+        {
+            foreach (var process in Process.GetProcessesByName(name))
+            {
+                using (process)
+                {
+                    cpu += SafeCpu(process);
+                    var handle = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, (uint)process.Id);
+                    if (handle == IntPtr.Zero) continue;
+                    try { if (GetProcessIoCounters(handle, out var counters)) io += counters.ReadBytes + counters.WriteBytes + counters.ReadOps + counters.WriteOps; }
+                    finally { CloseHandle(handle); }
+                }
+            }
+        }
+        return (cpu, io);
     }
 
     private static long SafeCpu(Process process)
@@ -153,7 +193,7 @@ internal static class SupervisedTool
         return job;
     }
 
-    private static void HideWindows(IntPtr job, Process process, bool tracked, HashSet<uint> pids)
+    private static void LockWindows(IntPtr job, Process process, bool tracked, HashSet<uint> pids)
     {
         pids.Clear();
         if (tracked)
@@ -174,8 +214,8 @@ internal static class SupervisedTool
         EnumWindows((window, _) =>
         {
             GetWindowThreadProcessId(window, out var owner);
-            // Asynchronous, so a window that has stopped answering cannot hold up the watch.
-            if (pids.Contains(owner) && IsWindowVisible(window)) ShowWindowAsync(window, 0);
+            // Switched off again if the program turns it back on. A window that is already off costs nothing.
+            if (pids.Contains(owner) && IsWindowVisible(window) && IsWindowEnabled(window)) EnableWindow(window, false);
             return true;
         }, IntPtr.Zero);
     }
