@@ -115,7 +115,7 @@ public sealed class OperationQueueViewModel : ObservableState, IDisposable
     private void RefreshColors() { foreach (var row in Rows) row.SetLightTheme(light); }
     public void Enqueue(IEnumerable<PackageOperation> operations)
     {
-        queue.Enqueue(operations.Select(x => x with { Interactive = x.Interactive || ShowInstallerOptions && x.Fix is null && x.Manager != ManagerKind.Scoop && x.Kind != PackageOperationKind.Uninstall }));
+        queue.Enqueue(operations.Select(x => x with { Interactive = x.Interactive || ShowInstallerOptions && x.Fix is null && x.Manager == ManagerKind.Winget && x.Kind != PackageOperationKind.Uninstall }));
         Apply();
     }
     public void Cancel(QueueRow row) { queue.Cancel(row.Entry.Id); Apply(); }

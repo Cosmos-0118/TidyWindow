@@ -149,6 +149,45 @@ public sealed class PathDoctor(IPathStore store, PathBackup backup, PathAnalyzer
         return to == 0 ? $"{entry.Raw} is now searched first." : $"Moved {entry.Raw} to position {to + 1}.";
     });
 
+    /// <summary>
+    /// Makes a folder (and the folders that belong with it, such as a Python's Scripts) the first this list searches, in one change. A folder already in
+    /// the list is moved, written the way it already is; one that is not is added. A folder the other list already has is left alone: Windows reads that
+    /// list first, so a copy here would only be reported as a repeat.
+    /// </summary>
+    public PathChange UseFirst(string folder, IEnumerable<string>? companions = null)
+    {
+        folder = Tidy(folder);
+        var snapshot = Load();
+        var other = (target == PathScope.User ? snapshot.Machine : snapshot.User).Select(x => PathAnalyzer.Key(x.Folder)).ToHashSet();
+        var raw = store.Read(target);
+        var items = PathEdit.Items(raw);
+        var front = new List<string>();
+        var taken = new HashSet<string>();
+        foreach (var wanted in new[] { folder }.Concat((companions ?? []).Select(Tidy)))
+        {
+            var real = analyzer.Expand(wanted);
+            var main = front.Count == 0 && taken.Count == 0;
+            if (wanted.Length == 0 || real.Contains('%') || !Path.IsPathFullyQualified(real) || !Directory.Exists(real))
+            {
+                if (main) return new(false, "That folder does not exist.");
+                continue;
+            }
+            var key = PathAnalyzer.Key(real);
+            if (other.Contains(key))
+            {
+                if (main) return new(false, $"That folder is already in {(target == PathScope.User ? "the Windows-wide PATH" : "your PATH")}, which Windows reads first, so it cannot be moved from here.");
+                continue;
+            }
+            if (!taken.Add(key)) continue;
+            front.Add(items.FirstOrDefault(x => PathAnalyzer.Key(analyzer.Expand(x.Trim('"'))) == key) ?? wanted);
+        }
+        var rest = items.Where(x => !taken.Contains(PathAnalyzer.Key(analyzer.Expand(x.Trim('"'))))).ToList();
+        var result = PathEdit.Join(front.Concat(rest));
+        if (result == PathEdit.Join(items)) return new(false, $"{folder} is already searched first.");
+        Save($"Moved {folder} first", result, raw);
+        return new(true, $"{folder} is now searched first.");
+    }
+
     /// <summary>Adds a folder, written the way it was given: an entry typed as %LOCALAPPDATA%\Programs\x stays that way, so it follows the variable.</summary>
     public PathChange Add(string folder)
     {

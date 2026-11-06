@@ -525,7 +525,7 @@
        <Button Content="Clear finished" Click="ClearFinishedQueueClick" IsEnabled="{Binding CanClearFinished}" FontSize="12" Padding="10,7" />
       </StackPanel>
      </Grid>
-     <CheckBox Grid.Row="1" IsChecked="{Binding ShowInstallerOptions, Mode=TwoWay}" FontSize="12" ToolTipService.ToolTip="Applies to new WinGet and Chocolatey installs and updates. Opens installer options when the package supports them. Scoop uses its package scripts.">
+     <CheckBox Grid.Row="1" IsChecked="{Binding ShowInstallerOptions, Mode=TwoWay}" FontSize="12" ToolTipService.ToolTip="Applies to new WinGet installs and updates. Opens installer options when the package supports them. Chocolatey and Scoop always install silently with the package's own settings.">
       <TextBlock Text="Show installer options for new operations" TextWrapping="Wrap" />
      </CheckBox>
      <Grid Grid.Row="2">

@@ -287,6 +287,121 @@ public sealed class PathDoctorTests : IDisposable
         Assert.Equal(ToolState.Working, runs.Single(x => x.Name == "Rust (Cargo)").State);
     }
 
+    private string Python(string home, string version)
+    {
+        var folder = Folder($@"home\Python{version}");
+        File.WriteAllText(Path.Combine(folder, "python.exe"), "");
+        var scripts = Folder($@"home\Python{version}\Scripts");
+        File.WriteAllText(Path.Combine(scripts, "pip.exe"), "");
+        return folder;
+    }
+
+    [Fact]
+    public void ASecondPythonNotInPathIsListedEvenWhenAnotherPythonAlreadyRuns()
+    {
+        var home = Folder("home");
+        var new314 = Python(home, "314"); var old313 = Python(home, "313");
+        var tools = SetupAt(home).Find(Analyzer().Analyze(null, new314), command => command == "python" ? new CommandLookup("python", [new(Path.Combine(new314, "python.exe"), PathScope.User, 0, false)]) : Nothing(command));
+
+        Assert.Equal(ToolState.Working, tools.Single(x => x.Name == "Python").State);
+        var extra = tools.Single(x => x.Name == "Python (Python313)");
+        Assert.Equal(ToolState.NotInPath, extra.State);
+        Assert.Equal(old313, extra.Folder);
+        Assert.DoesNotContain(tools, x => x.Name == "Python (Python314)");
+    }
+
+    [Fact]
+    public void WhenOnlyTheOlderPythonRunsTheNewestOneIsOfferedOnceAndNotTwice()
+    {
+        var home = Folder("home");
+        var new314 = Python(home, "314"); var old313 = Python(home, "313");
+        var tools = SetupAt(home).Find(Analyzer().Analyze(null, old313), command => command == "python" ? new CommandLookup("python", [new(Path.Combine(old313, "python.exe"), PathScope.User, 0, false)]) : Nothing(command));
+        Assert.Equal(new314, Assert.Single(tools, x => x.Name.StartsWith("Python (") && x.Folder == new314).Folder);
+        Assert.DoesNotContain(tools, x => x.Folder == old313 && x.State == ToolState.NotInPath);
+
+        var neither = SetupAt(home).Find(Analyzer().Analyze(null, ""), Nothing);
+        Assert.Equal(new314, Assert.Single(neither, x => x.Name == "Python").Folder);
+        Assert.Equal(old313, Assert.Single(neither, x => x.Name == "Python (Python313)").Folder);
+    }
+
+    [Fact]
+    public void InstalledFoldersListEveryCopyOfACommandInOrOutOfPath()
+    {
+        var home = Folder("home");
+        var new314 = Python(home, "314"); var old313 = Python(home, "313");
+        Assert.Equal(new[] { new314, old313 }, SetupAt(home).InstalledFolders("python"));
+        Assert.Equal(new[] { Path.Combine(new314, "Scripts"), Path.Combine(old313, "Scripts") }, SetupAt(home).InstalledFolders("pip"));
+        Assert.Empty(SetupAt(home).InstalledFolders("nothing"));
+    }
+
+    [Fact]
+    public void CopiesInUnlistedFoldersAreReportedSeparatelyAndNeverWin()
+    {
+        var home = Folder("home");
+        var new314 = Python(home, "314"); var old313 = Python(home, "313");
+        var snapshot = Analyzer().Analyze(null, new314);
+        var resolver = new CommandResolver(File.Exists, _ => false, [".EXE"]);
+        var lookup = resolver.Find("python", snapshot, SetupAt(home).InstalledFolders("python"));
+
+        Assert.Single(lookup.Candidates);
+        Assert.Equal(Path.Combine(new314, "python.exe"), lookup.Winner!.File);
+        var unlisted = Assert.Single(lookup.NotInPath);
+        Assert.Equal(Path.Combine(old313, "python.exe"), unlisted.File);
+        Assert.True(unlisted.NotInPath);
+        Assert.False(lookup.Winner.NotInPath);
+        // Without the installed folders the answer is exactly what it always was.
+        Assert.Empty(resolver.Find("python", snapshot).NotInPath);
+    }
+
+    [Fact]
+    public void ThePythonProgramAndItsScriptsFolderTravelTogether()
+    {
+        var home = Folder("home");
+        var py = Python(home, "313");
+        Assert.Equal(new[] { Path.Combine(py, "Scripts") }, PathSetup.Companions(py, Directory.Exists));
+        Assert.Equal(new[] { py }, PathSetup.Companions(Path.Combine(py, "Scripts"), Directory.Exists));
+        Assert.Empty(PathSetup.Companions(Folder("nodejs"), Directory.Exists));
+    }
+
+    [Fact]
+    public void UseFirstAddsAFolderThatWasNeverInPathAtTheFrontWithItsScriptsInOneUndoableStep()
+    {
+        var home = Folder("home");
+        var py = Python(home, "313"); var scripts = Path.Combine(py, "Scripts");
+        var other = Folder("other");
+        store.User = other;
+        var change = Doctor().UseFirst(py, PathSetup.Companions(py, Directory.Exists));
+        Assert.True(change.Changed);
+        Assert.Equal(new[] { py, scripts, other }, store.User!.Split(';'));
+        Assert.Equal(1, broadcasts);
+        Doctor().Undo();
+        Assert.Equal(other, store.User);
+    }
+
+    [Fact]
+    public void UseFirstMovesFoldersAlreadyListedKeepingTheWayTheyWereWritten()
+    {
+        var home = Folder("home");
+        var py314 = Python(home, "314"); var py313 = Python(home, "313");
+        store.User = $"{py314};{Path.Combine(py314, "Scripts")};{py313.ToUpperInvariant()}\\;{Path.Combine(py313, "Scripts")}";
+        var change = Doctor().UseFirst(py313, PathSetup.Companions(py313, Directory.Exists));
+        Assert.True(change.Changed);
+        Assert.Equal(new[] { py313.ToUpperInvariant() + "\\", Path.Combine(py313, "Scripts"), py314, Path.Combine(py314, "Scripts") }, store.User!.Split(';'));
+        Assert.False(Doctor().UseFirst(py313, PathSetup.Companions(py313, Directory.Exists)).Changed);
+    }
+
+    [Fact]
+    public void UseFirstRefusesAFolderTheWindowsWideListAlreadyHasAndAMissingOne()
+    {
+        var shared = Folder("shared"); var other = Folder("other");
+        store.Machine = shared; store.User = other;
+        var change = Doctor().UseFirst(shared);
+        Assert.False(change.Changed);
+        Assert.Equal(other, store.User);
+        Assert.False(Doctor().UseFirst(Folder("gone", create: false)).Changed);
+        Assert.Equal(0, broadcasts);
+    }
+
     [Fact]
     public void VersionedFoldersAreExpandedAndTheNewestWins()
     {

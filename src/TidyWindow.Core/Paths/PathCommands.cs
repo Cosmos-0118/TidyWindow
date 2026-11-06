@@ -4,11 +4,17 @@ using System.Diagnostics;
 namespace TidyWindow.Next.Core;
 
 /// <summary>One program file a command name could mean, in the order Windows would find it.</summary>
-public sealed record CommandCandidate(string File, PathScope Scope, int Index, bool Alias);
+public sealed record CommandCandidate(string File, PathScope Scope, int Index, bool Alias)
+{
+    /// <summary>The copy sits in a folder that is not in PATH (its <see cref="Index"/> is -1), so typing the command never reaches it.</summary>
+    public bool NotInPath => Index < 0;
+}
 
-public sealed record CommandLookup(string Command, IReadOnlyList<CommandCandidate> Candidates)
+/// <param name="Unlisted">Copies installed in a well-known folder that is not in PATH. They never run by name, so they are not part of <paramref name="Candidates"/> and can never be the winner.</param>
+public sealed record CommandLookup(string Command, IReadOnlyList<CommandCandidate> Candidates, IReadOnlyList<CommandCandidate>? Unlisted = null)
 {
     public CommandCandidate? Winner => Candidates.Count > 0 ? Candidates[0] : null;
+    public IReadOnlyList<CommandCandidate> NotInPath => Unlisted ?? [];
 }
 
 /// <summary>
@@ -23,7 +29,8 @@ public sealed class CommandResolver(Func<string, bool> fileExists, Func<string, 
     public static IReadOnlyList<string> DefaultExtensions() =>
         (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    public CommandLookup Find(string command, PathSnapshot snapshot)
+    /// <param name="installedFolders">Folders the tool is known to be installed in, whether or not they are in PATH. Copies in the ones that are not come back as <see cref="CommandLookup.Unlisted"/>.</param>
+    public CommandLookup Find(string command, PathSnapshot snapshot, IEnumerable<string>? installedFolders = null)
     {
         command = command.Trim();
         string[] names = command.Length == 0 ? Array.Empty<string>() : Path.HasExtension(command) && extensions.Contains(Path.GetExtension(command), StringComparer.OrdinalIgnoreCase)
@@ -41,7 +48,16 @@ public sealed class CommandResolver(Func<string, bool> fileExists, Func<string, 
                 found.Add(new CommandCandidate(file, entry.Scope, entry.Index, isAlias(file)));
             }
         }
-        return new(command, found);
+        if (installedFolders is null) return new(command, found);
+        var listed = snapshot.Search.Select(x => PathAnalyzer.Key(x.Folder)).ToHashSet();
+        var unlisted = new List<CommandCandidate>();
+        foreach (var folder in installedFolders.Where(x => listed.Add(PathAnalyzer.Key(x))))
+            foreach (var name in names)
+            {
+                var file = Path.Combine(folder, name);
+                if (seen.Add(file) && fileExists(file)) unlisted.Add(new CommandCandidate(file, PathScope.User, -1, false));
+            }
+        return new(command, found, unlisted);
     }
 }
 
@@ -53,6 +69,13 @@ public enum ProgramKind { Unknown, Console, Windowed, Script }
 
 public static class ProgramFile
 {
+    /// <summary>The version a program file says it has, read from the file itself. Nothing is started, which is why it is used for copies in folders any account may create.</summary>
+    public static string ProductVersion(string file)
+    {
+        try { return FileVersionInfo.GetVersionInfo(file).ProductVersion?.Trim() ?? ""; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return ""; }
+    }
+
     /// <summary>
     /// Reads a program's kind from its file header: a console program, a windowed one, a script, or something that is none of these. The
     /// header, not the name, decides: whether a program takes a terminal or opens a window is written there by whoever built it.
