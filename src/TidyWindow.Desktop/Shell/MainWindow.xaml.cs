@@ -629,7 +629,8 @@ public sealed partial class MainWindow : Window
     private void PathsClick(object sender, RoutedEventArgs e)
     {
         ShowPage(Page.Paths);
-        if (!paths.Loaded && !paths.Busy) _ = paths.RefreshAsync();
+        // Also after a package was installed, updated or removed: a new Python or Node is on the disk, and may not be in PATH.
+        if ((!paths.Loaded || paths.NeedsRefresh) && !paths.Busy) _ = paths.RefreshAsync();
     }
 
     private void RepairClick(object sender, RoutedEventArgs e)
@@ -961,7 +962,7 @@ public sealed partial class MainWindow : Window
         if (operationQueue.HasWork || operationQueue.Snapshot.Completions <= reconciledCompletions) return;
         reconciledCompletions = operationQueue.Snapshot.Completions;
         // Quietly: the person may already be queueing the next job, so nothing is covered or locked while this catches up.
-        try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); await terminal.RefreshAsync(); if (page == Page.Installed) await installations.RefreshAsync(); }
+        try { await RefreshScoutBackendAsync(); await Refresh(quiet: true); await terminal.RefreshAsync(); if (page == Page.Installed) await installations.RefreshAsync(); await paths.PackagesChangedAsync(page == Page.Paths); }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.Install, "Package status could not refresh after the queue finished", ex.Message); }
     }
     private void UninstallInstalledClick(object sender, RoutedEventArgs e) => Run(async () =>

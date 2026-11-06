@@ -188,7 +188,9 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             ManagerKind.Chocolatey => ["install", package.Id, "--yes", "--no-progress", "--source=https://community.chocolatey.org/api/v2/"],
             _ => ["install", package.Id]
         };
-        if (interactive && package.Manager != ManagerKind.Scoop) args = [.. args, package.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
+        // Only WinGet can show its installer without losing the package's own switches. Chocolatey's --not-silent replaces every silent argument the package
+        // sets (InstallAllUsers=1, TargetDir=... for Python) with an empty string, and the installer window it opens is easily lost behind other windows.
+        if (interactive && package.Manager == ManagerKind.Winget) args = [.. args, "--interactive"];
         return BuildCommand(package.Manager, manager.Executable, args, OperationTimeout) with { Elevate = package.Manager == ManagerKind.Chocolatey, MayShowInstaller = true };
     }
 

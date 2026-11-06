@@ -139,7 +139,8 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             ManagerKind.Chocolatey => [uninstall ? "uninstall" : "upgrade", app.Id, "--yes", "--no-progress"],
             _ => app.Global ? [uninstall ? "uninstall" : "update", app.Id, "--global"] : [uninstall ? "uninstall" : "update", app.Id]
         };
-        if (interactive && !uninstall && app.Manager != ManagerKind.Scoop) args = [.. args, app.Manager == ManagerKind.Winget ? "--interactive" : "--not-silent"];
+        // WinGet only: Chocolatey's --not-silent wipes the package's own installer arguments (see PackageService.InstallCommand).
+        if (interactive && !uninstall && app.Manager == ManagerKind.Winget) args = [.. args, "--interactive"];
         return packages.BuildCommand(app.Manager, manager.Executable, args, PackageService.OperationTimeout) with
         { Elevate = app.Manager == ManagerKind.Chocolatey || app.Manager == ManagerKind.Scoop && app.Global, MayShowInstaller = true };
     }

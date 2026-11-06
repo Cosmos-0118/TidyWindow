@@ -186,6 +186,9 @@
                    <Border Style="{StaticResource Chip}" Visibility="{Binding HiddenVisibility}" Background="{ThemeResource BadgeBrush}" HorizontalAlignment="Left" ToolTipService.ToolTip="Hidden by the copy above it, so it never runs.">
                     <TextBlock Text="Hidden" Style="{StaticResource ChipText}" Foreground="{ThemeResource MutedBrush}" />
                    </Border>
+                   <Border Style="{StaticResource Chip}" Visibility="{Binding NotInPathVisibility}" Background="{ThemeResource WarnSoftBrush}" HorizontalAlignment="Left" ToolTipService.ToolTip="Installed here, but this folder is not in PATH, so typing the command cannot reach it. Run this one adds the folder.">
+                    <TextBlock Text="Not in PATH" Style="{StaticResource ChipText}" Foreground="{ThemeResource WarnBrush}" />
+                   </Border>
                    <Border Style="{StaticResource Chip}" Visibility="{Binding StoreLinkVisibility}" Background="{ThemeResource WarnSoftBrush}" HorizontalAlignment="Left" ToolTipService.ToolTip="This only opens the Microsoft Store. Nothing is installed.">
                     <TextBlock Text="Store link" Style="{StaticResource ChipText}" Foreground="{ThemeResource WarnBrush}" />
                    </Border>

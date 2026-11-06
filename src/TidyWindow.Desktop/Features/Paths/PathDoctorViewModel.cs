@@ -22,9 +22,9 @@ public sealed class PathRow(PathEntry entry, int count, bool editable) : Observa
     public string AutomationName => $"{Entry.Raw}, position {Entry.Index + 1}";
 }
 
-public sealed class CandidateRow(CommandCandidate candidate, bool wins, bool canMakeFirst, PathEntry? entry) : ObservableState
+public sealed class CandidateRow(CommandCandidate candidate, bool wins, bool canMakeFirst, PathEntry? entry, string? knownVersion = null) : ObservableState
 {
-    private string version = "Checking…";
+    private string version = knownVersion ?? "Checking…";
     private bool stub;
     public CommandCandidate Candidate { get; } = candidate;
     public PathEntry? Entry { get; } = entry;
@@ -33,7 +33,9 @@ public sealed class CandidateRow(CommandCandidate candidate, bool wins, bool can
     public bool Stub => stub;
         public double Emphasis => wins ? 1 : 0.7;
     public Visibility RunsVisibility => wins && !stub ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility HiddenVisibility => !wins && !stub ? Visibility.Visible : Visibility.Collapsed;
+    public bool NotInPath => Candidate.NotInPath;
+    public Visibility HiddenVisibility => !wins && !stub && !NotInPath ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility NotInPathVisibility => NotInPath ? Visibility.Visible : Visibility.Collapsed;
     public Visibility StoreLinkVisibility => stub ? Visibility.Visible : Visibility.Collapsed;
     public string Version { get => version; private set => Set(ref version, value); }
     // A Store placeholder is never worth moving to the front.
@@ -70,7 +72,7 @@ public sealed class CommandRow : ObservableState
     public string Name => Lookup.Command;
     public IReadOnlyList<CandidateRow> Candidates { get; }
     public CandidateRow? Winner => Candidates.Count > 0 ? Candidates[0] : null;
-    public string Headline => Winner is null ? "Not found in PATH" : Candidates.Count == 1 ? "1 copy" : $"{Candidates.Count} copies";
+    public string Headline => Winner is null ? "Not found in PATH" : (Candidates.Count == 1 ? "1 copy" : $"{Candidates.Count} copies") + (Candidates.Count(x => x.NotInPath) is var off and > 0 ? $" ({off} not in PATH)" : "");
     public bool Expandable => Candidates.Count > 1;
     public bool IsOpen => open;
     public string PathText => Winner?.File ?? "Not found in PATH";
@@ -170,19 +172,22 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     {
         if (lifetime.IsCancellationRequested) return;
         var current = ++generation;
+        NeedsRefresh = false;
         busy = true; scanning = true; Notify();
         try
         {
             // Everything that touches the disk or the registry happens here, so the window only has to build rows afterwards.
             var names = CommandResolver.Common.Concat(custom).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var (state, lookups, notes, fix, tools, backup, machineBackup) = await Task.Run(() =>
+            var (state, lookups, notes, fix, tools, backup, machineBackup, versions) = await Task.Run(() =>
             {
                 var s = doctor.Load();
-                var found = names.Select(n => resolver.Find(n, s)).ToList();
+                var found = names.Select(n => resolver.Find(n, s, setup.InstalledFolders(n))).ToList();
+                // Copies outside PATH are never started to ask their version (the folders they sit in are ones any account may create); the file says it.
+                var unlistedVersions = found.SelectMany(x => x.NotInPath).ToDictionary(x => x.File, x => ProgramFile.ProductVersion(x.File), StringComparer.OrdinalIgnoreCase);
                 var javaLookup = found.First(x => x.Command == "java");
                 var java = PathAdvice.JavaHome(doctor.Variable("JAVA_HOME"), javaLookup, Directory.Exists);
                 var fix = java.Count > 0 ? PathAdvice.JavaHomeFix(javaLookup, File.Exists) : null;
-                return (s, found, java, fix, setup.Find(s, n => resolver.Find(n, s)), doctor.LastBackup, machineDoctor.LastBackup);
+                return (s, found, java, fix, setup.Find(s, n => resolver.Find(n, s)), doctor.LastBackup, machineDoctor.LastBackup, unlistedVersions);
             }, lifetime.Token);
             if (current != generation) return;
             snapshot = state;
@@ -212,6 +217,9 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
                 var winnerMovable = lookup.Winner.Scope == PathScope.User;
                 var rows = lookup.Candidates.Take(6).Select((c, i) => new CandidateRow(c, i == 0, winnerMovable && c.Scope == PathScope.User, c.Scope == PathScope.User && c.Index < state.User.Count ? state.User[c.Index] : null)).ToList();
                 all.AddRange(rows);
+                // Installed but not in PATH, so Windows cannot see them. They can still be made the one that runs, which adds their folder.
+                rows.AddRange(lookup.NotInPath.Take(4).Select(c => new CandidateRow(c, false, winnerMovable, null,
+                    versions.GetValueOrDefault(c.File) is { Length: > 0 } v ? "Version " + v + ", not started because it is not in PATH" : "Version unknown, not started because it is not in PATH")));
                 Commands.Add(new CommandRow(lookup, rows, opened.Contains(lookup.Command), Remember));
             }
             MissingCommands = missing.Count == 0 ? "" : "Not installed or not in PATH: " + string.Join(", ", missing) + ". The Add tools tab can fix this when they are installed.";
@@ -323,12 +331,34 @@ public sealed class PathDoctorViewModel(PathDoctor doctor, PathDoctor machineDoc
     }
     public async Task RemoveAsync(PathRow row) => await ApplyAsync(() => For(row).Remove(row.Entry), undo: UndoFor(row));
     public async Task MoveAsync(PathRow row, int delta) => await ApplyAsync(() => For(row).Move(row.Entry, row.Entry.Index + delta), undo: UndoFor(row));
-    public async Task MakeFirstAsync(CandidateRow row) { if (row.Entry is { } entry) await ApplyAsync(() => doctor.Move(entry, 0)); }
-    public async Task AddToolAsync(ToolRow row) => await ApplyAsync(() => doctor.AddMany([row.Folder]));
+    /// <summary>Makes this copy the one a terminal runs. Its folder is added first when it is not in PATH yet, and its companion folder (a Python's Scripts) goes with it so python and pip stay on the same version.</summary>
+    public async Task MakeFirstAsync(CandidateRow row)
+    {
+        if (Path.GetDirectoryName(row.File) is not { Length: > 0 } folder) return;
+        await ApplyAsync(() => doctor.UseFirst(folder, PathSetup.Companions(folder, Directory.Exists)));
+    }
+    public async Task AddToolAsync(ToolRow row) => await ApplyAsync(() => doctor.AddMany(WithCompanions([row.Folder])));
     public async Task AddAllToolsAsync()
     {
         var folders = Tools.Where(x => x.Setup.State == ToolState.NotInPath).Select(x => x.Folder).ToList();
-        await ApplyAsync(() => doctor.AddMany(folders));
+        await ApplyAsync(() => doctor.AddMany(WithCompanions(folders)));
+    }
+
+    private static List<string> WithCompanions(IEnumerable<string> folders) => folders.SelectMany(x => new[] { x }.Concat(PathSetup.Companions(x, Directory.Exists))).ToList();
+
+    /// <summary>
+    /// True when something that can change which programs exist (a package install, update or removal) finished since the page last read PATH.
+    /// The page is read again the next time it is opened, or at once when it is the page on screen.
+    /// </summary>
+    public bool NeedsRefresh { get; private set; }
+
+    /// <param name="visible">Path Doctor is the page the person is looking at, so it is read now rather than on the next visit.</param>
+    public Task PackagesChangedAsync(bool visible)
+    {
+        if (!loaded) return Task.CompletedTask;
+        if (!visible || busy) { NeedsRefresh = true; return Task.CompletedTask; }
+        NeedsRefresh = false;
+        return RefreshAsync();
     }
     public async Task UndoAsync() => await ApplyAsync(() => doctor.Undo(), offerUndo: false);
     public void OpenSettings() => openAliasSettings();

@@ -105,18 +105,27 @@ public sealed class LiveOutputTests
         Assert.Equal(2, queue.Snapshot().Completions);
     }
 
-    [Theory]
-    [InlineData(ManagerKind.Winget, "--interactive")]
-    [InlineData(ManagerKind.Chocolatey, "--not-silent")]
-    public void InstallerOptionsUseTheManagersSupportedInteractiveFlags(ManagerKind kind, string flag)
+    [Fact]
+    public void WingetInstallerOptionsUseItsInteractiveFlag()
     {
         var locator = new Locator(); var runner = new Runner(); var packages = new PackageService(runner, locator);
-        var status = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == kind), ManagerHealth.Ready, "1", "manager.exe", "Ready");
-        var install = packages.InstallCommand(status, new(kind, "Vendor.App", "App", "1", "source"), interactive: true);
-        var update = new InstallationService(packages, runner, locator).ActionCommand(status, new(kind, "Vendor.App", "App", "1", "2"), PackageAction.Update, interactive: true);
-        Assert.Contains(flag, install.Arguments); Assert.Contains(flag, update.Arguments);
+        var status = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == ManagerKind.Winget), ManagerHealth.Ready, "1", "manager.exe", "Ready");
+        var install = packages.InstallCommand(status, new(ManagerKind.Winget, "Vendor.App", "App", "1", "source"), interactive: true);
+        var update = new InstallationService(packages, runner, locator).ActionCommand(status, new(ManagerKind.Winget, "Vendor.App", "App", "1", "2"), PackageAction.Update, interactive: true);
+        Assert.Contains("--interactive", install.Arguments); Assert.Contains("--interactive", update.Arguments);
         Assert.True(install.MayShowInstaller); Assert.True(update.MayShowInstaller);
         Assert.Equal(TimeSpan.FromHours(2), install.Timeout);
+    }
+
+    [Fact]
+    public void ChocolateyNeverGetsNotSilentBecauseItErasesThePackagesOwnInstallerArguments()
+    {
+        var locator = new Locator(); var runner = new Runner(); var packages = new PackageService(runner, locator);
+        var status = new ManagerStatus(ManagerDefinition.All.Single(x => x.Kind == ManagerKind.Chocolatey), ManagerHealth.Ready, "1", "manager.exe", "Ready");
+        var install = packages.InstallCommand(status, new(ManagerKind.Chocolatey, "python313", "Python", "1", "source"), interactive: true);
+        var update = new InstallationService(packages, runner, locator).ActionCommand(status, new(ManagerKind.Chocolatey, "python313", "Python", "1", "2"), PackageAction.Update, interactive: true);
+        Assert.DoesNotContain("--not-silent", install.Arguments); Assert.DoesNotContain("--not-silent", update.Arguments);
+        Assert.DoesNotContain("--interactive", install.Arguments); Assert.DoesNotContain("--interactive", update.Arguments);
     }
 
     [Fact]
@@ -130,7 +139,7 @@ public sealed class LiveOutputTests
         var entry = Assert.Single(queue.Snapshot().Entries);
         Assert.Contains("live install output", entry.Output);
         Assert.Equal(ActionOutcome.Completed, entry.Result!.Outcome);
-        Assert.Contains("--not-silent", runner.Install!.Arguments);
+        Assert.DoesNotContain("--not-silent", runner.Install!.Arguments);
     }
 
     private static CommandSpec PowerShell(string script) => new(new ExecutableLocator().PowerShell,
