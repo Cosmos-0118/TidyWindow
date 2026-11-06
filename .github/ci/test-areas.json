@@ -1,0 +1,68 @@
+{
+  "$comment": [
+    "Read by scripts/ci/plan.ps1, which decides what the CI workflow runs for a change. Edit this file when an area gains or loses a dependency, a test folder is added, or a group gets too slow.",
+    "A change the rules below do not recognise runs everything, so a missing rule makes CI slower, never blind.",
+    "Paths are globs from the repository root: * stays inside a folder, ** crosses folders."
+  ],
+
+  "ignore": [
+    "docs/**",
+    "tools/**",
+    "**/*.md",
+    "LICENSE",
+    ".gitignore",
+    ".github/dependabot.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/release.yml",
+    "scripts/live-repair-check.ps1"
+  ],
+
+  "everything": [
+    ".github/workflows/ci.yml",
+    ".github/ci/**",
+    "scripts/ci/**",
+    "global.json",
+    "Directory.Build.props",
+    "TidyWindow.slnx",
+    "**/*.csproj",
+    "**/packages.lock.json",
+    "tests/TidyWindow.Tests/xunit.runner.json"
+  ],
+
+  "installer": [
+    "installer/**"
+  ],
+
+  "buildOnly": [
+    "tests/TidyWindow.UiSmoke/**"
+  ],
+
+  "groups": {
+    "packages": ["Packages"],
+    "repair": ["Repair", "Icons"],
+    "system": ["Startup", "Background", "Lab", "Unstick", "Tune"],
+    "files": ["Cleanup", "Scout", "Paths", "Debloat"],
+    "app": ["Infrastructure", "Crashes", "Terminal", "Updates", "Desktop", "Fixes"]
+  },
+
+  "areas": {
+    "Background": { "dependsOn": ["Infrastructure"] },
+    "Cleanup": { "source": ["src/TidyWindow.Core/Cleanup/**", "src/TidyWindow.CleanHost/**"], "dependsOn": ["Infrastructure", "Crashes"] },
+    "Crashes": { "dependsOn": [] },
+    "Debloat": { "dependsOn": ["Infrastructure", "Packages", "Repair", "Startup"] },
+    "Desktop": { "source": ["src/TidyWindow.Desktop/**"], "dependsOn": ["Infrastructure"] },
+    "Fixes": { "dependsOn": ["Infrastructure", "Packages", "Tune"] },
+    "Icons": { "dependsOn": ["Repair", "Startup"] },
+    "Infrastructure": { "dependsOn": ["Packages", "Debloat"] },
+    "Lab": { "dependsOn": ["Fixes"] },
+    "Packages": { "dependsOn": ["Infrastructure", "Fixes", "Icons", "Paths", "Repair"], "testsUse": ["Infrastructure", "Repair"] },
+    "Paths": { "dependsOn": ["Infrastructure"] },
+    "Repair": { "dependsOn": ["Infrastructure", "Packages", "Fixes", "Icons", "Startup", "Scout"], "testsUse": ["Infrastructure"] },
+    "Scout": { "source": ["src/TidyWindow.Core/Scout/**", "src/TidyWindow.SearchHost/**"], "dependsOn": ["Packages", "Repair"] },
+    "Startup": { "dependsOn": ["Infrastructure", "Packages", "Icons", "Repair", "Cleanup"] },
+    "Terminal": { "dependsOn": ["Packages"] },
+    "Tune": { "dependsOn": ["Infrastructure"] },
+    "Unstick": { "dependsOn": ["Cleanup", "Fixes", "Lab", "Packages", "Paths", "Tune"] },
+    "Updates": { "dependsOn": [] }
+  }
+}

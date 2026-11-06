@@ -14,12 +14,50 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# What runs depends on what changed. The `plan` job reads .github/ci/test-areas.json (through scripts/ci/plan.ps1) and decides:
+#   - build:     the whole solution, whenever code changed
+#   - tests:     only the test groups whose area changed, or that use an area that changed
+#   - installer: only when something that ships changed
+# A push to main and a manual run have no change list, so they run everything: that is the check that catches what a pull request's narrower run could miss.
+# Add a repository rule that requires the "CI result" job, not the individual jobs, because jobs that were not needed are skipped and a skipped job is not a pass.
+#
 # Actions are pinned to full commit SHAs, with the version they came from in the comment, so a moved tag cannot change what runs here.
 # Dependabot (.github/dependabot.yml) moves the SHA and the comment together.
 jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      installer: ${{ steps.plan.outputs.installer }}
+      tests: ${{ steps.plan.outputs.tests }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pull request's changed files come from a diff against its base, so the history is needed.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Decide what to run
+        id: plan
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ($env:EVENT -eq 'pull_request') { ./scripts/ci/plan.ps1 -Base $env:BASE -Head $env:HEAD }
+          else { ./scripts/ci/plan.ps1 -Everything }
+
   build:
+    name: Build
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -33,19 +71,50 @@ jobs:
         run: dotnet restore TidyWindow.slnx --locked-mode
       - name: Build
         run: dotnet build TidyWindow.slnx -c Release --no-restore
-      - name: Test
+
+  test:
+    name: Tests (${{ matrix.name }})
+    needs: plan
+    if: needs.plan.outputs.tests == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      # A failing group must not hide the others: each group is a separate answer.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Restore locked dependencies
+        run: dotnet restore tests/TidyWindow.Tests/TidyWindow.Tests.csproj --locked-mode
+      - name: Build tests
+        run: dotnet build tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-restore
+      - name: Test (${{ matrix.areas }})
+        shell: pwsh
+        env:
+          # The filter comes from the plan, through the environment rather than the command text.
+          TEST_FILTER: ${{ matrix.filter }}
         # A test that hangs is named after five minutes (with a small dump of the test host) instead of the job timing out in silence.
-        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type mini --logger trx --results-directory artifacts/TestResults
+        run: dotnet test tests/TidyWindow.Tests/TidyWindow.Tests.csproj -c Release --no-build --filter $env:TEST_FILTER --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type mini --logger trx --results-directory artifacts/TestResults
       - name: Keep the test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: TestResults
+          name: TestResults-${{ matrix.name }}
           path: artifacts/TestResults
           if-no-files-found: ignore
           retention-days: 7
 
   installer:
+    name: Installer
+    needs: plan
+    if: needs.plan.outputs.installer == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
@@ -78,3 +147,24 @@ jobs:
           name: TidyWindow-Setup-test
           path: artifacts/TidyWindow-Setup-0.0.0.exe
           retention-days: 3
+
+  # The one job to require. It passes when every job that was needed passed, and when a job was skipped because nothing it covers changed.
+  result:
+    name: CI result
+    needs: [plan, build, test, installer]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check the jobs that ran
+        shell: pwsh
+        env:
+          RESULTS: ${{ toJson(needs) }}
+        run: |
+          $needs = $env:RESULTS | ConvertFrom-Json -AsHashtable
+          $bad = foreach ($job in $needs.Keys) { if ($needs[$job].result -notin 'success', 'skipped') { "$job`: $($needs[$job].result)" } }
+          # Nothing else can have been skipped unless the plan itself failed, and then nothing ran at all.
+          if ($needs.plan.result -ne 'success') { $bad = @($bad) + 'plan did not succeed' }
+          if ($bad) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          $needs.Keys | Sort-Object | ForEach-Object { Write-Host ("{0,-10} {1}" -f $_, $needs[$_].result) }
