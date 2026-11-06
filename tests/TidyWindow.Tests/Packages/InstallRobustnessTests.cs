@@ -60,7 +60,19 @@ public sealed class InstallRobustnessTests
     public void OrdinaryFailuresAndSuccessDoNotNeedAdministrator()
     {
         Assert.False(InstallFailure.NeedsAdministrator(new(-1978335226, "Installer failed with exit code: 1603", "")));
-        Assert.False(InstallFailure.NeedsAdministrator(new(0, StoreAdminOutput, "")));
+        Assert.False(InstallFailure.NeedsAdministrator(new(0, "Successfully installed. Some settings need administrator privileges required by the app.", "")));
+        Assert.False(InstallFailure.NeedsAdministrator(new(0, "Starting package install...\nSuccessfully installed.", "")));
+    }
+
+    [Fact]
+    public async Task WinGetThatExitsZeroAfterTheAdministratorErrorStillGetsTheElevatedRetry()
+    {
+        // Seen with OpenAI.ChatGPT: the line says the installer failed, but WinGet's own exit code is 0.
+        Assert.True(InstallFailure.NeedsAdministrator(new(0, StoreAdminOutput, "")));
+        var runs = new List<CommandSpec>();
+        var runner = new ScriptedRunner(command => { runs.Add(command); return command.Elevate ? new(0, "", "") : new(0, StoreAdminOutput, ""); });
+        await InstallFailure.RunAsync(runner, new("winget", ["upgrade"], TimeSpan.FromMinutes(1)), "ChatGPT", CancellationToken.None, new Locator());
+        Assert.Equal([false, true], runs.Select(x => x.Elevate));
     }
 
     [Fact]

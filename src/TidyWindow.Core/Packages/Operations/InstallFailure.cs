@@ -96,11 +96,17 @@ public static partial class InstallFailure
     /// </summary>
     public static bool NeedsAdministrator(CommandResult result)
     {
-        if (result.ExitCode == 0) return false;
+        var text = PackageOutputParser.Clean(result.Output + "\n" + result.Error);
+        // WinGet can exit 0 after printing "Installer failed with exit code: 0x80073d28" (it does for some Store packages). Only that exact line is trusted
+        // when the exit code says success, so a successful run that merely mentions administrators is never run a second time.
+        if (result.ExitCode == 0) return InstallerFailedForAdministrator().IsMatch(text);
         // WinGet's own code for "this command needs administrator rights" does not depend on the language it speaks; the words below only cover what an installer printed in English.
         if (unchecked((uint)result.ExitCode) == 0x8A150019) return true;
-        return AdministratorRequired().IsMatch(PackageOutputParser.Clean(result.Output + "\n" + result.Error));
+        return AdministratorRequired().IsMatch(text);
     }
+
+    [GeneratedRegex(@"(?:Installer|Uninstall) failed with exit code: 0x80073d28", RegexOptions.IgnoreCase)]
+    private static partial Regex InstallerFailedForAdministrator();
 
     /// <summary>
     /// Runs a WinGet command. If the installer says it needs administrator rights, tells the person and runs it once more through the Windows permission prompt, with the program
