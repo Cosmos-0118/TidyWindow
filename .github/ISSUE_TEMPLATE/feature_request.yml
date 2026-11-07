@@ -1,0 +1,72 @@
+name: Feature request
+description: Suggest a new feature or an improvement to an existing tool.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. To propose a new Tune, Quiet, Cleanup, Debloat or Fixes entry, use the **Catalog change** form instead.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of TidyWindow is this about?
+      options:
+        - Overview
+        - Install Hub, Installed or Queue
+        - Scout
+        - Cleanup
+        - Path Doctor
+        - Repair
+        - Startup
+        - Quiet
+        - Tune
+        - Debloat
+        - Fixes
+        - Unstick
+        - Lab
+        - Crashes
+        - Logs
+        - Settings or updates
+        - A new tool
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you are trying to do and what gets in the way today.
+      placeholder: When I ... I have to ..., which is slow because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+      description: Describe how you picture it working in TidyWindow.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have tried
+      description: Other tools, workarounds or approaches, and why they fall short.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Links, screenshots or mock-ups.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been suggested.
+          required: true

@@ -1,0 +1,77 @@
+name: Catalog change
+description: Propose adding, changing or removing a Tune, Quiet, Cleanup, Debloat or Fixes entry.
+title: "[Catalog]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cleanup, Quiet, Tune, Debloat and Fixes only act on reviewed catalog entries, and each entry has to be tied to documented Windows behavior.
+        Settings with no evidence behind them, such as common "registry boosters", are left out on purpose. The research notes in [`docs/`](https://github.com/Cosmos-0118/TidyWindow/tree/main/docs) explain what is already covered and what was rejected.
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which tool?
+      options:
+        - Tune
+        - Quiet
+        - Cleanup
+        - Debloat
+        - Fixes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: change
+    attributes:
+      label: What kind of change?
+      options:
+        - Add a new entry
+        - Change an existing entry
+        - Remove an entry
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What does the entry do?
+      description: The exact registry value, service, scheduled task, app package, folder or command, and the Windows versions it applies to.
+      placeholder: |
+        HKCU\Software\...\ValueName = 0 (REG_DWORD)
+        Windows 10 22H2 and Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why should TidyWindow include it?
+      description: The benefit to the user, in plain words.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Links to Microsoft documentation or other reliable sources that show what this does. Proposals without a source cannot be accepted.
+    validations:
+      required: true
+
+  - type: textarea
+    id: undo
+    attributes:
+      label: Side effects and undo
+      description: What could break, whether it needs a restart or administrator rights, and how the original state is restored.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the matching research note in `docs/` and this entry is not already covered or rejected there.
+          required: true

@@ -1,0 +1,138 @@
+name: Bug report
+description: Something in TidyWindow does not work as it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Security problems:** do not report them here. Follow the [security policy](https://github.com/Cosmos-0118/TidyWindow/security/policy) instead.
+
+        Please search [existing issues](https://github.com/Cosmos-0118/TidyWindow/issues?q=is%3Aissue) first. TidyWindow 4.x (the `legacy` branch) is no longer developed, so reports for it will be closed.
+
+  - type: input
+    id: version
+    attributes:
+      label: TidyWindow version
+      description: Shown in Settings → Current version.
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: How did you install it?
+      options:
+        - Installer, for all users (default)
+        - Installer, for the current user only
+        - Portable ZIP
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and build
+      description: Run `winver` to see it.
+      placeholder: "Windows 11 24H2, build 26100.2314"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did it happen?
+      options:
+        - Overview
+        - Install Hub
+        - Installed
+        - Queue
+        - Scout
+        - Cleanup
+        - Path Doctor
+        - Repair
+        - Startup
+        - Quiet
+        - Tune
+        - Debloat
+        - Fixes
+        - Unstick
+        - Lab
+        - Crashes
+        - Logs
+        - Settings or updates
+        - Installing, starting or uninstalling TidyWindow
+        - Somewhere else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem is it?
+      options:
+        - Wrong result or error
+        - Crash or freeze
+        - A change could not be undone
+        - Display or layout
+        - Accessibility (keyboard, screen reader, high contrast, text size)
+        - Performance
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, step by step, starting from opening the page.
+      placeholder: |
+        1. Open Install Hub
+        2. Search for "powertoys"
+        3. Select the WinGet result and click Install
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include the exact error text if there was one. Screenshots help; drag them into this box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: |
+        Logs are in `%LOCALAPPDATA%\TidyWindow.Next\Logs`, and the Logs page shows the recent ones.
+        **Read them before pasting.** The account name is replaced by `%USERPROFILE%`, but package names, other local paths and, for a crash, the stack trace can still appear.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Package managers you have installed, security software, whether it happens every time, and so on.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been reported.
+          required: true
+        - label: I removed anything I do not want to be public from the logs and screenshots.
+          required: true

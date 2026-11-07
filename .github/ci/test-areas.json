@@ -12,6 +12,7 @@
     "LICENSE",
     ".gitignore",
     ".github/dependabot.yml",
+    ".github/ISSUE_TEMPLATE/**",
     ".github/workflows/codeql.yml",
     ".github/workflows/release.yml",
     "scripts/live-repair-check.ps1"
