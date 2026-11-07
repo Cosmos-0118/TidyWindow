@@ -1,0 +1,25 @@
+<UserControl x:Class="TidyWindow.Next.Desktop.RangeBar"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ IsTabStop="False" HorizontalContentAlignment="Stretch" AutomationProperties.AccessibilityView="Raw">
+ <!-- Two thin tracks, one for each check. A band is where that check's rounds fell, and the tick is the middle result. Bands that overlap mean the
+      two checks cannot be told apart, which is what the page says in words too. -->
+ <Grid RowSpacing="7" ColumnSpacing="10">
+  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+  <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+
+  <TextBlock x:Name="BeforeLabel" Text="Before" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+  <Grid x:Name="BeforeTrack" Grid.Column="1" Height="8" VerticalAlignment="Center" SizeChanged="TrackResized">
+   <Border Background="{ThemeResource BadgeBrush}" CornerRadius="4" />
+   <Border x:Name="BeforeBand" Height="8" CornerRadius="4" HorizontalAlignment="Left" Background="{ThemeResource MutedBrush}" Opacity="0.5" />
+   <Border x:Name="BeforeMid" Width="2" Height="12" HorizontalAlignment="Left" Background="{ThemeResource MutedBrush}" />
+  </Grid>
+
+  <TextBlock x:Name="AfterLabel" Grid.Row="1" Text="Now" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+  <Grid x:Name="AfterTrack" Grid.Row="1" Grid.Column="1" Height="8" VerticalAlignment="Center" SizeChanged="TrackResized">
+   <Border Background="{ThemeResource BadgeBrush}" CornerRadius="4" />
+   <Border x:Name="AfterBand" Height="8" CornerRadius="4" HorizontalAlignment="Left" Background="{ThemeResource TextFillColorPrimaryBrush}" Opacity="0.55" />
+   <Border x:Name="AfterMid" Width="2" Height="12" HorizontalAlignment="Left" Background="{ThemeResource TextFillColorPrimaryBrush}" />
+  </Grid>
+ </Grid>
+</UserControl>

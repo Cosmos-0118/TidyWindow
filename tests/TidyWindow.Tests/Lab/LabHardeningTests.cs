@@ -25,6 +25,18 @@ public sealed class LabHardeningTests : IDisposable
     }
 
     [Fact]
+    public void RoundsAndHowACheckWentSurviveTheFileAndAnOldFileStillLoads()
+    {
+        var store = new LabStore(folder);
+        store.AddRun(new(DateTimeOffset.Now.AddMinutes(-5), "Balanced", "On", [new("wake", 2, 1)]));
+        store.AddRun(new(DateTimeOffset.Now, "Balanced", "On", [new("wake", 2, 1, [1.9, 2.0, 2.1])], ProbeRunner.Method, 3.5, true));
+
+        var runs = new LabStore(folder).Runs();
+        Assert.Equal([1.9, 2.0, 2.1], runs[0].Metrics[0].Rounds); Assert.Equal(ProbeRunner.Method, runs[0].Method); Assert.Equal(3.5, runs[0].Busy); Assert.True(runs[0].OnBattery);
+        Assert.Null(runs[1].Metrics[0].Rounds); Assert.Equal(0, runs[1].Method); Assert.Null(runs[1].Busy); Assert.Null(runs[1].OnBattery);
+    }
+
+    [Fact]
     public void ACheckOrNoteWithPartsMissingIsDroppedRatherThanCrashingThePage()
     {
         Directory.CreateDirectory(folder);

@@ -12,35 +12,82 @@
     <Setter Property="BorderBrush" Value="{ThemeResource LineBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="9,2" /><Setter Property="VerticalAlignment" Value="Center" />
    </Style>
 
-   <!-- One measured number, with how it moved since the check before. -->
+   <!-- The square an icon sits in, at the left of a row. -->
+   <Style x:Key="IconTile" TargetType="Border">
+    <Setter Property="Width" Value="36" /><Setter Property="Height" Value="36" /><Setter Property="CornerRadius" Value="8" /><Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{ThemeResource LineBrush}" /><Setter Property="Background" Value="{ThemeResource CanvasBrush}" /><Setter Property="VerticalAlignment" Value="Top" />
+   </Style>
+
+   <!-- A line of small type above each part of the page, with what it is for. -->
+   <Style x:Key="PartNote" TargetType="TextBlock" BasedOn="{StaticResource Muted}"><Setter Property="FontSize" Value="12" /></Style>
+
+   <!-- One test: the number large, how it moved against the check being compared with, and where the rounds of both fell. -->
    <DataTemplate x:Key="MetricTemplate">
-    <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,12">
-     <Grid ColumnSpacing="16">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="210" /><ColumnDefinition Width="170" /></Grid.ColumnDefinitions>
-      <StackPanel Spacing="2" VerticalAlignment="Center">
-       <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" />
-       <TextBlock Text="{Binding What}" Style="{StaticResource RowSub}" TextWrapping="Wrap" TextTrimming="None" />
-      </StackPanel>
-      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-       <TextBlock Text="{Binding Value}" FontFamily="{StaticResource MonoFont}" FontSize="14" FontWeight="SemiBold" />
-       <TextBlock Text="{Binding Steadiness}" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
-      </StackPanel>
-      <Grid Grid.Column="2" VerticalAlignment="Center">
-       <StackPanel Orientation="Horizontal" Spacing="7" Visibility="{Binding BetterVisibility}"><Ellipse Style="{StaticResource StateDot}" Fill="{ThemeResource GoodBrush}" /><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource GoodBrush}" FontWeight="Medium" FontSize="13" /></StackPanel>
-       <StackPanel Orientation="Horizontal" Spacing="7" Visibility="{Binding WorseVisibility}"><Ellipse Style="{StaticResource StateDot}" Fill="{ThemeResource WarnBrush}" /><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource WarnBrush}" FontWeight="Medium" FontSize="13" /></StackPanel>
-       <StackPanel Orientation="Horizontal" Spacing="7" Visibility="{Binding SameVisibility}"><Ellipse Style="{StaticResource StateDot}" Fill="{ThemeResource MutedBrush}" /><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource MutedBrush}" FontSize="13" /></StackPanel>
+    <Border Style="{StaticResource Card}" Padding="16,13" ToolTipService.ToolTip="{Binding What}">
+     <Grid RowSpacing="6">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <Grid ColumnSpacing="10">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitle}" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+       <Grid Grid.Column="1" VerticalAlignment="Center">
+        <Border Visibility="{Binding BetterVisibility}" Background="{ThemeResource GoodSoftBrush}" CornerRadius="10" Padding="9,3"><StackPanel Orientation="Horizontal" Spacing="5"><FontIcon Glyph="&#xE74A;" FontSize="10" Foreground="{ThemeResource GoodBrush}" VerticalAlignment="Center" /><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource GoodBrush}" FontSize="12" FontWeight="Medium" /></StackPanel></Border>
+        <Border Visibility="{Binding WorseVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="10" Padding="9,3"><StackPanel Orientation="Horizontal" Spacing="5"><FontIcon Glyph="&#xE74B;" FontSize="10" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Center" /><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource WarnBrush}" FontSize="12" FontWeight="Medium" /></StackPanel></Border>
+        <Border Visibility="{Binding SameVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="9,3"><TextBlock Text="{Binding ChangeText}" Foreground="{ThemeResource MutedBrush}" FontSize="12" /></Border>
+       </Grid>
       </Grid>
+      <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+       <TextBlock Text="{Binding Number}" FontFamily="{StaticResource MonoFont}" FontSize="26" FontWeight="SemiBold" CharacterSpacing="-20" />
+       <TextBlock Text="{Binding Unit}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Bottom" Margin="0,0,0,5" />
+      </StackPanel>
+      <local:RangeBar Grid.Row="2" Before="{Binding Before}" After="{Binding After}" Visibility="{Binding BarVisibility}" />
+      <StackPanel Grid.Row="3" Spacing="2" VerticalAlignment="Bottom">
+       <TextBlock Text="{Binding Was}" FontSize="12" Visibility="{Binding ChangeVisibility}" TextTrimming="CharacterEllipsis" />
+       <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" TextWrapping="Wrap" MaxLines="2" />
+      </StackPanel>
      </Grid>
     </Border>
    </DataTemplate>
 
+   <DataTemplate x:Key="ChipTemplate">
+    <Border Style="{StaticResource Tag}"><TextBlock Text="{Binding}" FontSize="12" /></Border>
+   </DataTemplate>
+
+   <DataTemplate x:Key="NoticeTemplate">
+    <Border Background="{ThemeResource WarnSoftBrush}" CornerRadius="6" Padding="14,10" Margin="0,0,0,8">
+     <Grid ColumnSpacing="10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource WarnBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+      <TextBlock Grid.Column="1" Text="{Binding}" FontSize="13" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" />
+     </Grid>
+    </Border>
+   </DataTemplate>
+
+   <!-- An earlier check. Newer-version checks can be picked as the one to compare with; older ones are only listed. -->
    <DataTemplate x:Key="HistoryTemplate">
-    <Grid ColumnSpacing="14" Margin="0,0,0,6">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-     <TextBlock Text="{Binding When}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-     <TextBlock Grid.Column="1" Text="{Binding Settings}" FontSize="12" TextTrimming="CharacterEllipsis" />
-     <TextBlock Grid.Column="2" Text="{Binding Numbers}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" TextTrimming="CharacterEllipsis" />
-    </Grid>
+    <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" MinHeight="44">
+     <Grid>
+      <!-- The check being compared with is picked out, so the table says which one the answer above is about. -->
+      <Border Visibility="{Binding BaselineVisibility}" Background="{ThemeResource RowHoverBrush}" />
+      <Grid Padding="20,0" ColumnSpacing="12" Opacity="{Binding Fade}">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" />
+        <ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="110" />
+       </Grid.ColumnDefinitions>
+       <TextBlock Text="{Binding When}" FontSize="12" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="1" Text="{Binding Plan}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="2" Text="{Binding Memory}" FontSize="12" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="3" Text="{Binding Wake}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="4" Text="{Binding Work}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="5" Text="{Binding Copy}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" />
+       <TextBlock Grid.Column="6" Text="{Binding Access}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" />
+       <Grid Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Button Click="CompareClick" Visibility="{Binding CanCompareVisibility}" Padding="12,4" FontSize="12" Content="Compare" AutomationProperties.Name="Compare the newest check with this one" />
+        <Border Style="{StaticResource Tag}" Visibility="{Binding BaselineVisibility}"><TextBlock Text="Comparing" FontSize="11" FontWeight="Medium" /></Border>
+        <TextBlock Text="Older tests" Visibility="{Binding OldVisibility}" FontSize="11" Foreground="{ThemeResource MutedBrush}" ToolTipService.ToolTip="Made by an older version of the tests, so it cannot be compared." />
+       </Grid>
+      </Grid>
+     </Grid>
+    </Border>
    </DataTemplate>
 
    <!-- An app, and a three-way choice that always shows which one is in force. -->
@@ -55,7 +102,7 @@
        </StackPanel>
        <TextBlock Text="{Binding Title}" Style="{StaticResource RowSub}" MaxLines="1" />
       </StackPanel>
-      <TextBlock Grid.Column="1" Text="{Binding Memory}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding Memory}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
       <Border Grid.Column="2" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
        <StackPanel Orientation="Horizontal" Spacing="2">
         <RadioButton GroupName="{Binding GroupName}" IsChecked="{Binding IsEase, Mode=OneWay}" IsEnabled="{Binding CanChange}" Click="EaseClick" Content="Ease" Style="{StaticResource SegmentStyle}" ToolTipService.ToolTip="Give other things the processor first" AutomationProperties.Name="Ease this app" />
@@ -78,152 +125,211 @@
   </StackPanel>
 
   <ScrollViewer Grid.Row="1" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
-   <StackPanel Spacing="16" Margin="0,0,0,12">
+   <StackPanel Spacing="32" Margin="0,0,0,12">
 
-    <!-- 1. Check this PC -->
-    <Border Style="{StaticResource Card}" Padding="20">
-     <StackPanel Spacing="16">
-      <Grid ColumnSpacing="14">
-       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-        <FontIcon Glyph="&#xE9D9;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-       </Border>
-       <StackPanel Grid.Column="1" Spacing="3">
-        <TextBlock Text="Check this PC" Style="{StaticResource SectionTitle}" />
-        <TextBlock Text="{Binding CheckIntro}" Style="{StaticResource Muted}" FontSize="12" />
-       </StackPanel>
-       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-        <Button Click="StopClick" Visibility="{Binding RunningVisibility}" Padding="12,7" FontSize="12" Content="Stop" AutomationProperties.Name="Stop the check" />
-        <Button Click="RunClick" IsEnabled="{Binding CanRun}" Style="{StaticResource PrimaryButton}" MinWidth="110" AutomationProperties.Name="Run the check">
-         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"><FontIcon Glyph="&#xE768;" FontSize="11" /><TextBlock Text="{Binding RunText}" /></StackPanel>
-        </Button>
-       </StackPanel>
-      </Grid>
-
-      <!-- While it runs, every line it prints -->
-      <Border Visibility="{Binding RunningVisibility}" Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="14,12">
-       <StackPanel Spacing="8">
-        <StackPanel Orientation="Horizontal" Spacing="10"><ProgressRing IsActive="True" Width="14" Height="14" /><TextBlock Text="{Binding Live}" FontFamily="{StaticResource MonoFont}" FontSize="12" VerticalAlignment="Center" /></StackPanel>
-        <ItemsControl ItemsSource="{Binding Lines}" IsTabStop="False">
-         <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></DataTemplate></ItemsControl.ItemTemplate>
-        </ItemsControl>
-       </StackPanel>
-      </Border>
-
-      <!-- Nothing measured yet -->
-      <Border Visibility="{Binding NoResultVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14" Background="{ThemeResource CanvasBrush}">
-       <TextBlock Text="No check yet. Run one to see where this PC stands. It takes about 15 seconds." Style="{StaticResource Muted}" />
-      </Border>
-
-      <StackPanel Visibility="{Binding ResultVisibility}" Spacing="0">
-       <!-- What was in force when it ran -->
-       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
-        <Border Style="{StaticResource Tag}"><TextBlock FontSize="11"><Run Text="Power plan " Foreground="{ThemeResource MutedBrush}" /><Run Text="{Binding ContextPlan}" /></TextBlock></Border>
-        <Border Style="{StaticResource Tag}"><TextBlock FontSize="11"><Run Text="Memory integrity " Foreground="{ThemeResource MutedBrush}" /><Run Text="{Binding ContextMemory}" /></TextBlock></Border>
-        <TextBlock Text="{Binding ContextWhen}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-       </StackPanel>
-       <!-- Column headings -->
-       <Grid ColumnSpacing="16" Padding="0,8" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,1">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="210" /><ColumnDefinition Width="170" /></Grid.ColumnDefinitions>
-        <TextBlock Text="Test" Style="{StaticResource ColumnLabel}" />
-        <TextBlock Grid.Column="1" Text="Result" Style="{StaticResource ColumnLabel}" />
-        <TextBlock Grid.Column="2" Text="Since the last check" Style="{StaticResource ColumnLabel}" />
-       </Grid>
-       <ItemsControl ItemsSource="{Binding Metrics}" ItemTemplate="{StaticResource MetricTemplate}" IsTabStop="False" AutomationProperties.Name="Check results" />
-       <TextBlock Visibility="{Binding CompareVisibility}" Text="{Binding CompareText}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+    <!-- 1. The check -->
+    <StackPanel Spacing="12">
+     <Grid ColumnSpacing="14">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <StackPanel Spacing="3" VerticalAlignment="Center">
+       <TextBlock Text="Check this PC" Style="{StaticResource SectionTitle}" />
+       <TextBlock Text="{Binding CheckIntro}" Style="{StaticResource PartNote}" />
       </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+       <Button Click="StopClick" Visibility="{Binding RunningVisibility}" Padding="12,7" FontSize="12" Content="Stop" AutomationProperties.Name="Stop the check" />
+       <Button Click="RunClick" IsEnabled="{Binding CanRun}" Style="{StaticResource PrimaryButton}" MinWidth="120" AutomationProperties.Name="Run the check">
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"><FontIcon Glyph="&#xE768;" FontSize="11" /><TextBlock Text="{Binding RunText}" /></StackPanel>
+       </Button>
+      </StackPanel>
+     </Grid>
 
-      <StackPanel Visibility="{Binding HistoryVisibility}" Spacing="8">
+     <!-- While it runs -->
+     <Border Visibility="{Binding RunningVisibility}" Style="{StaticResource Card}" Padding="20">
+      <StackPanel Spacing="14">
+       <Grid ColumnSpacing="12">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <ProgressRing IsActive="True" Width="16" Height="16" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding ProgressTitle}" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding ProgressLeft}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+       </Grid>
+       <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Background="{ThemeResource BadgeBrush}" />
+       <TextBlock Text="{Binding ProgressDetail}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+      </StackPanel>
+     </Border>
+
+     <!-- The result -->
+     <StackPanel Visibility="{Binding ResultVisibility}" Spacing="12">
+      <!-- A setting changed since this check -->
+      <Border Visibility="{Binding NudgeVisibility}" Background="{ThemeResource InfoSoftBrush}" CornerRadius="6" Padding="14,10">
+       <Grid ColumnSpacing="10">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <FontIcon Glyph="&#xE946;" FontSize="14" Foreground="{ThemeResource InfoBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+        <TextBlock Grid.Column="1" Text="{Binding Nudge}" FontSize="13" Foreground="{ThemeResource InfoBrush}" TextWrapping="Wrap" />
+       </Grid>
+      </Border>
+
+      <!-- The answer, first -->
+      <Border Style="{StaticResource Card}" Padding="0">
        <Grid>
-        <TextBlock Text="Earlier checks" Style="{StaticResource GroupLabel}" VerticalAlignment="Center" />
-        <HyperlinkButton Click="ClearHistoryClick" HorizontalAlignment="Right" Padding="4,0" Content="Clear" FontSize="12" AutomationProperties.Name="Clear earlier checks" />
+        <Grid.ColumnDefinitions><ColumnDefinition Width="4" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <Grid>
+         <Border Visibility="{Binding VerdictBetterVisibility}" Background="{ThemeResource GoodBrush}" CornerRadius="8,0,0,8" />
+         <Border Visibility="{Binding VerdictWorseVisibility}" Background="{ThemeResource WarnBrush}" CornerRadius="8,0,0,8" />
+         <Border Visibility="{Binding VerdictNeutralVisibility}" Background="{ThemeResource LineBrush}" CornerRadius="8,0,0,8" />
+        </Grid>
+        <Grid Grid.Column="1" Padding="20,14" ColumnSpacing="28">
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+         <StackPanel Spacing="6">
+          <TextBlock Text="{Binding Headline}" FontSize="18" FontWeight="SemiBold" CharacterSpacing="-10" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Subline}" Style="{StaticResource Muted}" />
+          <ItemsControl Visibility="{Binding DifferencesVisibility}" ItemsSource="{Binding Differences}" ItemTemplate="{StaticResource ChipTemplate}" IsTabStop="False" Margin="0,4,0,0">
+           <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          </ItemsControl>
+          <Border Visibility="{Binding SameSettingsVisibility}" Style="{StaticResource Tag}" HorizontalAlignment="Left" Margin="0,4,0,0"><TextBlock Text="Same settings both times" FontSize="12" /></Border>
+         </StackPanel>
+         <StackPanel Grid.Column="1" Spacing="6" MinWidth="280" VerticalAlignment="Top" Visibility="{Binding CompareVisibility}">
+          <TextBlock Text="Comparing with" Style="{StaticResource ColumnLabel}" />
+          <ComboBox ItemsSource="{Binding Baselines}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedBaseline, Mode=OneWay}" SelectionChanged="BaselineChanged" HorizontalAlignment="Stretch" FontSize="12" AutomationProperties.Name="Which earlier check to compare with" />
+         </StackPanel>
+        </Grid>
        </Grid>
-       <ItemsControl ItemsSource="{Binding History}" ItemTemplate="{StaticResource HistoryTemplate}" IsTabStop="False" />
+      </Border>
+
+      <!-- Reasons not to trust it fully -->
+      <ItemsControl Visibility="{Binding NoticesVisibility}" ItemsSource="{Binding Notices}" ItemTemplate="{StaticResource NoticeTemplate}" IsTabStop="False" />
+
+      <!-- The four tests -->
+      <ItemsRepeater ItemsSource="{Binding Metrics}" ItemTemplate="{StaticResource MetricTemplate}" AutomationProperties.Name="Check results">
+       <ItemsRepeater.Layout><!-- 430 wide at least: four across on a wide window, two by two on a narrow one. A smaller minimum makes room for a fifth column that stays empty. --><UniformGridLayout x:Name="MetricsLayout" MinItemWidth="430" MinItemHeight="168" MinRowSpacing="10" MinColumnSpacing="10" ItemsStretch="Fill" /></ItemsRepeater.Layout>
+      </ItemsRepeater>
+
+      <!-- What this check was made under -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+       <TextBlock Text="Newest check" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+       <TextBlock Text="{Binding ContextWhen}" FontSize="12" VerticalAlignment="Center" />
+       <Border Style="{StaticResource Tag}"><TextBlock FontSize="11"><Run Text="Power plan " Foreground="{ThemeResource MutedBrush}" /><Run Text="{Binding ContextPlan}" /></TextBlock></Border>
+       <Border Style="{StaticResource Tag}"><TextBlock FontSize="11"><Run Text="Memory integrity " Foreground="{ThemeResource MutedBrush}" /><Run Text="{Binding ContextMemory}" /></TextBlock></Border>
+       <TextBlock Visibility="{Binding ContextBusyVisibility}" Text="{Binding ContextBusy}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
       </StackPanel>
      </StackPanel>
-    </Border>
 
-    <!-- 2. Power plan -->
-    <Border Style="{StaticResource Card}" Padding="20">
-     <Grid ColumnSpacing="14">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-       <FontIcon Glyph="&#xE945;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-      </Border>
-      <StackPanel Grid.Column="1" Spacing="6">
-       <StackPanel Orientation="Horizontal" Spacing="10">
-        <TextBlock Text="Power plan" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
-        <Border Style="{StaticResource Tag}">
-         <StackPanel Orientation="Horizontal" Spacing="7">
-          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerFastVisibility}" Fill="{ThemeResource GoodBrush}" />
-          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerNormalVisibility}" Fill="{ThemeResource MutedBrush}" />
-          <TextBlock Text="{Binding PowerName}" FontSize="11" />
+     <!-- Earlier checks -->
+     <!-- Earlier checks as a table with its columns named, open by default so nothing has to be clicked to read it. -->
+     <Border Visibility="{Binding HistoryVisibility}" Style="{StaticResource Card}" Padding="0">
+      <StackPanel>
+       <Grid Padding="8,6,16,6">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Button Click="HistoryToggleClick" Background="Transparent" BorderThickness="0" Padding="12,6" HorizontalAlignment="Left" AutomationProperties.Name="Show or hide earlier checks">
+         <StackPanel Orientation="Horizontal" Spacing="10">
+          <FontIcon Glyph="{Binding HistoryChevron}" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
+          <TextBlock Text="{Binding HistoryTitle}" Style="{StaticResource ItemTitle}" />
          </StackPanel>
-        </Border>
+        </Button>
+        <HyperlinkButton Grid.Column="1" Click="ClearHistoryClick" Padding="4,0" Content="Clear all" FontSize="12" AutomationProperties.Name="Clear earlier checks" />
+       </Grid>
+       <StackPanel Visibility="{Binding HistoryBodyVisibility}">
+        <Grid Padding="20,8" ColumnSpacing="12" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" />
+          <ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="76" /><ColumnDefinition Width="110" />
+         </Grid.ColumnDefinitions>
+         <TextBlock Text="When" Style="{StaticResource ColumnLabel}" />
+         <TextBlock Grid.Column="1" Text="Power plan" Style="{StaticResource ColumnLabel}" />
+         <TextBlock Grid.Column="2" Text="Memory integrity" Style="{StaticResource ColumnLabel}" TextTrimming="CharacterEllipsis" />
+         <TextBlock Grid.Column="3" Text="Wake ms" Style="{StaticResource ColumnLabel}" TextAlignment="Right" ToolTipService.ToolTip="Wake-up speed, in milliseconds. Lower is better." />
+         <TextBlock Grid.Column="4" Text="Work M/s" Style="{StaticResource ColumnLabel}" TextAlignment="Right" ToolTipService.ToolTip="All-core work, in million steps a second. Higher is better." />
+         <TextBlock Grid.Column="5" Text="Copy GB/s" Style="{StaticResource ColumnLabel}" TextAlignment="Right" ToolTipService.ToolTip="Memory copy, in gigabytes a second. Higher is better." />
+         <TextBlock Grid.Column="6" Text="Access ns" Style="{StaticResource ColumnLabel}" TextAlignment="Right" ToolTipService.ToolTip="Random memory access, in nanoseconds. Lower is better." />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding History}" ItemTemplate="{StaticResource HistoryTemplate}" IsTabStop="False" />
        </StackPanel>
-       <TextBlock Text="{Binding PowerText}" Style="{StaticResource Muted}" FontSize="12" />
-       <TextBlock Visibility="{Binding PowerWarningVisibility}" Text="{Binding PowerWarning}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" />
       </StackPanel>
-      <Button Grid.Column="2" Click="PowerClick" IsEnabled="{Binding PowerCanClick}" Padding="14,7" MinWidth="170" VerticalAlignment="Top" AutomationProperties.Name="Change the power plan">
-       <TextBlock Text="{Binding PowerButton}" FontSize="12" HorizontalAlignment="Center" />
-      </Button>
-     </Grid>
-    </Border>
+     </Border>
+    </StackPanel>
 
-    <!-- 3. Memory integrity: shown here because it matters for speed, changed in Tune where it can be undone -->
-    <Border Style="{StaticResource Card}" Padding="20">
-     <Grid ColumnSpacing="14">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-       <FontIcon Glyph="&#xEA18;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-      </Border>
-      <StackPanel Grid.Column="1" Spacing="6">
-       <StackPanel Orientation="Horizontal" Spacing="10">
-        <TextBlock Text="Memory integrity" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
-        <Border Style="{StaticResource Tag}">
-         <StackPanel Orientation="Horizontal" Spacing="7">
-          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOnVisibility}" Fill="{ThemeResource GoodBrush}" />
-          <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOffVisibility}" Fill="{ThemeResource WarnBrush}" />
-          <TextBlock Text="{Binding MemoryIntegrityState}" FontSize="11" />
+    <!-- 2. Things to try -->
+    <StackPanel Spacing="12">
+     <StackPanel Spacing="3">
+      <TextBlock Text="Things to try" Style="{StaticResource SectionTitle}" />
+      <TextBlock Text="Change one, then run the check again. Nothing here needs administrator permission, and every change can be put back." Style="{StaticResource PartNote}" />
+     </StackPanel>
+     <Border Style="{StaticResource Card}" Padding="0">
+      <StackPanel>
+       <!-- Power plan -->
+       <Grid Padding="20,18" ColumnSpacing="14">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Border Style="{StaticResource IconTile}"><FontIcon Glyph="&#xE945;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <StackPanel Grid.Column="1" Spacing="6">
+         <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Power plan" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
+          <Border Style="{StaticResource Tag}">
+           <StackPanel Orientation="Horizontal" Spacing="7">
+            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerFastVisibility}" Fill="{ThemeResource GoodBrush}" />
+            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerNormalVisibility}" Fill="{ThemeResource MutedBrush}" />
+            <TextBlock Text="{Binding PowerName}" FontSize="11" />
+           </StackPanel>
+          </Border>
          </StackPanel>
-        </Border>
-       </StackPanel>
-       <TextBlock Text="{Binding MemoryIntegrityText}" Style="{StaticResource Muted}" FontSize="12" />
-       <TextBlock Text="To see what it costs on this PC: run a check, turn it off in Tune, restart, then check again." FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" />
-      </StackPanel>
-      <Button Grid.Column="2" Click="TuneClick" Padding="14,7" MinWidth="120" VerticalAlignment="Top" AutomationProperties.Name="Open Tune to change memory integrity">
-       <TextBlock Text="Open in Tune" FontSize="12" HorizontalAlignment="Center" />
-      </Button>
-     </Grid>
-    </Border>
+         <TextBlock Text="{Binding PowerText}" Style="{StaticResource PartNote}" />
+         <TextBlock Visibility="{Binding PowerWarningVisibility}" Text="{Binding PowerWarning}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+        <Button Grid.Column="2" Click="PowerClick" IsEnabled="{Binding PowerCanClick}" Padding="14,7" MinWidth="170" VerticalAlignment="Top" AutomationProperties.Name="Change the power plan">
+         <TextBlock Text="{Binding PowerButton}" FontSize="12" HorizontalAlignment="Center" />
+        </Button>
+       </Grid>
 
-    <!-- 4. Apps -->
-    <Border Style="{StaticResource Card}" Padding="0">
-     <StackPanel>
-      <Grid Padding="20,20,20,16" ColumnSpacing="14">
-       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-        <FontIcon Glyph="&#xE81E;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-       </Border>
-       <StackPanel Grid.Column="1" Spacing="4">
+       <Border Height="1" Background="{ThemeResource LineBrush}" />
+
+       <!-- Memory integrity: shown here because it matters for speed, changed in Tune where it can be undone -->
+       <Grid Padding="20,18" ColumnSpacing="14">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Border Style="{StaticResource IconTile}"><FontIcon Glyph="&#xEA18;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <StackPanel Grid.Column="1" Spacing="6">
+         <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Memory integrity" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
+          <Border Style="{StaticResource Tag}">
+           <StackPanel Orientation="Horizontal" Spacing="7">
+            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOnVisibility}" Fill="{ThemeResource GoodBrush}" />
+            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOffVisibility}" Fill="{ThemeResource WarnBrush}" />
+            <TextBlock Text="{Binding MemoryIntegrityState}" FontSize="11" />
+           </StackPanel>
+          </Border>
+         </StackPanel>
+         <TextBlock Text="{Binding MemoryIntegrityText}" Style="{StaticResource PartNote}" />
+        </StackPanel>
+        <Button Grid.Column="2" Click="TuneClick" Padding="14,7" MinWidth="170" VerticalAlignment="Top" AutomationProperties.Name="Open Tune to change memory integrity">
+         <TextBlock Text="Open in Tune" FontSize="12" HorizontalAlignment="Center" />
+        </Button>
+       </Grid>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+
+    <!-- 3. App priority -->
+    <StackPanel Spacing="12">
+     <Grid ColumnSpacing="14">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <StackPanel Spacing="3" VerticalAlignment="Center">
+       <StackPanel Orientation="Horizontal" Spacing="10">
         <TextBlock Text="App priority" Style="{StaticResource SectionTitle}" />
-        <TextBlock Text="{Binding AppsNote}" Style="{StaticResource Muted}" FontSize="12" />
+        <TextBlock Text="{Binding AppsCount}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
        </StackPanel>
-       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-        <Button Click="PutBackClick" Visibility="{Binding PutBackVisibility}" Padding="12,7" FontSize="12" Content="Put all back" AutomationProperties.Name="Put every changed app back" />
-        <Button Click="RefreshClick" Padding="12,7" AutomationProperties.Name="Refresh the list of apps" ToolTipService.ToolTip="Refresh the list"><FontIcon Glyph="&#xE72C;" FontSize="12" /></Button>
-       </StackPanel>
-      </Grid>
-      <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0">
-       <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppTemplate}" IsTabStop="False" AutomationProperties.Name="Running apps" />
-      </Border>
-     </StackPanel>
-    </Border>
+       <TextBlock Text="{Binding AppsNote}" Style="{StaticResource PartNote}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+       <Button Click="PutBackClick" Visibility="{Binding PutBackVisibility}" Padding="12,7" FontSize="12" Content="Put all back" AutomationProperties.Name="Put every changed app back" />
+       <Button Click="RefreshClick" Padding="12,7" AutomationProperties.Name="Refresh the list of apps" ToolTipService.ToolTip="Refresh the list"><FontIcon Glyph="&#xE72C;" FontSize="12" /></Button>
+      </StackPanel>
+     </Grid>
+     <Border Style="{StaticResource Card}" Padding="0">
+      <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppTemplate}" IsTabStop="False" AutomationProperties.Name="Running apps" />
+     </Border>
+    </StackPanel>
 
-    <Grid ColumnSpacing="10" Margin="2,2,2,0">
+    <Grid ColumnSpacing="10" Margin="2,0,2,0">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
      <FontIcon Glyph="&#xE946;" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
-     <TextBlock Grid.Column="1" Text="Only things with evidence behind them are here. Boot timer tweaks, pagefile presets, turning services off and pinning programs to certain cores are left out on purpose: they do not help, or help less than they cost. Nothing on this page changes the registry or needs administrator permission." Style="{StaticResource Muted}" FontSize="12" />
+     <TextBlock Grid.Column="1" Text="Only things with evidence behind them are here. Boot timer tweaks, pagefile presets, turning services off and pinning programs to certain cores are left out on purpose: they do not help, or help less than they cost. Nothing on this page changes the registry or needs administrator permission." Style="{StaticResource PartNote}" />
     </Grid>
    </StackPanel>
   </ScrollViewer>
