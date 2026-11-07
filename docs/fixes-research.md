@@ -99,7 +99,7 @@ Checked by hand in the app on 4 November 2026 (Windows 11 Pro, build 26300): the
 
 Also checked on 4 November 2026: when `explorer.exe` is closed, Windows starts a new one by itself (a new process within 0.2 seconds), so the icon fix's wait-and-start step is only a fallback.
 
-Still from documentation only: `net stop` and `net start` return 2 when the service is already stopped or running, and the fix accepts that as success.
+Still from documentation only: `net stop` and `net start` return 2 when the service is already stopped or running, and the fix accepts that as success. (Replaced on 7 November 2026 for the Windows tab, see the last section: 2 also means "turned off" or "broken".)
 
 ## Third round: catalog growth (31 October 2026)
 
@@ -158,3 +158,164 @@ A security and robustness audit of the page was checked against the code and fix
 ### Not verified here
 
 Machine fixes (font cache, WMI, camera, discovery, Update Orchestrator, restore point) were validated by the guard and by tests, and then used by hand in the app on 4 November 2026 with the Fixes page working as intended. The new user scripts were run from the catalog text on this PC: *Find devices with problems* (no problems found; the table branch was exercised with a loosened filter) and the `winget source update` step of *Repair WinGet* (exit 0). The Fixes page was reported working on 4 November 2026; the re-register steps (Windows Security, App Installer, shell packages) and the Restart now button were not itemized in that report.
+
+## Windows tab review (7 November 2026)
+
+An outside review of the nine Windows fixes was checked claim by claim, on this PC (Windows 11 build 26300) where it could be. What held up was built; what did not was left out and is listed below with the reason. The catalog is now 26 fixes.
+
+### Built
+
+- **`net start` with `ok: [0, 2]` hid services that never started.** `net.exe` ends with 2 for "already started" and for "turned off" (error 1058) or broken. Four Windows fixes (Reset Windows Update, Fix the clock, Rebuild the search index, Rebuild the font cache) now use two new step kinds, `startService` and `stopService`. The executor runs a fixed PowerShell command for them with the service name taken from the guard's list: already in the wanted state is fine, a service whose startup type is Disabled ends with exit code 3 and says so, a service this PC does not have ends with 4, anything else that does not start is exit 1. Fixes still never change how a service starts. Stopping uses `Stop-Service -Force` (dependents too, as `net stop /y` did) and waits for the service to be stopped. The other pages (printing, sound, Bluetooth, camera, network discovery) still use `net.exe`; the same change fits them and is not made here.
+- **`RenameFolder` failed on a `.bak` that held read-only files.** Reproduced: `Directory.Delete(recursive)` throws `UnauthorizedAccessException` for a read-only file. The older copy is now cleared of read-only and system marks first (links are not followed), and the rename itself tries up to three times, two seconds apart, because a service that was just stopped can still be letting go, and Windows may restart one by itself.
+- **Reset Windows Update** clears the Delivery Optimization cache first, so the folders are renamed straight after the services stop.
+- **Create a restore point** has an option, on by default, that runs `Enable-ComputerRestore` for the system drive (System Protection is off by default on many Windows 11 PCs). When Windows makes no new point it now says which of two things happened: a point from the last 24 hours exists (named, with its time; exit 0, you can go back to it) or System Protection is probably off (exit 1). Repair Windows system files only offers the restore point and never switches System Protection on by itself.
+- **Repair Windows system files** ends with a step that reads the end of `CBS.log` and prints the `[SR]` lines of the last SFC scan: files repaired, files it could not repair. The log is opened with `ReadWrite` sharing because the servicing stack writes to it.
+- **Check the drive** adds wear, temperature and uncorrected errors (`Get-StorageReliabilityCounter`) and the system volume's health (`Get-Volume`). Both are optional, so a drive that reports nothing does not stop the scan.
+- **Fix the clock** ends with `w32tm /query /status`, and has an option (off) to reset the time servers to `time.windows.com` and `pool.ntp.org`, which does nothing on a PC joined to a domain.
+- **Rebuild the search index** has an option (off) that sets `HKLM\SOFTWARE\Microsoft\Windows Search\SetupCompletedSuccessfully` to 0 while the service is stopped, which makes Windows put the indexed folders back to its defaults. The guard allows exactly that one value. Windows also forgets folders you *excluded* (this PC has dozens), which the option text says.
+- **Update Defender and run a quick scan** first reads `Get-MpComputerStatus`, and stops with a plain sentence when another antivirus has turned Defender off, instead of a raw HRESULT. It ends by saying "No threats were found." or listing the threats and the latest detections (time, whether the action succeeded, files). A full scan is an option.
+- **Rebuild the font cache** also deletes `*.log` in the FontCache folder. The WPF cache service is allowed to be missing (exit 4).
+- **Check and repair WMI** now verifies again after the salvage and ends by asking WMI for `Win32_OperatingSystem`, because `/verifyrepository` only checks the files on disk.
+- **New: Fix blank Task Manager graphs and counters** (`lodctr /R` for 64-bit and, from SysWOW64, 32-bit programs; `winmgmt /resyncperf`; `wmiadap /f`; then it counts the counter sets Windows lists). **New: Find out why the PC will not sleep** (`powercfg /availablesleepstates`, `/requests`, `/lastwake`, `/devicequery wake_armed`; options, off, to rebuild the hibernation file only when hibernation is on, and to restore the default power plans).
+
+### Checked and not built
+
+- **Create `WinSxS\Temp\PendingDeletes` and `PendingRenames`.** Both exist on this PC, the folders are owned by TrustedInstaller, and the review gave no evidence that creating them fixes the SFC error. Not added.
+- **`DISM /CheckHealth` first, to skip `/RestoreHealth`.** `/CheckHealth` only reads a flag that an earlier scan set; it can say healthy about a damaged store. The repair stays DISM first, then SFC.
+- **Online `Repair-Volume -SpotFix` / `Optimize-Volume -ReTrim`.** `-SpotFix` takes the volume offline, which the system drive cannot do while Windows runs, so it would not be the few-seconds repair the review describes. The effect text still points to `chkdsk C: /f`.
+- **`w32tm /resync /force` for large offsets.** `/force` is not a documented switch of `/resync`, and the phase correction limits are not bypassed by it.
+- **`UsoClient StartInteractiveScan`.** Undocumented and unreliable on current builds (also dropped in the third round).
+- **Refresh group policy (`gpupdate /force`)** and **Windows activation (`slmgr`)**. The first does not clear "managed by your organization" left by registry policy (already decided in the third round). The second asks for `slmgr`, which the guard forbids on purpose, and a read-only `/dlv` repairs nothing; error 0x80070422 is the update service being turned off, which the new service check now reports.
+
+### What running them for real found (7 November 2026, as administrator, through the real runner and executor)
+
+- **A typographic apostrophe in a PowerShell string.** The new drive-wear step said "an SSD’s life"; PowerShell treats ’ as a quote, so the step died with a parser error (exit 1, shown as a warning). Tests that read the catalog could not see it. Now fixed, and two tests guard it: no PowerShell step may contain ‘ ’ “ ”, and every PowerShell step (and both service scripts) is parsed with PowerShell's own parser.
+- **Windows Search fails its first start after its database is deleted.** Event 7031/7010: `0x80040d06 The index cannot be initialized`. Windows restarts the service by itself about 30 seconds later and then builds a new index. The old `net start WSearch` returned 2 and the fix accepted it, which is how this stayed unnoticed. The service step now tries to start up to three times and then waits up to 75 seconds for the service to be running, so the fix ends by telling the truth: it did start, or it did not.
+- **`Start-Service` writes "Waiting for service … to start" as warnings**, which showed up as output lines; they are switched off.
+- **`w32time` stops itself right after a resync** when `time.windows.com` gives no answer (this PC: source `Local CMOS Clock`, not synchronized, before and after), so `w32tm /query /status` failed with 0x80070426. A start step now comes before it. With the option *Also reset the time server list* the PC synchronized with `pool.ntp.org` at once (stratum 4); the original setting (`time.windows.com,0x9`) was put back afterwards.
+- **The review's claim that `FNTCACHE.DAT` is always locked was not true here.** It was deleted in both runs (`Removed 1 file`), no warning. The warning handling stays for PCs where it is in use.
+- **The review's claim that restore points are throttled to one per 24 hours** did not hold here either: this PC has `SystemRestorePointCreationFrequency = 0`, and two points were created a few seconds apart. The "a recent point already exists" branch was tested by setting the value to 1440 for one run and putting it back.
+- System Protection was already on here, so `Enable-ComputerRestore` was a no-op (checked: shadow storage and restore points unchanged apart from the two new points).
+
+### Not run on this PC
+
+Restoring the default power plans (this PC's active plan is a custom Ultimate Performance plan, which the command deletes), the search folder reset (it would forget the dozens of folders excluded from indexing), a full Defender scan (hours), and Reset Windows Update's *update database and certificate store* option (it empties the list of past updates).
+
+## Network tab review (7 November 2026)
+
+An outside review of the three Network fixes was checked claim by claim on this PC (Windows 11 build 26300, Wi-Fi only, Tailscale installed) and every fix was then run for real as administrator. The Network tab now has seven fixes; the catalog has 30.
+
+### Built
+
+- **Refresh the network connection: the adapters are restarted before the lease is renewed.** The review was right: restarting after `ipconfig /renew` threw the new address away. The restart step now comes first, restarts each adapter on its own (one failure does not hide the others), waits up to 30 seconds for the ones that were up to come back, and includes adapters whose status is `Disconnected` (a Wi-Fi adapter that is stuck is not `Up`). Adapters that are switched off are left off. `ipconfig /renew` stays `always`, so a stop never leaves the PC without an address; checked live by asking for a stop as the release step began.
+- **Refresh ends by checking that the router answered**, instead of trusting `ipconfig`: it waits up to 25 seconds for every physical adapter that is up to hold a real IPv4 address and prints it with the router. Only physical adapters count. On this PC Tailscale and the unplugged Ethernet port both hold `169.254` addresses all the time, so a check over all adapters would have warned on a healthy PC.
+- **Refresh also clears the IPv6 neighbor table** (`netsh interface ipv6 delete neighbors`) and the **NetBIOS name cache** (`nbtstat -R`). Needs administrator rights; `nbtstat` is on the guard's list with exactly one argument.
+- **Fix other PCs not showing in Network** restarts all four services in dependency order (stop `upnphost`, `SSDPSRV`, `FDResPub`, `fdPHost`; start in the reverse order), through the native service steps, so a service that is turned off fails or warns instead of looking fine behind `net.exe` exit code 2. The two device services (`SSDPSRV`, `upnphost`) are an option on by default; a turned-off one is a warning, an essential one (`fdPHost`, `FDResPub`) is a failure. Tested live by turning each off.
+- **That fix first checks the two things that most often hide other PCs**: the network type (`Public` networks hide the PC and do not look for others) and whether the Windows Firewall has Network discovery on for Private networks (read only; the rule group is found by its language-neutral name). Two options, both off: *Make a Public network Private* (`Set-NetConnectionProfile`, only for networks that are Public) and *Turn the services on if something switched them off* (`Set-Service ... -StartupType Manual`, only for a service that is `Disabled`, only for those four services). A test makes sure no other step in the catalog changes a startup type. The Quiet page turns `SSDPSRV` and `upnphost` off, which is why the second option exists. Tested live with the Wi-Fi network set to Public and with `upnphost` disabled; both were put back.
+- **New: Turn off a stuck proxy** (for the current user, no administrator rights). `netsh winhttp reset proxy` only clears the proxy of Windows services; browsers and apps use the one in `HKCU\...\Internet Settings`. The fix lists `ProxyEnable`, `ProxyServer`, `AutoConfigURL` and the `HTTP_PROXY`-type environment variables, sets `ProxyEnable` to 0, removes the proxy address and the setup script address (their old values are written to the output), and then asks Windows which proxy apps would use. This needed a new step kind, `deleteRegistry`, and the registry step now accepts `HKCU` for fixes of the current user. The guard allows exactly `ProxyEnable` = 0 and removing those two values. After the change the executor sends the two WinINET notices Settings sends, so open programs notice. Checked live with a manual proxy and a proxy script (served from a local server) planted: apps went through `127.0.0.1:1081` before the fix and connected directly after it; the original settings were put back.
+- **New: Fix Wi-Fi list and "no internet" icon** restarts `WlanSvc` and `NlaSvc` (neither has services that depend on it), waits up to 40 seconds for Windows to report internet, and shows `netsh wlan show interfaces`. Stopping it half way still starts both again (tested).
+- **New: Disconnect stuck network folders** (for the current user). Uses `Get-SmbMapping` and `Remove-SmbMapping` without `-UpdateProfile`, so a mapped drive is disconnected but not forgotten. Checked live against a temporary local share: a UNC connection and a persistent mapped drive `Z:` were disconnected; `Z:` stayed in the list as *Unavailable* with its saved entry. Files open on the share are closed by force, which the effect text says.
+- **New: Restore normal download speed** shows `netsh int tcp show global` and the heuristics, sets Receive Window Auto-Tuning to `normal`, window scaling heuristics to `disabled` and Receive-Side Scaling to `enabled`, and shows the settings again. The guard allows only those three values; a test refuses the slow ones.
+- The proxy option of **Reset the network stack** now says that it is the proxy for Windows services and points to the new fix.
+
+### Checked and not built
+
+- **`netsh int ipv6 reset` next to `netsh int ip reset`.** Run both on this PC: the output is the same line for line (the same IPv6-only object types, such as anycast addresses, prefix policy and site prefix, and the same single "Access is denied" and exit code 1), and both help texts are the same. `int ip reset` already resets both stacks, so the second command would repeat the first. The review's other point was right: that exit code 1 is the protected key, which is why the step already reports 1 as a warning.
+- **Restarting `netprofm` (Network List Service) as the review suggested.** On this PC Tailscale and `NcdAutoSetup` depend on it, so stopping it stops the VPN service and nothing would start it again. Only `NlaSvc` is restarted (it decides the "no internet" icon).
+- **`nbtstat -RR`.** It sends name-release packets to a WINS server; a home network has none. Not added and refused by the guard.
+- **`net use * /delete /y`.** It also removes the saved mapped drives. The new fix disconnects them without forgetting them.
+- **A firewall reset (`netsh advfirewall reset`)** and a **TCP "booster" list beyond the three defaults.** A reset wipes the user's and apps' rules. Settings such as RSC and ECN were left alone because turning them off is a deliberate choice some people make.
+- **Putting the TCP settings into the network reset.** `netsh int ip reset` does not reset them, but a reset needs a restart and removes address settings; the speed fix needs neither, so it is its own fix.
+- **A warning for `169.254` after `ipconfig /renew` via its exit code.** `/renew` exits 0 here even with an adapter whose media is disconnected, so the exit code cannot tell; the check at the end of the refresh does.
+
+### What running them for real found (7 November 2026, as administrator, through the real runner and executor)
+
+- **`nbtstat -R` reports "Failed to Purge the NBT Remote Cache Table" and still exits 0 without administrator rights.** As administrator it prints "Successful purge and preload". The refresh is a whole-PC fix, so it always runs elevated; the output is where to look.
+- **`netsh interface ipv6 delete neighbors` also needs administrator rights** ("The requested operation requires elevation").
+- **A step with several lines of PowerShell.** The new scripts are written over several lines in the catalog; a first version joined the lines with spaces and would not parse. The test that parses every PowerShell step with PowerShell's own parser exists for this.
+- After the adapters restart, Wi-Fi came back in a few seconds, and the new IP address then took 43 seconds to arrive on this router.
+- A stopped fix is reported as failed with "Stopped ...", as for the other tabs; the services and the address were back afterwards in every stop test.
+- **The registry alone is enough for the proxy.** With only `ProxyEnable`, `ProxyServer` and `AutoConfigURL` written, .NET's system proxy followed them at once. A proxy script that cannot be reached is ignored by the system proxy, so the test used a reachable local one.
+
+## Devices tab review (7 November 2026)
+
+An outside review of the six Devices fixes was checked claim by claim on this PC (Windows 11 build 26300, a desktop with a USB Bluetooth radio, no camera) and every fix was then run for real as administrator. The Devices tab now has ten fixes; the catalog has 34.
+
+### Built
+
+- **Clear stuck print jobs on a frozen print service.** Reproduced by freezing the `spoolsv.exe` process (`NtSuspendProcess`) with a real queued job (a printer on an unreachable port): the old `net stop spooler` ended after 30 seconds with exit code 2, which the fix accepted, the queue was emptied, and the start step also ended with 2, so the same frozen process went on running (the next test's job numbers kept counting up). The step is now one PowerShell step: it asks the service to stop in a background job (`Stop-Service` blocks for about a minute on a service that does not answer, and so does `Remove-Job` while it waits, so the job is removed last), gives it 15 seconds, then ends `spoolsv.exe`. The new run took 17 seconds, the print service came back as a new process and the queue was emptied. If the process cannot be ended the fix fails and nothing is deleted. The start step is a native service step and reports a service that is turned off.
+- **A real bug the review did not mention: Restart sound services left the Realtek audio service stopped.** `RtkAudioUniversalService` depends on Windows Audio and starts automatically, so stopping Windows Audio stopped it and starting Windows Audio did not bring it back (reproduced with the old build). The shared start script now also starts the dependent services that are set to Automatic and stopped; this applies to every fix that starts a service, and a dependent that fails to start never fails the step. Tested: the Realtek service came back in all three runs, also when a stop was requested half way.
+- **Bluetooth.** *Restart Bluetooth* and the Bluetooth option of *Restart sound services* now include `BTAGService` and `BthAvctpSvc` (stopped first, started last; a turned-off one is a warning, since the Quiet page can turn them off). *Restart Bluetooth* has an option (off) that turns the Bluetooth radio off and on (`Disable-PnpDevice`/`Enable-PnpDevice` on the Bluetooth device whose instance does not begin with `BTH`, which are the paired devices): the RZ616 adapter came back in 4 seconds and nothing was unpaired. All three end with a hardware scan.
+- **Restart sound services** ends with a hardware scan so an HDMI or USB audio device that vanished after sleep is found again.
+- **Restart the camera service** also restarts `FrameServerMonitor`, and has an option (off) to turn the camera device off and on.
+- **Rescan hardware** now lists any device that reports an error afterward, with Windows' own explanation.
+- **Find devices with problems.** The review said the Meaning column printed the same number as Code. It does not: in `Get-PnpDevice` `ConfigManagerErrorCode` is an enum, so the column printed names such as `CM_PROB_DISABLED`, which is no better for a person. The module already has `ProblemDescription`, Device Manager's own (and translated) sentence, for example "This device is disabled. (Code 22)." The report now prints name, class, status, that sentence and the instance id, so two "USB Root Hub" lines can be told apart.
+- **New: Restart devices with problems.** Switches off and on again the present devices with code 10, 31, 39, 41 or 43, only for USB, Bluetooth, audio, camera, input, ports and similar classes; display, disk, storage, system, processor and network devices are never touched. Devices that are switched off (code 22) are left alone unless the option is ticked, because they are often switched off on purpose. The disable/enable pair is in a `finally` block and the step cannot be stopped half way, so a device is never left off.
+- **New: Stop USB devices cutting out.** Turns off USB selective suspend (plugged in and on battery) for the power plan in use and applies it, and restarts USB devices that report an error. The guard allows only that setting, only `SCHEME_CURRENT`, and only the value 0. Checked live: 1/1 before, 0/0 after, put back to 1/1.
+- **New: Restart scanner and photo import** (`stisvc`, `ShellHWDetection`) and **Restart game controller services** (`GameInputSvc`, `hidserv`), each ending with a hardware scan.
+- The `net.exe` steps of the Devices tab are gone for the same reason as in the Windows tab.
+
+### Checked and not built
+
+- **Emptying subfolders of `spool\PRINTERS`.** No evidence: the folder only held `.SPL`, `.SHD` and `.TMP` files, and the review gave no case. Recursive deletes are not worth adding without one.
+- **The review's reason why the old print fix fails** (the files being held open). Not what happened here: `spoolsv.exe` opens them without blocking deletion, so the `.SPL` file was deleted even from a frozen service. The damage was that the stuck process was never replaced.
+- **Restarting `BluetoothUserService`.** It depends on `bthserv`, is a per-user service and starts when it is needed.
+- **`WiaRpc`** is not touched; on this PC it is turned off, and `stisvc` is the service scanners use.
+- **The review's wish to bounce all Camera/Image devices as part of the default run.** It is an option, off, because the camera drops and every app using it loses it.
+
+### What running them for real found (7 November 2026, as administrator, through the real runner and executor)
+
+- A first version of the new print step looked fine in tests and still took 60 seconds: `Stop-Service -NoWait` and the status query block while Windows waits for the frozen service, and Windows ends the process itself after about a minute. Running it for real against a frozen service is what showed that.
+- **My own test script mangled double quotes** when it started `powershell.exe -Command` with a multi-line script (Windows PowerShell 5.1 passes arguments to programs badly). The app starts PowerShell with an argument list and was not affected; the test was redone with `-File`.
+- Stops requested half way: the stop requested at the second step of *Restart sound services* and at the adapter step of *Restart Bluetooth* still ran every start step, and the services and adapter were running afterwards.
+- `PP*.TMP` files in the print queue belong to the program that is printing; they are reported as "in use and left as they are", which is correct.
+
+### Not run on this PC
+
+A real camera (this PC has none; the empty case printed "No camera was found."), a device that really reports code 10, 31, 39, 41 or 43 (that cannot be made on purpose: the restart branch was run on a switched-off COM port with the code list changed to 22 in a copy of the script), a Bluetooth headset connected during the restart, and any second Windows machine.
+
+### Run from the app (7 November 2026, afterwards)
+
+All ten Devices fixes were run from the app itself and the app's own log (`%LOCALAPPDATA%\TidyWindow.Next\Logs\activity.jsonl` and `Fixes\last-runs.json`) was read. Nine finished as Completed. *Clear stuck print jobs* finished with a warning: the empty-queue step said "6 files were in use and left as they are". The print service had been stopped (its process had exited, which the step waits for), so something other than the print service held those files; the folder was empty a few minutes later and the print service was running with a new process, so nothing was left behind. Which process held them was not found. *Stop USB devices cutting out* leaves USB power saving off (0/0) on that PC, which is what the fix is for.
+
+## Apps tab review (7 November 2026)
+
+An outside review of the six Apps fixes was checked claim by claim on this PC (Windows 11 build 26300) and every fix was run for real. The Apps tab now has eight fixes; the catalog has 36. Several of the review's concrete recommendations were wrong and would have made things worse, so they were not built.
+
+### Built
+
+- **A package the account has lost is registered again instead of skipped.** This was the review's best point and it holds: `Get-AppxPackage` only lists packages registered for the current account, so the old Start menu, Windows Security and winget fixes stopped at "is not installed" in exactly the state they exist for. Now:
+  - *Fix Start menu and taskbar* falls back to the copy of each shell package that Windows keeps in `C:\Windows\SystemApps` (and `C:\Windows\ImmersiveControlPanel`). The folders come from an explicit table, because the review's `${name}_*` pattern is wrong for the shell host: the package is `Microsoft.Windows.ShellExperienceHost` but its folder is `ShellExperienceHost_cw5n1h2txyewy`. Run with every lookup forced to miss, all six packages registered from those copies in 3.6 seconds.
+  - *Fix a blank Windows Security window* and *Repair WinGet and App Installer* fall back to `Add-AppxPackage -RegisterByFamilyName` with the package family name (`Microsoft.SecHealthUI_8wekyb3d8bbwe`, `Microsoft.DesktopAppInstaller_8wekyb3d8bbwe`). The command exists in Windows PowerShell 5.1 here, accepted the Windows Security, App Installer and Store families, and fails with a clear error (0x80073CF9) for a family that is not on the PC; that error ends the step with a sentence that says to run Windows Update, not a stack trace.
+- **`Microsoft.UI.Xaml.CBS` is registered first.** The review said the three CBS/Core packages must come before the shell hosts. Checked in the manifests: `ShellExperienceHost`, `StartMenuExperienceHost` and the Settings package depend on `Microsoft.UI.Xaml.CBS` only; `Client.Core` and `Client.CBS` depend on nothing and nothing depends on them. So only that framework was moved, to the front.
+- **winget is found even when its command is turned off.** If `winget.exe` is not on the path (App execution alias off), the step runs it from where App Installer keeps it and says why. Running it from the install folder works as a normal user here (v1.29.380).
+- **Icon fix: the thumbnails are an option (on).** Turn it off to keep photo and video previews and only redraw the icons. Checked: with it off, all 15 thumbnail files were still there afterwards.
+- **OneDrive.** A step waits (up to 10 seconds) for OneDrive to close before the reset, since `/shutdown` only asks it to; tested with a stand-in `OneDrive.exe` (closed after 5 s, and gave up after 10.4 s on one that kept running). New option "only restart OneDrive" skips the reset and the new check of every file. On a PC without OneDrive the last step used to wait 20 seconds and then print a PowerShell stack trace; it now says "OneDrive was not found on this PC" at once.
+- **Reset Microsoft Store** checks that the Store Install Service, the Client License Service and the AppX Deployment Service can run (a service that is turned off is a warning with Windows' explanation, and nothing turns it on), registers the Store and its purchase app again only if the account lost them, and then clears the cache as before. Run elevated: all fine, and the family-name registration was also run for real on the installed packages.
+- **New: Fix Windows apps that will not open.** Snipping Tool, Photos, Calculator, Notepad, Paint, Terminal and Camera, one tick each. It registers an app again **only if the account still has it**, from the manifest it already has. Run for real: six registered again, Paint (not registered for this account) reported as "not installed" without an error.
+- **New: Repair Xbox app and Gaming Services.** Registers the Xbox and Gaming apps the account has (Gaming Services, Xbox Identity Provider, Gaming App, Xbox Gaming Overlay) and starts the Gaming and Xbox services. A service that is turned off is reported with Windows' explanation, not turned on. If Gaming Services itself is missing it says to install it from the Store (warning).
+
+### Checked and not built
+
+- **`--accept-source-agreements` on `winget source update`.** Wrong: winget stops with "Argument name was not recognized for the current command". Adding it would have broken a fix that works. A test now keeps it out.
+- **Re-registering `Microsoft.UI.Xaml.CBS` for Windows Security.** Windows Security depends on `Microsoft.VCLibs.140.00` and `Microsoft.UI.Xaml.2.8` (its manifest), not on the CBS framework.
+- **The review's `SystemApps\Microsoft.Windows.SecHealthUI_cw5n1h2txyewy` path.** It does not exist on Windows 11; Windows Security lives under `Program Files\WindowsApps`. The family-name fallback is what works.
+- **Swapping the register and reset steps of the Windows Security fix.** No evidence either order is better, so it stays.
+- **Locked icon cache files, ending `StartMenuExperienceHost`/`SearchHost`/`prevhost`, and `ie4uinit.exe -show`.** Not reproduced: the old fix removed all 30 files on the first try with nothing locked, and ending the shell hosts makes the Start menu flash for no shown gain. If it does show up for someone, the existing step already reports files it could not delete as a warning.
+- **`Microsoft.Windows.Search` and `MicrosoftWindows.Client.WebExperience`.** Neither is registered for this account or present in `SystemApps` on this build (Search is part of `Client.CBS`), so adding them would only print "is not installed".
+- **`Reset-AppxPackage` for the Store and for the built-in apps.** It deletes app data (Terminal's settings, Notepad's tabs). The supported cache clear (`wsreset`) and a re-registration cover the cases; the Windows Security fix keeps its existing reset because that package holds nothing of the user's.
+- **Re-registering built-in apps by family name.** It would bring back an app removed on purpose (the Debloat page does that). Only apps the account still has are touched.
+- **Re-registering the framework packages (`VCLibs`, `Microsoft.UI.Xaml`, `WindowsAppRuntime`).** No evidence it fixes anything, and it touches packages many apps share.
+- **"Repair shell extensions".** It would register `Client.CBS` and restart Explorer, which *Fix Start menu and taskbar* already does. A right-click menu that hangs is almost always a third-party extension, which no registration fixes.
+- **`wsreset.exe` "needing the administrator for a different account".** `wsreset.exe` asks for "highest available" rights, so the Store fix stays a PC-wide fix. The review's worry (a standard user approving with another administrator's credentials resets that administrator's Store) is real, but it applies to every PC-wide fix in the app, not only this one, and was not changed here.
+
+### What running them found
+
+- The tests caught that the new built-in app steps exit with 4 for "not installed" while 4 was not an allowed exit code, so a missing app such as Paint would have shown as a failure.
+- A run for real with OneDrive missing showed the 20-second wait and the stack trace described above.
+- Turning the Client License Service off, to see the Store fix warn about it, had no effect (the service started normally afterwards), so that exact case was not exercised. The same start step and warning were exercised with the three Xbox services, which this PC has turned off.
+- `Reset-AppxPackage` and `Add-AppxPackage -Register` ran as a normal user and did not need the administrator.
+
+### Not run on this PC
+
+A package the account has really lost (the lookup was forced to miss, and the registration then ran for real on the installed packages, so the fallback paths and file names are proven but not the state that triggers them; removing Windows Security or the Start menu to get that state was not worth the risk), a PC with OneDrive installed (the wait logic was tested with a stand-in process), Gaming Services installed or an Xbox app, an app that is open while it is registered again, and Microsoft's own note about the lost shell registration (KB5072911, quoted by the review) was not checked.

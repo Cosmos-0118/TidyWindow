@@ -43,7 +43,7 @@ public sealed class FixCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = FixCatalog.Load();
-        Assert.Equal(24, catalog.Count);
+        Assert.Equal(36, catalog.Count);
         Assert.Empty(FixGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<FixGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); Assert.NotEmpty(x.Duration); });
@@ -54,10 +54,12 @@ public sealed class FixCatalogTests
     {
         foreach (var item in FixCatalog.Load())
         {
-            var stops = item.Steps.Where(x => x.File == "net.exe" && x.Args[0] == "stop").Select(x => x.Args[1]).ToList();
+            var stops = item.Steps.Where(x => x.File == "net.exe" && x.Args[0] == "stop").Select(x => x.Args[1])
+                .Concat(item.Steps.Where(x => x.Kind == FixStepKind.StopService).Select(x => x.Service)).ToList();
             foreach (var service in stops)
             {
-                var start = item.Steps.SingleOrDefault(x => x.File == "net.exe" && x.Args[0] == "start" && x.Args[1].Equals(service, StringComparison.OrdinalIgnoreCase));
+                var start = item.Steps.SingleOrDefault(x => (x.File == "net.exe" && x.Args[0] == "start" && x.Args[1].Equals(service, StringComparison.OrdinalIgnoreCase))
+                    || (x.Kind == FixStepKind.StartService && x.Service.Equals(service, StringComparison.OrdinalIgnoreCase)));
                 Assert.True(start is { Always: true }, $"{item.Id} stops {service} but does not always start it again");
             }
         }
@@ -88,7 +90,7 @@ public sealed class FixCatalogTests
     public void WindowsUpdateAlsoStopsTheUpdateOrchestratorWhichKeepsTheDownloadFolderOpen()
     {
         var steps = FixCatalog.Load().Single(x => x.Id == "reset-windows-update").Steps;
-        var stop = Array.FindIndex(steps, x => x.File == "net.exe" && x.Args.SequenceEqual(["stop", "UsoSvc", "/y"]));
+        var stop = Array.FindIndex(steps, x => x.Kind == FixStepKind.StopService && x.Service == "UsoSvc");
         var rename = Array.FindIndex(steps, x => x.Kind == FixStepKind.RenameFolder);
         Assert.InRange(stop, 0, rename - 1);
     }
@@ -110,8 +112,23 @@ public sealed class FixCatalogTests
         {
             Assert.Contains("Get-ComputerRestorePoint", step.Args[^1]);
             Assert.Contains("exit 1", step.Args[^1]);
+            // Not getting one is explained: either a recent one is named, or System Protection is said to be off.
+            Assert.Contains("was made on", step.Args[^1]);
+            Assert.Contains("System Protection is probably off", step.Args[^1]);
         }
-        Assert.Contains(1, FixCatalog.Load().Single(x => x.Id == "create-restore-point").Steps[0].Warn);
+        var create = FixCatalog.Load().Single(x => x.Id == "create-restore-point");
+        Assert.Contains(1, create.Steps.Single(x => x.Args.LastOrDefault()?.Contains("Checkpoint-Computer") == true).Warn);
+    }
+
+    [Fact]
+    public void SystemProtectionIsTurnedOnOnlyWhenAskedAndTheOptionStartsOn()
+    {
+        var item = FixCatalog.Load().Single(x => x.Id == "create-restore-point");
+        Assert.Equal(["protect"], FixPlan.DefaultOptions(item));
+        Assert.Contains("Enable-ComputerRestore", FixPlan.Build(item, ["protect"]).First().Args[^1]);
+        Assert.DoesNotContain(FixPlan.Build(item, []), x => x.Args.LastOrDefault()?.Contains("Enable-ComputerRestore") == true);
+        // The repair only offers a restore point; it never switches System Protection on by itself.
+        Assert.DoesNotContain(FixCatalog.Load().Single(x => x.Id == "repair-windows-files").Steps, x => x.Args.LastOrDefault()?.Contains("Enable-ComputerRestore") == true);
     }
 
     [Fact]
@@ -119,9 +136,13 @@ public sealed class FixCatalogTests
     {
         var steps = FixCatalog.Load().Single(x => x.Id == "rebuild-font-cache").Steps;
         var firstDelete = Array.FindIndex(steps, x => x.Kind == FixStepKind.DeleteFiles);
-        var lastStop = Array.FindLastIndex(steps, x => x.File == "net.exe" && x.Args[0] == "stop");
+        var lastStop = Array.FindLastIndex(steps, x => x.Kind == FixStepKind.StopService);
         Assert.True(lastStop < firstDelete);
-        Assert.True(Array.FindIndex(steps, x => x.File == "net.exe" && x.Args[0] == "start") > firstDelete);
+        Assert.True(Array.FindIndex(steps, x => x.Kind == FixStepKind.StartService) > firstDelete);
+        // The cache files the services keep open are the ones that cause boxes and garbled text; the logs go with them.
+        Assert.Equal(["*.dat", "*.log"], steps.First(x => x.Kind == FixStepKind.DeleteFiles).Patterns);
+        // The WPF cache service is not on every PC; not having it is not a failure.
+        Assert.Contains(FixSupport.ServiceMissing, steps.Single(x => x.Service == "FontCache3.0.0.0" && x.Kind == FixStepKind.StopService).Ok);
     }
 
     [Fact]
@@ -129,8 +150,14 @@ public sealed class FixCatalogTests
     {
         var item = FixCatalog.Load().Single(x => x.Id == "repair-wmi");
         Assert.Equal(FixRisk.Careful, item.Risk);
-        Assert.Equal(["/verifyrepository"], FixPlan.Build(item, []).Single().Args);
-        Assert.Equal(["/verifyrepository", "/salvagerepository"], FixPlan.Build(item, ["repair"]).Select(x => x.Args[0]));
+        // Checking alone only reads, then proves WMI answers.
+        var check = FixPlan.Build(item, []);
+        Assert.Equal(["/verifyrepository"], check[0].Args);
+        Assert.DoesNotContain(check, x => x.Args.Contains("/salvagerepository"));
+        Assert.Contains("Win32_OperatingSystem", check[^1].Args[^1]);
+        // Repairing is verify, salvage, verify again, and only then the live question.
+        Assert.Equal(["/verifyrepository", "/salvagerepository", "/verifyrepository"], FixPlan.Build(item, ["repair"]).Take(3).Select(x => x.Args[0]));
+        Assert.Contains("Win32_OperatingSystem", FixPlan.Build(item, ["repair"])[^1].Args[^1]);
         Assert.NotEmpty(Check(FixScope.Machine, Run("winmgmt.exe", "/resetrepository")));
         Assert.Empty(Check(FixScope.Machine, Run("winmgmt.exe", "/salvagerepository")));
     }
@@ -149,7 +176,9 @@ public sealed class FixCatalogTests
     {
         var script = FixCatalog.Load().Single(x => x.Id == "repair-start-menu").Steps[0].Args[^1];
         Assert.Contains("MicrosoftWindows.Client.CBS", script);
-        Assert.Contains("$core -contains $name", script);
+        // Only the three original packages (marked Core = $true) can fail the fix; the Windows 11 components only warn.
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(script, @"Core = \$true").Count);
+        Assert.Contains("if ($item.Core) { $failed += $name }", script);
     }
 
     [Fact]
@@ -241,7 +270,7 @@ public sealed class FixCatalogTests
         var steps = catalog.SelectMany(x => x.Steps).ToList();
         Assert.All(steps.Where(x => x.File is "dism.exe" or "sfc.exe" || x.Args.Contains("/salvagerepository") || x.Kind == FixStepKind.RenameFolder), x => Assert.True(x.Uninterruptible, x.Title));
         // Stopping or starting a service, or deleting cache files, can be cut short without harm.
-        Assert.All(steps.Where(x => x.File == "net.exe" || x.Kind == FixStepKind.DeleteFiles), x => Assert.False(x.Uninterruptible, x.Title));
+        Assert.All(steps.Where(x => x.File == "net.exe" || x.Kind is FixStepKind.DeleteFiles or FixStepKind.StartService or FixStepKind.StopService), x => Assert.False(x.Uninterruptible, x.Title));
         Assert.True(catalog.Single(x => x.Id == "repair-windows-files").RestartFirst);
         Assert.True(catalog.Single(x => x.Id == "reset-windows-update").RestartFirst);
     }
@@ -1130,7 +1159,7 @@ public sealed class FixQueueLiveTests
             Id = "live-demo", Name = "Live demo", Group = FixGroup.Windows, Scope = FixScope.User, Summary = "s", Effect = "e",
             Steps =
             [
-                new() { Title = "Print, wait, print", File = "powershell.exe", Args = ["-NoProfile", "-NonInteractive", "-Command", "'first line'; Start-Sleep -Seconds 4; 'last line'"], Encoding = FixEncoding.Utf8 },
+                new() { Title = "Print, wait, print", File = "powershell.exe", Args = ["-NoProfile", "-NonInteractive", "-Command", "('first ' + 'line'); Start-Sleep -Seconds 4; ('last ' + 'line')"], Encoding = FixEncoding.Utf8 },
                 new() { Title = "Second step", File = "ipconfig.exe", Args = [] }
             ]
         };

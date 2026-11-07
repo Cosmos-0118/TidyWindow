@@ -32,6 +32,8 @@
        </StackPanel>
 
        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <!-- Only while searching: which tab this result comes from. -->
+        <Border Visibility="{Binding GroupVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="8,1" VerticalAlignment="Center" ToolTipService.ToolTip="The tab this action is on"><TextBlock Text="{Binding GroupText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding AdminVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="7,1" VerticalAlignment="Center" ToolTipService.ToolTip="Asks for administrator permission the first time"><TextBlock Text="Admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding HintVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="Whether the programs this closes are running right now">
          <TextBlock Text="{Binding Hint}" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
@@ -55,7 +57,8 @@
           <Grid ColumnSpacing="14" Margin="0,0,0,8">
            <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
            <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
-           <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+           <TextBlock Grid.Column="1" Text="{Binding Value}" Visibility="{Binding PlainVisibility}" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+           <TextBlock Grid.Column="1" Text="{Binding Value}" Visibility="{Binding MonoVisibility}" FontFamily="{StaticResource MonoFont}" FontSize="11" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
           </Grid>
          </DataTemplate>
         </ItemsControl.ItemTemplate>
@@ -80,16 +83,47 @@
  </UserControl.Resources>
 
  <Grid RowSpacing="16">
-  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
 
   <StackPanel Spacing="4">
    <TextBlock Text="Unstick" Style="{StaticResource PageTitle}" />
    <TextBlock Text="One-press kicks for things that get stuck. Each runs at once, in a few seconds, with no restart and no queue." Style="{StaticResource Muted}" />
   </StackPanel>
 
-  <ScrollViewer Grid.Row="1" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+  <!-- Four groups as slim tabs, each with its count. While searching the count is the number of matches in that tab. -->
+  <Grid Grid.Row="1" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Margin="0,-4,0,0">
+   <StackPanel Orientation="Horizontal">
+    <RadioButton GroupName="UnstickTabs" Tag="Desktop" IsChecked="True" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Desktop" ToolTipService.ToolTip="The taskbar, Start, search and the screen">
+     <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Desktop" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding DesktopCount}" FontSize="11" /></Border></StackPanel>
+    </RadioButton>
+    <RadioButton GroupName="UnstickTabs" Tag="Input" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Typing" ToolTipService.ToolTip="Keys, clipboard, screenshots, notifications and sign-in prompts">
+     <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Typing" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding InputCount}" FontSize="11" /></Border></StackPanel>
+    </RadioButton>
+    <RadioButton GroupName="UnstickTabs" Tag="Network" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Network" ToolTipService.ToolTip="DNS and the Linux subsystem">
+     <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Network" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding NetworkCount}" FontSize="11" /></Border></StackPanel>
+    </RadioButton>
+    <RadioButton GroupName="UnstickTabs" Tag="Hardware" Checked="TabChecked" Style="{StaticResource StatTabStyle}" AutomationProperties.Name="Hardware" ToolTipService.ToolTip="Sound, Bluetooth, camera, printing and devices. Asks for administrator permission.">
+     <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Hardware" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" /><Border Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="7,1" VerticalAlignment="Center"><TextBlock Text="{Binding HardwareCount}" FontSize="11" /></Border></StackPanel>
+    </RadioButton>
+   </StackPanel>
+  </Grid>
+
+  <!-- Search looks in every tab, whichever one is open. -->
+  <Grid Grid.Row="2" ColumnSpacing="12">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+   <TextBox x:Name="SearchBox" PlaceholderText="Search every tab: taskbar, copy paste, no sound, dns…" TextChanged="QueryChanged" AutomationProperties.Name="Search actions in all tabs" VerticalAlignment="Center" />
+  </Grid>
+
+  <ScrollViewer Grid.Row="3" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
    <StackPanel Margin="0,0,0,12">
-    <ItemsControl ItemsSource="{Binding Sections}" ItemTemplate="{StaticResource SectionTemplate}" IsTabStop="False" />
+    <ItemsControl ItemsSource="{Binding Shown}" ItemTemplate="{StaticResource SectionTemplate}" IsTabStop="False" />
+    <StackPanel Visibility="{Binding EmptyVisibility}" HorizontalAlignment="Center" Padding="24,40" Spacing="10">
+     <Border Width="44" Height="44" CornerRadius="10" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" HorizontalAlignment="Center">
+      <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="{ThemeResource MutedBrush}" />
+     </Border>
+     <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitle}" />
+     <TextBlock Text="{Binding EmptyText}" Style="{StaticResource Muted}" TextAlignment="Center" MaxWidth="360" />
+    </StackPanel>
     <Grid ColumnSpacing="10" Margin="2,2,2,0">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
      <FontIcon Glyph="&#xE946;" FontSize="13" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />

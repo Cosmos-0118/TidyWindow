@@ -75,7 +75,7 @@ public sealed partial class MainWindow : Window
         // Fixes share the queue, and so its live output. Machine-wide fixes run in a helper that sends its output back as it is produced.
         fixSession = FixSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe"));
         var fixStore = new FixRunStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Fixes"));
-        var fixService = new FixService(FixCatalog.Load(), new FixStepExecutor(), fixSession, FixService.IsAdministrator, () => fixSession.OpenAsync(), fixStore, helperOpen: () => fixSession.IsOpen);
+        var fixService = new FixService(FixCatalog.Load(), new FixStepExecutor(), fixSession, FixService.IsAdministrator, () => fixSession.OpenAsync(), fixStore, helperOpen: () => fixSession.IsOpen, log: log);
         var packageQueue = PackageOperationQueue.WithLiveOutput((operation, progress, token) => operation.Fix is { } run ? fixService.RunAsync(run, progress, token) : executor.ExecuteAsync(operation, progress, token));
         // A note is kept while an operation runs, so a run that ended partway (closed, killed, crashed) is reported at the next launch.
         interrupted = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "interrupted-operation.json"));

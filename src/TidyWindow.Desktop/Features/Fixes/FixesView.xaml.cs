@@ -18,7 +18,12 @@ public sealed partial class FixesView : UserControl
 
     private void TabChecked(object sender, RoutedEventArgs e)
     {
-        if (Model is { } model && sender is RadioButton { Tag: string tag } && Enum.TryParse<FixesTab>(tag, out var next)) model.Tab = next;
+        if (Model is { } model && sender is RadioButton { Tag: string tag } && Enum.TryParse<FixesTab>(tag, out var next))
+        {
+            model.Tab = next;
+            // Picking a tab means "show me that one", so a search, which looks at every tab, is put away.
+            if (SearchBox.Text.Length > 0) SearchBox.Text = "";
+        }
     }
 
     // Clicking anywhere on a row opens it, except on the controls that do their own thing.

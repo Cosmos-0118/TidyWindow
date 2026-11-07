@@ -31,6 +31,21 @@ public sealed class FixRow : ObservableState
     }
 
     public FixItem Item { get; }
+
+    /// <summary>The tab this fix lives on, shown beside it while a search lists fixes from every tab.</summary>
+    public string GroupText => Item.Group.ToString();
+    private bool showGroup;
+    public Visibility GroupVisibility => showGroup ? Visibility.Visible : Visibility.Collapsed;
+    public void ShowGroup(bool value) { if (showGroup == value) return; showGroup = value; Changed(nameof(GroupVisibility)); }
+
+    private IReadOnlyList<SearchField>? searchFields;
+    /// <summary>What a search looks in, heaviest first: the name, then what it is for, then what it does and the commands it runs.</summary>
+    public IReadOnlyList<SearchField> SearchFields => searchFields ??=
+    [
+        new(Item.Name, 4), new(Item.Id.Replace('-', ' '), 2), new(Item.Summary, 2), new(Item.Effect, 1), new(GroupText, 0.8),
+        new(string.Join(' ', Item.Steps.Select(x => x.Title)), 1), new(string.Join(' ', Item.Steps.Select(FixPlan.Describe)), 0.6)
+    ];
+
     public string Id => Item.Id;
     public string Name => Item.Name;
     public string Summary => Item.Summary;
@@ -166,13 +181,18 @@ public sealed class FixesViewModel : ObservableState, IDisposable
 
     public BulkObservableCollection<FixRow> Rows { get; } = new();
 
+    // While searching, each tab's number is how many of its fixes match, so the tabs show where the answers are.
+    private IReadOnlyList<FixRow> matches = [];
+    private bool Searching => !SmartSearch.IsEmpty(query);
     public string WindowsCount => Count(FixGroup.Windows);
     public string NetworkCount => Count(FixGroup.Network);
     public string DevicesCount => Count(FixGroup.Devices);
     public string AppsCount => Count(FixGroup.Apps);
-    private string Count(FixGroup group) => all.Count(x => x.Item.Group == group).ToString("N0");
+    private string Count(FixGroup group) => (Searching ? matches : all).Count(x => x.Item.Group == group).ToString("N0");
 
-    public string TabNote => tab switch
+    public string TabNote => Searching
+        ? matches.Count == 0 ? "" : $"{matches.Count:N0} {(matches.Count == 1 ? "fix matches" : "fixes match")} “{query.Trim()}” across all tabs, best match first. The numbers on the tabs count the matches in each."
+        : tab switch
     {
         FixesTab.Windows => "Repairs for Windows itself: system files, updates, the drive, the clock, search, fonts and WMI.",
         FixesTab.Network => "When the internet or a network connection will not work properly, or other PCs do not show up.",
@@ -193,21 +213,20 @@ public sealed class FixesViewModel : ObservableState, IDisposable
 
     public Visibility EmptyVisibility => Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public string EmptyTitle => "No matches";
-    public string EmptyText => "Try a different word, such as printer, internet, sound or update.";
+    public string EmptyText => "Every tab was searched. Try a different word, such as printer, internet, sound or update; small typos are forgiven.";
 
     public string Query { get => query; set { if (Set(ref query, value)) ApplyFilter(); } }
     public FixesTab Tab { get => tab; set { if (Set(ref tab, value)) ApplyFilter(); } }
 
     private void ApplyFilter()
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(FixRow row) => words.All(w =>
-            row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Summary.Contains(w, StringComparison.CurrentCultureIgnoreCase) ||
-            row.Item.Effect.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Item.Steps.Any(s => s.Title.Contains(w, StringComparison.CurrentCultureIgnoreCase)));
         var group = tab switch { FixesTab.Windows => FixGroup.Windows, FixesTab.Network => FixGroup.Network, FixesTab.Devices => FixGroup.Devices, _ => FixGroup.Apps };
-        // While searching, every group is searched, so a word finds its fix whatever tab is open.
-        Rows.Reset(all.Where(x => words.Length > 0 || x.Item.Group == group).Where(Matches).ToList());
-        foreach (var name in new[] { nameof(TabNote), nameof(EmptyVisibility) }) Changed(name);
+        var searching = Searching;
+        // While searching, every tab is searched and the best matches come first, so a word finds its fix whatever tab is open.
+        matches = searching ? SmartSearch.Rank(all, query, x => x.SearchFields) : [];
+        Rows.Reset(searching ? matches : all.Where(x => x.Item.Group == group).ToList());
+        foreach (var row in all) row.ShowGroup(searching);
+        foreach (var name in new[] { nameof(TabNote), nameof(EmptyVisibility), nameof(WindowsCount), nameof(NetworkCount), nameof(DevicesCount), nameof(AppsCount) }) Changed(name);
     }
 
     /// <summary>Brings every row up to date with the queue: what is waiting, what is running and its latest line of output.</summary>
