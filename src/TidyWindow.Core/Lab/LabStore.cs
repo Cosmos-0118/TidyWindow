@@ -2,11 +2,19 @@ using System.Text.Json;
 
 namespace TidyWindow.Next.Core;
 
-/// <summary>One number from a check, with how much it moved between the rounds (a measure of noise).</summary>
-public sealed record ProbeMetric(string Id, double Value, double Spread);
+/// <summary>
+/// One number from a check: the middle result, how much the rounds moved (a measure of noise), and every round, so a later comparison can see whether
+/// two checks overlap. <paramref name="Rounds"/> is missing in checks saved by older versions.
+/// </summary>
+public sealed record ProbeMetric(string Id, double Value, double Spread, IReadOnlyList<double>? Rounds = null);
 
-/// <summary>One check on this PC, with the settings that were in force, so two checks can be compared fairly.</summary>
-public sealed record ProbeRun(DateTimeOffset When, string Plan, string MemoryIntegrity, IReadOnlyList<ProbeMetric> Metrics);
+/// <summary>
+/// One check on this PC, with the settings that were in force and how it went, so two checks can be compared fairly.
+/// <paramref name="Method"/> is the version of the tests (checks made by different versions are never compared; 0 means saved before versions existed),
+/// <paramref name="Busy"/> is how much of the processor other programs used while it ran, and <paramref name="OnBattery"/> whether the PC ran on battery.
+/// The last three are missing in checks saved by older versions.
+/// </summary>
+public sealed record ProbeRun(DateTimeOffset When, string Plan, string MemoryIntegrity, IReadOnlyList<ProbeMetric> Metrics, int Method = 0, double? Busy = null, bool? OnBattery = null);
 
 /// <summary>What the Lab remembers: the power plan to go back to, and the newest checks.</summary>
 public sealed class LabStore(string folder)

@@ -286,6 +286,135 @@ public sealed class ProbeTests
         Assert.Single(ProbeCompare.Between(thin, Run(wake: 1)));
     }
 
+    private static ProbeMetric Rounds(string id, params double[] rounds) => new(id, ProbeMath.Median(rounds), ProbeMath.Spread(rounds), rounds);
+
+    private static ProbeRun Kept(double[] wake, double[] throughput, double[] copy, double[] random, int method = ProbeRunner.Method, double? busy = 2) =>
+        new(DateTimeOffset.Now, "p", "on", [Rounds("wake", wake), Rounds("throughput", throughput), Rounds("copy", copy), Rounds("random", random)], method, busy, false);
+
+    private static readonly double[] Steady = [100, 101, 99, 100, 100];
+
+    [Fact]
+    public void TheRankTestMatchesTheKnownTableForFiveAgainstFive()
+    {
+        // Exact counts of the rank statistic for 5 against 5: 1, 1, 2, 3 ways to get 0, 1, 2, 3 out of 252. The usual table says at most 2 is significant at 5%.
+        Assert.Equal(1.0 / 252, ProbeCompare.LowerTail(5, 5, 0), 12);
+        Assert.Equal(4.0 / 252, ProbeCompare.LowerTail(5, 5, 2), 12);
+        Assert.Equal(7.0 / 252, ProbeCompare.LowerTail(5, 5, 3), 12);
+        Assert.Equal(1, ProbeCompare.LowerTail(5, 5, 25), 12);
+        Assert.True(2 * ProbeCompare.LowerTail(5, 5, 2) < ProbeCompare.Significance);
+        Assert.False(2 * ProbeCompare.LowerTail(5, 5, 3) < ProbeCompare.Significance);
+    }
+
+    [Fact]
+    public void ABigMoveThatTheRoundsDoNotBackUpIsNoDifference()
+    {
+        // The middle result moved 10%, but the rounds of the two checks are mixed together, so it is not told apart from noise.
+        var before = Kept([2.0, 2.4, 1.9, 2.2, 2.6], Steady, Steady, Steady);
+        var after = Kept([1.9, 2.5, 1.7, 2.1, 2.0], Steady, Steady, Steady);
+        var wake = ProbeCompare.Between(before, after).Single(x => x.Kind.Id == "wake");
+        Assert.True(wake.Percent > 5); Assert.False(wake.Separate); Assert.Equal(ProbeVerdict.NoDifference, wake.Verdict);
+    }
+
+    [Fact]
+    public void ABigMoveWithRoundsThatSeparateCounts()
+    {
+        var before = Kept([2.0, 2.1, 2.05, 1.95, 2.0], Steady, Steady, Steady);
+        var after = Kept([1.5, 1.55, 1.45, 1.5, 1.6], Steady, Steady, Steady);
+        var wake = ProbeCompare.Between(before, after).Single(x => x.Kind.Id == "wake");
+        Assert.Equal(ProbeVerdict.Better, wake.Verdict); Assert.True(wake.Separate);
+    }
+
+    [Fact]
+    public void RoundsThatSeparateStillNeedTheMiddleResultToMoveEnough()
+    {
+        // Every round of one check beats every round of the other, yet by 3%: separate checks of one PC differ by that much on their own.
+        var changes = ProbeCompare.Between(Kept(Steady, Steady, [100, 100.1, 100, 99.9, 100], Steady), Kept(Steady, Steady, [103, 103.1, 103, 102.9, 103], Steady));
+        var copy = changes.Single(x => x.Kind.Id == "copy");
+        Assert.True(copy.Separate); Assert.Equal(ProbeVerdict.NoDifference, copy.Verdict);
+    }
+
+    [Fact]
+    public void ARoundsAwareWorseningIsReportedInTheRightDirection()
+    {
+        var normal = Kept(Steady, Steady, [100, 100.2, 99.8, 100.1, 99.9], Steady);
+        var worse = Kept(Steady, Steady, [80, 80.5, 79.5, 80.2, 79.8], Steady);
+        Assert.Equal(ProbeVerdict.Worse, ProbeCompare.Between(normal, worse).Single(x => x.Kind.Id == "copy").Verdict);
+        Assert.Equal(ProbeVerdict.Better, ProbeCompare.Between(worse, normal).Single(x => x.Kind.Id == "copy").Verdict);
+    }
+
+    [Fact]
+    public void SixRealChecksOfOneUnchangedPcNeverShowADifferenceInAnyPair()
+    {
+        // Measured on a real PC: six checks in a row with no change in settings (the first ran while other programs used 10% of the processor).
+        // Between the middle results of these, memory access moved by up to 9% and wake-up by up to 10%, and the rounds inside one check by up to 14%.
+        ProbeRun[] runs =
+        [
+            Kept([2.37, 2.33, 2.39, 2.57, 2.52], [8871, 9545, 9260, 9801, 10051], [24.0, 25.1, 25.0, 25.4, 25.4], [98.4, 98.4, 100.0, 92.2, 91.8], busy: 10.5),
+            Kept([2.59, 2.62, 2.69, 2.54, 2.33], [10020, 10058, 10080, 9573, 9945], [25.4, 25.2, 25.4, 24.8, 25.1], [91.6, 91.8, 97.2, 98.6, 94.8]),
+            Kept([2.67, 2.66, 2.49, 2.59, 2.69], [10069, 10084, 10053, 9836, 10093], [25.5, 25.4, 25.6, 25.6, 24.3], [92.1, 92.1, 91.6, 92.1, 93.7]),
+            Kept([2.71, 2.56, 2.59, 2.63, 2.64], [10088, 9675, 10013, 10037, 10025], [25.6, 25.6, 24.9, 25.5, 23.4], [92.7, 92.0, 93.8, 98.5, 93.5]),
+            Kept([2.39, 2.37, 2.68, 2.65, 2.68], [9488, 9831, 9861, 10063, 9834], [23.1, 25.5, 25.5, 25.4, 25.3], [99.4, 92.5, 91.0, 91.5, 92.8]),
+            Kept([2.47, 2.55, 2.64, 2.69, 2.74], [10085, 9798, 9819, 10066, 10072], [25.5, 25.3, 25.7, 25.7, 25.7], [89.4, 89.3, 90.4, 90.1, 90.3]),
+        ];
+        for (var a = 0; a < runs.Length; a++)
+            for (var b = a + 1; b < runs.Length; b++)
+                Assert.All(ProbeCompare.Between(runs[a], runs[b]), x => Assert.True(x.Verdict == ProbeVerdict.NoDifference, $"run {a + 1} to {b + 1}: {x.Kind.Id} {x.Percent:0.0}%"));
+    }
+
+    [Fact]
+    public void ACheckDisturbedByOtherProgramsGivesNoVerdictAtAll()
+    {
+        var normal = Kept(Steady, Steady, [100, 100.2, 99.8, 100.1, 99.9], Steady);
+        var disturbed = Kept(Steady, Steady, [80, 80.5, 79.5, 80.2, 79.8], Steady, busy: 30);
+
+        var changes = ProbeCompare.Between(normal, disturbed);
+        Assert.All(changes, x => { Assert.Equal(ProbeVerdict.NoDifference, x.Verdict); Assert.True(x.Disturbed); });
+        Assert.True(changes.Single(x => x.Kind.Id == "copy").Percent < -15, "the move is still reported, only not called a difference");
+        Assert.All(ProbeCompare.Between(disturbed, normal), x => Assert.True(x.Disturbed));
+    }
+
+    [Fact]
+    public void OnlyChecksFromTheSameVersionOfTheTestsAreComparable()
+    {
+        Assert.True(ProbeCompare.Comparable(Run(2), Run(2)));
+        Assert.False(ProbeCompare.Comparable(Kept(Steady, Steady, Steady, Steady, method: 1), Kept(Steady, Steady, Steady, Steady)));
+        Assert.Equal(0, Run(2).Method); // a check saved before versions existed
+    }
+
+    [Fact]
+    public void OtherProgramsAreWhatIsLeftAfterTakingOurOwnProcessorTimeOutOfTheBusyTime()
+    {
+        // 10 s of processor time passed (100 ns units), 4 s idle, so 6 s busy; this program used 1 s of it, so others used 5 s: 50%.
+        (ulong, ulong)? before = (0, 0); (ulong, ulong)? after = (40_000_000, 100_000_000);
+        Assert.Equal(50, ProbeRunner.Others(before, after, TimeSpan.Zero, TimeSpan.FromSeconds(1))!.Value, 6);
+        Assert.Equal(0, ProbeRunner.Others(before, after, TimeSpan.Zero, TimeSpan.FromSeconds(60))!.Value);
+        Assert.Null(ProbeRunner.Others(null, after, TimeSpan.Zero, TimeSpan.Zero));
+        Assert.Null(ProbeRunner.Others(after, before, TimeSpan.Zero, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task ACheckKeepsEveryRoundAndSaysWhatTheRestOfThePcWasDoing()
+    {
+        var runner = new ProbeRunner(ProbeProfile.Quick);
+        var steps = new List<ProbeStep>();
+        var metrics = await runner.RunAsync(new Inline<ProbeStep>(steps.Add), CancellationToken.None);
+
+        Assert.All(metrics, x => { Assert.Equal(2, x.Rounds!.Count); Assert.Equal(ProbeMath.Median(x.Rounds), x.Value); });
+        Assert.InRange(runner.Busy ?? 0, 0, 100);
+        Assert.Equal(steps.Max(x => x.Total), steps[^1].Done); Assert.Equal(1, steps[^1].Fraction);
+        Assert.True(steps.Zip(steps.Skip(1)).All(p => p.Second.Done >= p.First.Done), "progress never goes back");
+    }
+
+    [Fact]
+    public async Task AWarmUpRunsBeforeTheRoundsCount()
+    {
+        var lines = new List<string>();
+        await new ProbeRunner(ProbeProfile.Quick with { WarmUp = true, SettleMs = 1 }).RunAsync(new Inline<string>(lines.Add), CancellationToken.None);
+
+        var warmed = lines.IndexOf("Warmed up.");
+        Assert.True(warmed >= 0 && warmed < lines.FindIndex(x => x.StartsWith("Round 1", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public async Task AQuickCheckMeasuresEveryTestAndReportsProgress()
     {
