@@ -79,6 +79,10 @@ jobs:
           foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'Shell/MainWindow.xbf', 'CleanHost/TidyWindow.CleanHost.exe', 'ScoutHost/TidyWindow.SearchHost.exe') {
             if (-not (Test-Path (Join-Path artifacts/publish $path))) { throw "Missing from the package: $path" }
           }
+          # The helpers live only in their own folders. A second copy beside the app cannot run and just adds search results.
+          foreach ($path in 'TidyWindow.CleanHost.exe', 'TidyWindow.SearchHost.exe') {
+            if (Test-Path (Join-Path artifacts/publish $path)) { throw "Stray helper copy in the package root: $path" }
+          }
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/TidyWindow-$env:VERSION-win-x64.zip"
