@@ -157,7 +157,7 @@ public sealed partial class MainWindow : Window
         CrashesNav.DataContext = crashes;
         PathsPage.DataContext = paths;
         logs = new(log, Post);
-        settings = new(log, toasts, () => operationQueue.HasWork, () => ShowPage(Page.Logs), Post);
+        settings = new(log, toasts, () => operationQueue.HasWork, Post);
         // Problems a page cannot show in its own empty space arrive as a toast, with the full text kept in Logs.
         model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(model.Errors) && model.Errors.Length > 0) ReportProblem("search-errors", "Search needs attention", model.Errors); };
         installations.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(installations.Errors) && installations.Errors.Length > 0) ReportProblem("installed-errors", "Some apps or updates could not be checked", installations.Errors); };

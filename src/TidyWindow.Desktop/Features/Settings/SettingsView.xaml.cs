@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Animation;
 using TidyWindow.Next.Core;
 using Windows.System;
 
@@ -8,7 +9,56 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class SettingsView : UserControl
 {
-    public SettingsView() => InitializeComponent();
+    private Storyboard? shimmer;
+    private SettingsViewModel? watched;
+
+    public SettingsView()
+    {
+        InitializeComponent();
+        DataContextChanged += (_, e) => Watch(e.NewValue as SettingsViewModel);
+        Loaded += (_, _) => StartShimmer();
+        Unloaded += (_, _) => { shimmer?.Stop(); shimmer = null; Watch(null); };
+    }
+
+    // The download bar is drawn from the view model's smoothed fraction, about thirty times a second while a download runs.
+    private void Watch(SettingsViewModel? model)
+    {
+        if (ReferenceEquals(watched, model)) return;
+        if (watched is not null) watched.PropertyChanged -= ModelChanged;
+        watched = model;
+        if (watched is not null) watched.PropertyChanged += ModelChanged;
+        UpdateDownloadBar();
+    }
+
+    private void ModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SettingsViewModel.DownloadFraction) or nameof(SettingsViewModel.DownloadIndeterminate)) UpdateDownloadBar();
+    }
+
+    private void DownloadTrackSizeChanged(object sender, SizeChangedEventArgs e) => UpdateDownloadBar();
+
+    private void UpdateDownloadBar()
+    {
+        var model = watched;
+        var indeterminate = model?.DownloadIndeterminate == true;
+        DownloadFill.Width = model is null ? 0 : DownloadTrack.ActualWidth * (indeterminate ? 1 : model.DownloadFraction);
+        DownloadFill.Opacity = indeterminate ? 0.5 : 1;
+    }
+
+    // A highlight slides across the fill, then rests a moment before the next pass.
+    private void StartShimmer()
+    {
+        if (shimmer is not null) return;
+        var sweep = new DoubleAnimationUsingKeyFrames { EnableDependentAnimation = true, RepeatBehavior = RepeatBehavior.Forever };
+        sweep.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = -0.6 });
+        sweep.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(1300), Value = 0.6, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
+        sweep.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(2000), Value = 0.6 });
+        Storyboard.SetTarget(sweep, ShimmerShift);
+        Storyboard.SetTargetProperty(sweep, "X");
+        shimmer = new Storyboard();
+        shimmer.Children.Add(sweep);
+        shimmer.Begin();
+    }
 
     private SettingsViewModel? Model => DataContext as SettingsViewModel;
 
@@ -66,6 +116,8 @@ public sealed partial class SettingsView : UserControl
         if (Model is { } model) _ = OpenAsync(model.ReleasePageUrl);
     }
 
+    private void ReleasesToggleClick(object sender, RoutedEventArgs e) => Model?.ToggleReleases();
+
     private void ReleaseToggleClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: ReleaseNoteRow row }) row.Toggle();
@@ -93,30 +145,6 @@ public sealed partial class SettingsView : UserControl
         if (url is not null) _ = OpenAsync(url);
     }
 
-    private async void OpenLogsClick(object sender, RoutedEventArgs e)
-    {
-        if (Model?.LogPath is not { } folder) return;
-        try
-        {
-            Directory.CreateDirectory(folder);
-            if (!await Launcher.LaunchFolderPathAsync(folder)) throw new IOException("File Explorer could not open this folder.");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or COMException)
-        {
-            Model.Report("The log folder could not be opened", ex.Message);
-        }
-    }
-
-    private async void CopyPathClick(object sender, RoutedEventArgs e)
-    {
-        if (Model?.LogPath is not { } folder || !TryCopy(folder)) return;
-        CopyPathLabel.Text = "Copied";
-        await Task.Delay(1500);
-        CopyPathLabel.Text = "Copy path";
-    }
-
-    private void ViewLogsClick(object sender, RoutedEventArgs e) => Model?.OpenLogs();
-
     private async Task OpenAsync(string url)
     {
         try
@@ -128,17 +156,5 @@ public sealed partial class SettingsView : UserControl
         {
             Model?.Report("The link could not be opened", ex.Message);
         }
-    }
-
-    private static bool TryCopy(string text)
-    {
-        try
-        {
-            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(text);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            return true;
-        }
-        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException) { return false; }
     }
 }
