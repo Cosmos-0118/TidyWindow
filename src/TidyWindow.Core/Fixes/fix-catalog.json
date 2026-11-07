@@ -438,11 +438,23 @@
       "scope": "machine",
       "icon": "E719",
       "summary": "For a Store that will not open, loads forever, or fails to download or update apps.",
-      "effect": "Clears the Store's cache. You stay signed in and keep your apps. The Store opens by itself when the reset finishes. Windows requires administrator permission for this tool.",
+      "effect": "Clears the Store's cache. You stay signed in and keep your apps. If your account has lost the Store or its purchase app, Windows registers it again first. A service the Store needs that has been turned off is reported, not changed. The Store opens by itself when the reset finishes. Windows requires administrator permission for this tool.",
       "duration": "A minute",
-      "sources": ["Microsoft Support: Reset the Microsoft Store cache (WSReset)"],
+      "sources": ["Microsoft Support: Reset the Microsoft Store cache (WSReset)", "Microsoft Learn: Add-AppxPackage (-RegisterByFamilyName)"],
       "steps": [
-        { "title": "Clear the Store cache", "file": "wsreset.exe", "minutes": 5 }
+        { "title": "Check the Microsoft Store Install Service", "kind": "startService", "service": "InstallService", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Check the Client License Service", "kind": "startService", "service": "ClipSVC", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Check the AppX Deployment Service", "kind": "startService", "service": "AppXSvc", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        {
+          "title": "Register the Store again if this account lost it",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$failed = 0\nforeach ($family in 'Microsoft.WindowsStore_8wekyb3d8bbwe', 'Microsoft.StorePurchaseApp_8wekyb3d8bbwe') {\n  $name = $family.Split('_')[0]\n  if (Appx\\Get-AppxPackage -Name $name) { \"$name is registered.\"; continue }\n  \"$name is not registered for this account. Asking Windows to register the copy it keeps for every account.\"\n  try { Appx\\Add-AppxPackage -RegisterByFamilyName -MainPackage $family; \"Registered $name.\" }\n  catch { $failed++; \"Could not register ${name}: \" + $_.Exception.Message.Split([char]10)[0].Trim() }\n}\nif ($failed -gt 0) { exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "warn": [1]
+        },
+        { "title": "Clear the Store cache", "file": "wsreset.exe", "args": [], "minutes": 5 }
       ]
     },
     {
@@ -451,7 +463,7 @@
       "group": "apps",
       "scope": "user",
       "icon": "E80F",
-      "summary": "For a Start menu or search box that will not open, a blank or frozen taskbar, or a Settings app that closes at once. Registers Windows' own shell apps again.",
+      "summary": "For a Start menu or search box that will not open, a blank or frozen taskbar, or a Settings app that closes at once. Registers Windows’ own shell apps again, also the ones this account has lost after an update.",
       "effect": "The taskbar disappears for a few seconds while File Explorer restarts. Your pinned items and settings are kept.",
       "duration": "1 to 3 minutes",
       "sources": ["Microsoft Q&A: Start menu not working (re-register the shell packages, including the Windows 11 shell components)"],
@@ -459,7 +471,7 @@
         {
           "title": "Register the Start menu, taskbar, search and Settings apps again",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $hosts = 'ShellExperienceHost', 'StartMenuExperienceHost', 'SearchApp', 'SearchUI', 'SearchHost', 'SystemSettings'; $failed = @(); $core = 'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost', 'windows.immersivecontrolpanel'; foreach ($name in $core + 'Microsoft.UI.Xaml.CBS', 'MicrosoftWindows.Client.Core', 'MicrosoftWindows.Client.CBS') { $packages = @(Appx\\Get-AppxPackage -Name $name | Microsoft.PowerShell.Core\\Where-Object { $_ }); if ($packages.Count -eq 0) { \"$name is not installed.\"; continue }; foreach ($package in $packages) { $manifest = Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml'; $done = $false; $reason = ''; foreach ($attempt in 1, 2) { try { Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest; $done = $true; break } catch { $reason = $_.Exception.Message.Split([char]10)[0].Trim(); if ($attempt -eq 1) { \"$name is in use. Closing it so Windows can open it again, then trying once more.\"; Microsoft.PowerShell.Management\\Get-Process -Name $hosts -ErrorAction SilentlyContinue | Microsoft.PowerShell.Management\\Stop-Process -Force -ErrorAction SilentlyContinue; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 3 } } }; if ($done) { \"Registered $name.\" } else { if ($core -contains $name) { $failed += $name }; \"Could not register $name. $reason\" } } }; if ($failed.Count -gt 0) { throw ('Could not register: ' + (($failed | Microsoft.PowerShell.Utility\\Select-Object -Unique) -join ', ') + '. Restart Windows and run this fix again.') }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$hosts = 'ShellExperienceHost', 'StartMenuExperienceHost', 'SearchApp', 'SearchUI', 'SearchHost', 'SystemSettings'\n$apps = \"$env:SystemRoot\\SystemApps\"\n# Microsoft.UI.Xaml.CBS is first: the Start menu, the taskbar and Settings are built on it and cannot be registered without it.\n$wanted = @(\n  @{ Name = 'Microsoft.UI.Xaml.CBS'; Folder = \"$apps\\Microsoft.UI.Xaml.CBS_8wekyb3d8bbwe\"; Core = $false },\n  @{ Name = 'MicrosoftWindows.Client.Core'; Folder = \"$apps\\MicrosoftWindows.Client.Core_cw5n1h2txyewy\"; Core = $false },\n  @{ Name = 'MicrosoftWindows.Client.CBS'; Folder = \"$apps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\"; Core = $false },\n  @{ Name = 'Microsoft.Windows.ShellExperienceHost'; Folder = \"$apps\\ShellExperienceHost_cw5n1h2txyewy\"; Core = $true },\n  @{ Name = 'Microsoft.Windows.StartMenuExperienceHost'; Folder = \"$apps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\"; Core = $true },\n  @{ Name = 'windows.immersivecontrolpanel'; Folder = \"$env:SystemRoot\\ImmersiveControlPanel\"; Core = $true }\n)\n$failed = @()\nforeach ($item in $wanted) {\n  $name = $item.Name\n  $manifests = @(Appx\\Get-AppxPackage -Name $name | Microsoft.PowerShell.Core\\Where-Object { $_ } | Microsoft.PowerShell.Core\\ForEach-Object { Microsoft.PowerShell.Management\\Join-Path $_.InstallLocation 'AppXManifest.xml' })\n  if ($manifests.Count -eq 0) {\n    # Windows keeps a copy of each of these for every account. After an update an account can lose its registration, and then only the copy is left.\n    $copy = Microsoft.PowerShell.Management\\Join-Path $item.Folder 'AppXManifest.xml'\n    if (-not (Microsoft.PowerShell.Management\\Test-Path -LiteralPath $copy)) { \"$name is not installed.\"; continue }\n    \"$name is not registered for this account. Registering it from the copy Windows keeps.\"\n    $manifests = @($copy)\n  }\n  foreach ($manifest in $manifests) {\n    $done = $false; $reason = ''\n    foreach ($attempt in 1, 2) {\n      try { Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest; $done = $true; break }\n      catch {\n        $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n        if ($attempt -eq 1) { \"$name is in use. Closing it so Windows can open it again, then trying once more.\"; Microsoft.PowerShell.Management\\Get-Process -Name $hosts -ErrorAction SilentlyContinue | Microsoft.PowerShell.Management\\Stop-Process -Force -ErrorAction SilentlyContinue; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 3 }\n      }\n    }\n    if ($done) { \"Registered $name.\" } else { if ($item.Core) { $failed += $name }; \"Could not register $name. $reason\" }\n  }\n}\nif ($failed.Count -gt 0) { throw ('Could not register: ' + (($failed | Microsoft.PowerShell.Utility\\Select-Object -Unique) -join ', ') + '. Restart Windows and run this fix again.') }"],
           "encoding": "utf8",
           "minutes": 10
         },
@@ -473,13 +485,17 @@
       "scope": "user",
       "icon": "E91B",
       "summary": "For icons that show the wrong picture, a plain white page, or thumbnails that never appear. Deletes the saved icon pictures so Windows draws them fresh.",
-      "effect": "The taskbar and desktop disappear for a few seconds, and folders may be slow to show thumbnails the first time afterwards.",
+      "effect": "The taskbar and desktop disappear for a few seconds, and folders may be slow to show thumbnails the first time afterwards. Turn the thumbnail option off to keep the previews of your photos and videos and only fix the icons.",
       "duration": "Under a minute",
       "sources": ["Microsoft Q&A: Rebuild the icon cache"],
+      "options": [
+        { "id": "thumbnails", "label": "Also delete the picture and video thumbnails", "detail": "Folder previews of photos, videos and documents are drawn again the first time you open a folder. Turn this off to keep them and only fix the icons.", "default": true }
+      ],
       "steps": [
         { "title": "Close File Explorer", "kind": "stopExplorer" },
         { "title": "Delete the icon cache", "kind": "deleteFiles", "path": "%LOCALAPPDATA%", "patterns": ["IconCache.db"], "warn": [1], "optional": true },
-        { "title": "Delete the saved icons and thumbnails", "kind": "deleteFiles", "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "patterns": ["iconcache_*.db", "thumbcache_*.db"], "warn": [1], "optional": true },
+        { "title": "Delete the saved icons", "kind": "deleteFiles", "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "patterns": ["iconcache_*.db"], "warn": [1], "optional": true },
+        { "title": "Delete the saved thumbnails", "kind": "deleteFiles", "path": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "patterns": ["thumbcache_*.db"], "warn": [1], "optional": true, "when": "thumbnails" },
         { "title": "Start File Explorer", "kind": "startExplorer", "always": true }
       ]
     },
@@ -490,20 +506,41 @@
       "scope": "user",
       "icon": "E753",
       "summary": "For OneDrive that is stuck syncing, shows the wrong status, or will not start. Resets the sync app without touching your files.",
-      "effect": "OneDrive is closed, reset and started again (this waits about 20 seconds to see whether it started by itself). It then checks all its files again, which can take a while. No files are deleted.",
+      "effect": "OneDrive is closed, reset and started again (this waits about 20 seconds to see whether it started by itself). It then checks all its files again, which can take a while. No files are deleted. With the restart option it is only closed and started again, without the reset and without the new check of all files.",
       "duration": "A minute, then OneDrive syncs again",
       "sources": ["Microsoft Support: Reset OneDrive"],
+      "options": [
+        { "id": "restart-only", "label": "Only restart OneDrive, do not reset it", "detail": "Try this first when sync is stuck. A reset makes OneDrive check every file again, which can take hours with a large OneDrive." }
+      ],
       "steps": [
         { "title": "Close OneDrive", "file": "onedrive", "args": ["/shutdown"], "minutes": 2, "optional": true },
-        { "title": "Reset OneDrive", "file": "onedrive", "args": ["/reset"], "minutes": 2 },
+        {
+          "title": "Wait for OneDrive to close",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$limit = [DateTime]::UtcNow.AddSeconds(10)\nwhile ((Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $limit) { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1 }\nif (Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue) { 'OneDrive is still closing after 10 seconds. Going on anyway.' } else { 'OneDrive is closed.' }"],
+          "encoding": "utf8",
+          "minutes": 1,
+          "optional": true
+        },
+        { "title": "Reset OneDrive", "file": "onedrive", "args": ["/reset"], "minutes": 2, "when": "!restart-only" },
+        {
+          "title": "Start OneDrive again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$path = @(\"$env:LOCALAPPDATA\\Microsoft\\OneDrive\\OneDrive.exe\", \"$env:ProgramFiles\\Microsoft OneDrive\\OneDrive.exe\", \"${env:ProgramFiles(x86)}\\Microsoft OneDrive\\OneDrive.exe\") | Microsoft.PowerShell.Core\\Where-Object { Microsoft.PowerShell.Management\\Test-Path $_ } | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue) { 'OneDrive is running.'; exit 0 }\nif (-not $path) { 'OneDrive was not found on this PC.'; exit 1 }\nMicrosoft.PowerShell.Management\\Start-Process -FilePath $path -ArgumentList '/background'\n'OneDrive was started again.'"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "always": true,
+          "when": "restart-only"
+        },
         {
           "title": "Start OneDrive again if it did not start by itself",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 20; if (Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue) { 'OneDrive is running.' } else { $path = @(\"$env:LOCALAPPDATA\\Microsoft\\OneDrive\\OneDrive.exe\", \"$env:ProgramFiles\\Microsoft OneDrive\\OneDrive.exe\", \"${env:ProgramFiles(x86)}\\Microsoft OneDrive\\OneDrive.exe\") | Microsoft.PowerShell.Core\\Where-Object { Microsoft.PowerShell.Management\\Test-Path $_ } | Microsoft.PowerShell.Utility\\Select-Object -First 1; if (-not $path) { throw 'OneDrive was not found.' }; 'OneDrive did not start by itself. Starting it now.'; Microsoft.PowerShell.Management\\Start-Process -FilePath $path -ArgumentList '/background' }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$path = @(\"$env:LOCALAPPDATA\\Microsoft\\OneDrive\\OneDrive.exe\", \"$env:ProgramFiles\\Microsoft OneDrive\\OneDrive.exe\", \"${env:ProgramFiles(x86)}\\Microsoft OneDrive\\OneDrive.exe\") | Microsoft.PowerShell.Core\\Where-Object { Microsoft.PowerShell.Management\\Test-Path $_ } | Microsoft.PowerShell.Utility\\Select-Object -First 1\n# Without OneDrive on this PC there is nothing to wait for.\nif (-not $path -and -not (Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue)) { 'OneDrive was not found on this PC.'; exit 1 }\nMicrosoft.PowerShell.Utility\\Start-Sleep -Seconds 20\nif (Microsoft.PowerShell.Management\\Get-Process -Name OneDrive -ErrorAction SilentlyContinue) { 'OneDrive is running.'; exit 0 }\nif (-not $path) { 'OneDrive was not found on this PC.'; exit 1 }\n'OneDrive did not start by itself. Starting it now.'\nMicrosoft.PowerShell.Management\\Start-Process -FilePath $path -ArgumentList '/background'"],
           "encoding": "utf8",
           "minutes": 3,
           "optional": true,
-          "always": true
+          "always": true,
+          "when": "!restart-only"
         }
       ]
     },
@@ -955,7 +992,7 @@
       "group": "apps",
       "scope": "user",
       "icon": "E72E",
-      "summary": "For Windows Security that opens blank, closes at once, or says you need a new app to open the windowsdefender link. Registers the Windows Security app again and resets its app data.",
+      "summary": "For Windows Security that opens blank, closes at once, or says you need a new app to open the windowsdefender link. Registers the Windows Security app again (also when this account has lost it) and resets its app data.",
       "effect": "Only the Windows Security app is repaired. Your virus protection settings and exclusions belong to Microsoft Defender and are kept. If another antivirus has taken over, Windows Security shows less.",
       "duration": "A few seconds",
       "sources": ["Microsoft Q&A: Windows Security app blank or not opening (re-register Microsoft.SecHealthUI, Reset-AppxPackage)"],
@@ -963,14 +1000,14 @@
         {
           "title": "Register the Windows Security app again",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Appx\\Get-AppxPackage -Name Microsoft.SecHealthUI | Microsoft.PowerShell.Utility\\Select-Object -First 1; if (-not $package) { throw 'The Windows Security app is not installed for this account.' }; Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml'); 'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.SecHealthUI | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) {\n  'The Windows Security app is not registered for this account. Asking Windows to register the copy it keeps for every account.'\n  try { Appx\\Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.SecHealthUI_8wekyb3d8bbwe }\n  catch { throw ('Windows could not register it: ' + $_.Exception.Message.Split([char]10)[0].Trim() + ' Run Windows Update and try again.') }\n  $package = Appx\\Get-AppxPackage -Name Microsoft.SecHealthUI | Microsoft.PowerShell.Utility\\Select-Object -First 1\n  if (-not $package) { throw 'The Windows Security app is not on this PC. Run Windows Update and try again.' }\n} else {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n}\n'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
           "encoding": "utf8",
           "minutes": 5
         },
         {
           "title": "Reset the Windows Security app data",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Appx\\Get-AppxPackage -Name Microsoft.SecHealthUI | Microsoft.PowerShell.Utility\\Select-Object -First 1; if ($package) { Appx\\Reset-AppxPackage -Package $package.PackageFullName; 'Reset ' + $package.Name + '.' }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.SecHealthUI | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif ($package) { Appx\\Reset-AppxPackage -Package $package.PackageFullName; 'Reset ' + $package.Name + '.' }"],
           "encoding": "utf8",
           "minutes": 5,
           "optional": true
@@ -983,7 +1020,7 @@
       "group": "apps",
       "scope": "user",
       "icon": "E896",
-      "summary": "For winget that stopped working after an update, or fails with “Data required by the source is missing” (0x8a15000f). Registers App Installer again and refreshes winget’s app lists.",
+      "summary": "For winget that stopped working after an update, or fails with “Data required by the source is missing” (0x8a15000f). Registers App Installer again (also when this account has lost it) and refreshes winget’s app lists.",
       "effect": "Nothing you installed is touched. If the source error stays, open an administrator terminal and run winget source reset --force, which Windows only allows for administrators.",
       "duration": "Under a minute",
       "sources": ["Microsoft Learn: winget source (update); Microsoft Q&A: Re-register App Installer"],
@@ -991,17 +1028,136 @@
         {
           "title": "Register App Installer again",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $package = Appx\\Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Microsoft.PowerShell.Utility\\Select-Object -First 1; if (-not $package) { throw 'App Installer is not installed for this account. Install or update it from the Microsoft Store.' }; Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml'); 'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) {\n  'App Installer is not registered for this account. Asking Windows to register the copy it keeps for every account.'\n  try { Appx\\Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe }\n  catch { throw ('Windows could not register it: ' + $_.Exception.Message.Split([char]10)[0].Trim() + ' Update App Installer from the Microsoft Store and try again.') }\n  $package = Appx\\Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Microsoft.PowerShell.Utility\\Select-Object -First 1\n  if (-not $package) { throw 'App Installer is not on this PC. Update App Installer from the Microsoft Store and try again.' }\n} else {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n}\n'Registered ' + $package.Name + ' ' + $package.Version + '.'"],
           "encoding": "utf8",
           "minutes": 5
         },
         {
           "title": "Refresh winget’s app lists",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; & winget source update --disable-interactivity; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$command = Microsoft.PowerShell.Core\\Get-Command -Name winget.exe -CommandType Application -ErrorAction SilentlyContinue | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif ($command) { $winget = $command.Source }\nelse {\n  # The winget command can be turned off in Settings (Apps, Advanced app settings, App execution aliases). The program is still where App Installer keeps it.\n  $package = Appx\\Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Microsoft.PowerShell.Utility\\Select-Object -First 1\n  $winget = $null\n  if ($package) { $direct = Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'winget.exe'; if (Microsoft.PowerShell.Management\\Test-Path -LiteralPath $direct) { $winget = $direct } }\n  if (-not $winget) { throw 'winget was not found. Install or update App Installer from the Microsoft Store.' }\n  'The winget command is turned off for this account (Settings, Apps, Advanced app settings, App execution aliases, App Installer). Running winget from where App Installer keeps it.'\n}\n& $winget source update --disable-interactivity\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"],
           "encoding": "utf8",
           "minutes": 5
         }
+      ]
+    },
+    {
+      "id": "repair-builtin-apps",
+      "name": "Fix Windows apps that will not open",
+      "group": "apps",
+      "scope": "user",
+      "icon": "E71D",
+      "summary": "For Snipping Tool, Photos, Calculator, Notepad, Paint, Terminal or Camera that closes at once or says “This app can’t open”, often after an update. Registers each app you pick again for your account.",
+      "effect": "Your files and each app’s own settings are kept; the apps’ data is not reset. An app you have removed is not brought back, and one that is open has to be closed first. An app that is missing for your account is listed, not installed.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: Add-AppxPackage (-Register)"],
+      "options": [
+        { "id": "snipping-tool", "label": "Snipping Tool", "default": true },
+        { "id": "photos", "label": "Photos", "default": true },
+        { "id": "calculator", "label": "Calculator", "default": true },
+        { "id": "notepad", "label": "Notepad", "default": true },
+        { "id": "paint", "label": "Paint", "default": true },
+        { "id": "terminal", "label": "Windows Terminal", "default": true },
+        { "id": "camera", "label": "Camera", "default": true }
+      ],
+      "steps": [
+        {
+          "title": "Register Snipping Tool again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.ScreenSketch | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Snipping Tool is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Snipping Tool is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Snipping Tool is open. Close it and run this again.' } else { 'Snipping Tool could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "snipping-tool"
+        },
+        {
+          "title": "Register Photos again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.Windows.Photos | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Photos is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Photos is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Photos is open. Close it and run this again.' } else { 'Photos could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "photos"
+        },
+        {
+          "title": "Register Calculator again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.WindowsCalculator | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Calculator is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Calculator is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Calculator is open. Close it and run this again.' } else { 'Calculator could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "calculator"
+        },
+        {
+          "title": "Register Notepad again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.WindowsNotepad | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Notepad is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Notepad is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Notepad is open. Close it and run this again.' } else { 'Notepad could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "notepad"
+        },
+        {
+          "title": "Register Paint again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.Paint | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Paint is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Paint is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Paint is open. Close it and run this again.' } else { 'Paint could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "paint"
+        },
+        {
+          "title": "Register Windows Terminal again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.WindowsTerminal | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Windows Terminal is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Windows Terminal is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Windows Terminal is open. Close it and run this again.' } else { 'Windows Terminal could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "terminal"
+        },
+        {
+          "title": "Register Camera again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$package = Appx\\Get-AppxPackage -Name Microsoft.WindowsCamera | Microsoft.PowerShell.Utility\\Select-Object -First 1\nif (-not $package) { 'Camera is not installed for this account, so there is nothing to repair. Install it from the Microsoft Store if you want it.'; exit 4 }\ntry {\n  Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml')\n  'Camera is registered again (version ' + $package.Version + ').'\n} catch {\n  $reason = $_.Exception.Message.Split([char]10)[0].Trim()\n  if ($reason -match '0x80073D02|in use') { 'Camera is open. Close it and run this again.' } else { 'Camera could not be registered again: ' + $reason }\n  exit 1\n}"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "ok": [0, 4],
+          "when": "camera"
+        }
+      ]
+    },
+    {
+      "id": "repair-gaming-services",
+      "name": "Repair Xbox app and Gaming Services",
+      "group": "apps",
+      "scope": "machine",
+      "icon": "E768",
+      "summary": "For Xbox app or Game Pass games that will not install or start (0x80073D26, 0x80070490), or that open a Store page for Gaming Services although it is installed. Registers the Xbox and Gaming apps this account has again and starts the Gaming and Xbox services.",
+      "effect": "Nothing is installed or removed. Services that have been turned off (the Quiet page can do that) are reported, not turned on. If Gaming Services is not installed, this says so and you install it from the Microsoft Store.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Troubleshoot game install and launch errors on Windows (Gaming Services)"],
+      "steps": [
+        {
+          "title": "Register the Xbox and Gaming apps again",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\n$failed = 0; $services = $true\nforeach ($name in 'Microsoft.GamingServices', 'Microsoft.XboxIdentityProvider', 'Microsoft.GamingApp', 'Microsoft.XboxGamingOverlay') {\n  $package = Appx\\Get-AppxPackage -Name $name | Microsoft.PowerShell.Utility\\Select-Object -First 1\n  if (-not $package) { \"$name is not installed for this account.\"; if ($name -eq 'Microsoft.GamingServices') { $services = $false }; continue }\n  try { Appx\\Add-AppxPackage -DisableDevelopmentMode -Register (Microsoft.PowerShell.Management\\Join-Path $package.InstallLocation 'AppXManifest.xml'); \"Registered $name (version $($package.Version)).\" }\n  catch { $failed++; \"Could not register ${name}: \" + $_.Exception.Message.Split([char]10)[0].Trim() }\n}\nif ($failed -gt 0) { exit 1 }\nif (-not $services) { 'Gaming Services is not installed. Open the Microsoft Store, search for Gaming Services and install it; games and the Xbox app need it.'; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 5,
+          "optional": true,
+          "warn": [1, 2]
+        },
+        { "title": "Start Gaming Services", "kind": "startService", "service": "GamingServices", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Start Gaming Services Net", "kind": "startService", "service": "GamingServicesNet", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Start Xbox Live Auth Manager", "kind": "startService", "service": "XblAuthManager", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Start Xbox Live Game Save", "kind": "startService", "service": "XblGameSave", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true },
+        { "title": "Start Xbox Live Networking", "kind": "startService", "service": "XboxNetApiSvc", "minutes": 3, "ok": [0, 4], "warn": [3], "optional": true }
       ]
     }
   ]

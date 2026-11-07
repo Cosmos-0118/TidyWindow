@@ -273,3 +273,49 @@ An outside review of the six Devices fixes was checked claim by claim on this PC
 ### Not run on this PC
 
 A real camera (this PC has none; the empty case printed "No camera was found."), a device that really reports code 10, 31, 39, 41 or 43 (that cannot be made on purpose: the restart branch was run on a switched-off COM port with the code list changed to 22 in a copy of the script), a Bluetooth headset connected during the restart, and any second Windows machine.
+
+### Run from the app (7 November 2026, afterwards)
+
+All ten Devices fixes were run from the app itself and the app's own log (`%LOCALAPPDATA%\TidyWindow.Next\Logs\activity.jsonl` and `Fixes\last-runs.json`) was read. Nine finished as Completed. *Clear stuck print jobs* finished with a warning: the empty-queue step said "6 files were in use and left as they are". The print service had been stopped (its process had exited, which the step waits for), so something other than the print service held those files; the folder was empty a few minutes later and the print service was running with a new process, so nothing was left behind. Which process held them was not found. *Stop USB devices cutting out* leaves USB power saving off (0/0) on that PC, which is what the fix is for.
+
+## Apps tab review (7 November 2026)
+
+An outside review of the six Apps fixes was checked claim by claim on this PC (Windows 11 build 26300) and every fix was run for real. The Apps tab now has eight fixes; the catalog has 36. Several of the review's concrete recommendations were wrong and would have made things worse, so they were not built.
+
+### Built
+
+- **A package the account has lost is registered again instead of skipped.** This was the review's best point and it holds: `Get-AppxPackage` only lists packages registered for the current account, so the old Start menu, Windows Security and winget fixes stopped at "is not installed" in exactly the state they exist for. Now:
+  - *Fix Start menu and taskbar* falls back to the copy of each shell package that Windows keeps in `C:\Windows\SystemApps` (and `C:\Windows\ImmersiveControlPanel`). The folders come from an explicit table, because the review's `${name}_*` pattern is wrong for the shell host: the package is `Microsoft.Windows.ShellExperienceHost` but its folder is `ShellExperienceHost_cw5n1h2txyewy`. Run with every lookup forced to miss, all six packages registered from those copies in 3.6 seconds.
+  - *Fix a blank Windows Security window* and *Repair WinGet and App Installer* fall back to `Add-AppxPackage -RegisterByFamilyName` with the package family name (`Microsoft.SecHealthUI_8wekyb3d8bbwe`, `Microsoft.DesktopAppInstaller_8wekyb3d8bbwe`). The command exists in Windows PowerShell 5.1 here, accepted the Windows Security, App Installer and Store families, and fails with a clear error (0x80073CF9) for a family that is not on the PC; that error ends the step with a sentence that says to run Windows Update, not a stack trace.
+- **`Microsoft.UI.Xaml.CBS` is registered first.** The review said the three CBS/Core packages must come before the shell hosts. Checked in the manifests: `ShellExperienceHost`, `StartMenuExperienceHost` and the Settings package depend on `Microsoft.UI.Xaml.CBS` only; `Client.Core` and `Client.CBS` depend on nothing and nothing depends on them. So only that framework was moved, to the front.
+- **winget is found even when its command is turned off.** If `winget.exe` is not on the path (App execution alias off), the step runs it from where App Installer keeps it and says why. Running it from the install folder works as a normal user here (v1.29.380).
+- **Icon fix: the thumbnails are an option (on).** Turn it off to keep photo and video previews and only redraw the icons. Checked: with it off, all 15 thumbnail files were still there afterwards.
+- **OneDrive.** A step waits (up to 10 seconds) for OneDrive to close before the reset, since `/shutdown` only asks it to; tested with a stand-in `OneDrive.exe` (closed after 5 s, and gave up after 10.4 s on one that kept running). New option "only restart OneDrive" skips the reset and the new check of every file. On a PC without OneDrive the last step used to wait 20 seconds and then print a PowerShell stack trace; it now says "OneDrive was not found on this PC" at once.
+- **Reset Microsoft Store** checks that the Store Install Service, the Client License Service and the AppX Deployment Service can run (a service that is turned off is a warning with Windows' explanation, and nothing turns it on), registers the Store and its purchase app again only if the account lost them, and then clears the cache as before. Run elevated: all fine, and the family-name registration was also run for real on the installed packages.
+- **New: Fix Windows apps that will not open.** Snipping Tool, Photos, Calculator, Notepad, Paint, Terminal and Camera, one tick each. It registers an app again **only if the account still has it**, from the manifest it already has. Run for real: six registered again, Paint (not registered for this account) reported as "not installed" without an error.
+- **New: Repair Xbox app and Gaming Services.** Registers the Xbox and Gaming apps the account has (Gaming Services, Xbox Identity Provider, Gaming App, Xbox Gaming Overlay) and starts the Gaming and Xbox services. A service that is turned off is reported with Windows' explanation, not turned on. If Gaming Services itself is missing it says to install it from the Store (warning).
+
+### Checked and not built
+
+- **`--accept-source-agreements` on `winget source update`.** Wrong: winget stops with "Argument name was not recognized for the current command". Adding it would have broken a fix that works. A test now keeps it out.
+- **Re-registering `Microsoft.UI.Xaml.CBS` for Windows Security.** Windows Security depends on `Microsoft.VCLibs.140.00` and `Microsoft.UI.Xaml.2.8` (its manifest), not on the CBS framework.
+- **The review's `SystemApps\Microsoft.Windows.SecHealthUI_cw5n1h2txyewy` path.** It does not exist on Windows 11; Windows Security lives under `Program Files\WindowsApps`. The family-name fallback is what works.
+- **Swapping the register and reset steps of the Windows Security fix.** No evidence either order is better, so it stays.
+- **Locked icon cache files, ending `StartMenuExperienceHost`/`SearchHost`/`prevhost`, and `ie4uinit.exe -show`.** Not reproduced: the old fix removed all 30 files on the first try with nothing locked, and ending the shell hosts makes the Start menu flash for no shown gain. If it does show up for someone, the existing step already reports files it could not delete as a warning.
+- **`Microsoft.Windows.Search` and `MicrosoftWindows.Client.WebExperience`.** Neither is registered for this account or present in `SystemApps` on this build (Search is part of `Client.CBS`), so adding them would only print "is not installed".
+- **`Reset-AppxPackage` for the Store and for the built-in apps.** It deletes app data (Terminal's settings, Notepad's tabs). The supported cache clear (`wsreset`) and a re-registration cover the cases; the Windows Security fix keeps its existing reset because that package holds nothing of the user's.
+- **Re-registering built-in apps by family name.** It would bring back an app removed on purpose (the Debloat page does that). Only apps the account still has are touched.
+- **Re-registering the framework packages (`VCLibs`, `Microsoft.UI.Xaml`, `WindowsAppRuntime`).** No evidence it fixes anything, and it touches packages many apps share.
+- **"Repair shell extensions".** It would register `Client.CBS` and restart Explorer, which *Fix Start menu and taskbar* already does. A right-click menu that hangs is almost always a third-party extension, which no registration fixes.
+- **`wsreset.exe` "needing the administrator for a different account".** `wsreset.exe` asks for "highest available" rights, so the Store fix stays a PC-wide fix. The review's worry (a standard user approving with another administrator's credentials resets that administrator's Store) is real, but it applies to every PC-wide fix in the app, not only this one, and was not changed here.
+
+### What running them found
+
+- The tests caught that the new built-in app steps exit with 4 for "not installed" while 4 was not an allowed exit code, so a missing app such as Paint would have shown as a failure.
+- A run for real with OneDrive missing showed the 20-second wait and the stack trace described above.
+- Turning the Client License Service off, to see the Store fix warn about it, had no effect (the service started normally afterwards), so that exact case was not exercised. The same start step and warning were exercised with the three Xbox services, which this PC has turned off.
+- `Reset-AppxPackage` and `Add-AppxPackage -Register` ran as a normal user and did not need the administrator.
+
+### Not run on this PC
+
+A package the account has really lost (the lookup was forced to miss, and the registration then ran for real on the installed packages, so the fallback paths and file names are proven but not the state that triggers them; removing Windows Security or the Start menu to get that state was not worth the risk), a PC with OneDrive installed (the wait logic was tested with a stand-in process), Gaming Services installed or an Xbox app, an app that is open while it is registered again, and Microsoft's own note about the lost shell registration (KB5072911, quoted by the review) was not checked.

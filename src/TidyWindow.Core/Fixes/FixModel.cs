@@ -134,7 +134,9 @@ public static partial class FixGuard
     {
         "spooler", "audiosrv", "AudioEndpointBuilder", "bthserv", "w32time", "WSearch", "bits", "wuauserv", "cryptsvc", "UsoSvc",
         "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub", "SSDPSRV", "upnphost", "WlanSvc", "NlaSvc",
-        "BTAGService", "BthAvctpSvc", "FrameServerMonitor", "stisvc", "ShellHWDetection", "GameInputSvc", "hidserv"
+        "BTAGService", "BthAvctpSvc", "FrameServerMonitor", "stisvc", "ShellHWDetection", "GameInputSvc", "hidserv",
+        // What the Microsoft Store needs, and the Xbox and Gaming services. These are only ever started: a service that is turned off is reported, never turned on.
+        "InstallService", "ClipSVC", "AppXSvc", "GamingServices", "GamingServicesNet", "XblAuthManager", "XblGameSave", "XboxNetApiSvc"
     };
 
     private static readonly string[][] AllowedNetsh =

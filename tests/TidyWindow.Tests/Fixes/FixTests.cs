@@ -43,7 +43,7 @@ public sealed class FixCatalogTests
     public void TheShippedCatalogIsValidAndReadyToUse()
     {
         var catalog = FixCatalog.Load();
-        Assert.Equal(34, catalog.Count);
+        Assert.Equal(36, catalog.Count);
         Assert.Empty(FixGuard.Validate(catalog));
         foreach (var group in Enum.GetValues<FixGroup>()) Assert.Contains(catalog, x => x.Group == group);
         Assert.All(catalog, x => { Assert.NotEmpty(x.Summary); Assert.NotEmpty(x.Effect); Assert.NotEmpty(x.Sources); Assert.NotEmpty(x.Duration); });
@@ -176,7 +176,9 @@ public sealed class FixCatalogTests
     {
         var script = FixCatalog.Load().Single(x => x.Id == "repair-start-menu").Steps[0].Args[^1];
         Assert.Contains("MicrosoftWindows.Client.CBS", script);
-        Assert.Contains("$core -contains $name", script);
+        // Only the three original packages (marked Core = $true) can fail the fix; the Windows 11 components only warn.
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(script, @"Core = \$true").Count);
+        Assert.Contains("if ($item.Core) { $failed += $name }", script);
     }
 
     [Fact]
