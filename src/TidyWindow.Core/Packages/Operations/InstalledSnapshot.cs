@@ -15,7 +15,7 @@ public sealed class InstalledSnapshot(string path)
     private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter() } };
 
     internal sealed record Stored(int Format, List<Entry> Apps);
-    internal sealed record Entry(ManagerKind Manager, string Id, string Name, string Version, string? Available, bool Global, bool Held, string Note, string Source);
+    internal sealed record Entry(ManagerKind Manager, string Id, string Name, string Version, string? Available, bool Global, bool Held, string Note, string Source, string? StoreVersion = null);
 
     public IReadOnlyList<ManagedPackage> Load()
     {
@@ -27,7 +27,7 @@ public sealed class InstalledSnapshot(string path)
             if (stored is null || stored.Format != Format || stored.Apps is null) return [];
             return stored.Apps
                 .Where(x => Enum.IsDefined(x.Manager) && !string.IsNullOrWhiteSpace(x.Id) && !string.IsNullOrWhiteSpace(x.Name))
-                .Select(x => new ManagedPackage(x.Manager, x.Id, x.Name, x.Version ?? "", x.Available, x.Global, x.Held, x.Note ?? "", x.Source ?? ""))
+                .Select(x => new ManagedPackage(x.Manager, x.Id, x.Name, x.Version ?? "", x.Available, x.Global, x.Held, x.Note ?? "", x.Source ?? "", x.StoreVersion))
                 .ToArray();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException) { return []; }
@@ -38,7 +38,7 @@ public sealed class InstalledSnapshot(string path)
     {
         try
         {
-            var stored = new Stored(Format, packages.Select(x => new Entry(x.Manager, x.Id, x.Name, x.Version, x.AvailableVersion, x.Global, x.Held, x.Note, x.Source)).ToList());
+            var stored = new Stored(Format, packages.Select(x => new Entry(x.Manager, x.Id, x.Name, x.Version, x.AvailableVersion, x.Global, x.Held, x.Note, x.Source, x.StoreVersion)).ToList());
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var temporary = path + ".tmp";
             File.WriteAllText(temporary, JsonSerializer.Serialize(stored, Options));

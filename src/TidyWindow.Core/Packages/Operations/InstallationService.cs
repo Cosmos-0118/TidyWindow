@@ -9,8 +9,12 @@ public enum ActionOutcome { Completed, RestartRequired, Unverified, Failed }
 /// <summary>Where an installed app came from. WinGet also lists what it did not install: registry programs and Store apps, which it can still uninstall.</summary>
 public enum AppOrigin { Package, WindowsProgram, StoreApp }
 public sealed record ManagedPackage(ManagerKind Manager, string Id, string Name, string Version,
-    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "", string Source = "")
+    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "", string Source = "", string? StoreVersion = null)
 {
+    /// <summary>A newer version the Microsoft Store lists that WinGet does not know of. Nothing can queue an update for it, so it is shown, not acted on.</summary>
+    public bool HasStoreUpdate => StoreVersion is { Length: > 0 } && AvailableVersion is null && !Held;
+    /// <summary>Something newer exists, whether TidyWindow can install it or only point to where it can be installed.</summary>
+    public bool HasUpdateInfo => AvailableVersion is not null && !Held || HasStoreUpdate;
     public string Key => $"{Manager}:{Id}:{Global}";
     public string ManagerName => ManagerDefinition.All.Single(x => x.Kind == Manager).Name;
     public AppOrigin Origin => Manager != ManagerKind.Winget ? AppOrigin.Package
@@ -22,7 +26,8 @@ public sealed record ManagedInventory(ManagerKind Manager, IReadOnlyList<Managed
 public sealed record PackageActionResult(ActionOutcome Outcome, string Message, string Detail);
 
 /// <summary>Manages exact installed identities. Shares the install/setup operation gate.</summary>
-public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator, SkippedUpdates? skipped = null, UninstallRecovery? recovery = null)
+/// <param name="store">Asked about newer Microsoft Store versions after WinGet has answered. Without it only the package managers' own answers are shown.</param>
+public sealed class InstallationService(PackageService packages, ICommandRunner runner, IExecutableLocator locator, SkippedUpdates? skipped = null, UninstallRecovery? recovery = null, StoreUpdateCheck? store = null)
 {
     private readonly SkippedUpdates skipped = skipped ?? new();
 
@@ -69,7 +74,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                 var updates = kind == ManagerKind.Scoop ? InstallationOutput.ParseScoop(result.Output, updates: true)
                     : InstallationOutput.ParseUpdates(kind, result.Output);
                 var updatesById = updates.ToLookup(x => x.Id, StringComparer.OrdinalIgnoreCase);
-                return new(kind, installed.Select(app =>
+                var reconciled = installed.Select(app =>
                 {
                     // Scoop status has no scope column. Reconcile by name AND installed version;
                     // list supplies global scope and hold state for the actual command.
@@ -78,7 +83,14 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                     if (update.AvailableVersion is { Length: > 0 } latest && skipped.IsSkipped(app, latest))
                         return app with { Note = $"{manager.Definition.Name} can’t apply the {latest} update. Update it from the app itself." };
                     return app with { AvailableVersion = update.AvailableVersion, Held = app.Held || update.Held };
-                }).ToArray());
+                }).ToArray();
+                // WinGet lists no update for a Store app that updates itself, and its catalog lags a vendor's release. The Store's own catalog does not.
+                if (kind == ManagerKind.Winget && store is not null)
+                {
+                    var newer = await store.NewerAsync(reconciled, token).ConfigureAwait(false);
+                    if (newer.Count > 0) reconciled = reconciled.Select(app => newer.TryGetValue(app.Key, out var version) ? app with { StoreVersion = version } : app).ToArray();
+                }
+                return new(kind, reconciled);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             { return new(kind, installed, UpdateError: ex.Message); }
