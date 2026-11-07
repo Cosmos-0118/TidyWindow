@@ -14,7 +14,7 @@ $failure = $null
 $work = $null
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 function Test-OfficialAddress([uri]$uri) {
-    return $uri.Scheme -eq 'https' -and $uri.Host -in @('community.chocolatey.org', 'packages.chocolatey.org', 'raw.githubusercontent.com', 'github.com', 'codeload.github.com', 'objects.githubusercontent.com')
+    return $uri.Scheme -eq 'https' -and $uri.Host -in @('community.chocolatey.org', 'packages.chocolatey.org', 'raw.githubusercontent.com', 'github.com', 'codeload.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
 }
 function Download-Official([string]$uri, [string]$destination, [string]$sha256 = '') {
     # Every hop of a redirect is checked, not only the first address. With a hash the file is only kept when it is byte-for-byte the one expected; without one the

@@ -389,6 +389,285 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
         Directory.Delete(Path.Combine(linked, "apps", "scoop", "current"));
     }
 
+    [Fact]
+    public async Task UpdatingAWorkingManagerRunsTheScriptAndReportsTheVersionItEndsOn()
+    {
+        using var fixture = new Fixture();
+        fixture.Runner.OnRepair = job => { fixture.Runner.Version = "2.8.0"; return new(0, "Updated", ""); };
+        var progress = new List<string>();
+        var result = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey, new Progress<string>(progress.Add));
+        Assert.True(result.Success); Assert.True(result.Changed);
+        Assert.Equal(1, fixture.Runner.Repairs);
+        Assert.Equal("2.8.0", result.Status.Version);
+        Assert.Contains("2.7.5", result.Message); Assert.Contains("2.8.0", result.Message);
+        // The same backups as a repair are taken before the manager is touched.
+        Assert.NotNull(result.LogDirectory); Assert.True(File.Exists(Path.Combine(result.LogDirectory!, "before.json")));
+        Assert.True(await fixture.Packages.OperationGate.WaitAsync(0), "The gate was not released.");
+        fixture.Packages.OperationGate.Release();
+    }
+
+    [Fact]
+    public async Task AnUpdateThatLeavesTheVersionAloneSaysSoInsteadOfClaimingAChange()
+    {
+        using var fixture = new Fixture();
+        var result = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey);
+        Assert.True(result.Success);
+        Assert.Contains("still reports version 2.7.5", result.Message);
+    }
+
+    [Fact]
+    public async Task ABrokenManagerIsRepairedBeforeItIsUpdatedNotInstead()
+    {
+        using var fixture = new Fixture();
+        fixture.Runner.Broken = true;
+        var result = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey);
+        Assert.False(result.Success); Assert.False(result.Changed);
+        Assert.Equal(0, fixture.Runner.Repairs);
+        Assert.Contains("repair", result.Message, StringComparison.OrdinalIgnoreCase);
+
+        fixture.Locator.Path = null;
+        var missing = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey);
+        Assert.False(missing.Success); Assert.Equal(0, fixture.Runner.Repairs);
+    }
+
+    [Fact]
+    public async Task AnOfflineManagerIsNotUpdatedAndIsLeftAlone()
+    {
+        using var fixture = new Fixture(); fixture.Runner.SourceError = "Network unreachable";
+        var result = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey);
+        Assert.False(result.Success); Assert.Equal(0, fixture.Runner.Repairs);
+        Assert.Equal(ManagerHealth.ConnectionIssue, result.Status.Health);
+    }
+
+    [Fact]
+    public async Task AFailedUpdateOfAManagerThatStillWorksDoesNotMarkItAsNeedingRepair()
+    {
+        using var fixture = new Fixture();
+        fixture.Runner.OnRepair = job =>
+        {
+            File.WriteAllText(Path.Combine(job, "result.json"), """{"exitCode":1,"error":"The download from the release address answered 503."}""");
+            return new(1, "", "");
+        };
+        var result = await fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey);
+        Assert.False(result.Success); Assert.True(result.Changed);
+        Assert.Equal(ManagerHealth.Ready, result.Status.Health);
+        Assert.Contains("503", result.Status.Detail);
+        Assert.Contains("update could not be completed", result.Message);
+        // A repair that fails does still mark it, as before.
+        using var repair = new Fixture(); repair.Runner.Broken = true; repair.Runner.RepairWorks = false;
+        Assert.Equal(ManagerHealth.Unavailable, (await repair.Recovery.RecoverAsync(ManagerKind.Chocolatey)).Status.Health);
+    }
+
+    [Fact]
+    public async Task AnUpdateAndARepairNeverRunTogether()
+    {
+        using var fixture = new Fixture();
+        Assert.True(await fixture.Packages.OperationGate.WaitAsync(0));
+        try { await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Recovery.UpdateAsync(ManagerKind.Chocolatey)); }
+        finally { fixture.Packages.OperationGate.Release(); }
+    }
+
+    [Theory]
+    [InlineData(ManagerKind.Winget, false)]
+    [InlineData(ManagerKind.Chocolatey, true)]
+    [InlineData(ManagerKind.Scoop, false)]
+    public async Task UpdateScriptsParseAndOnlyChocolateyAsksForAdministratorRights(ManagerKind kind, bool elevate)
+    {
+        using var fixture = new Fixture();
+        var definition = ManagerDefinition.All.Single(x => x.Kind == kind);
+        // The status is a working one: a source problem on a working manager must not turn an update into the elevated source repair.
+        var command = fixture.Recovery.CreateCommand(new(definition, ManagerHealth.Ready, "1.0.0", "manager.exe", "Ready"), new(fixture.Root, ""), fixture.Root, update: true);
+        Assert.Equal(elevate, command.Elevate);
+        var script = Encoding.Unicode.GetString(Convert.FromBase64String(command.Arguments[^1]));
+        Assert.Contains("$problem='Update'", script);
+        Assert.DoesNotContain("Remove-Item", script);
+        Assert.DoesNotContain("Invoke-WebRequest", script);
+        if (elevate) Assert.DoesNotContain("master", script);
+        Assert.Equal(elevate, script.Contains("$PSModuleAutoLoadingPreference = 'None'"));
+        if (kind == ManagerKind.Winget) { Assert.Contains("Add-AppxPackage -Path", script); Assert.Contains("-ForceApplicationShutdown", script); Assert.DoesNotContain("winget upgrade", script); }
+        if (kind == ManagerKind.Scoop) Assert.Contains(" update", script);
+        output.WriteLine($"{kind}/Update: command line {command.Arguments.Sum(x => x.Length + 3)} characters");
+        Assert.True(command.Arguments.Sum(x => x.Length + 3) < 30000, "Update command exceeds the Windows command-line limit.");
+        var scriptFile = Path.Combine(fixture.Root, "parse-target.ps1"); File.WriteAllText(scriptFile, script);
+        var parseScript = "$tokens=$null; $errors=$null; [Management.Automation.Language.Parser]::ParseFile('" + scriptFile.Replace("'", "''") + "',[ref]$tokens,[ref]$errors) | Out-Null; if($errors.Count) { $errors | ForEach-Object { [Console]::Error.WriteLine($_.Message) }; exit 1 }";
+        var parsed = await new ProcessRunner().RunAsync(new(new ExecutableLocator().PowerShell,
+            ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(parseScript))], TimeSpan.FromSeconds(10)));
+        Assert.True(parsed.ExitCode == 0, parsed.Error);
+    }
+
+    [Fact]
+    public async Task AWorkingScoopWithGitIsUpdatedByItsOwnUpdaterAndItsCoreIsKept()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var host = new ExecutableLocator().PowerShell;
+        var root = Path.Combine(fixture.DirectoryPath, "scoop");
+        var core = Path.Combine(root, "apps", "scoop", "current");
+        var marker = Path.Combine(fixture.DirectoryPath, "updated.txt");
+        Directory.CreateDirectory(Path.Combine(core, "bin"));
+        File.WriteAllText(Path.Combine(core, "bin", "scoop.ps1"), $"if ($args[0] -eq 'update') {{ Set-Content -LiteralPath {Literal(marker)} -Value updated; exit 0 }}\nWrite-Output 'Current Scoop version:'; Write-Output 'v0.5.0'");
+        // Git is found beside Scoop's own shims even when it is on no PATH.
+        Directory.CreateDirectory(Path.Combine(root, "shims")); File.WriteAllBytes(Path.Combine(root, "shims", "git.exe"), [0x4D, 0x5A, 0, 0]);
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var result = await RunScriptAsync(host, Variables(root, job, "Update", host), "Scoop", "function Download-Official { throw 'Nothing may be downloaded when Scoop can update itself' }");
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        Assert.True(File.Exists(marker), "Scoop's own updater did not run.");
+        Assert.Empty(Directory.EnumerateDirectories(Path.GetDirectoryName(core)!, "current.tidywindow-backup-*"));
+    }
+
+    [Fact]
+    public async Task AFailingScoopUpdaterFailsTheUpdateInsteadOfHidingIt()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var host = new ExecutableLocator().PowerShell;
+        var root = Path.Combine(fixture.DirectoryPath, "scoop");
+        var core = Path.Combine(root, "apps", "scoop", "current");
+        Directory.CreateDirectory(Path.Combine(core, "bin"));
+        File.WriteAllText(Path.Combine(core, "bin", "scoop.ps1"), "if ($args[0] -eq 'update') { exit 1 }\nWrite-Output 'v0.5.0'");
+        Directory.CreateDirectory(Path.Combine(root, "shims")); File.WriteAllBytes(Path.Combine(root, "shims", "git.exe"), [0x4D, 0x5A, 0, 0]);
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var result = await RunScriptAsync(host, Variables(root, job, "Update", host), "Scoop", "");
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Updating Scoop and its buckets", ResultError(job));
+    }
+
+    [Fact]
+    public async Task AWorkingScoopWithoutGitHasOnlyItsCoreReplacedFromTheOfficialRelease()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var host = new ExecutableLocator().PowerShell;
+        var root = Path.Combine(fixture.DirectoryPath, "scoop");
+        var core = Path.Combine(root, "apps", "scoop", "current");
+        var marker = Path.Combine(fixture.DirectoryPath, "updated.txt");
+        Directory.CreateDirectory(Path.Combine(core, "bin"));
+        File.WriteAllText(Path.Combine(core, "bin", "scoop.ps1"), $"if ($args[0] -eq 'update') {{ Set-Content -LiteralPath {Literal(marker)} -Value updated; exit 0 }}\nWrite-Output 'v0.5.0'");
+        var keep = Path.Combine(root, "buckets", "custom", "bucket", "keep.json"); Directory.CreateDirectory(Path.GetDirectoryName(keep)!); File.WriteAllText(keep, """{"version":"1"}""");
+        var persisted = Path.Combine(root, "persist", "keep.txt"); Directory.CreateDirectory(Path.GetDirectoryName(persisted)!); File.WriteAllText(persisted, "user data must survive");
+        var staging = Path.Combine(fixture.DirectoryPath, "staging", "Scoop-0.6.0", "bin"); Directory.CreateDirectory(staging);
+        File.WriteAllText(Path.Combine(staging, "scoop.ps1"), "Write-Output 'Current Scoop version:'; Write-Output 'v0.6.0 - Released at 2026-01-01'");
+        var fake = Path.Combine(fixture.DirectoryPath, "fake.zip"); ZipFile.CreateFromDirectory(Path.Combine(fixture.DirectoryPath, "staging"), fake);
+        // No Git anywhere: not on the PATH of this script and not among Scoop's shims.
+        var stub = "$env:PATH = Join-Path $env:SystemRoot 'System32'\n"
+            + "function Get-Redirect([string]$uri) { 'https://github.com/ScoopInstaller/Scoop/releases/tag/v0.6.0' }\n"
+            + $"function Download-Official([string]$uri, [string]$destination, [string]$sha256 = '') {{ Copy-Item -LiteralPath {Literal(fake)} -Destination $destination }}";
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var result = await RunScriptAsync(host, Variables(root, job, "Update", host), "Scoop", stub);
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        Assert.False(File.Exists(marker), "Scoop's updater needs Git and must not have been run without it.");
+        Assert.Contains("v0.6.0", File.ReadAllText(Path.Combine(core, "bin", "scoop.ps1")));
+        Assert.NotEmpty(Directory.EnumerateDirectories(Path.GetDirectoryName(core)!, "current.tidywindow-backup-*"));
+        Assert.Equal("user data must survive", File.ReadAllText(persisted));
+        Assert.True(File.Exists(keep));
+    }
+
+    private const string Microsoft = "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US";
+
+    /// <summary>Runs WinGet's update script with the release, the install and Microsoft's recovery module replaced by stubs that write down what they were asked.</summary>
+    private static async Task<(CommandResult Result, string[] Calls, string Job)> RunWingetUpdateAsync(Fixture fixture, string name, string? identity, string digestFile = "{digest}  Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle\r\n")
+    {
+        var digest = new string('a', 32) + new string('B', 32);
+        var job = Path.Combine(fixture.DirectoryPath, "job-" + name); Directory.CreateDirectory(job);
+        var staging = Path.Combine(fixture.DirectoryPath, "bundle-" + name); Directory.CreateDirectory(Path.Combine(staging, "AppxMetadata"));
+        if (identity is null) File.WriteAllText(Path.Combine(staging, "readme.txt"), "x");
+        else File.WriteAllText(Path.Combine(staging, "AppxMetadata", "AppxBundleManifest.xml"), $"""<?xml version="1.0" encoding="utf-8"?><Bundle xmlns="http://schemas.microsoft.com/appx/2013/bundle" SchemaVersion="6.0.0.0">{identity}<Packages /></Bundle>""");
+        var bundle = Path.Combine(fixture.DirectoryPath, name + ".msixbundle"); ZipFile.CreateFromDirectory(staging, bundle);
+        var digests = Path.Combine(fixture.DirectoryPath, name + ".txt"); File.WriteAllText(digests, digestFile.Replace("{digest}", digest));
+        var log = Path.Combine(fixture.DirectoryPath, name + "-calls.txt");
+        const string release = "https://github.com/microsoft/winget-cli/releases/download/v9.9.999/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
+        var stub = $$"""
+            function Get-Redirect([string]$uri) { if ($uri -ne 'https://github.com/microsoft/winget-cli/releases/latest') { throw "unexpected $uri" }; 'https://github.com/microsoft/winget-cli/releases/tag/v9.9.999' }
+            function Download-Official([string]$uri, [string]$destination, [string]$sha256 = '') {
+                Add-Content -LiteralPath {{Literal(log)}} -Value "download $uri hash=$sha256"
+                if ($uri -eq '{{release}}.txt') { Copy-Item -LiteralPath {{Literal(digests)}} -Destination $destination }
+                elseif ($uri -eq '{{release}}.msixbundle') { Copy-Item -LiteralPath {{Literal(bundle)}} -Destination $destination }
+                else { throw "unexpected $uri" }
+            }
+            function Add-AppxPackage { [CmdletBinding()] param([Parameter(Mandatory)][string]$Path, [switch]$ForceApplicationShutdown); Add-Content -LiteralPath {{Literal(log)}} -Value "install shutdown=$ForceApplicationShutdown file=$(Split-Path -Leaf $Path)" }
+            function Import-Module { }
+            function Get-Module { [pscustomobject]@{ Version = [version]'1.0' } }
+            function Repair-WinGetPackageManager { Add-Content -LiteralPath {{Literal(log)}} -Value 'microsoft-recovery' }
+            """;
+        var result = await RunScriptAsync(ElevatedProgram.WindowsPowerShell, Variables(fixture.Root, job, "Update", ElevatedProgram.WindowsPowerShell), "WingetUpdate", stub);
+        return (result, File.Exists(log) ? File.ReadAllLines(log) : [], job);
+    }
+
+    [Fact]
+    public async Task TheWingetUpdateInstallsTheReleaseBundleOnlyOnceItsPublishedHashAndIdentityHaveBeenChecked()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var (result, calls, job) = await RunWingetUpdateAsync(fixture, "genuine", $"""<Identity Name="Microsoft.DesktopAppInstaller" Publisher="{Microsoft}" Version="2026.1.1.0" />""");
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        var digest = new string('a', 32) + new string('B', 32);
+        const string release = "https://github.com/microsoft/winget-cli/releases/download/v9.9.999/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
+        // The bundle is downloaded against the hash the release published beside it, and only then installed, out of winget.exe's own process.
+        Assert.Contains($"download {release}.msixbundle hash={digest}", calls);
+        Assert.Contains("install shutdown=True file=AppInstaller.msixbundle", calls);
+        Assert.True(Array.FindIndex(calls, x => x.StartsWith("install")) > Array.FindIndex(calls, x => x.Contains(".msixbundle hash=")));
+        Assert.DoesNotContain("microsoft-recovery", calls);
+    }
+
+    [Theory]
+    [InlineData("other-app", """<Identity Name="Contoso.Tool" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, C=US" Version="1.0.0.0" />""")]
+    [InlineData("other-publisher", """<Identity Name="Microsoft.DesktopAppInstaller" Publisher="CN=Contoso Ltd, O=Contoso Ltd, C=US" Version="1.0.0.0" />""")]
+    [InlineData("lookalike", """<Identity Name="Microsoft.DesktopAppInstaller" Publisher="CN=Microsoft Corporation Fake, O=Evil" Version="1.0.0.0" />""")]
+    [InlineData("no-manifest", null)]
+    public async Task ABundleThatIsNotMicrosoftsAppInstallerIsNeverInstalledAndMicrosoftsOwnRecoveryTakesOver(string name, string? identity)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var (result, calls, job) = await RunWingetUpdateAsync(fixture, name, identity);
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        Assert.DoesNotContain(calls, x => x.StartsWith("install"));
+        Assert.Contains("microsoft-recovery", calls);
+        Assert.Contains("did not work", result.Output);
+    }
+
+    [Fact]
+    public async Task AReleaseThatPublishesNoHashIsNeverInstalled()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new Fixture();
+        var (result, calls, job) = await RunWingetUpdateAsync(fixture, "no-hash", $"""<Identity Name="Microsoft.DesktopAppInstaller" Publisher="{Microsoft}" Version="1.0.0.0" />""", "not a digest\r\n");
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        Assert.DoesNotContain(calls, x => x.StartsWith("install"));
+        Assert.DoesNotContain(calls, x => x.Contains(".msixbundle hash="));
+        Assert.Contains("microsoft-recovery", calls);
+    }
+
+    /// <summary>
+    /// The WinGet update script as it ships, against the real release: the real redirect, the real download from the official host checked against the hash the release
+    /// publishes, the real manifest check and the real install. Only Microsoft's PSGallery recovery module is stood in for, so that a refused install is reported
+    /// instead of quietly turning into a module install and a repair.
+    /// </summary>
+    [LiveFact(LiveGate.Live, LiveGate.Download)]
+    public async Task LiveWingetUpdateDownloadsChecksAndInstallsTheRealReleaseBundle()
+    {
+        using var fixture = new Fixture();
+        var job = Path.Combine(fixture.DirectoryPath, "job"); Directory.CreateDirectory(job);
+        var calls = Path.Combine(fixture.DirectoryPath, "calls.txt");
+        var before = new ExecutableLocator().Find(ManagerKind.Winget);
+        output.WriteLine("winget before: " + before);
+        var stub = $$"""
+            function Get-Module { [pscustomobject]@{ Version = [version]'1.0' } }
+            function Repair-WinGetPackageManager { Add-Content -LiteralPath {{Literal(calls)}} -Value 'microsoft-recovery' }
+            """;
+        var script = Variables(fixture.Root, job, "Update", ElevatedProgram.WindowsPowerShell) + ManagerRecoveryService.Resource("Common") + "\n" + stub + "\n"
+            + ManagerRecoveryService.Resource("WingetUpdate") + "\n" + ManagerRecoveryService.Resource("Complete");
+        var result = await new ProcessRunner().RunAsync(new(ElevatedProgram.WindowsPowerShell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], TimeSpan.FromMinutes(10)));
+        output.WriteLine($"exit {result.ExitCode}\n{result.Output}\n{result.Error}");
+        output.WriteLine("result.json: " + File.ReadAllText(Path.Combine(job, "result.json")));
+        output.WriteLine("calls: " + (File.Exists(calls) ? File.ReadAllText(calls) : "(none)"));
+        output.WriteLine("work folder: " + string.Join(", ", Directory.EnumerateFiles(job).Select(x => Path.GetFileName(x) + " " + new FileInfo(x).Length)));
+        Assert.True(result.ExitCode == 0, result.Output + result.Error + ResultError(job));
+        // WinGet still answers after the update, from the same or a newer App Installer package.
+        var version = await new ProcessRunner().RunAsync(new(new ExecutableLocator().Find(ManagerKind.Winget)!, ["--version"], TimeSpan.FromSeconds(20)));
+        output.WriteLine("winget after: " + version.Output.Trim());
+        Assert.Equal(0, version.ExitCode);
+    }
+
     [LiveFact]
     public async Task LiveManagersAreHealthyAndRecoveryIsIdempotentWhenExplicitlyEnabled()
     {
@@ -437,6 +716,7 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
     private sealed class FakeRunner(Locator locator) : ICommandRunner
     {
         public bool Broken { get; set; }
+        public string Version { get; set; } = "2.7.5";
         public bool RepairWorks { get; set; } = true;
         public string Inventory { get; set; } = "git|2.50";
         public string? SourceError { get; set; }
@@ -460,7 +740,7 @@ public sealed class ManagerRecoveryTests(ITestOutputHelper output)
             var first = command.Arguments[0];
             return Task.FromResult(first switch
             {
-                "--version" => Broken ? new(1, "", "Executable is damaged") : new CommandResult(0, "2.7.5", ""),
+                "--version" => Broken ? new(1, "", "Executable is damaged") : new CommandResult(0, Version, ""),
                 "list" => new(0, Inventory, ""),
                 "search" => SourceError is null ? new(0, "7zip|26.05", "") : new(1, "", SourceError),
                 _ => throw new InvalidOperationException("Unexpected command")

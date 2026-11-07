@@ -1084,6 +1084,16 @@ public sealed partial class MainWindow : Window
             Run(() => ShowDialogAsync(new ContentDialog { Title = "This manager is restricted", Content = new TextBlock { Text = row.Detail, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, CloseButtonText = "Close" }), "showing the manager's status");
         else Run(() => model.RecoverAsync(row), "setting up the package manager");
     }
+    private void ManagerUpdateClick(object sender, RoutedEventArgs e) => Run(async () =>
+    {
+        if (sender is not FrameworkElement { DataContext: ManagerRow row } || row.Status is not { AvailableVersion: { Length: > 0 } latest } status) return;
+        var content = new StackPanel { Spacing = 14, MaxWidth = 480 };
+        content.Children.Add(new TextBlock { Text = $"{row.Name} {status.Version} → {latest}", FontFamily = new FontFamily("Cascadia Mono, Consolas"), TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(new TextBlock { Text = row.UpdateNote, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Update {row.Name}?", Content = content, PrimaryButtonText = "Update", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) await model.UpdateManagerAsync(row);
+    }, "updating the package manager");
+
     private void InstallPackageClick(object sender, RoutedEventArgs e) => Run(async () =>
     {
         if (sender is not FrameworkElement { DataContext: PackageRow row } || !row.CanInstall) return;

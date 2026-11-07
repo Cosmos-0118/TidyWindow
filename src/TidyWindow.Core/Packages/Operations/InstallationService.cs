@@ -248,8 +248,19 @@ public static partial class InstallationOutput
     [GeneratedRegex(@"^MSIX\\(?:[^_\\]*\.)?(?:NET\.Native|VCLibs|UI\.Xaml|WinAppRuntime|WindowsAppRuntime|DirectX|Services\.Store\.Engagement|Winget\.Source|WidgetsPlatformRuntime|StartExperiencesApp|StorePurchaseApp|Xbox\.TCUI|XboxIdentityProvider|ApplicationCompatibilityEnhancements|Client\.(?:WebExperience|CBS|Core|FileExp|AIX)|Speech\.[\w-]+|OfficePushNotificationUtility|Office\.ActionsServer)[\w.\-]*_", RegexOptions.IgnoreCase)]
     private static partial Regex PlatformStorePackage();
 
-    /// <summary>A Store package that is part of Windows or a library for other apps, not something a person installed to use.</summary>
-    public static bool IsPlatformComponent(ManagedPackage package) => package.Origin == AppOrigin.StoreApp && PlatformStorePackage().IsMatch(package.Id);
+    /// <summary>A Store package that is part of Windows or a library for other apps, not something a person installed to use. The package managers themselves count too:
+    /// they are updated and repaired on Overview, and removing or upgrading one from inside itself would cut off the branch the queue is sitting on.</summary>
+    public static bool IsPlatformComponent(ManagedPackage package) =>
+        package.Origin == AppOrigin.StoreApp && PlatformStorePackage().IsMatch(package.Id) || IsPackageManager(package);
+
+    /// <summary>WinGet's own App Installer package, or Chocolatey's own package, as the manager lists it among the apps it installed.</summary>
+    public static bool IsPackageManager(ManagedPackage package) => package.Manager switch
+    {
+        ManagerKind.Winget => package.Id.Equals("Microsoft.AppInstaller", StringComparison.OrdinalIgnoreCase)
+            || package.Id.StartsWith(@"MSIX\Microsoft.DesktopAppInstaller_", StringComparison.OrdinalIgnoreCase),
+        ManagerKind.Chocolatey => package.Id.Equals("chocolatey", StringComparison.OrdinalIgnoreCase),
+        _ => false
+    };
 
     public static IReadOnlyList<ManagedPackage> ParseScoop(string output, bool updates)
     {

@@ -141,6 +141,7 @@
                <Border Visibility="{Binding VersionVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Version}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{ThemeResource MutedBrush}" />
                </Border>
+               <TextBlock Visibility="{Binding UpdateVisibility}" Text="{Binding AvailableVersion}" FontFamily="Cascadia Mono, Consolas" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" ToolTipService.ToolTip="A newer release is available" AutomationProperties.Name="{Binding UpdateName}" />
               </StackPanel>
               <TextBlock Text="{Binding Summary}" Style="{StaticResource RowSub}" TextWrapping="Wrap" TextTrimming="None" />
              </StackPanel>
@@ -152,6 +153,7 @@
               <Button Visibility="{Binding BucketsToggleVisibility}" Click="BucketsToggleClick" Padding="12,6" AutomationProperties.Name="{Binding BucketsName}" ToolTipService.ToolTip="Choose which app lists Scoop searches">
                <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Buckets" FontSize="12" /><FontIcon Glyph="{Binding BucketsChevron}" FontSize="9" /></StackPanel>
               </Button>
+              <Button Content="{Binding UpdateAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding UpdateVisibility}" Click="ManagerUpdateClick" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="12,6" AutomationProperties.Name="{Binding UpdateName}" />
               <Button Content="{Binding SetupAction}" IsEnabled="{Binding CanRecover}" Visibility="{Binding SetupVisibility}" Click="ManagerRecoveryClick" FontSize="12" Padding="12,6" />
              </StackPanel>
             </Grid>

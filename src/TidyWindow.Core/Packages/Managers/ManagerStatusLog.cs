@@ -5,8 +5,11 @@ public static class ManagerStatusLog
 {
     public static void Record(ActivityLog log, ManagerStatus? before, ManagerStatus after)
     {
-        if (before is not null && before.Health == after.Health && before.Problem == after.Problem) return;
         var name = after.Definition.Name;
+        // A newer release of the manager itself is news once, not on every refresh.
+        if (after.Health == ManagerHealth.Ready && after.AvailableVersion is { Length: > 0 } available && before?.AvailableVersion != available)
+            log.Write(ActivityLevel.Info, ActivityArea.Managers, $"{name} {available} is available", after.Version.Length > 0 ? "Installed: " + after.Version : null);
+        if (before is not null && before.Health == after.Health && before.Problem == after.Problem) return;
         switch (after.Health)
         {
             case ManagerHealth.Ready:
