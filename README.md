@@ -295,6 +295,8 @@ dotnet build src/TidyWindow.Desktop/TidyWindow.Desktop.csproj -c Release --no-re
 
 Use **`dotnet build`** for this app. `dotnet publish` leaves out the compiled pages (`*.xbf`) and `TidyWindow.Next.pri`, causing the app to close at startup. Release builds keep their debug information inside the assemblies (`DebugType=embedded` in `Directory.Build.props`), so a stack trace in the logs names source files and line numbers, and there are no separate `.pdb` files to ship or strip.
 
+If a search for "TidyWindow" in Start lists dozens of `TidyWindow.*.exe` entries after a few builds, those are the copies under `bin/`, `obj/` and `artifacts/`: the repo usually sits inside your profile, which Windows Search indexes. Run `pwsh scripts/exclude-build-output-from-search.ps1` once to exclude those folders from the index (`-Check` shows the current state, `-Remove` undoes it). It changes a per-user Windows Search setting, so nothing in the build runs it. People who use the installer are not affected, because the default install folder, `C:\Program Files\TidyWindow`, is not indexed.
+
 To build an installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) (CI uses 6.7.1), build the self-contained folder above, then run:
 
 ```powershell
