@@ -268,27 +268,38 @@
       "scope": "machine",
       "icon": "E839",
       "summary": "For websites that will not load while others work, or after switching networks. Clears the saved addresses Windows remembers and optionally asks the router for a new one.",
-      "effect": "Your connection may drop for a few seconds. Nothing is reset to defaults, so settings such as a fixed IP address are kept.",
+      "effect": "Your connection may drop for a few seconds. Nothing is reset to defaults, so settings such as a fixed IP address are kept. At the end it checks that the router really gave this PC an address.",
       "duration": "Under a minute",
-      "sources": ["Microsoft Support: Fix network connection issues", "WinUtil (cross-check)"],
+      "sources": ["Microsoft Support: Fix network connection issues", "Microsoft Learn: netsh interface ipv6 delete neighbors; nbtstat -R", "WinUtil (cross-check)"],
       "options": [
         { "id": "renew", "label": "Ask the router for a new IP address", "detail": "The usual fix for “connected, no internet”.", "default": true },
-        { "id": "adapters", "label": "Restart the network adapters", "detail": "Disconnects Wi-Fi and Ethernet for a few seconds." }
+        { "id": "adapters", "label": "Restart the network adapters", "detail": "Disconnects Wi-Fi and Ethernet for a few seconds. This happens first, so the new IP address is asked for once the adapters are back." }
       ],
       "steps": [
         { "title": "Clear the DNS cache", "file": "ipconfig.exe", "args": ["/flushdns"], "minutes": 2 },
         { "title": "Clear the address table (ARP cache)", "file": "netsh.exe", "args": ["interface", "ip", "delete", "arpcache"], "minutes": 2, "optional": true },
-        { "title": "Release the current IP address", "file": "ipconfig.exe", "args": ["/release"], "ok": [0, 1], "minutes": 3, "optional": true, "when": "renew" },
-        { "title": "Get a new IP address", "file": "ipconfig.exe", "args": ["/renew"], "ok": [0, 1], "minutes": 5, "optional": true, "when": "renew", "always": true },
-        { "title": "Register this PC’s name again", "file": "ipconfig.exe", "args": ["/registerdns"], "minutes": 3, "optional": true, "when": "renew" },
+        { "title": "Clear the IPv6 neighbor table", "file": "netsh.exe", "args": ["interface", "ipv6", "delete", "neighbors"], "minutes": 2, "optional": true },
+        { "title": "Clear the NetBIOS name cache", "file": "nbtstat.exe", "args": ["-R"], "minutes": 2, "optional": true },
         {
           "title": "Restart the network adapters",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; NetAdapter\\Get-NetAdapter -Physical | Microsoft.PowerShell.Core\\Where-Object Status -eq 'Up' | Microsoft.PowerShell.Core\\ForEach-Object { 'Restarting ' + $_.Name; NetAdapter\\Restart-NetAdapter -Name $_.Name -Confirm:$false }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $adapters = @(NetAdapter\\Get-NetAdapter -Physical | Microsoft.PowerShell.Core\\Where-Object { $_.Status -eq 'Up' -or $_.Status -eq 'Disconnected' })\n  if ($adapters.Count -eq 0) { 'No Wi-Fi or Ethernet adapter that is switched on was found, so there is nothing to restart.'; exit 0 }\n  $wasUp = @()\n  foreach ($adapter in $adapters) { if ($adapter.Status -eq 'Up') { $wasUp += $adapter.Name } }\n  $failed = 0\n  foreach ($adapter in $adapters) {\n    'Restarting ' + $adapter.Name\n    try { NetAdapter\\Restart-NetAdapter -Name $adapter.Name -Confirm:$false } catch { $failed++; 'Could not restart ' + $adapter.Name + ': ' + $_.Exception.Message }\n  }\n  $limit = [DateTime]::UtcNow.AddSeconds(30)\n  do {\n    $waiting = @()\n    foreach ($name in $wasUp) { if ((NetAdapter\\Get-NetAdapter -Name $name).Status -ne 'Up') { $waiting += $name } }\n    if ($waiting.Count -gt 0) { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n  } while ($waiting.Count -gt 0 -and [DateTime]::UtcNow -lt $limit)\n  if ($waiting.Count -gt 0) { ($waiting -join ', ') + ' did not reconnect within 30 seconds.'; exit 1 }\n  if ($failed -gt 0) { exit 1 }\n  if ($wasUp.Count -gt 0) { ($wasUp -join ', ') + ' reconnected.' }\n} catch { 'Could not restart the network adapters: ' + $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
           "minutes": 3,
           "optional": true,
           "when": "adapters"
+        },
+        { "title": "Release the current IP address", "file": "ipconfig.exe", "args": ["/release"], "minutes": 3, "ok": [0, 1], "optional": true, "when": "renew" },
+        { "title": "Get a new IP address", "file": "ipconfig.exe", "args": ["/renew"], "minutes": 5, "ok": [0, 1], "optional": true, "when": "renew", "always": true },
+        { "title": "Register this PC’s name again", "file": "ipconfig.exe", "args": ["/registerdns"], "minutes": 3, "optional": true, "when": "renew" },
+        {
+          "title": "Check that the router answered",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $limit = [DateTime]::UtcNow.AddSeconds(25)\n  do {\n    $lines = @(); $bad = @()\n    $up = @(NetAdapter\\Get-NetAdapter -Physical | Microsoft.PowerShell.Core\\Where-Object { $_.Status -eq 'Up' })\n    foreach ($adapter in $up) {\n      $config = NetTCPIP\\Get-NetIPConfiguration -InterfaceIndex $adapter.ifIndex\n      $real = @(); $routers = @()\n      foreach ($address in $config.IPv4Address) { if (-not $address.IPAddress.StartsWith('169.254.')) { $real += $address.IPAddress } }\n      foreach ($gateway in $config.IPv4DefaultGateway) { $routers += $gateway.NextHop }\n      if ($real.Count -gt 0) {\n        $line = $adapter.Name + ': address ' + ($real -join ', ')\n        if ($routers.Count -gt 0) { $line += ', router ' + ($routers -join ', ') } else { $line += ', no router listed' }\n        $lines += $line\n      } else { $bad += $adapter.Name }\n    }\n    if (($up.Count -eq 0 -or $bad.Count -gt 0) -and [DateTime]::UtcNow -lt $limit) { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n  } while (($up.Count -eq 0 -or $bad.Count -gt 0) -and [DateTime]::UtcNow -lt $limit)\n  $lines\n  if ($up.Count -eq 0) { 'No Wi-Fi or Ethernet adapter is connected.'; exit 1 }\n  if ($bad.Count -gt 0) { ($bad -join ', ') + ' only has a self-assigned 169.254 address, which means the router did not answer. Check that the router is on and that this PC is joined to the right network, then try again.'; exit 1 }\n  'The router answered.'\n} catch { 'Could not check the address: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
         }
       ]
     },
@@ -305,7 +316,7 @@
       "duration": "A minute, then restart",
       "sources": ["Microsoft Support: Fix network connection issues (Winsock and TCP/IP reset)", "WinUtil (cross-check)"],
       "options": [
-        { "id": "proxy", "label": "Also clear the system proxy", "detail": "Use if a proxy you do not use is blocking the connection." }
+        { "id": "proxy", "label": "Also clear the system proxy", "detail": "For the proxy that Windows services and Windows Update use. Browsers and apps use a different one: the fix for a stuck proxy turns that off." }
       ],
       "steps": [
         { "title": "Reset the Winsock catalog", "file": "netsh.exe", "args": ["winsock", "reset"], "minutes": 3 },
@@ -569,15 +580,158 @@
       "group": "network",
       "scope": "machine",
       "icon": "E968",
-      "summary": "For a home or office network where other PCs, a NAS or shared folders do not appear under Network in File Explorer. Restarts the services Windows uses to find and announce devices.",
+      "summary": "For a home or office network where other PCs, a NAS or shared folders do not appear under Network in File Explorer. Restarts the services Windows uses to find and announce devices, and checks that the network is not set to Public.",
       "effect": "Network browsing may pause for a few seconds. Firewall and sharing settings are not changed: if devices still do not show, turn on Network discovery in Settings > Network & internet > Advanced network settings > Advanced sharing settings.",
       "duration": "A few seconds",
-      "sources": ["Microsoft Support: Network discovery (Function Discovery services must be running)"],
+      "sources": ["Microsoft Support: Network discovery (Function Discovery, SSDP Discovery and UPnP Device Host must be running)", "Microsoft Learn: Set-NetConnectionProfile; nbtstat -R"],
+      "options": [
+        { "id": "devices", "label": "Also restart the services that find TVs, NAS boxes and media players", "detail": "SSDP Discovery and UPnP Device Host. If you turned them off on the Quiet page, this is reported as a warning.", "default": true },
+        { "id": "enable", "label": "Turn the services on if something switched them off", "detail": "Sets a turned-off service to Manual, which is how Windows ships it. This also undoes the Quiet page setting for network device discovery." },
+        { "id": "private", "label": "Make a Public network Private", "detail": "Only for a network you trust, such as your home. On a Public network Windows hides this PC and does not look for others." }
+      ],
       "steps": [
-        {"title": "Stop Function Discovery Resource Publication", "file": "net.exe", "args": ["stop", "FDResPub", "/y"], "ok": [0, 2], "minutes": 3},
-        {"title": "Stop Function Discovery Provider Host", "file": "net.exe", "args": ["stop", "fdPHost", "/y"], "ok": [0, 2], "minutes": 3},
-        {"title": "Start Function Discovery Provider Host", "file": "net.exe", "args": ["start", "fdPHost"], "ok": [0, 2], "minutes": 3, "always": true},
-        {"title": "Start Function Discovery Resource Publication", "file": "net.exe", "args": ["start", "FDResPub"], "ok": [0, 2], "minutes": 3, "always": true}
+        {
+          "title": "Make Public networks Private",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $changed = 0\n  foreach ($network in @(NetConnection\\Get-NetConnectionProfile)) {\n    if ($network.NetworkCategory -eq 'Public') {\n      NetConnection\\Set-NetConnectionProfile -InterfaceIndex $network.InterfaceIndex -NetworkCategory Private\n      $network.Name + ' is now a Private network.'\n      $changed++\n    }\n  }\n  if ($changed -eq 0) { 'No connected network was set to Public, so nothing was changed.' }\n} catch { 'Could not change the network type: ' + $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "when": "private"
+        },
+        {
+          "title": "Turn on discovery services that are switched off",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $changed = 0\n  foreach ($name in 'fdPHost', 'FDResPub', 'SSDPSRV', 'upnphost') {\n    $service = Microsoft.PowerShell.Management\\Get-Service -Name $name -ErrorAction SilentlyContinue\n    if ($service -and $service.StartType -eq 'Disabled') {\n      Microsoft.PowerShell.Management\\Set-Service -Name $name -StartupType Manual\n      $service.DisplayName + ' was turned off. It is now set to Manual, which is how Windows ships it.'\n      $changed++\n    }\n  }\n  if ($changed -eq 0) { 'None of these services was turned off.' }\n} catch { 'Could not turn the services on: ' + $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "when": "enable"
+        },
+        {
+          "title": "Check the network type and the firewall",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $networks = @(NetConnection\\Get-NetConnectionProfile)\n  if ($networks.Count -eq 0) { 'Windows does not list a connected network.'; exit 1 }\n  $public = 0; $private = 0\n  foreach ($network in $networks) {\n    $network.Name + ' (' + $network.InterfaceAlias + '): ' + $network.NetworkCategory\n    if ($network.NetworkCategory -eq 'Public') { $public++ }\n    if ($network.NetworkCategory -eq 'Private') { $private++ }\n  }\n  $problem = $false\n  if ($public -gt 0) {\n    'A Public network is treated as untrusted: Windows hides this PC on it and does not look for other PCs. For a home or office network choose Private under Settings > Network and internet > Wi-Fi or Ethernet > the network > Network profile type, or tick the option for that on this page.'\n    $problem = $true\n  }\n  if ($private -gt 0) {\n    $rules = @(NetSecurity\\Get-NetFirewallRule -Group '@FirewallAPI.dll,-32752' -Direction Inbound -Enabled True -ErrorAction SilentlyContinue)\n    $forPrivate = 0\n    foreach ($rule in $rules) { if ($rule.Profile.ToString() -match 'Private|Any') { $forPrivate++ } }\n    if ($forPrivate -eq 0) {\n      'Windows Firewall has Network discovery turned off for Private networks, so other PCs cannot see this one. Turn on Network discovery in Settings > Network and internet > Advanced network settings > Advanced sharing settings. This fix does not change firewall rules.'\n      $problem = $true\n    } else { 'Windows Firewall allows network discovery on Private networks.' }\n  }\n  if ($problem) { exit 1 }\n} catch { 'Could not check the network type: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "warn": [1]
+        },
+        { "title": "Stop UPnP Device Host", "kind": "stopService", "service": "upnphost", "minutes": 3, "ok": [0, 4], "when": "devices" },
+        { "title": "Stop SSDP Discovery", "kind": "stopService", "service": "SSDPSRV", "minutes": 3, "ok": [0, 4], "when": "devices" },
+        { "title": "Stop Function Discovery Resource Publication", "kind": "stopService", "service": "FDResPub", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Function Discovery Provider Host", "kind": "stopService", "service": "fdPHost", "minutes": 3, "ok": [0, 4] },
+        { "title": "Start Function Discovery Provider Host", "kind": "startService", "service": "fdPHost", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Function Discovery Resource Publication", "kind": "startService", "service": "FDResPub", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start SSDP Discovery", "kind": "startService", "service": "SSDPSRV", "minutes": 3, "ok": [0, 4], "warn": [3], "always": true, "when": "devices" },
+        { "title": "Start UPnP Device Host", "kind": "startService", "service": "upnphost", "minutes": 3, "ok": [0, 4], "warn": [3], "always": true, "when": "devices" },
+        { "title": "Clear the NetBIOS name cache", "file": "nbtstat.exe", "args": ["-R"], "minutes": 2, "optional": true },
+        {
+          "title": "Check that the discovery services are running",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $stopped = 0\n  foreach ($name in 'Dnscache', 'fdPHost', 'FDResPub', 'SSDPSRV', 'upnphost') {\n    $service = Microsoft.PowerShell.Management\\Get-Service -Name $name -ErrorAction SilentlyContinue\n    if (-not $service) { $name + ' is not on this PC.'; continue }\n    $service.DisplayName + ': ' + $service.Status + ' (startup ' + $service.StartType + ')'\n    if ($service.Status -ne 'Running' -and ($name -eq 'Dnscache' -or $name -eq 'fdPHost' -or $name -eq 'FDResPub')) { $stopped++ }\n  }\n  if ($stopped -gt 0) { 'A service that network discovery needs is not running.'; exit 1 }\n  'The services network discovery needs are running.'\n} catch { 'Could not check the services: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "clear-proxy",
+      "name": "Turn off a stuck proxy",
+      "group": "network",
+      "scope": "user",
+      "icon": "E7BA",
+      "summary": "For browsers that say ERR_PROXY_CONNECTION_FAILED, the Microsoft Store saying 0x80072EFD, or Discord and Steam that will not connect, after a VPN, a debugging tool such as Fiddler or an adware clean-up left a dead proxy behind.",
+      "effect": "Turns off Use a proxy server and removes the proxy address and the setup script address from your Windows settings; the values are written out in the output. If you use a proxy at work or school, enter it again afterward. The program that set the proxy may set it again when it starts. The proxy for Windows services is separate: Reset the network stack can clear that.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Use a proxy server in Windows (Settings > Network & internet > Proxy)", "Microsoft Learn: Internet Settings registry values (ProxyEnable, ProxyServer, AutoConfigURL)"],
+      "steps": [
+        {
+          "title": "Show the current proxy settings",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $settings = Microsoft.PowerShell.Management\\Get-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'\n  if ($settings.ProxyEnable -eq 1) { 'Use a proxy server: on' } else { 'Use a proxy server: off' }\n  if ($settings.ProxyServer) { 'Proxy address: ' + $settings.ProxyServer } else { 'Proxy address: none' }\n  if ($settings.AutoConfigURL) { 'Setup script address: ' + $settings.AutoConfigURL } else { 'Setup script address: none' }\n  foreach ($variable in 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY') {\n    $value = [Environment]::GetEnvironmentVariable($variable)\n    if ($value) { $variable + ' is set to ' + $value + '. Programs such as git, npm and pip use it; this fix does not change it. Remove it under Environment Variables in System Properties if it is not yours.' }\n  }\n} catch { 'Could not read the proxy settings: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true
+        },
+        { "title": "Turn off Use a proxy server", "kind": "setRegistry", "path": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "name": "ProxyEnable", "data": 0, "minutes": 1 },
+        { "title": "Remove the proxy address", "kind": "deleteRegistry", "path": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "name": "ProxyServer", "minutes": 1 },
+        { "title": "Remove the setup script address", "kind": "deleteRegistry", "path": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "name": "AutoConfigURL", "minutes": 1 },
+        {
+          "title": "Check which proxy apps now use",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $address = [uri]'http://www.msftconnecttest.com/connecttest.txt'\n  $proxy = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy($address)\n  if ($proxy.AbsoluteUri -eq $address.AbsoluteUri) { 'Apps that use the Windows proxy settings now connect directly.' }\n  else { 'Apps still reach the internet through ' + $proxy.AbsoluteUri + '. Something else sets this proxy: a work or school policy, or the program that put it there.'; exit 1 }\n} catch { 'Could not check the proxy: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "restart-wifi-services",
+      "name": "Fix Wi-Fi list and “no internet” icon",
+      "group": "network",
+      "scope": "machine",
+      "icon": "E701",
+      "summary": "For a Wi-Fi list that is empty or missing after sleep, or a network icon that says “no internet” while websites open fine. Restarts the services that scan for Wi-Fi networks and decide whether you are online.",
+      "effect": "Wi-Fi disconnects for about ten seconds and then reconnects by itself. Ethernet is not touched.",
+      "duration": "About half a minute",
+      "sources": ["Microsoft Support: Fix Wi-Fi connection issues in Windows (WLAN AutoConfig)", "Microsoft Learn: Network Connectivity Status Indicator (Network Location Awareness)"],
+      "steps": [
+        { "title": "Stop WLAN AutoConfig", "kind": "stopService", "service": "WlanSvc", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Network Location Awareness", "kind": "stopService", "service": "NlaSvc", "minutes": 3, "ok": [0, 4] },
+        { "title": "Start Network Location Awareness", "kind": "startService", "service": "NlaSvc", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start WLAN AutoConfig", "kind": "startService", "service": "WlanSvc", "minutes": 3, "ok": [0, 4], "always": true },
+        {
+          "title": "Wait for the connection and check for internet",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $limit = [DateTime]::UtcNow.AddSeconds(40)\n  do {\n    $networks = @(NetConnection\\Get-NetConnectionProfile)\n    $online = 0\n    foreach ($network in $networks) { if ($network.IPv4Connectivity -eq 'Internet' -or $network.IPv6Connectivity -eq 'Internet') { $online++ } }\n    if ($online -eq 0 -and [DateTime]::UtcNow -lt $limit) { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n  } while ($online -eq 0 -and [DateTime]::UtcNow -lt $limit)\n  foreach ($network in $networks) { $network.Name + ' (' + $network.InterfaceAlias + '): IPv4 ' + $network.IPv4Connectivity + ', IPv6 ' + $network.IPv6Connectivity }\n  if ($networks.Count -eq 0) { 'Windows does not list a connected network yet. If Wi-Fi is switched on, give it a moment and look at the network icon again.'; exit 1 }\n  if ($online -eq 0) { 'Windows still reports no internet. If a website opens in your browser, the problem is the proxy or a VPN rather than the connection: try the fix for a stuck proxy.'; exit 1 }\n  'Windows reports that this PC is online.'\n} catch { 'Could not check the connection: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        },
+        { "title": "Show the Wi-Fi connection", "file": "netsh.exe", "args": ["wlan", "show", "interfaces"], "minutes": 2, "optional": true }
+      ]
+    },
+    {
+      "id": "clear-network-shares",
+      "name": "Disconnect stuck network folders",
+      "group": "network",
+      "scope": "user",
+      "icon": "E8B7",
+      "summary": "For a shared folder or NAS that will not open, saying “Multiple connections to a server or shared resource by the same user, using more than one user name, are not allowed” (error 1219), or a disconnected network drive that makes File Explorer freeze.",
+      "effect": "Disconnects every network folder and mapped drive that is connected to your account right now. Close files you have open from them first: they are closed without saving. Mapped drives are not forgotten and connect again when you open them. Saved passwords are not touched.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: Remove-SmbMapping (without -UpdateProfile the saved mapping is kept)", "Microsoft Support: System error 1219 (multiple connections to a server)"],
+      "steps": [
+        {
+          "title": "Disconnect the network folders",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $connections = @(SmbShare\\Get-SmbMapping)\n  if ($connections.Count -eq 0) { 'No network folders or drives are connected right now, so there is nothing to disconnect.'; exit 0 }\n  $failed = 0\n  foreach ($connection in $connections) {\n    $remote = $connection.RemotePath\n    try {\n      if ($connection.LocalPath) {\n        SmbShare\\Remove-SmbMapping -LocalPath $connection.LocalPath -Force -ErrorAction Stop\n        'Disconnected ' + $connection.LocalPath + ' (' + $remote + ').'\n      } else {\n        SmbShare\\Remove-SmbMapping -RemotePath $remote -Force -ErrorAction Stop\n        'Disconnected ' + $remote + '.'\n      }\n    } catch { $failed++; 'Could not disconnect ' + $remote + ': ' + $_.Exception.Message }\n  }\n  if ($failed -gt 0) { exit 1 }\n  'Mapped drives are only disconnected, not forgotten: Windows connects them again the next time you open them or sign in.'\n} catch { 'Could not list the network connections: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 3
+        }
+      ]
+    },
+    {
+      "id": "repair-tcp-settings",
+      "name": "Restore normal download speed",
+      "group": "network",
+      "scope": "machine",
+      "icon": "E945",
+      "summary": "For downloads that stay slow on a fast connection after a “network booster”, gaming optimizer or tweak script changed how Windows handles TCP. Puts the settings those tools change back to Windows’ defaults.",
+      "effect": "Turns Receive Window Auto-Tuning back to normal, turns off TCP window scaling heuristics and turns Receive-Side Scaling on. The settings are listed before and after. Nothing else is reset, and no restart is needed. If you set one of these on purpose, set it again afterward.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: netsh interface tcp set global (autotuninglevel, rss); netsh interface tcp set heuristics"],
+      "steps": [
+        { "title": "Show the TCP settings now", "file": "netsh.exe", "args": ["int", "tcp", "show", "global"], "minutes": 2, "optional": true },
+        { "title": "Show the window scaling heuristics now", "file": "netsh.exe", "args": ["int", "tcp", "show", "heuristics"], "minutes": 2, "optional": true },
+        { "title": "Turn Receive Window Auto-Tuning back to normal", "file": "netsh.exe", "args": ["int", "tcp", "set", "global", "autotuninglevel=normal"], "minutes": 2 },
+        { "title": "Turn off window scaling heuristics", "file": "netsh.exe", "args": ["int", "tcp", "set", "heuristics", "disabled"], "minutes": 2 },
+        { "title": "Turn Receive-Side Scaling on", "file": "netsh.exe", "args": ["int", "tcp", "set", "global", "rss=enabled"], "minutes": 2 },
+        { "title": "Show the TCP settings afterward", "file": "netsh.exe", "args": ["int", "tcp", "show", "global"], "minutes": 2, "optional": true }
       ]
     },
     {

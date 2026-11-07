@@ -481,6 +481,7 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
             case FixStepKind.StartService:
             case FixStepKind.StopService: return await RunProgramAsync(FixSupport.ServiceStep(context), progress, cancellationToken).ConfigureAwait(false);
             case FixStepKind.SetRegistry: return await Task.Run(() => SetRegistry(context, progress), cancellationToken).ConfigureAwait(false);
+            case FixStepKind.DeleteRegistry: return await Task.Run(() => DeleteRegistry(context, progress), cancellationToken).ConfigureAwait(false);
             case FixStepKind.StopExplorer:
             case FixStepKind.StartExplorer:
             case FixStepKind.RestartExplorer:
@@ -497,15 +498,54 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
     {
         var step = context.Step;
         if (!FixGuard.AllowsRegistry(context.Item.Scope, step.Path, step.Name, step.Data)) throw new InvalidOperationException("That setting cannot be changed here.");
-        // Only HKLM keys are on the guard's list, so the key is the part after the hive.
-        var key = step.Path[(step.Path.IndexOf('\\') + 1)..];
-        using var hive = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64);
-        using var subKey = hive.OpenSubKey(key, writable: true);
+        using var subKey = OpenKey(step.Path, writable: true);
         if (subKey is null) { progress.Report(new($"{step.Path} does not exist, so there is nothing to reset.\n", CommandOutputKind.Information)); return 0; }
         var before = subKey.GetValue(step.Name);
         subKey.SetValue(step.Name, step.Data, Microsoft.Win32.RegistryValueKind.DWord);
         progress.Report(new($"Set {step.Name} to {step.Data} (it was {before ?? "not set"}).\n", CommandOutputKind.Information));
+        TellProgramsAboutProxyChange(step.Path);
         return 0;
+    }
+
+    private static int DeleteRegistry(FixStepContext context, IProgress<CommandOutput> progress)
+    {
+        var step = context.Step;
+        if (!FixGuard.AllowsRegistryRemoval(context.Item.Scope, step.Path, step.Name)) throw new InvalidOperationException("That setting cannot be removed here.");
+        using var subKey = OpenKey(step.Path, writable: true);
+        var before = subKey?.GetValue(step.Name);
+        if (before is null) { progress.Report(new($"{step.Name} is not set, so there is nothing to remove.\n", CommandOutputKind.Information)); return 0; }
+        // The old value is written out so that a proxy someone did want can be typed in again.
+        subKey!.DeleteValue(step.Name, throwOnMissingValue: false);
+        progress.Report(new($"Removed {step.Name} (it was {before}).\n", CommandOutputKind.Information));
+        TellProgramsAboutProxyChange(step.Path);
+        return 0;
+    }
+
+    // The hive is the part before the first backslash. Only the keys on the guard's lists get this far. The 64-bit view is used so that a 32-bit build sees the same keys.
+    private static Microsoft.Win32.RegistryKey? OpenKey(string path, bool writable)
+    {
+        var split = path.IndexOf('\\');
+        var hive = path[..split] switch
+        {
+            "HKLM" => Microsoft.Win32.RegistryHive.LocalMachine,
+            "HKCU" => Microsoft.Win32.RegistryHive.CurrentUser,
+            _ => throw new InvalidOperationException("That setting cannot be changed here.")
+        };
+        using var root = Microsoft.Win32.RegistryKey.OpenBaseKey(hive, Microsoft.Win32.RegistryView.Registry64);
+        return root.OpenSubKey(path[(split + 1)..], writable);
+    }
+
+    [System.Runtime.InteropServices.DllImport("wininet.dll", SetLastError = true)]
+    private static extern bool InternetSetOption(IntPtr internet, int option, IntPtr buffer, int length);
+
+    // Programs that are already running read the proxy once and keep it. Windows' own Settings page sends these two notices after it changes a proxy,
+    // and so does this, so a browser that is open picks the change up without being restarted.
+    private static void TellProgramsAboutProxyChange(string path)
+    {
+        if (!path.EndsWith("Internet Settings", StringComparison.OrdinalIgnoreCase)) return;
+        const int SettingsChanged = 39, Refresh = 37;
+        try { InternetSetOption(IntPtr.Zero, SettingsChanged, IntPtr.Zero, 0); InternetSetOption(IntPtr.Zero, Refresh, IntPtr.Zero, 0); }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { /* The setting itself was changed; only the notice failed. */ }
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]

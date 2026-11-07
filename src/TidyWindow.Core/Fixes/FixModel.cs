@@ -9,7 +9,7 @@ public enum FixGroup { Windows, Network, Devices, Apps }
 public enum FixScope { User, Machine }
 public enum FixRisk { Safe, Careful }
 public enum FixRestart { Never, Maybe, Always }
-public enum FixStepKind { Run, DeleteFiles, RenameFolder, StopExplorer, StartExplorer, RestartExplorer, StartService, StopService, SetRegistry }
+public enum FixStepKind { Run, DeleteFiles, RenameFolder, StopExplorer, StartExplorer, RestartExplorer, StartService, StopService, SetRegistry, DeleteRegistry }
 /// <summary>How a program writes its text. Most Windows tools use the console's OEM code page; sfc writes UTF-16.</summary>
 public enum FixEncoding { Oem, Utf16, Utf8 }
 
@@ -56,7 +56,7 @@ public sealed class FixStep
     public string[] Patterns { get; init; } = [];
     /// <summary>StartService and StopService: the service's name. It must be on the guard's list of services a fix may restart.</summary>
     public string Service { get; init; } = "";
-    /// <summary>SetRegistry: the name of the value inside the key named by <see cref="Path"/>.</summary>
+    /// <summary>SetRegistry and DeleteRegistry: the name of the value inside the key named by <see cref="Path"/>.</summary>
     public string Name { get; init; } = "";
     /// <summary>SetRegistry: the number the value is set to.</summary>
     public int Data { get; init; }
@@ -120,7 +120,7 @@ public static partial class FixGuard
 {
     private static readonly HashSet<string> System32Programs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "dism.exe", "sfc.exe", "netsh.exe", "ipconfig.exe", "net.exe", "w32tm.exe", "pnputil.exe", "wsreset.exe", "lodctr.exe", "powercfg.exe"
+        "dism.exe", "sfc.exe", "netsh.exe", "ipconfig.exe", "net.exe", "w32tm.exe", "pnputil.exe", "wsreset.exe", "lodctr.exe", "powercfg.exe", "nbtstat.exe"
     };
 
     // Programs that live in System32\wbem rather than System32 itself.
@@ -129,16 +129,20 @@ public static partial class FixGuard
     // The 32-bit counterpart of lodctr, which keeps the counters of 32-bit programs. It lives in SysWOW64; it has its own name here so the two cannot be mixed up.
     private const string Lodctr32 = "lodctr32.exe";
 
-    // Services a fix may stop and start. Only restarts: nothing here changes how a service starts.
+    // Services a fix may stop and start. The service steps only restart; the one fix that can change a startup type (a PowerShell step of its own) is checked by a test.
     private static readonly HashSet<string> Services = new(StringComparer.OrdinalIgnoreCase)
     {
         "spooler", "audiosrv", "AudioEndpointBuilder", "bthserv", "w32time", "WSearch", "bits", "wuauserv", "cryptsvc", "UsoSvc",
-        "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub"
+        "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub", "SSDPSRV", "upnphost", "WlanSvc", "NlaSvc"
     };
 
     private static readonly string[][] AllowedNetsh =
     [
-        ["winsock", "reset"], ["int", "ip", "reset"], ["interface", "ip", "delete", "arpcache"], ["winhttp", "reset", "proxy"]
+        ["winsock", "reset"], ["int", "ip", "reset"], ["interface", "ip", "delete", "arpcache"], ["interface", "ipv6", "delete", "neighbors"], ["winhttp", "reset", "proxy"],
+        // Read-only reports.
+        ["wlan", "show", "interfaces"], ["int", "tcp", "show", "global"], ["int", "tcp", "show", "heuristics"],
+        // Windows' own defaults for the TCP settings that "network booster" tools change.
+        ["int", "tcp", "set", "global", "autotuninglevel=normal"], ["int", "tcp", "set", "heuristics", "disabled"], ["int", "tcp", "set", "global", "rss=enabled"]
     ];
 
     private static readonly HashSet<string> AllowedIpconfig = new(StringComparer.OrdinalIgnoreCase) { "/flushdns", "/release", "/renew", "/registerdns" };
@@ -153,6 +157,9 @@ public static partial class FixGuard
 
     // The read-only reports, and putting the power plans back to Windows' own. Nothing that changes how the PC sleeps or what may wake it.
     private static readonly string[][] AllowedPowercfg = [["/requests"], ["/lastwake"], ["/availablesleepstates"], ["/devicequery", "wake_armed"], ["-restoredefaultschemes"]];
+
+    // Clearing the NetBIOS name cache is the only thing nbtstat may do. -RR, which sends release packets to a WINS server, is not.
+    private static readonly string[][] AllowedNbtstat = [["-R"]];
 
     private static readonly HashSet<string> AllowedOneDrive = new(StringComparer.OrdinalIgnoreCase) { "/reset", "/shutdown" };
 
@@ -177,16 +184,28 @@ public static partial class FixGuard
         (FixScope.Machine, @"%SystemRoot%\System32\catroot2")
     ];
 
+    private const string InternetSettings = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+
     // Values a fix may set, and the only number each may be set to.
     private static readonly (FixScope Scope, string Key, string Name, int Data)[] Settable =
     [
-        (FixScope.Machine, @"HKLM\SOFTWARE\Microsoft\Windows Search", "SetupCompletedSuccessfully", 0)
+        (FixScope.Machine, @"HKLM\SOFTWARE\Microsoft\Windows Search", "SetupCompletedSuccessfully", 0),
+        (FixScope.User, InternetSettings, "ProxyEnable", 0)
+    ];
+
+    // Values a fix may remove: the address of a proxy and of a proxy script, which are what a stuck proxy leaves behind.
+    private static readonly (FixScope Scope, string Key, string Name)[] Removable =
+    [
+        (FixScope.User, InternetSettings, "ProxyServer"),
+        (FixScope.User, InternetSettings, "AutoConfigURL")
     ];
 
     private static readonly string[] Forbidden =
     [
         "Invoke-Expression", "iex ", "iex(", "DownloadString", "DownloadFile", "Invoke-WebRequest", "Invoke-RestMethod", "Start-BitsTransfer", "-EncodedCommand", "WebClient",
-        "Set-ExecutionPolicy", "Enable-PSRemoting", "Clear-Tpm", "Remove-Item", "Format-Volume", "Set-ItemProperty", "reg ", "bootrec", "bcdedit", "slmgr", "manage-bde"
+        "Set-ExecutionPolicy", "Enable-PSRemoting", "Clear-Tpm", "Remove-Item", "Format-Volume", "Set-ItemProperty", "reg ", "bootrec", "bcdedit", "slmgr", "manage-bde",
+        // Reading the firewall is fine; changing it never is.
+        "Set-NetFirewall", "New-NetFirewall", "Remove-NetFirewall", "Enable-NetFirewall", "Disable-NetFirewall", "Rename-NetFirewall", "Copy-NetFirewall"
     ];
 
     private static readonly string[] UserOnlyVariables = ["%LOCALAPPDATA%", "%APPDATA%", "%USERPROFILE%", "$env:LOCALAPPDATA", "$env:APPDATA", "$env:USERPROFILE", "HKCU"];
@@ -198,7 +217,8 @@ public static partial class FixGuard
     private static readonly HashSet<string> Modules = new(StringComparer.OrdinalIgnoreCase)
     {
         "Microsoft.PowerShell.Core", "Microsoft.PowerShell.Management", "Microsoft.PowerShell.Utility",
-        "Microsoft.PowerShell.Diagnostics", "Appx", "Storage", "Defender", "DeliveryOptimization", "NetAdapter", "PnpDevice", "CimCmdlets"
+        "Microsoft.PowerShell.Diagnostics", "Appx", "Storage", "Defender", "DeliveryOptimization", "NetAdapter", "PnpDevice", "CimCmdlets",
+        "NetTCPIP", "NetConnection", "NetSecurity", "SmbShare"
     };
 
     [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
@@ -237,6 +257,9 @@ public static partial class FixGuard
 
     public static bool AllowsRegistry(FixScope scope, string key, string name, int data) =>
         Settable.Any(x => x.Scope == scope && x.Data == data && string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    public static bool AllowsRegistryRemoval(FixScope scope, string key, string name) =>
+        Removable.Any(x => x.Scope == scope && string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
 
     public static bool AllowsRename(FixScope scope, string path) =>
         Renamable.Any(x => x.Scope == scope && string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
@@ -281,6 +304,9 @@ public static partial class FixGuard
                     case FixStepKind.SetRegistry:
                         if (!AllowsRegistry(item.Scope, step.Path, step.Name, step.Data)) problems.Add($"{at}: setting {step.Name} in {step.Path} to {step.Data} is not allowed here.");
                         break;
+                    case FixStepKind.DeleteRegistry:
+                        if (!AllowsRegistryRemoval(item.Scope, step.Path, step.Name)) problems.Add($"{at}: removing {step.Name} from {step.Path} is not allowed here.");
+                        break;
                     case FixStepKind.StopExplorer:
                     case FixStepKind.StartExplorer:
                     case FixStepKind.RestartExplorer:
@@ -312,6 +338,7 @@ public static partial class FixGuard
             case "ipconfig.exe": if (step.Args.Length != 1 || !AllowedIpconfig.Contains(step.Args[0])) problems.Add($"{at}: that ipconfig command is not allowed."); break;
             case "dism.exe": if (!Is(AllowedDism)) problems.Add($"{at}: that DISM command is not allowed."); break;
             case "sfc.exe": if (step.Args.Length != 1 || step.Args[0] != "/scannow") problems.Add($"{at}: sfc may only run /scannow."); break;
+            case "nbtstat.exe": if (!Is(AllowedNbtstat)) problems.Add($"{at}: nbtstat may only clear the NetBIOS name cache (-R)."); break;
             case "w32tm.exe": if (!Is(AllowedW32tm)) problems.Add($"{at}: that w32tm command is not allowed."); break;
             case "pnputil.exe": if (step.Args.Length != 1 || step.Args[0] != "/scan-devices") problems.Add($"{at}: pnputil may only rescan devices."); break;
             case "wsreset.exe": if (step.Args.Length != 0) problems.Add($"{at}: wsreset takes no arguments."); break;
@@ -385,6 +412,7 @@ public static class FixPlan
         FixStepKind.StartService => $"Start the {step.Service} service (reported as a failure if it is turned off or does not start)",
         FixStepKind.StopService => $"Stop the {step.Service} service and the services that depend on it",
         FixStepKind.SetRegistry => $"Set {step.Path}\\{step.Name} to {step.Data}",
+        FixStepKind.DeleteRegistry => $"Remove {step.Path}\\{step.Name}",
         FixStepKind.StopExplorer => "Close File Explorer",
         FixStepKind.StartExplorer => "Start File Explorer",
         _ => "Restart File Explorer"
