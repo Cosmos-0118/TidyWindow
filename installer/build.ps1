@@ -24,6 +24,10 @@ $publish = (Resolve-Path $PublishDir).Path
 foreach ($path in 'TidyWindow.Next.exe', 'TidyWindow.Next.pri', 'Shell\MainWindow.xbf', 'CleanHost\TidyWindow.CleanHost.exe', 'ScoutHost\TidyWindow.SearchHost.exe') {
     if (-not (Test-Path (Join-Path $publish $path))) { throw "The publish folder is missing $path." }
 }
+# The helpers live only in their own folders. A second copy beside the app cannot run and just adds search results.
+foreach ($path in 'TidyWindow.CleanHost.exe', 'TidyWindow.SearchHost.exe') {
+    if (Test-Path (Join-Path $publish $path)) { throw "The publish folder has a stray helper copy at its root: $path" }
+}
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $out = (Resolve-Path $OutDir).Path
 

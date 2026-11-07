@@ -24,12 +24,16 @@
     <ProjectReference Include="../TidyWindow.Core/TidyWindow.Core.csproj" />
     <!-- The helpers are plain net10.0 programs with their own output folders. Output paths, a -f on the app, and publish shaping
          (trimming, single file, AOT, ReadyToRun) given to the app on the command line must not reach them. Platform is left alone on
-         purpose: a solution build gives it to every project, and removing it here would make MSBuild build each helper twice. -->
-    <ProjectReference Include="../TidyWindow.SearchHost/TidyWindow.SearchHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir;TargetFramework;PublishTrimmed;PublishSingleFile;PublishAot;PublishReadyToRun" />
-    <ProjectReference Include="../TidyWindow.CleanHost/TidyWindow.CleanHost.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir;TargetFramework;PublishTrimmed;PublishSingleFile;PublishAot;PublishReadyToRun" />
+         purpose: a solution build gives it to every project, and removing it here would make MSBuild build each helper twice.
+         Private="false" stops the SDK from also copying each helper's apphost, deps.json and runtimeconfig.json into the app's own
+         folder. Those copies had no assembly beside them, so they could not run, but they showed up as extra TidyWindow.CleanHost.exe
+         and TidyWindow.SearchHost.exe entries in Windows Search. The real helpers are copied into CleanHost/ and ScoutHost/ below.
+         The runtime's createdump.exe is likewise left out of those two folders; the app's own copy stays. -->
+    <ProjectReference Include="../TidyWindow.SearchHost/TidyWindow.SearchHost.csproj" ReferenceOutputAssembly="false" Private="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir;TargetFramework;PublishTrimmed;PublishSingleFile;PublishAot;PublishReadyToRun" />
+    <ProjectReference Include="../TidyWindow.CleanHost/TidyWindow.CleanHost.csproj" ReferenceOutputAssembly="false" Private="false" GlobalPropertiesToRemove="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishDir;TargetFramework;PublishTrimmed;PublishSingleFile;PublishAot;PublishReadyToRun" />
   </ItemGroup>
   <Target Name="CopyCleanHost" AfterTargets="Build">
-    <ItemGroup><CleanHostFiles Include="$(ArtifactsDir)clean-host/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="$(ArtifactsDir)clean-host/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <ItemGroup><CleanHostFiles Include="$(ArtifactsDir)clean-host/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="$(ArtifactsDir)clean-host/$(Configuration)/$(ScoutRuntimeMode)/*.pdb;$(ArtifactsDir)clean-host/$(Configuration)/$(ScoutRuntimeMode)/createdump.exe" /></ItemGroup>
     <RemoveDir Directories="$(OutDir)CleanHost" />
     <Copy SourceFiles="@(CleanHostFiles)" DestinationFiles="@(CleanHostFiles->'$(OutDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
@@ -41,13 +45,13 @@
              Properties="Configuration=$(Configuration);SelfContained=$(SelfContained);PublishDir=$(CleanHostPublishDir)"
              RemoveProperties="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishReadyToRun;WindowsAppSDKSelfContained;UseWinUI;RuntimeIdentifier;TargetFramework;Platform;PublishTrimmed;PublishSingleFile;PublishAot" />
     <ItemGroup>
-      <CleanHostPublishedFiles Include="$(CleanHostPublishDir)**/*" Exclude="$(CleanHostPublishDir)**/*.pdb" />
+      <CleanHostPublishedFiles Include="$(CleanHostPublishDir)**/*" Exclude="$(CleanHostPublishDir)**/*.pdb;$(CleanHostPublishDir)**/createdump.exe" />
     </ItemGroup>
     <RemoveDir Directories="$(PublishDir)CleanHost" />
     <Copy SourceFiles="@(CleanHostPublishedFiles)" DestinationFiles="@(CleanHostPublishedFiles->'$(PublishDir)CleanHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopyScoutWorker" AfterTargets="Build">
-    <ItemGroup><ScoutWorkerFiles Include="$(ArtifactsDir)scout-worker/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="$(ArtifactsDir)scout-worker/$(Configuration)/$(ScoutRuntimeMode)/*.pdb" /></ItemGroup>
+    <ItemGroup><ScoutWorkerFiles Include="$(ArtifactsDir)scout-worker/$(Configuration)/$(ScoutRuntimeMode)/**" Exclude="$(ArtifactsDir)scout-worker/$(Configuration)/$(ScoutRuntimeMode)/*.pdb;$(ArtifactsDir)scout-worker/$(Configuration)/$(ScoutRuntimeMode)/createdump.exe" /></ItemGroup>
     <RemoveDir Directories="$(OutDir)ScoutHost" />
     <Copy SourceFiles="@(ScoutWorkerFiles)" DestinationFiles="@(ScoutWorkerFiles->'$(OutDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
@@ -59,7 +63,7 @@
              Properties="Configuration=$(Configuration);SelfContained=$(SelfContained);PublishDir=$(ScoutWorkerPublishDir)"
              RemoveProperties="OutDir;OutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;PublishReadyToRun;WindowsAppSDKSelfContained;UseWinUI;RuntimeIdentifier;TargetFramework;Platform;PublishTrimmed;PublishSingleFile;PublishAot" />
     <ItemGroup>
-      <ScoutPublishedFiles Include="$(ScoutWorkerPublishDir)**/*" Exclude="$(ScoutWorkerPublishDir)**/*.pdb" />
+      <ScoutPublishedFiles Include="$(ScoutWorkerPublishDir)**/*" Exclude="$(ScoutWorkerPublishDir)**/*.pdb;$(ScoutWorkerPublishDir)**/createdump.exe" />
     </ItemGroup>
     <RemoveDir Directories="$(PublishDir)ScoutHost" />
     <Copy SourceFiles="@(ScoutPublishedFiles)" DestinationFiles="@(ScoutPublishedFiles->'$(PublishDir)ScoutHost/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
