@@ -42,16 +42,18 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
             for (var i = 0; i < plan.Count; i++)
             {
                 var step = plan[i];
-                // After a failure only the steps that put things back are still run.
-                if (failure is not null && !step.Always) continue;
+                // After a failure only the steps that put things back are still run. The others are listed, so the record shows what did not happen.
+                if (failure is not null && !step.Always) { summary.Add($"NOT RUN  {step.Title} (an earlier step failed)\n         would have run: {Command(step)}"); continue; }
                 // A stop asked for between steps takes effect before the next one. The steps that put things back are not what it stops.
+                var announced = false;
                 if (!stopped && !step.Always && cancellationToken.IsCancellationRequested)
                 {
-                    stopped = true; summary.Add($"STOPPED  before “{step.Title}”");
+                    stopped = true; announced = true; summary.Add($"STOPPED  before “{step.Title}”\n         would have run: {Command(step)}");
                     progress.Report(new("Stopped. Only the steps that put things back will still run.\n", CommandOutputKind.Warning));
                 }
-                if (stopped && !step.Always) continue;
+                if (stopped && !step.Always) { if (!announced) summary.Add($"NOT RUN  {step.Title} (stopped)\n         would have run: {Command(step)}"); continue; }
                 progress.Report(new($"Step {i + 1} of {plan.Count}: {step.Title}\n", CommandOutputKind.Progress));
+                progress.Report(new($"Running: {Command(step)}\n", CommandOutputKind.Information));
                 var clock = Stopwatch.StartNew();
                 // The Logs page keeps the summary, not the live output, so a step that goes wrong also records the last thing it said.
                 var tail = new LastLine(progress);
@@ -62,7 +64,7 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
                 try { code = await executor.ExecuteAsync(context, tail, step.Always ? CancellationToken.None : cancellationToken).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    stopped = true; summary.Add($"STOPPED  {step.Title}{Why(tail)}");
+                    stopped = true; summary.Add(Block($"STOPPED  {step.Title}", step, null, clock.Elapsed, tail));
                     progress.Report(new("Stopped before it finished. Only the steps that put things back will still run.\n", CommandOutputKind.Warning));
                     continue;
                 }
@@ -76,13 +78,13 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
                     code = int.MinValue;
                     tail.Report(new($"{ex.Message}\n", CommandOutputKind.Error));
                 }
-                var why = Why(tail);
-                if (step.Restart.Contains(code)) { restart = true; summary.Add($"OK       {step.Title} (restart needed to finish)"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}. Windows needs a restart to finish this.\n", CommandOutputKind.Success)); }
-                else if (step.Ok.Contains(code)) { summary.Add($"OK       {step.Title}"); progress.Report(new($"Done in {Seconds(clock.Elapsed)}.\n", CommandOutputKind.Success)); }
-                else if (step.Warn.Contains(code)) { warnings++; summary.Add($"WARNING  {step.Title} (exit code {code}){why}"); progress.Report(new($"Finished with exit code {code}. This is reported as a warning, not a failure.\n", CommandOutputKind.Warning)); }
-                else if (step.Optional) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This step did not work (exit code {Describe(code)}). It is optional, so the fix goes on.\n", CommandOutputKind.Warning)); }
-                else if (failure is not null || stopped) { warnings++; summary.Add($"SKIPPED  {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"This clean-up step did not work (exit code {Describe(code)}).\n", CommandOutputKind.Warning)); }
-                else { failure = step.Title; summary.Add($"FAILED   {step.Title} (exit code {Describe(code)}){why}"); progress.Report(new($"Failed with exit code {Describe(code)}. Only the steps that put things back will still run.\n", CommandOutputKind.Error)); }
+                var took = clock.Elapsed;
+                if (step.Restart.Contains(code)) { restart = true; summary.Add(Block($"OK       {step.Title} (restart needed to finish)", step, code, took, tail)); progress.Report(new($"Done in {Seconds(took)}. Windows needs a restart to finish this.\n", CommandOutputKind.Success)); }
+                else if (step.Ok.Contains(code)) { summary.Add(Block($"OK       {step.Title}", step, code, took, tail)); progress.Report(new($"Done in {Seconds(took)}.\n", CommandOutputKind.Success)); }
+                else if (step.Warn.Contains(code)) { warnings++; summary.Add(Block($"WARNING  {step.Title} (exit code {code})", step, code, took, tail)); progress.Report(new($"Finished with exit code {code}. This is reported as a warning, not a failure.\n", CommandOutputKind.Warning)); }
+                else if (step.Optional) { warnings++; summary.Add(Block($"SKIPPED  {step.Title} (exit code {Describe(code)})", step, code, took, tail)); progress.Report(new($"This step did not work (exit code {Describe(code)}). It is optional, so the fix goes on.\n", CommandOutputKind.Warning)); }
+                else if (failure is not null || stopped) { warnings++; summary.Add(Block($"SKIPPED  {step.Title} (exit code {Describe(code)})", step, code, took, tail)); progress.Report(new($"This clean-up step did not work (exit code {Describe(code)}).\n", CommandOutputKind.Warning)); }
+                else { failure = step.Title; summary.Add(Block($"FAILED   {step.Title} (exit code {Describe(code)})", step, code, took, tail)); progress.Report(new($"Failed with exit code {Describe(code)}. Only the steps that put things back will still run.\n", CommandOutputKind.Error)); }
             }
         }
         finally { watching?.Invoke(null); }
@@ -115,7 +117,23 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
         return new(ActionOutcome.Completed, $"{item.Name} finished", detail);
     }
 
-    private static string Why(LastLine tail) => tail.Text is { } last ? $"\n           “{last}”" : "";
+    /// <summary>What a step runs, as a person would type it. Long PowerShell is cut short; the Fixes page shows it whole.</summary>
+    private static string Command(FixStep step) => FixPlan.Describe(step) is { Length: > 400 } text ? text[..400] + "…" : FixPlan.Describe(step);
+
+    private static string Took(TimeSpan time) => time.TotalSeconds < 1 ? "under 1 s" : Seconds(time);
+
+    /// <summary>
+    /// One step as the record keeps it: how it ended, the command that ran, its exit code and how long it took, and the last few things it said.
+    /// A step that never finished has no exit code to report.
+    /// </summary>
+    private static string Block(string head, FixStep step, int? code, TimeSpan took, LastLine tail)
+    {
+        var text = new StringBuilder(head);
+        text.Append($"\n         ran: {Command(step)}");
+        text.Append(code is { } value ? $"\n         exit code {Describe(value)}, took {Took(took)}" : $"\n         did not finish, ran for {Took(took)}");
+        foreach (var line in tail.Recent) text.Append($"\n         “{line}”");
+        return text.ToString();
+    }
 
     private static string Describe(int code) => code switch
     {
@@ -125,17 +143,29 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
         _ => code.ToString(CultureInfo.InvariantCulture)
     };
 
-    /// <summary>Passes output on and remembers the newest line that said anything.</summary>
+    /// <summary>Passes output on and remembers the newest few lines that said anything.</summary>
     private sealed class LastLine(IProgress<CommandOutput> inner) : IProgress<CommandOutput>
     {
-        public string? Text { get; private set; }
+        private const int Keep = 4;
+        private readonly Queue<string> recent = new();
+        private readonly object gate = new();
+
+        public string? Text { get { lock (gate) return recent.Count == 0 ? null : recent.Last(); } }
+
+        /// <summary>The newest lines, oldest first, so the record shows how the step ended and not only its last word.</summary>
+        public IReadOnlyList<string> Recent { get { lock (gate) return recent.ToArray(); } }
 
         public void Report(CommandOutput value)
         {
             inner.Report(value);
             if (value.Kind is not (CommandOutputKind.Output or CommandOutputKind.Error or CommandOutputKind.Warning)) return;
-            var line = value.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault();
-            if (!string.IsNullOrWhiteSpace(line)) Text = line.Length > 240 ? line[..240] + "…" : line;
+            lock (gate)
+                foreach (var line in value.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    recent.Enqueue(line.Length > 240 ? line[..240] + "…" : line);
+                    if (recent.Count > Keep) recent.Dequeue();
+                }
         }
     }
 }
@@ -146,7 +176,7 @@ public sealed class FixRunner(IFixStepExecutor executor, Action<FixStepContext?>
 /// would stop a service the other had just started.
 /// </summary>
 /// <param name="pendingRestart">Why Windows is waiting for a restart, or null; replaceable in tests. Fixes that mind are told before they run.</param>
-public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor local, IFixStepExecutor? elevated, Func<bool> isAdministrator, Func<Task>? unlock, FixRunStore? history = null, Func<DateTimeOffset>? clock = null, Func<bool>? helperOpen = null, Func<string?>? pendingRestart = null)
+public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor local, IFixStepExecutor? elevated, Func<bool> isAdministrator, Func<Task>? unlock, FixRunStore? history = null, Func<DateTimeOffset>? clock = null, Func<bool>? helperOpen = null, Func<string?>? pendingRestart = null, ActivityLog? log = null)
 {
     private readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.Now);
     private readonly Func<string?> restartPending = pendingRestart ?? PendingRestart.Find;
@@ -193,12 +223,34 @@ public sealed class FixService(IReadOnlyList<FixItem> catalog, IFixStepExecutor 
             }
             var pending = item.RestartFirst ? restartPending() : null;
             if (pending is not null) progress.Report(new($"Windows has a restart pending: {pending}. Until Windows has restarted, this fix can fail or report problems it cannot repair.\n", CommandOutputKind.Warning));
+            LogStart(item, run.Options, administrator: executor != local || isAdministrator());
             var result = await new FixRunner(executor, context => running = context).RunAsync(item, run.Options, progress, cancellationToken).ConfigureAwait(false);
             if (pending is not null && result.Outcome != ActionOutcome.Completed)
                 result = result with { Detail = result.Detail + $"\nWindows had a restart pending while this ran ({pending}). Restart Windows and run it again before trusting a warning or failure from it." };
             return Record(item, result);
         }
         finally { running = null; turn.Release(); }
+    }
+
+    /// <summary>
+    /// Says in Logs what is about to run, before it does: who runs it and every command in order. If the app closes or Windows hangs
+    /// half way, this is still there; the finished fix adds its own entry with how each step went.
+    /// </summary>
+    private void LogStart(FixItem item, IReadOnlyList<string> options, bool administrator)
+    {
+        if (log is null) return;
+        var plan = FixPlan.Build(item, options);
+        var text = new StringBuilder();
+        text.AppendLine(administrator ? "Runs with administrator rights." : "Runs as you, without administrator permission.");
+        var chosen = item.Options.Where(x => options.Contains(x.Id, StringComparer.OrdinalIgnoreCase)).Select(x => x.Label).ToList();
+        if (chosen.Count > 0) text.AppendLine("Options on: " + string.Join("; ", chosen) + ".");
+        text.AppendLine($"{plan.Count} {(plan.Count == 1 ? "step" : "steps")}, in this order:");
+        for (var i = 0; i < plan.Count; i++)
+        {
+            var command = FixPlan.Describe(plan[i]);
+            text.AppendLine($"{i + 1}. {plan[i].Title}").Append("      ").AppendLine(command.Length > 300 ? command[..300] + "…" : command);
+        }
+        log.Write(ActivityLevel.Info, ActivityArea.App, $"Started: {item.Name}", text.ToString());
     }
 
     private PackageActionResult Record(FixItem item, PackageActionResult result)
@@ -321,6 +373,93 @@ public sealed partial class OutputSplitter(Action<string, CommandOutputKind> rep
     }
 }
 
+/// <summary>The parts of running a fix that are plain logic, apart from the Windows-only executor.</summary>
+public static class FixSupport
+{
+    /// <summary>The exit codes of a service step. 3 means the service is turned off, which no fix may change; 4 means this PC does not have the service.</summary>
+    public const int ServiceDisabled = 3, ServiceMissing = 4;
+
+    // A service that was only just stopped can fail its first start (Windows Search does after its database is deleted) and be restarted by Windows
+    // itself about 30 seconds later, so a start is tried a few times and then waited for, up to 75 seconds, before it counts as failed.
+    private const string StartScript = """
+        $ErrorActionPreference = 'Stop'
+        try {
+          $service = Microsoft.PowerShell.Management\Get-Service -Name '__NAME__' -ErrorAction SilentlyContinue
+          if (-not $service) { '__NAME__ is not on this PC, so there is nothing to start.'; exit __MISSING__ }
+          if ($service.Status -eq 'Running') { "$($service.DisplayName) is already running."; exit 0 }
+          if ($service.StartType -eq 'Disabled') { "$($service.DisplayName) is turned off (its startup type is Disabled), so Windows cannot start it. Something else on this PC turned it off. Set its startup type to Manual or Automatic in Services, then run this fix again."; exit __DISABLED__ }
+          $limit = [DateTime]::UtcNow.AddSeconds(75); $tries = 0; $problem = ''; $denied = $false
+          do {
+            if ($service.Status -eq 'Stopped' -and $tries -lt 3) {
+              $tries++
+              try { Microsoft.PowerShell.Management\Start-Service -Name '__NAME__' -WarningAction SilentlyContinue }
+              catch { $inner = $_.Exception; while ($inner.InnerException) { $inner = $inner.InnerException }; $problem = $inner.Message; if ($inner -is [System.ComponentModel.Win32Exception] -and $inner.NativeErrorCode -eq 5) { $denied = $true } }
+            }
+            $service.Refresh()
+            if ($service.Status -ne 'Running') { Microsoft.PowerShell.Utility\Start-Sleep -Seconds 2; $service.Refresh() }
+          } while ($service.Status -ne 'Running' -and -not $denied -and [DateTime]::UtcNow -lt $limit)
+          if ($service.Status -eq 'Running') { "$($service.DisplayName) is running." } elseif ($denied) { "Windows refused to start __NAME__ ($problem). This needs administrator rights."; exit 1 } else { "Could not start __NAME__ within a minute. $problem"; exit 1 }
+        } catch { 'Could not start __NAME__: ' + $_.Exception.Message; exit 1 }
+        """;
+
+    private const string StopScript = """
+        $ErrorActionPreference = 'Stop'
+        try {
+          $service = Microsoft.PowerShell.Management\Get-Service -Name '__NAME__' -ErrorAction SilentlyContinue
+          if (-not $service) { '__NAME__ is not on this PC, so there is nothing to stop.'; exit __MISSING__ }
+          if ($service.Status -eq 'Stopped') { "$($service.DisplayName) is already stopped."; exit 0 }
+          $limit = [DateTime]::UtcNow.AddSeconds(60); $tries = 0; $problem = ''; $denied = $false
+          do {
+            if ($service.Status -ne 'Stopped' -and $service.Status -ne 'StopPending' -and $tries -lt 3) {
+              $tries++
+              try { Microsoft.PowerShell.Management\Stop-Service -Name '__NAME__' -Force -WarningAction SilentlyContinue }
+              catch { $inner = $_.Exception; while ($inner.InnerException) { $inner = $inner.InnerException }; $problem = $inner.Message; if ($inner -is [System.ComponentModel.Win32Exception] -and $inner.NativeErrorCode -eq 5) { $denied = $true } }
+            }
+            $service.Refresh()
+            if ($service.Status -ne 'Stopped') { Microsoft.PowerShell.Utility\Start-Sleep -Seconds 2; $service.Refresh() }
+          } while ($service.Status -ne 'Stopped' -and -not $denied -and [DateTime]::UtcNow -lt $limit)
+          if ($service.Status -eq 'Stopped') { "$($service.DisplayName) is stopped." } elseif ($denied) { "Windows refused to stop __NAME__ ($problem). This needs administrator rights."; exit 1 } else { "Could not stop __NAME__ within a minute. $problem"; exit 1 }
+        } catch { 'Could not stop __NAME__: ' + $_.Exception.Message; exit 1 }
+        """;
+
+    /// <summary>
+    /// Starting or stopping a service as a program run, so its output, time limit and stop handling are the same as any other step. The name is checked
+    /// against the guard's list and only then written into the command, between quotes.
+    /// net.exe is not used for this: it ends with 2 both when a service is already in the wanted state and when it is turned off or broken, so a service
+    /// that never started looked like a step that worked.
+    /// </summary>
+    public static FixStepContext ServiceStep(FixStepContext context)
+    {
+        var step = context.Step;
+        if (!FixGuard.AllowsService(step.Service)) throw new InvalidOperationException("That service cannot be controlled here.");
+        var template = step.Kind == FixStepKind.StartService ? StartScript : StopScript;
+        var script = template.Replace("__NAME__", step.Service).Replace("__DISABLED__", ServiceDisabled.ToString(CultureInfo.InvariantCulture)).Replace("__MISSING__", ServiceMissing.ToString(CultureInfo.InvariantCulture));
+        var run = new FixStep { Title = step.Title, File = "powershell.exe", Args = ["-NoProfile", "-NonInteractive", "-Command", script], Encoding = FixEncoding.Utf8, Minutes = step.Minutes, Ok = step.Ok, Warn = step.Warn };
+        return context with { Step = run };
+    }
+
+    /// <summary>Takes the read-only and system marks off everything in a folder so it can be deleted. Links are left alone: what they point at is not ours to touch.</summary>
+    public static void ClearReadOnly(string folder)
+    {
+        var stack = new Stack<string>();
+        stack.Push(folder);
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            foreach (var entry in new DirectoryInfo(current).EnumerateFileSystemInfos())
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
+                try
+                {
+                    if (entry.Attributes.HasFlag(FileAttributes.ReadOnly) || entry.Attributes.HasFlag(FileAttributes.System)) entry.Attributes = FileAttributes.Normal;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* The delete will say what is wrong. */ }
+                if (entry is DirectoryInfo) stack.Push(entry.FullName);
+            }
+        }
+    }
+}
+
 /// <summary>The real thing: starts programs and does the few file steps, reading output as it arrives.</summary>
 /// <param name="pipeGrace">Once a program has ended, how long whatever it started gets to let go of its output before the step moves on without it.</param>
 [SupportedOSPlatform("windows")]
@@ -338,7 +477,10 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
         {
             case FixStepKind.Run: return await RunProgramAsync(context, progress, cancellationToken).ConfigureAwait(false);
             case FixStepKind.DeleteFiles: return await Task.Run(() => DeleteFiles(context, progress), cancellationToken).ConfigureAwait(false);
-            case FixStepKind.RenameFolder: return await Task.Run(() => RenameFolder(context, progress), cancellationToken).ConfigureAwait(false);
+            case FixStepKind.RenameFolder: return await Task.Run(() => RenameFolder(context, progress, cancellationToken), cancellationToken).ConfigureAwait(false);
+            case FixStepKind.StartService:
+            case FixStepKind.StopService: return await RunProgramAsync(FixSupport.ServiceStep(context), progress, cancellationToken).ConfigureAwait(false);
+            case FixStepKind.SetRegistry: return await Task.Run(() => SetRegistry(context, progress), cancellationToken).ConfigureAwait(false);
             case FixStepKind.StopExplorer:
             case FixStepKind.StartExplorer:
             case FixStepKind.RestartExplorer:
@@ -349,6 +491,21 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
                 return 0;
             default: throw new InvalidOperationException("That step cannot be run here.");
         }
+    }
+
+    private static int SetRegistry(FixStepContext context, IProgress<CommandOutput> progress)
+    {
+        var step = context.Step;
+        if (!FixGuard.AllowsRegistry(context.Item.Scope, step.Path, step.Name, step.Data)) throw new InvalidOperationException("That setting cannot be changed here.");
+        // Only HKLM keys are on the guard's list, so the key is the part after the hive.
+        var key = step.Path[(step.Path.IndexOf('\\') + 1)..];
+        using var hive = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64);
+        using var subKey = hive.OpenSubKey(key, writable: true);
+        if (subKey is null) { progress.Report(new($"{step.Path} does not exist, so there is nothing to reset.\n", CommandOutputKind.Information)); return 0; }
+        var before = subKey.GetValue(step.Name);
+        subKey.SetValue(step.Name, step.Data, Microsoft.Win32.RegistryValueKind.DWord);
+        progress.Report(new($"Set {step.Name} to {step.Data} (it was {before ?? "not set"}).\n", CommandOutputKind.Information));
+        return 0;
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]
@@ -513,7 +670,7 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
         return kept > 0 ? 1 : 0;
     }
 
-    private static int RenameFolder(FixStepContext context, IProgress<CommandOutput> progress)
+    private static int RenameFolder(FixStepContext context, IProgress<CommandOutput> progress, CancellationToken cancellationToken, int attempts = 3, TimeSpan? pause = null)
     {
         var step = context.Step;
         if (!FixGuard.AllowsRename(context.Item.Scope, step.Path)) throw new InvalidOperationException("That folder cannot be renamed here.");
@@ -523,9 +680,20 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
         if (Directory.Exists(backup))
         {
             progress.Report(new($"Removing the older copy, {backup}.\n", CommandOutputKind.Information));
+            // Directory.Delete cannot remove a read-only file or folder, and the update folders keep some, so a second run after a first would stop here.
+            FixSupport.ClearReadOnly(backup);
             Directory.Delete(backup, recursive: true);
         }
-        Directory.Move(folder, backup);
+        // A service that was only just stopped can still be letting go of its files, and Windows may start one again by itself within seconds.
+        for (var attempt = 1; ; attempt++)
+        {
+            try { Directory.Move(folder, backup); break; }
+            catch (Exception ex) when (attempt < attempts && ex is IOException or UnauthorizedAccessException)
+            {
+                progress.Report(new($"{Path.GetFileName(folder)} is still in use ({ex.Message.TrimEnd()}). Trying again in a moment.\n", CommandOutputKind.Warning));
+                cancellationToken.WaitHandle.WaitOne(pause ?? TimeSpan.FromSeconds(2));
+            }
+        }
         progress.Report(new($"Renamed {folder} to {Path.GetFileName(backup)}. Windows makes a fresh one.\n", CommandOutputKind.Information));
         return 0;
     }

@@ -99,7 +99,7 @@ Checked by hand in the app on 4 November 2026 (Windows 11 Pro, build 26300): the
 
 Also checked on 4 November 2026: when `explorer.exe` is closed, Windows starts a new one by itself (a new process within 0.2 seconds), so the icon fix's wait-and-start step is only a fallback.
 
-Still from documentation only: `net stop` and `net start` return 2 when the service is already stopped or running, and the fix accepts that as success.
+Still from documentation only: `net stop` and `net start` return 2 when the service is already stopped or running, and the fix accepts that as success. (Replaced on 7 November 2026 for the Windows tab, see the last section: 2 also means "turned off" or "broken".)
 
 ## Third round: catalog growth (31 October 2026)
 
@@ -158,3 +158,45 @@ A security and robustness audit of the page was checked against the code and fix
 ### Not verified here
 
 Machine fixes (font cache, WMI, camera, discovery, Update Orchestrator, restore point) were validated by the guard and by tests, and then used by hand in the app on 4 November 2026 with the Fixes page working as intended. The new user scripts were run from the catalog text on this PC: *Find devices with problems* (no problems found; the table branch was exercised with a loosened filter) and the `winget source update` step of *Repair WinGet* (exit 0). The Fixes page was reported working on 4 November 2026; the re-register steps (Windows Security, App Installer, shell packages) and the Restart now button were not itemized in that report.
+
+## Windows tab review (7 November 2026)
+
+An outside review of the nine Windows fixes was checked claim by claim, on this PC (Windows 11 build 26300) where it could be. What held up was built; what did not was left out and is listed below with the reason. The catalog is now 26 fixes.
+
+### Built
+
+- **`net start` with `ok: [0, 2]` hid services that never started.** `net.exe` ends with 2 for "already started" and for "turned off" (error 1058) or broken. Four Windows fixes (Reset Windows Update, Fix the clock, Rebuild the search index, Rebuild the font cache) now use two new step kinds, `startService` and `stopService`. The executor runs a fixed PowerShell command for them with the service name taken from the guard's list: already in the wanted state is fine, a service whose startup type is Disabled ends with exit code 3 and says so, a service this PC does not have ends with 4, anything else that does not start is exit 1. Fixes still never change how a service starts. Stopping uses `Stop-Service -Force` (dependents too, as `net stop /y` did) and waits for the service to be stopped. The other pages (printing, sound, Bluetooth, camera, network discovery) still use `net.exe`; the same change fits them and is not made here.
+- **`RenameFolder` failed on a `.bak` that held read-only files.** Reproduced: `Directory.Delete(recursive)` throws `UnauthorizedAccessException` for a read-only file. The older copy is now cleared of read-only and system marks first (links are not followed), and the rename itself tries up to three times, two seconds apart, because a service that was just stopped can still be letting go, and Windows may restart one by itself.
+- **Reset Windows Update** clears the Delivery Optimization cache first, so the folders are renamed straight after the services stop.
+- **Create a restore point** has an option, on by default, that runs `Enable-ComputerRestore` for the system drive (System Protection is off by default on many Windows 11 PCs). When Windows makes no new point it now says which of two things happened: a point from the last 24 hours exists (named, with its time; exit 0, you can go back to it) or System Protection is probably off (exit 1). Repair Windows system files only offers the restore point and never switches System Protection on by itself.
+- **Repair Windows system files** ends with a step that reads the end of `CBS.log` and prints the `[SR]` lines of the last SFC scan: files repaired, files it could not repair. The log is opened with `ReadWrite` sharing because the servicing stack writes to it.
+- **Check the drive** adds wear, temperature and uncorrected errors (`Get-StorageReliabilityCounter`) and the system volume's health (`Get-Volume`). Both are optional, so a drive that reports nothing does not stop the scan.
+- **Fix the clock** ends with `w32tm /query /status`, and has an option (off) to reset the time servers to `time.windows.com` and `pool.ntp.org`, which does nothing on a PC joined to a domain.
+- **Rebuild the search index** has an option (off) that sets `HKLM\SOFTWARE\Microsoft\Windows Search\SetupCompletedSuccessfully` to 0 while the service is stopped, which makes Windows put the indexed folders back to its defaults. The guard allows exactly that one value. Windows also forgets folders you *excluded* (this PC has dozens), which the option text says.
+- **Update Defender and run a quick scan** first reads `Get-MpComputerStatus`, and stops with a plain sentence when another antivirus has turned Defender off, instead of a raw HRESULT. It ends by saying "No threats were found." or listing the threats and the latest detections (time, whether the action succeeded, files). A full scan is an option.
+- **Rebuild the font cache** also deletes `*.log` in the FontCache folder. The WPF cache service is allowed to be missing (exit 4).
+- **Check and repair WMI** now verifies again after the salvage and ends by asking WMI for `Win32_OperatingSystem`, because `/verifyrepository` only checks the files on disk.
+- **New: Fix blank Task Manager graphs and counters** (`lodctr /R` for 64-bit and, from SysWOW64, 32-bit programs; `winmgmt /resyncperf`; `wmiadap /f`; then it counts the counter sets Windows lists). **New: Find out why the PC will not sleep** (`powercfg /availablesleepstates`, `/requests`, `/lastwake`, `/devicequery wake_armed`; options, off, to rebuild the hibernation file only when hibernation is on, and to restore the default power plans).
+
+### Checked and not built
+
+- **Create `WinSxS\Temp\PendingDeletes` and `PendingRenames`.** Both exist on this PC, the folders are owned by TrustedInstaller, and the review gave no evidence that creating them fixes the SFC error. Not added.
+- **`DISM /CheckHealth` first, to skip `/RestoreHealth`.** `/CheckHealth` only reads a flag that an earlier scan set; it can say healthy about a damaged store. The repair stays DISM first, then SFC.
+- **Online `Repair-Volume -SpotFix` / `Optimize-Volume -ReTrim`.** `-SpotFix` takes the volume offline, which the system drive cannot do while Windows runs, so it would not be the few-seconds repair the review describes. The effect text still points to `chkdsk C: /f`.
+- **`w32tm /resync /force` for large offsets.** `/force` is not a documented switch of `/resync`, and the phase correction limits are not bypassed by it.
+- **`UsoClient StartInteractiveScan`.** Undocumented and unreliable on current builds (also dropped in the third round).
+- **Refresh group policy (`gpupdate /force`)** and **Windows activation (`slmgr`)**. The first does not clear "managed by your organization" left by registry policy (already decided in the third round). The second asks for `slmgr`, which the guard forbids on purpose, and a read-only `/dlv` repairs nothing; error 0x80070422 is the update service being turned off, which the new service check now reports.
+
+### What running them for real found (7 November 2026, as administrator, through the real runner and executor)
+
+- **A typographic apostrophe in a PowerShell string.** The new drive-wear step said "an SSD’s life"; PowerShell treats ’ as a quote, so the step died with a parser error (exit 1, shown as a warning). Tests that read the catalog could not see it. Now fixed, and two tests guard it: no PowerShell step may contain ‘ ’ “ ”, and every PowerShell step (and both service scripts) is parsed with PowerShell's own parser.
+- **Windows Search fails its first start after its database is deleted.** Event 7031/7010: `0x80040d06 The index cannot be initialized`. Windows restarts the service by itself about 30 seconds later and then builds a new index. The old `net start WSearch` returned 2 and the fix accepted it, which is how this stayed unnoticed. The service step now tries to start up to three times and then waits up to 75 seconds for the service to be running, so the fix ends by telling the truth: it did start, or it did not.
+- **`Start-Service` writes "Waiting for service … to start" as warnings**, which showed up as output lines; they are switched off.
+- **`w32time` stops itself right after a resync** when `time.windows.com` gives no answer (this PC: source `Local CMOS Clock`, not synchronized, before and after), so `w32tm /query /status` failed with 0x80070426. A start step now comes before it. With the option *Also reset the time server list* the PC synchronized with `pool.ntp.org` at once (stratum 4); the original setting (`time.windows.com,0x9`) was put back afterwards.
+- **The review's claim that `FNTCACHE.DAT` is always locked was not true here.** It was deleted in both runs (`Removed 1 file`), no warning. The warning handling stays for PCs where it is in use.
+- **The review's claim that restore points are throttled to one per 24 hours** did not hold here either: this PC has `SystemRestorePointCreationFrequency = 0`, and two points were created a few seconds apart. The "a recent point already exists" branch was tested by setting the value to 1440 for one run and putting it back.
+- System Protection was already on here, so `Enable-ComputerRestore` was a no-op (checked: shadow storage and restore points unchanged apart from the two new points).
+
+### Not run on this PC
+
+Restoring the default power plans (this PC's active plan is a custom Ultimate Performance plan, which the command deletes), the search folder reset (it would forget the dozens of folders excluded from indexing), a full Defender scan (hours), and Reset Windows Update's *update database and certificate store* option (it empties the list of past updates).

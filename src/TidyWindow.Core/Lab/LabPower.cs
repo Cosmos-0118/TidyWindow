@@ -163,7 +163,8 @@ public sealed partial class PowerMode(IPowerCfg powercfg, LabStore store)
     }
 }
 
-public sealed record ActionResult(bool Ok, string Message);
+/// <param name="Detail">What was done to get there, one step per line, for pages that keep a record. Empty when nothing more is worth saying.</param>
+public sealed record ActionResult(bool Ok, string Message, string Detail = "");
 
 /// <summary>Whether this PC runs on a battery, so a plan that never saves power can be flagged for laptops.</summary>
 public static class PowerSource

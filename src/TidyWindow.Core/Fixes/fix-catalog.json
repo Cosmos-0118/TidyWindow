@@ -7,51 +7,37 @@
       "scope": "machine",
       "icon": "E90F",
       "summary": "For crashes, errors about missing files, or Windows features that stopped working. Checks Windows' own files and replaces damaged ones.",
-      "effect": "Only damaged Windows files are replaced. It can take a long time and may ask for a restart. If SFC says it could not repair some files, details are in C:\\Windows\\Logs\\CBS\\CBS.log.",
+      "effect": "Only damaged Windows files are replaced. It can take a long time and may ask for a restart. When it ends, the files that were repaired or could not be repaired are listed in the output.",
       "restart": "maybe",
       "restartFirst": true,
       "duration": "20 to 60 minutes",
-      "sources": ["Microsoft Support: System File Checker (DISM first, then SFC)"],
+      "sources": ["Microsoft Support: System File Checker (DISM first, then SFC; the [SR] lines of CBS.log)"],
       "options": [
-        { "id": "restore-point", "label": "Create a restore point first", "detail": "Windows allows one restore point every 24 hours. If it declines, the repair goes on and the output says so." },
+        { "id": "restore-point", "label": "Create a restore point first", "detail": "Windows allows one restore point every 24 hours, and System Protection must be on for the system drive (the Create a restore point fix can turn it on). If it declines, the repair goes on and the output says why." },
         { "id": "cleanup", "label": "Also clean up old update files afterwards", "detail": "Frees some space; old updates can no longer be uninstalled." }
       ],
       "steps": [
         {
           "title": "Create a restore point",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\ForEach-Object { $_.SequenceNumber }); Microsoft.PowerShell.Management\\Checkpoint-Computer -Description 'TidyWindow: before repairing Windows files' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\Where-Object { $before -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.' } else { if ($skipped) { \"$skipped\" }; 'Windows did not create a new restore point. It allows one every 24 hours, and System Protection must be on for the system drive.'; exit 1 } } catch { $_.Exception.Message; exit 2 }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue); $known = @($before | Microsoft.PowerShell.Core\\ForEach-Object { $_.SequenceNumber }); Microsoft.PowerShell.Management\\Checkpoint-Computer -Description 'TidyWindow: before repairing Windows files' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\Where-Object { $known -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.'; exit 0 }; if ($skipped) { \"$skipped\" }; $latest = $before | Microsoft.PowerShell.Utility\\Sort-Object SequenceNumber | Microsoft.PowerShell.Utility\\Select-Object -Last 1; if ($latest) { $made = [Management.ManagementDateTimeConverter]::ToDateTime($latest.CreationTime); if (((Microsoft.PowerShell.Utility\\Get-Date) - $made).TotalHours -lt 24) { 'No new restore point was needed. Windows allows one every 24 hours, and the one named ' + $latest.Description + ' was made on ' + $made.ToString('f') + '. You can go back to that one.'; exit 0 } }; 'Windows did not create a restore point. System Protection is probably off for the system drive, or the space for restore points is full. Turn it on with the Create a restore point fix, or in System Properties > System Protection.'; exit 1 } catch { $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
           "minutes": 5,
           "optional": true,
           "when": "restore-point"
         },
+        { "title": "Repair the Windows component store (DISM)", "file": "dism.exe", "args": ["/Online", "/Cleanup-Image", "/RestoreHealth"], "minutes": 90, "uninterruptible": true, "restart": [3010] },
+        { "title": "Check and repair system files (SFC)", "file": "sfc.exe", "args": ["/scannow"], "encoding": "utf16", "minutes": 90, "uninterruptible": true, "warn": [1] },
         {
-          "title": "Repair the Windows component store (DISM)",
-          "file": "dism.exe",
-          "args": ["/Online", "/Cleanup-Image", "/RestoreHealth"],
-          "minutes": 90,
-          "uninterruptible": true,
-          "restart": [3010]
+          "title": "List the files SFC repaired or could not repair",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $file = \"$env:SystemRoot\\Logs\\CBS\\CBS.log\"; if (-not [System.IO.File]::Exists($file)) { 'CBS.log was not found, so there is no list of files to show.'; exit 0 }; $stream = [System.IO.File]::Open($file, 'Open', 'Read', 'ReadWrite'); try { $null = $stream.Seek(-[Math]::Min($stream.Length, 48MB), 'End'); $reader = [System.IO.StreamReader]::new($stream); $found = [System.Collections.Generic.List[string]]::new(); $begin = ''; while ($null -ne ($line = $reader.ReadLine())) { if ($line.Contains('[SR] Beginning Verify and Repair')) { $found.Clear(); $begin = $line.Substring(0, [Math]::Min(19, $line.Length)); continue }; if ($begin -and $line -match '\\[SR\\] (Cannot repair|Repairing corrupted|Repairing \\d+ components|Repair complete|Verify complete|Verifying \\d+ components)') { $found.Add($(if ($line.Length -gt 300) { $line.Substring(0, 300) } else { $line })) } } } finally { $stream.Dispose() }; if (-not $begin) { 'No System File Checker scan was found in the log.'; exit 0 }; 'The last System File Checker scan in the log began at ' + $begin + '.'; $cannot = @($found | Microsoft.PowerShell.Core\\Where-Object { $_ -match 'Cannot repair' }); $fixed = @($found | Microsoft.PowerShell.Core\\Where-Object { $_ -match 'Repairing corrupted' }); $found | Microsoft.PowerShell.Utility\\Select-Object -First 80; if ($cannot.Count -gt 0) { 'Windows could not repair ' + $cannot.Count + ' file(s). The lines above name them.'; exit 1 }; if ($fixed.Count -gt 0) { 'Windows repaired ' + $fixed.Count + ' file(s).' } else { 'No damaged files were found in that scan.' }"],
+          "encoding": "utf8",
+          "minutes": 5,
+          "warn": [1],
+          "optional": true
         },
-        {
-          "title": "Check and repair system files (SFC)",
-          "file": "sfc.exe",
-          "args": ["/scannow"],
-          "encoding": "utf16",
-          "minutes": 90,
-          "uninterruptible": true,
-          "warn": [1]
-        },
-        {
-          "title": "Clean up old update files",
-          "file": "dism.exe",
-          "args": ["/Online", "/Cleanup-Image", "/StartComponentCleanup"],
-          "minutes": 60,
-          "uninterruptible": true,
-          "optional": true,
-          "when": "cleanup"
-        }
+        { "title": "Clean up old update files", "file": "dism.exe", "args": ["/Online", "/Cleanup-Image", "/StartComponentCleanup"], "minutes": 60, "uninterruptible": true, "optional": true, "when": "cleanup" }
       ]
     },
     {
@@ -61,7 +47,7 @@
       "scope": "machine",
       "icon": "E895",
       "summary": "For updates that fail, get stuck downloading, or never finish checking. Stops the update services, clears what they downloaded, and starts them again.",
-      "effect": "Downloaded update files are renamed to .bak and the Delivery Optimization cache is emptied (Windows downloads them again). Your installed updates are not removed. Afterwards open Settings > Windows Update and check for updates.",
+      "effect": "Downloaded update files are renamed to .bak and the Delivery Optimization cache is emptied (Windows downloads them again). Your installed updates are not removed. If something has turned one of the update services off, the fix says so and stops: it never changes how a service starts. Afterwards open Settings > Windows Update and check for updates.",
       "restartFirst": true,
       "duration": "A few minutes",
       "sources": ["Microsoft Learn: Reset Windows Update components manually", "WinUtil (cross-check; its policy clean-up was not copied)"],
@@ -69,19 +55,6 @@
         { "id": "deep", "label": "Also reset the update database and certificate store", "detail": "Use only if the first try did not help. The list of past updates in Settings starts empty." }
       ],
       "steps": [
-        { "title": "Stop Background Intelligent Transfer", "file": "net.exe", "args": ["stop", "bits", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Stop Windows Update", "file": "net.exe", "args": ["stop", "wuauserv", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Stop Update Orchestrator", "file": "net.exe", "args": ["stop", "UsoSvc", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Stop Cryptographic Services", "file": "net.exe", "args": ["stop", "cryptsvc", "/y"], "ok": [0, 2], "minutes": 3 },
-        {
-          "title": "Remove the old download queue files",
-          "kind": "deleteFiles",
-          "path": "%ALLUSERSPROFILE%\\Microsoft\\Network\\Downloader",
-          "patterns": ["qmgr*.dat"],
-          "warn": [1],
-          "optional": true
-        },
-        { "title": "Set aside the downloaded update files", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\Download", "optional": true, "uninterruptible": true },
         {
           "title": "Clear the Delivery Optimization cache",
           "file": "powershell.exe",
@@ -90,12 +63,18 @@
           "minutes": 5,
           "optional": true
         },
+        { "title": "Stop Background Intelligent Transfer", "kind": "stopService", "service": "bits", "minutes": 3 },
+        { "title": "Stop Windows Update", "kind": "stopService", "service": "wuauserv", "minutes": 3 },
+        { "title": "Stop Update Orchestrator", "kind": "stopService", "service": "UsoSvc", "minutes": 3 },
+        { "title": "Stop Cryptographic Services", "kind": "stopService", "service": "cryptsvc", "minutes": 3 },
+        { "title": "Remove the old download queue files", "kind": "deleteFiles", "path": "%ALLUSERSPROFILE%\\Microsoft\\Network\\Downloader", "patterns": ["qmgr*.dat"], "warn": [1], "optional": true },
+        { "title": "Set aside the downloaded update files", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\Download", "optional": true, "uninterruptible": true },
         { "title": "Set aside the update database", "kind": "renameFolder", "path": "%SystemRoot%\\SoftwareDistribution\\DataStore", "optional": true, "uninterruptible": true, "when": "deep" },
         { "title": "Set aside the update certificate store", "kind": "renameFolder", "path": "%SystemRoot%\\System32\\catroot2", "optional": true, "uninterruptible": true, "when": "deep" },
-        { "title": "Start Cryptographic Services", "file": "net.exe", "args": ["start", "cryptsvc"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Background Intelligent Transfer", "file": "net.exe", "args": ["start", "bits"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Windows Update", "file": "net.exe", "args": ["start", "wuauserv"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Update Orchestrator", "file": "net.exe", "args": ["start", "UsoSvc"], "ok": [0, 2], "minutes": 3, "always": true }
+        { "title": "Start Cryptographic Services", "kind": "startService", "service": "cryptsvc", "minutes": 3, "always": true },
+        { "title": "Start Background Intelligent Transfer", "kind": "startService", "service": "bits", "minutes": 3, "always": true },
+        { "title": "Start Windows Update", "kind": "startService", "service": "wuauserv", "minutes": 3, "always": true },
+        { "title": "Start Update Orchestrator", "kind": "startService", "service": "UsoSvc", "minutes": 3, "always": true }
       ]
     },
     {
@@ -104,15 +83,32 @@
       "group": "windows",
       "scope": "machine",
       "icon": "E8B7",
-      "summary": "For slow or freezing PCs, files that will not open, or strange crashes. Reads the health of your drives and scans the system drive for problems.",
+      "summary": "For slow or freezing PCs, files that will not open, or strange crashes. Reads the health, wear and error counts of your drives and scans the system drive for problems.",
       "effect": "Nothing is changed; this only reads and reports. If errors are reported, open an administrator Command Prompt and run chkdsk C: /f; Windows repairs the drive at the next restart.",
       "duration": "A few minutes",
-      "sources": ["Microsoft Learn: Repair-Volume -Scan (an online scan that changes nothing)"],
+      "sources": ["Microsoft Learn: Repair-Volume -Scan (an online scan that changes nothing); Get-StorageReliabilityCounter"],
       "steps": [
         {
           "title": "Read drive health",
           "file": "powershell.exe",
           "args": ["-NoProfile", "-NonInteractive", "-Command", "Storage\\Get-PhysicalDisk | Microsoft.PowerShell.Utility\\Select-Object FriendlyName, MediaType, HealthStatus, OperationalStatus | Microsoft.PowerShell.Utility\\Format-Table -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 120"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true
+        },
+        {
+          "title": "Read drive wear, temperature and error counts",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $rows = @(Storage\\Get-PhysicalDisk | Microsoft.PowerShell.Core\\ForEach-Object { $c = $_ | Storage\\Get-StorageReliabilityCounter; [pscustomobject]@{ Drive = $_.FriendlyName; Temperature = $c.Temperature; WearPercent = $c.Wear; PowerOnHours = $c.PowerOnHours; ReadErrors = $c.ReadErrorsUncorrected; WriteErrors = $c.WriteErrorsUncorrected } }); $rows | Microsoft.PowerShell.Utility\\Format-List | Microsoft.PowerShell.Utility\\Out-String -Width 140; 'A blank means the drive does not report that figure. WearPercent is how much of the life of an SSD is used.'; $bad = @($rows | Microsoft.PowerShell.Core\\Where-Object { $_.ReadErrors -gt 0 -or $_.WriteErrors -gt 0 -or $_.WearPercent -ge 90 }); if ($bad.Count -gt 0) { 'A drive reports uncorrected errors or is nearly worn out. Back up what matters to you.'; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "warn": [1],
+          "optional": true
+        },
+        {
+          "title": "Read the system drive’s health",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Storage\\Get-Volume -DriveLetter $env:SystemDrive.Substring(0, 1) | Microsoft.PowerShell.Utility\\Select-Object DriveLetter, FileSystemType, HealthStatus, OperationalStatus, @{ Name = 'FreeGB'; Expression = { [math]::Round($_.SizeRemaining / 1GB, 1) } }, @{ Name = 'SizeGB'; Expression = { [math]::Round($_.Size / 1GB, 1) } } | Microsoft.PowerShell.Utility\\Format-Table -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 120"],
           "encoding": "utf8",
           "minutes": 3,
           "optional": true
@@ -134,14 +130,26 @@
       "scope": "machine",
       "icon": "E777",
       "summary": "A save point to go back to if something goes wrong after a change. Good to do before repairs or installing drivers.",
-      "effect": "Uses a little disk space. System Protection must be on for your system drive. Windows allows one restore point every 24 hours; if it declines, this says so and finishes with a warning instead of reporting one that does not exist.",
+      "effect": "Uses a little disk space. Windows allows one restore point every 24 hours; if one is already there, this says when it was made. If System Protection is off for your system drive, the option below turns it on (it is off by default on many new PCs).",
       "duration": "About a minute",
-      "sources": ["Microsoft Learn: Checkpoint-Computer"],
+      "sources": ["Microsoft Learn: Checkpoint-Computer, Enable-ComputerRestore"],
+      "options": [
+        { "id": "protect", "label": "Turn on System Protection for the system drive if it is off", "detail": "Without it Windows cannot make restore points. Nothing changes if it is already on.", "default": true }
+      ],
       "steps": [
+        {
+          "title": "Turn on System Protection",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $drive = $env:SystemDrive + '\\'; try { Microsoft.PowerShell.Management\\Enable-ComputerRestore -Drive $drive; 'System Protection is on for ' + $drive } catch { $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "when": "protect"
+        },
         {
           "title": "Create the restore point",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\ForEach-Object { $_.SequenceNumber }); Microsoft.PowerShell.Management\\Checkpoint-Computer -Description 'TidyWindow restore point' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\Where-Object { $before -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.' } else { if ($skipped) { \"$skipped\" }; 'Windows did not create a new restore point. It allows one every 24 hours, and System Protection must be on for the system drive.'; exit 1 } } catch { $_.Exception.Message; exit 2 }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $before = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue); $known = @($before | Microsoft.PowerShell.Core\\ForEach-Object { $_.SequenceNumber }); Microsoft.PowerShell.Management\\Checkpoint-Computer -Description 'TidyWindow restore point' -RestorePointType MODIFY_SETTINGS -WarningVariable skipped -WarningAction SilentlyContinue; $added = @(Microsoft.PowerShell.Management\\Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Microsoft.PowerShell.Core\\Where-Object { $known -notcontains $_.SequenceNumber }); if ($added.Count -gt 0) { 'Restore point created.'; exit 0 }; if ($skipped) { \"$skipped\" }; $latest = $before | Microsoft.PowerShell.Utility\\Sort-Object SequenceNumber | Microsoft.PowerShell.Utility\\Select-Object -Last 1; if ($latest) { $made = [Management.ManagementDateTimeConverter]::ToDateTime($latest.CreationTime); if (((Microsoft.PowerShell.Utility\\Get-Date) - $made).TotalHours -lt 24) { 'No new restore point was needed. Windows allows one every 24 hours, and the one named ' + $latest.Description + ' was made on ' + $made.ToString('f') + '. You can go back to that one.'; exit 0 } }; 'Windows did not create a restore point. System Protection is probably off for the system drive, or the space for restore points is full. Tick the option above to turn it on, or use System Properties > System Protection.'; exit 1 } catch { $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
           "minutes": 10,
           "warn": [1]
@@ -155,13 +163,26 @@
       "scope": "machine",
       "icon": "E823",
       "summary": "For a clock that is a few minutes off, which also causes website certificate errors and sign-in problems. Starts the time service and asks the internet to set the time.",
-      "effect": "Only the time is corrected. The time zone is not changed; set it in Settings > Time & language if it is wrong.",
+      "effect": "Only the time is corrected. The time zone is not changed; set it in Settings > Time & language if it is wrong. At the end the output shows which time server Windows is using.",
       "duration": "A few seconds",
       "sources": ["Microsoft Learn: w32tm"],
+      "options": [
+        { "id": "servers", "label": "Also reset the time server list", "detail": "Use if syncing fails with “no time data was available”. Sets time.windows.com and pool.ntp.org as the servers. A PC joined to a work or school domain is left alone." }
+      ],
       "steps": [
-        { "title": "Start the Windows Time service", "file": "net.exe", "args": ["start", "w32time"], "ok": [0, 2], "minutes": 2 },
+        { "title": "Start the Windows Time service", "kind": "startService", "service": "w32time", "minutes": 2 },
+        {
+          "title": "Reset the time servers",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { if ((CimCmdlets\\Get-CimInstance -ClassName Win32_ComputerSystem).PartOfDomain) { 'This PC is joined to a domain, so its time comes from the domain. The time server list was left alone.'; exit 0 }; & \"$env:SystemRoot\\System32\\w32tm.exe\" /config '/manualpeerlist:time.windows.com,0x8 pool.ntp.org,0x8' /syncfromflags:manual /update; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; 'Time servers are now time.windows.com and pool.ntp.org.' } catch { $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "when": "servers"
+        },
         { "title": "Re-read the time settings", "file": "w32tm.exe", "args": ["/config", "/update"], "minutes": 2, "optional": true },
-        { "title": "Set the time from the internet", "file": "w32tm.exe", "args": ["/resync", "/rediscover"], "minutes": 3 }
+        { "title": "Set the time from the internet", "file": "w32tm.exe", "args": ["/resync", "/rediscover"], "minutes": 3 },
+        { "title": "Make sure the Windows Time service is still running", "kind": "startService", "service": "w32time", "minutes": 2, "optional": true },
+        { "title": "Show where the time comes from", "file": "w32tm.exe", "args": ["/query", "/status"], "minutes": 2, "optional": true }
       ]
     },
     {
@@ -174,11 +195,15 @@
       "effect": "Search results are incomplete while Windows re-indexes, which can take from a few minutes to over an hour and is quicker when you leave the PC alone.",
       "risk": "careful",
       "duration": "A minute, then Windows indexes in the background",
-      "sources": ["Microsoft Q&A: Windows Search troubleshooting (delete the search database)"],
+      "sources": ["Microsoft Q&A: Windows Search troubleshooting (delete the search database; SetupCompletedSuccessfully)"],
+      "options": [
+        { "id": "locations", "label": "Also put the indexed folders back to Windows’ defaults", "detail": "Use if search still misses files you know are there. Folders you added to the index, and folders you excluded from it, go back to Windows’ defaults; set them again in Indexing Options." }
+      ],
       "steps": [
-        { "title": "Stop Windows Search", "file": "net.exe", "args": ["stop", "WSearch", "/y"], "ok": [0, 2], "minutes": 3 },
+        { "title": "Stop Windows Search", "kind": "stopService", "service": "WSearch", "minutes": 3 },
+        { "title": "Reset the list of indexed folders", "kind": "setRegistry", "path": "HKLM\\SOFTWARE\\Microsoft\\Windows Search", "name": "SetupCompletedSuccessfully", "data": 0, "when": "locations" },
         { "title": "Delete the old search database", "kind": "deleteFiles", "path": "%ProgramData%\\Microsoft\\Search\\Data\\Applications\\Windows", "patterns": ["Windows.edb", "Windows.db", "Windows.db-wal", "Windows.db-shm", "Windows-gather.db*", "Windows-usn.db*"], "warn": [1], "optional": true },
-        { "title": "Start Windows Search", "file": "net.exe", "args": ["start", "WSearch"], "ok": [0, 2], "minutes": 3, "always": true }
+        { "title": "Start Windows Search", "kind": "startService", "service": "WSearch", "minutes": 3, "always": true }
       ]
     },
     {
@@ -188,10 +213,20 @@
       "scope": "machine",
       "icon": "E83D",
       "summary": "Gets the latest virus definitions and scans the places malware usually hides.",
-      "effect": "Nothing is removed without Defender's own decision. Does not work if another antivirus has turned Microsoft Defender off.",
+      "effect": "Nothing is removed without Defender's own decision. Says so plainly, and stops, if another antivirus has turned Microsoft Defender off. The output ends with the threats on record, or says none were found.",
       "duration": "5 to 20 minutes",
-      "sources": ["Microsoft Learn: Update-MpSignature, Start-MpScan"],
+      "sources": ["Microsoft Learn: Get-MpComputerStatus, Update-MpSignature, Start-MpScan, Get-MpThreatDetection"],
+      "options": [
+        { "id": "full", "label": "Run a full scan instead of a quick one", "detail": "Reads every file. Can take an hour or more, and the PC may feel slower meanwhile." }
+      ],
       "steps": [
+        {
+          "title": "Check that Defender is the active antivirus",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $s = Defender\\Get-MpComputerStatus } catch { 'Microsoft Defender did not answer: ' + $_.Exception.Message + ' Another antivirus has probably taken over, and this fix cannot work.'; exit 2 }; if (-not $s.AMServiceEnabled -or $s.AMRunningMode -eq 'Not running') { 'Microsoft Defender is turned off, usually because another antivirus is installed. Scan with that one instead.'; exit 2 }; 'Defender mode: ' + $s.AMRunningMode; 'Real-time protection: ' + $s.RealTimeProtectionEnabled; 'Definitions: ' + $s.AntivirusSignatureVersion + ', ' + $s.AntivirusSignatureAge + ' day(s) old'; if ($s.AMRunningMode -ne 'Normal') { 'Defender is not the main antivirus here. A scan you start yourself still runs.' }"],
+          "encoding": "utf8",
+          "minutes": 3
+        },
         {
           "title": "Update the virus definitions",
           "file": "powershell.exe",
@@ -203,9 +238,26 @@
         {
           "title": "Run a quick scan",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Defender\\Start-MpScan -ScanType QuickScan; 'Quick scan finished.'; Defender\\Get-MpThreat | Microsoft.PowerShell.Utility\\Select-Object ThreatName, IsActive | Microsoft.PowerShell.Utility\\Format-Table -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 120"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Defender\\Start-MpScan -ScanType QuickScan; 'Quick scan finished.'"],
           "encoding": "utf8",
-          "minutes": 60
+          "minutes": 60,
+          "when": "!full"
+        },
+        {
+          "title": "Run a full scan",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Defender\\Start-MpScan -ScanType FullScan; 'Full scan finished.'"],
+          "encoding": "utf8",
+          "minutes": 180,
+          "when": "full"
+        },
+        {
+          "title": "Show what Defender found",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $threats = @(Defender\\Get-MpThreat); if ($threats.Count -eq 0) { 'No threats were found.'; exit 0 }; \"$($threats.Count) threat(s) on record:\"; $threats | Microsoft.PowerShell.Utility\\Select-Object ThreatName, IsActive | Microsoft.PowerShell.Utility\\Format-Table -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 120; $found = @(Defender\\Get-MpThreatDetection | Microsoft.PowerShell.Utility\\Sort-Object InitialDetectionTime -Descending | Microsoft.PowerShell.Utility\\Select-Object -First 10); if ($found.Count -gt 0) { 'Most recent detections:'; $found | Microsoft.PowerShell.Utility\\Select-Object InitialDetectionTime, ActionSuccess, @{ Name = 'Files'; Expression = { $_.Resources -join '; ' } } | Microsoft.PowerShell.Utility\\Format-Table -Wrap -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 160 }; if (@($threats | Microsoft.PowerShell.Core\\Where-Object { $_.IsActive }).Count -gt 0) { 'Some threats are still active. Open Windows Security to remove them.'; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "warn": [1]
         }
       ]
     },
@@ -412,18 +464,18 @@
       "scope": "machine",
       "icon": "E8D2",
       "summary": "For text that shows empty boxes or garbled letters, fonts that are missing from apps, or apps that freeze while loading fonts. Deletes the saved font database so Windows builds a fresh one.",
-      "effect": "Apps may be slow for a moment the first time they load fonts afterwards. Installed fonts are not removed. Restart open apps (or Windows) for the new cache to be used everywhere.",
+      "effect": "Apps may be slow for a moment the first time they load fonts afterwards. Installed fonts are not removed. Restart open apps (or Windows) for the new cache to be used everywhere. The old system file FNTCACHE.DAT is kept open by Windows while you are signed in; if so it is left and the output says so.",
       "risk": "careful",
       "restart": "maybe",
       "duration": "A few seconds",
       "sources": ["Microsoft Q&A: Fonts display as boxes or are missing (stop Windows Font Cache Service, delete the cache files, start it again)"],
       "steps": [
-        {"title": "Stop the font cache service", "file": "net.exe", "args": ["stop", "FontCache", "/y"], "ok": [0, 2], "minutes": 3},
-        {"title": "Stop the WPF font cache service", "file": "net.exe", "args": ["stop", "FontCache3.0.0.0", "/y"], "ok": [0, 2], "minutes": 3},
-        {"title": "Delete the saved font database", "kind": "deleteFiles", "path": "%SystemRoot%\\ServiceProfiles\\LocalService\\AppData\\Local\\FontCache", "patterns": ["*.dat"], "warn": [1], "optional": true},
-        {"title": "Delete the old system font cache file", "kind": "deleteFiles", "path": "%SystemRoot%\\System32", "patterns": ["FNTCACHE.DAT"], "warn": [1], "optional": true},
-        {"title": "Start the font cache service", "file": "net.exe", "args": ["start", "FontCache"], "ok": [0, 2], "minutes": 3, "always": true},
-        {"title": "Start the WPF font cache service", "file": "net.exe", "args": ["start", "FontCache3.0.0.0"], "ok": [0, 2], "minutes": 3, "always": true}
+        { "title": "Stop the font cache service", "kind": "stopService", "service": "FontCache", "minutes": 3 },
+        { "title": "Stop the WPF font cache service", "kind": "stopService", "service": "FontCache3.0.0.0", "minutes": 3, "ok": [0, 4] },
+        { "title": "Delete the saved font database", "kind": "deleteFiles", "path": "%SystemRoot%\\ServiceProfiles\\LocalService\\AppData\\Local\\FontCache", "patterns": ["*.dat", "*.log"], "warn": [1], "optional": true },
+        { "title": "Delete the old system font cache file", "kind": "deleteFiles", "path": "%SystemRoot%\\System32", "patterns": ["FNTCACHE.DAT"], "warn": [1], "optional": true },
+        { "title": "Start the font cache service", "kind": "startService", "service": "FontCache", "minutes": 3, "always": true },
+        { "title": "Start the WPF font cache service", "kind": "startService", "service": "FontCache3.0.0.0", "minutes": 3, "always": true, "ok": [0, 4] }
       ]
     },
     {
@@ -432,15 +484,83 @@
       "group": "windows",
       "scope": "machine",
       "icon": "E713",
-      "summary": "For tools that fail with “Invalid namespace”, error 0x80041002 or WMI timeouts: system information, hardware readouts, some installers and games. Checks the WMI repository and repairs it if it is inconsistent.",
+      "summary": "For tools that fail with “Invalid namespace”, error 0x80041002 or WMI timeouts: system information, hardware readouts, some installers and games. Checks the WMI repository, repairs it if it is inconsistent, and then asks WMI a question to prove it answers.",
       "effect": "The check changes nothing. The repair keeps everything it can still read and drops only what is damaged; programs that registered their own WMI parts may need to be repaired or reinstalled if they stop working. The repository is never wiped.",
       "risk": "careful",
       "duration": "A minute",
-      "sources": ["Microsoft Learn: WMI troubleshooting (winmgmt /verifyrepository, then /salvagerepository)"],
-      "options": [{"id": "repair", "label": "Repair the repository if it is inconsistent", "detail": "Leave this off to only check it.", "default": true}],
+      "sources": ["Microsoft Learn: WMI troubleshooting (winmgmt /verifyrepository, then /salvagerepository, verify again, then test a query)"],
+      "options": [
+        { "id": "repair", "label": "Repair the repository if it is inconsistent", "detail": "Leave this off to only check it.", "default": true }
+      ],
       "steps": [
-        {"title": "Check the WMI repository", "file": "winmgmt.exe", "args": ["/verifyrepository"], "minutes": 3, "warn": [1], "optional": true},
-        {"title": "Repair the WMI repository", "file": "winmgmt.exe", "args": ["/salvagerepository"], "minutes": 10, "uninterruptible": true, "when": "repair"}
+        { "title": "Check the WMI repository", "file": "winmgmt.exe", "args": ["/verifyrepository"], "minutes": 3, "warn": [1], "optional": true },
+        { "title": "Repair the WMI repository", "file": "winmgmt.exe", "args": ["/salvagerepository"], "minutes": 10, "uninterruptible": true, "when": "repair" },
+        { "title": "Check the WMI repository again", "file": "winmgmt.exe", "args": ["/verifyrepository"], "minutes": 3, "warn": [1], "optional": true, "when": "repair" },
+        {
+          "title": "Ask WMI a question",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $os = CimCmdlets\\Get-CimInstance -ClassName Win32_OperatingSystem; 'WMI answered: ' + $os.Caption + ' ' + $os.Version } catch { 'WMI did not answer a simple question: ' + $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3
+        }
+      ]
+    },
+    {
+      "id": "rebuild-performance-counters",
+      "name": "Fix blank Task Manager graphs and counters",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E9D9",
+      "summary": "For Task Manager or Resource Monitor showing blank or zero graphs, Performance Monitor saying “Unable to add these counters”, or games and monitoring tools that cannot read CPU, disk or GPU figures. Rebuilds the performance counter list from Windows’ own backup.",
+      "effect": "Nothing you own is touched. Counters that a program added after Windows last saved its backup come back when that program is repaired or reinstalled. Open Task Manager again afterwards; a restart may be needed.",
+      "risk": "careful",
+      "restart": "maybe",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: lodctr /R (rebuild counter settings from the system backup store); winmgmt /resyncperf"],
+      "steps": [
+        { "title": "Rebuild the performance counters", "file": "lodctr.exe", "args": ["/R"], "minutes": 5 },
+        { "title": "Rebuild the counters of 32-bit programs", "file": "lodctr32.exe", "args": ["/R"], "minutes": 5, "optional": true },
+        { "title": "Tell WMI about the counters again", "file": "winmgmt.exe", "args": ["/resyncperf"], "minutes": 3, "optional": true },
+        { "title": "Refresh the WMI performance classes", "file": "wmiadap.exe", "args": ["/f"], "minutes": 3, "optional": true },
+        {
+          "title": "Check that the counters answer",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; try { $sets = @(Microsoft.PowerShell.Diagnostics\\Get-Counter -ListSet *); if ($sets.Count -eq 0) { 'Windows lists no performance counters.'; exit 1 }; 'Windows lists ' + $sets.Count + ' performance counter sets.' } catch { 'The counters do not answer yet: ' + $_.Exception.Message + ' Restart Windows and check Task Manager again.'; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "fix-sleep",
+      "name": "Find out why the PC will not sleep",
+      "group": "windows",
+      "scope": "machine",
+      "icon": "E708",
+      "summary": "For a PC that will not go to sleep, wakes up by itself in the night, or fails to resume. Shows what is keeping it awake, what woke it last and which devices may wake it. Can also rebuild the hibernation file or put the power plans back to Windows’ own.",
+      "effect": "The reports change nothing. Rebuilding the hibernation file only happens if hibernation is on, and makes the file at its default size. Putting the power plans back deletes custom plans, including the ones from the PC maker.",
+      "risk": "careful",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: powercfg command-line options (/requests, /lastwake, /devicequery, /hibernate, -restoredefaultschemes)"],
+      "options": [
+        { "id": "hibernate", "label": "Rebuild the hibernation file (used by Fast Startup)", "detail": "Use if resuming from hibernation or starting the PC hangs. Skipped if hibernation is turned off." },
+        { "id": "plans", "label": "Put the power plans back to Windows’ defaults", "detail": "Deletes custom power plans, including ones set up by the PC maker or by you." }
+      ],
+      "steps": [
+        { "title": "Show the sleep states this PC supports", "file": "powercfg.exe", "args": ["/availablesleepstates"], "minutes": 2, "optional": true },
+        { "title": "Show what is keeping the PC awake", "file": "powercfg.exe", "args": ["/requests"], "minutes": 2, "optional": true },
+        { "title": "Show what woke the PC last", "file": "powercfg.exe", "args": ["/lastwake"], "minutes": 2, "optional": true },
+        { "title": "Show the devices that may wake the PC", "file": "powercfg.exe", "args": ["/devicequery", "wake_armed"], "minutes": 2, "optional": true },
+        {
+          "title": "Rebuild the hibernation file",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $power = \"$env:SystemRoot\\System32\\powercfg.exe\"; $on = (Microsoft.PowerShell.Management\\Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power' -Name HibernateEnabled).HibernateEnabled; if ($on -ne 1) { 'Hibernation is turned off on this PC, so it was left off.'; exit 0 }; & $power /hibernate off; $off = $LASTEXITCODE; & $power /hibernate on; $back = $LASTEXITCODE; if ($back -ne 0) { 'Hibernation could not be turned back on. Run powercfg /hibernate on in an administrator terminal.'; exit $back }; if ($off -ne 0) { exit $off }; 'The hibernation file was made again.'"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "when": "hibernate"
+        },
+        { "title": "Put the power plans back to defaults", "file": "powercfg.exe", "args": ["-restoredefaultschemes"], "minutes": 2, "when": "plans" }
       ]
     },
     {

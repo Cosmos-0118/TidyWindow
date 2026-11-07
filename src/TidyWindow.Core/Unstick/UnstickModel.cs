@@ -181,10 +181,22 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
     /// <summary>True when something this action closes is running now. Always false for an action that closes nothing.</summary>
     public bool IsActive(UnstickAction action) => action.Targets.Count > 0 && system.Running(action.Targets);
 
+    /// <summary>
+    /// Runs the action. The result's Detail lists, in order, each thing done to Windows (what was closed, started or asked for, and how it
+    /// came out), so the Logs page can say exactly what happened and not only that it did.
+    /// </summary>
     public async Task<ActionResult> RunAsync(string id, CancellationToken token = default)
     {
         if (UnstickCatalog.Find(id) is not { } action) return new(false, "That action is not on the page.");
-        if (action.FixId is not null) return await RunFixAsync(action, token).ConfigureAwait(false);
+        var trace = new UnstickTrace();
+        // Every call the action makes goes through a recorder, so the account is of what really ran and not of what the page says it will.
+        var result = await new UnstickRunner(new TracedSystem(system, trace), fixes).RunCoreAsync(action, trace, token).ConfigureAwait(false);
+        return result with { Detail = trace.Text };
+    }
+
+    private async Task<ActionResult> RunCoreAsync(UnstickAction action, UnstickTrace trace, CancellationToken token)
+    {
+        if (action.FixId is not null) return await RunFixAsync(action, trace, token).ConfigureAwait(false);
         try
         {
             switch (action.Id)
@@ -231,23 +243,30 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or UnauthorizedAccessException or IOException)
         {
+            trace.Add($"Windows refused: {ex.Message}");
             return new(false, $"Windows did not allow it: {ex.Message}");
         }
     }
 
-    private async Task<ActionResult> RunFixAsync(UnstickAction action, CancellationToken token)
+    private async Task<ActionResult> RunFixAsync(UnstickAction action, UnstickTrace trace, CancellationToken token)
     {
         if (fixes is null) return new(false, "The administrator helper is not available, so this cannot run.");
+        trace.Add($"Runs the “{action.FixId}” fix from the Fixes catalog, which needs administrator permission.");
         PackageActionResult result;
+        // No live output is shown here; the fix's step summary below names each command that ran and what it said.
         try { result = await fixes(new(action.FixId!, []), new Silent(), token).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested) { return new(false, "Administrator permission was declined. Nothing was changed."); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { return new(false, ex.Message); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { trace.Add("Administrator permission was declined."); return new(false, "Administrator permission was declined. Nothing was changed."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { trace.Add($"The fix could not run: {ex.Message}"); return new(false, ex.Message); }
+        trace.Add($"The fix reported: {result.Message}");
+        foreach (var line in result.Detail.Split('\n', StringSplitOptions.RemoveEmptyEntries)) trace.Add(line.TrimEnd(), indent: false);
         if (result.Outcome != ActionOutcome.Failed)
             return new(true, result.Outcome == ActionOutcome.Unverified ? $"{action.Name} finished, but a step gave a warning. Fixes shows the details." : Finished(action));
         // The first line of the detail says why: what was declined, or which step stopped.
         var why = result.Detail.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
         return new(false, string.IsNullOrEmpty(why) ? result.Message : why);
     }
+
+    private sealed class Silent : IProgress<CommandOutput> { public void Report(CommandOutput value) { } }
 
     private static string Finished(UnstickAction action) => action.Id switch
     {
@@ -258,8 +277,6 @@ public sealed class UnstickRunner(IUnstickSystem system, UnstickFix? fixes = nul
         "rescan-hardware" => "Windows looked for hardware changes.",
         _ => $"{action.Name} finished."
     };
-
-    private sealed class Silent : IProgress<CommandOutput> { public void Report(CommandOutput value) { } }
 
     private static ActionResult Done(string message) => new(true, message);
 

@@ -37,6 +37,8 @@
        </StackPanel>
 
        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <!-- Only while searching: which tab this result comes from. -->
+        <Border Visibility="{Binding GroupVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="8,1" VerticalAlignment="Center" ToolTipService.ToolTip="The tab this fix is on"><TextBlock Text="{Binding GroupText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding RestartVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="{Binding RestartTip}"><TextBlock Text="{Binding RestartText}" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
         <Border Visibility="{Binding CarefulVisibility}" Background="{ThemeResource WarnSoftBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" ToolTipService.ToolTip="This has a trade-off. You will be asked first."><TextBlock Text="Careful" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
         <Border Visibility="{Binding AdminVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="7,1" VerticalAlignment="Center" ToolTipService.ToolTip="Asks for administrator permission when it starts"><TextBlock Text="Admin" FontSize="11" Foreground="{ThemeResource MutedBrush}" /></Border>
@@ -123,7 +125,7 @@
   <!-- Search -->
   <Grid Grid.Row="2" ColumnSpacing="12">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="420" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-   <TextBox x:Name="SearchBox" PlaceholderText="Describe the problem: printer, internet, sound, update…" TextChanged="QueryChanged" AutomationProperties.Name="Search fixes" VerticalAlignment="Center" />
+   <TextBox x:Name="SearchBox" PlaceholderText="Search every tab: printer, wifi, no sound, slow update…" TextChanged="QueryChanged" AutomationProperties.Name="Search fixes in all tabs" VerticalAlignment="Center" />
   </Grid>
 
   <ScrollViewer Grid.Row="3" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
