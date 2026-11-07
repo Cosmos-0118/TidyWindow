@@ -49,10 +49,11 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
         _ => Package.ManagerName + (Package.Global ? " · all users" : "")
     };
     public string Version => Package.Version.Length == 0 ? "Unknown version" : Package.Version;
-    public string UpdateDetail => Package.Held ? "Pinned in package manager" : Package.AvailableVersion is { Length: > 0 } latest ? $"Update to {latest}" : Package.Note;
+    public string UpdateDetail => Package.Held ? "Pinned in package manager" : Package.AvailableVersion is { Length: > 0 } latest ? $"Update to {latest}"
+        : Package.HasStoreUpdate ? $"The Microsoft Store has version {Package.StoreVersion}. {Package.ManagerName} can’t apply Store updates: update it in the Microsoft Store or in the app itself." : Package.Note;
     private string queueStatus = "";
-    public string Available => queueStatus.Length > 0 ? queueStatus : Package.Held ? "Pinned" : Package.AvailableVersion ?? (Package.Note.Length > 0 ? "Needs attention" : "—");
-    public string CompactDetail => $"{(Publisher.Length > 0 ? Publisher + " · " : "")}{Source} · {Version}" + (queueStatus.Length > 0 ? $" · {queueStatus}" : Package.Held ? " · Pinned" : Package.AvailableVersion is { } latest ? $" → {latest}" : Package.Note.Length > 0 ? $" · {Package.Note}" : "");
+    public string Available => queueStatus.Length > 0 ? queueStatus : Package.Held ? "Pinned" : Package.AvailableVersion ?? (Package.HasStoreUpdate ? $"{Package.StoreVersion} · Store" : Package.Note.Length > 0 ? "Needs attention" : "—");
+    public string CompactDetail => $"{(Publisher.Length > 0 ? Publisher + " · " : "")}{Source} · {Version}" + (queueStatus.Length > 0 ? $" · {queueStatus}" : Package.Held ? " · Pinned" : Package.AvailableVersion is { } latest ? $" → {latest}" : Package.HasStoreUpdate ? $" → {Package.StoreVersion} (Store)" : Package.Note.Length > 0 ? $" · {Package.Note}" : "");
     public bool CanUpdate => CanAct && Package.AvailableVersion is not null && !Package.Held;
     public void SetQueueEntry(QueueEntry? entry)
     {
@@ -177,7 +178,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     /// <summary>Puts <see cref="all"/> in the order the page shows: apps with an update first, then by name. Done once per read, not once per keystroke in the search box.</summary>
     private void SortAll()
     {
-        var sorted = all.OrderByDescending(x => x.Package.AvailableVersion is not null && !x.Package.Held).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToList();
+        var sorted = all.OrderByDescending(x => x.Package.HasUpdateInfo).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Package.Manager).ToList();
         all.Clear();
         all.AddRange(sorted);
     }
@@ -185,7 +186,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var shown = all.Where(x => (!updatesOnly || x.Package.AvailableVersion is not null && !x.Package.Held) &&
+        var shown = all.Where(x => (!updatesOnly || x.Package.HasUpdateInfo) &&
             (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
         // A new filter starts the list over (one reset instead of clearing and re-adding every row, which would re-measure on each step).
@@ -302,7 +303,7 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
             var package = listed;
             // What the page already knew about updates (from the last read in this run, not from the saved list) is kept until the real answer replaces it.
             if (partial && previous.TryGetValue(package.Key, out var before) && !before.FromSnapshot)
-                package = package with { AvailableVersion = before.Package.AvailableVersion, Held = package.Held || before.Package.Held, Note = before.Package.Note.Length > 0 ? before.Package.Note : package.Note };
+                package = package with { AvailableVersion = before.Package.AvailableVersion, StoreVersion = before.Package.StoreVersion, Held = package.Held || before.Package.Held, Note = before.Package.Note.Length > 0 ? before.Package.Note : package.Note };
             if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { old.FromSnapshot = false; current.Add(old); continue; }
             // The saved list is only a first guess: a row that is not confirmed by the first real answer is a new row, not the saved one.
             current.Add(MakeRow(package));
