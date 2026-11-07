@@ -35,7 +35,18 @@ public sealed class ManagerRecoveryService
     /// <summary>The wait for an elevated recovery that could not be stopped when its time ran out, or null. The operation gate stays taken until it ends.</summary>
     public Task? Lingering { get; private set; }
 
-    public async Task<RecoveryResult> RecoverAsync(ManagerKind manager, IProgress<string>? progress = null, CancellationToken token = default)
+    /// <summary>Installs a missing manager or repairs a broken one. A working manager is left alone.</summary>
+    public Task<RecoveryResult> RecoverAsync(ManagerKind manager, IProgress<string>? progress = null, CancellationToken token = default) =>
+        RunAsync(manager, false, progress, token);
+
+    /// <summary>
+    /// Brings a working manager up to the newest release. It takes the same exclusive gate, backups, administrator hardening and final health check as a repair,
+    /// because it replaces the very tool installs and updates run through. A manager that is not working is not updated: it needs a repair first.
+    /// </summary>
+    public Task<RecoveryResult> UpdateAsync(ManagerKind manager, IProgress<string>? progress = null, CancellationToken token = default) =>
+        RunAsync(manager, true, progress, token);
+
+    private async Task<RecoveryResult> RunAsync(ManagerKind manager, bool update, IProgress<string>? progress, CancellationToken token)
     {
         if (!await packages.OperationGate.WaitAsync(0, token).ConfigureAwait(false)) throw new InvalidOperationException("Another setup or installation is running.");
         ManagerStatus? before = null;
@@ -46,11 +57,13 @@ public sealed class ManagerRecoveryService
         {
             progress?.Report("Checking the installation and source…");
             before = await health.CheckAsync(manager, true, token).ConfigureAwait(false);
-            if (before.Health == ManagerHealth.Ready) return new(true, before, "Everything is working. No changes were needed.", null);
+            if (before.Health == ManagerHealth.Ready && !update) return new(true, before, "Everything is working. No changes were needed.", null);
             if (before.Health is ManagerHealth.Restricted or ManagerHealth.ConnectionIssue)
                 return new(false, before, before.Health == ManagerHealth.Restricted ? "This operation is restricted by Windows or your organization. No settings were overridden." : "The source is unreachable. Check the connection, then retry. The installation was left intact.", null);
             if (before.Problem == ManagerProblem.Timeout)
                 return new(false, before, "The package manager did not respond in time, which a repair would not change. Try again when the PC or the connection is less busy. The installation was left intact.", null);
+            if (update && before.Health != ManagerHealth.Ready)
+                return new(false, before, $"{before.Definition.Name} is not working, so it needs a repair before it can be updated. Nothing was changed.", null);
             var location = locations(manager);
             if (manager != ManagerKind.Winget) ManagerLocations.ValidateRoot(location.Root);
             job = Path.Combine(jobsRoot, DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N"));
@@ -58,9 +71,9 @@ public sealed class ManagerRecoveryService
             await File.WriteAllTextAsync(Path.Combine(job, "before.json"), JsonSerializer.Serialize(before), token).ConfigureAwait(false);
             progress?.Report("Saving package records and configuration…");
             await Task.Run(() => BackupRecords(manager, location, job), token).ConfigureAwait(false);
-            progress?.Report(before.Health == ManagerHealth.Missing ? "Installing from the official source…" : "Repairing the package manager…");
+            progress?.Report(update ? $"Updating {before.Definition.Name} from its official source…" : before.Health == ManagerHealth.Missing ? "Installing from the official source…" : "Repairing the package manager…");
             // The runner's notices (the Windows permission prompt, the separate administrator window) are what a person needs to see while this runs.
-            command = CreateCommand(before, location, job) with
+            command = CreateCommand(before, location, job, update) with
             { Progress = progress is null ? null : new Progress<CommandOutput>(output => { if (output.Kind == CommandOutputKind.Notice) progress.Report(output.Text); }) };
             var result = await runner.RunAsync(command, token).ConfigureAwait(false);
             progress?.Report("Verifying the installation and source…");
@@ -73,12 +86,18 @@ public sealed class ManagerRecoveryService
             }
             await File.WriteAllTextAsync(Path.Combine(job, "after.json"), JsonSerializer.Serialize(after), token).ConfigureAwait(false);
             var success = result.ExitCode == 0 && after.Health == ManagerHealth.Ready;
-            var message = success ? $"{after.Definition.Name} is ready." : result.ExitCode == -1 ? "Administrator permission was declined. You can retry when ready." : "Setup could not be completed. Details and backups are available below.";
+            var name = after.Definition.Name;
+            var message = success
+                ? update ? UpdatedMessage(name, before.Version, after.Version) : $"{name} is ready."
+                : result.ExitCode == -1 ? "Administrator permission was declined. You can retry when ready."
+                : update ? "The update could not be completed. Details and backups are available below." : "Setup could not be completed. Details and backups are available below.";
             if (!success)
             {
                 var detail = result.ExitCode == 0 ? after.Detail : result.Error + "\n" + result.Output;
                 if (await ReadFailureAsync(job, token).ConfigureAwait(false) is { } reported) detail = reported;
-                after = ManagerHealthService.Classify(after, detail.Trim().Length > 0 ? detail : after.Detail, after.Problem);
+                detail = detail.Trim().Length > 0 ? detail : after.Detail;
+                // A failed update says what went wrong, but a manager that still works afterwards is still a working manager: it is not marked as needing repair.
+                after = update && after.Health == ManagerHealth.Ready ? after with { Detail = ManagerHealthService.Redact(detail) } : ManagerHealthService.Classify(after, detail, after.Problem);
             }
             return new(success, after, message, job, true);
         }
@@ -130,16 +149,24 @@ public sealed class ManagerRecoveryService
     private IEnumerable<string> ResultFiles(string job) =>
         [Path.Combine(job, "result.json"), Path.Combine(protectedRoot, "Recovery", Path.GetFileName(job), "result.json")];
 
-    public CommandSpec CreateCommand(ManagerStatus status, ManagerLocation location, string job)
+    /// <summary>Each manager has one script for installing and repairing it. Scoop and Chocolatey update through that same script; WinGet's update is its own, so that the script that can run elevated stays small.</summary>
+    internal static string ScriptName(ManagerKind kind, bool update) => kind == ManagerKind.Winget && update ? "WingetUpdate" : kind.ToString();
+
+    private static string UpdatedMessage(string name, string before, string after) =>
+        before == after ? $"{name} finished updating, but still reports version {after}. Refresh to check again."
+        : before.Length == 0 ? $"{name} updated to {after}." : $"{name} updated from {before} to {after}.";
+
+    /// <param name="update">The script's job is to bring a working manager to the newest release (<c>$problem</c> is "Update"), not to fix what <paramref name="status"/> says is wrong.</param>
+    public CommandSpec CreateCommand(ManagerStatus status, ManagerLocation location, string job, bool update = false)
     {
         static string Literal(string value) => "'" + value.Replace("'", "''") + "'";
-        var elevate = status.Definition.Kind == ManagerKind.Chocolatey || status.Definition.Kind == ManagerKind.Winget && status.Problem == ManagerProblem.Source;
+        var elevate = status.Definition.Kind == ManagerKind.Chocolatey || status.Definition.Kind == ManagerKind.Winget && !update && status.Problem == ManagerProblem.Source;
         // Windows PowerShell for WinGet and Chocolatey: it has the Appx cmdlets and the folder-permission calls, and only administrators can change it.
         // Scoop runs in the locator's host, which is one of the protected hosts too.
         var shell = status.Definition.Kind == ManagerKind.Scoop ? locator.PowerShell : ElevatedProgram.WindowsPowerShell;
-        var variables = $"$root={Literal(location.Root)}; $configuration={Literal(location.Configuration)}; $job={Literal(job)}; $problem={Literal(status.Problem.ToString())}; $executable={Literal(status.Executable ?? "")}; $powershell={Literal(shell)};\n";
+        var variables = $"$root={Literal(location.Root)}; $configuration={Literal(location.Configuration)}; $job={Literal(job)}; $problem={Literal(update ? "Update" : status.Problem.ToString())}; $executable={Literal(status.Executable ?? "")}; $powershell={Literal(shell)};\n";
         // The hardening for administrator rights goes first, before any cmdlet runs; a run without them has no use for it and little room on the command line.
-        var script = variables + (elevate ? Resource("Elevated") + "\n" : "") + Resource("Common") + "\n" + Resource(status.Definition.Kind.ToString()) + "\n" + Resource("Complete");
+        var script = variables + (elevate ? Resource("Elevated") + "\n" : "") + Resource("Common") + "\n" + Resource(ScriptName(status.Definition.Kind, update)) + "\n" + Resource("Complete");
         return new(shell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(script))], TimeSpan.FromMinutes(10), elevate);
     }
 

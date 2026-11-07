@@ -37,7 +37,18 @@
             & $powershell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $entryPoint --version
             $coreWorks = $LASTEXITCODE -eq 0
         }
-        if (!$coreWorks) {
+        # An update goes through Scoop's own updater when Git is there to run it: that brings Scoop's core and every bucket's app list up to date, which the Installed
+        # page's update check relies on. Scoop's updater stops at once without Git, so then only the core is replaced, from the same official release a repair uses.
+        $updating = $problem -eq 'Update'
+        $gitReady = $false
+        if ($updating) {
+            $gitReady = [bool](Get-Command git -ErrorAction SilentlyContinue)
+            if (!$gitReady -and (Test-Path -LiteralPath (Join-Path $root 'shims\git.exe'))) {
+                $env:PATH = (Join-Path $root 'shims') + ';' + $env:PATH
+                $gitReady = $true
+            }
+        }
+        if (!$coreWorks -or ($updating -and !$gitReady)) {
             $archive = Join-Path $work 'scoop.zip'
             # The latest release, asked of GitHub: its "latest" address points at the tag, and only a plain version tag is accepted.
             $release = Get-Redirect 'https://github.com/ScoopInstaller/Scoop/releases/latest'
@@ -59,6 +70,10 @@
             Move-Item -LiteralPath $replacement -Destination $core
         }
         Write-ScoopShim
+        if ($updating -and $gitReady -and $coreWorks) {
+            & $powershell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $entryPoint update
+            Assert-Native 'Updating Scoop and its buckets'
+        }
         if ($problem -eq 'Source') {
             # The main bucket is additive; existing custom buckets stay intact.
             & $powershell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $entryPoint bucket add main

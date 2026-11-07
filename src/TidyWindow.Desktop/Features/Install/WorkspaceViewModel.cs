@@ -28,7 +28,20 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
     public string SetupAction => Busy ? (Status?.Health == ManagerHealth.Missing ? "Installing…" : "Repairing…")
         : Status?.Health switch { ManagerHealth.Missing => "Install", ManagerHealth.ConnectionIssue => "Retry", ManagerHealth.Restricted => "Details", _ => "Repair" };
     private bool busy;
-    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(StatusText)); Changed(nameof(StatusTextVisibility)); Changed(nameof(SetupAction)); Changed(nameof(BusyVisibility)); } } }
+    public bool Busy { get => busy; set { if (Set(ref busy, value)) { Changed(nameof(StatusText)); Changed(nameof(StatusTextVisibility)); Changed(nameof(SetupAction)); Changed(nameof(BusyVisibility)); Changed(nameof(UpdateVisibility)); } } }
+
+    /// <summary>The newest release of the manager itself, when it is newer than the one installed. Empty otherwise, including when it could not be looked up.</summary>
+    public string AvailableVersion => Status?.AvailableVersion ?? "";
+    public Visibility UpdateVisibility => Status is { Health: ManagerHealth.Ready, AvailableVersion.Length: > 0 } && !Busy ? Visibility.Visible : Visibility.Collapsed;
+    public string UpdateAction => AvailableVersion.Length > 0 ? $"Update to {AvailableVersion}" : "Update";
+    public string UpdateName => $"Update {Name} to {AvailableVersion}";
+    /// <summary>What the person should know before the update starts, per manager.</summary>
+    public string UpdateNote => Definition.Kind switch
+    {
+        ManagerKind.Winget => "WinGet is updated through Windows' App Installer package, downloaded from Microsoft's official release and checked before it is installed. Apps that use App Installer may close while it updates. Your installed apps are not touched.",
+        ManagerKind.Chocolatey => "Chocolatey opens in a separate administrator window, and Windows asks for permission. Its installed packages and settings are kept, and its files are checked against Chocolatey's signature before they run.",
+        _ => "Scoop updates itself and refreshes its app lists (buckets), so update checks on Installed apps are current. This needs Git; without it only Scoop itself is replaced. Your installed apps are not touched."
+    };
     private string progress = "";
     /// <summary>What the running setup is doing right now, shown on the manager's own row so the click visibly did something.</summary>
     public string Progress { get => progress; set => Set(ref progress, value); }
@@ -53,7 +66,7 @@ public sealed class ManagerRow(ManagerDefinition definition) : ObservableState
         _ => lightTheme ? 0x626262 : 0xA4A4AD
     });
     public void Update(ManagerStatus status)
-    { Status = status; foreach (var name in new[] { nameof(Version), nameof(VersionVisibility), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush), nameof(StatusTextVisibility), nameof(BucketsToggleVisibility), nameof(BucketsVisibility) }) Changed(name); }
+    { Status = status; foreach (var name in new[] { nameof(Version), nameof(VersionVisibility), nameof(StatusText), nameof(Detail), nameof(SetupVisibility), nameof(SetupAction), nameof(StatusBrush), nameof(StatusTextVisibility), nameof(BucketsToggleVisibility), nameof(BucketsVisibility), nameof(AvailableVersion), nameof(UpdateVisibility), nameof(UpdateAction), nameof(UpdateName) }) Changed(name); }
 
     /// <summary>Only Scoop has buckets: lists of apps it can install, which a search covers only once they are added.</summary>
     public BucketsViewModel? Buckets { get; } = definition.Kind == ManagerKind.Scoop ? new() : null;
@@ -179,6 +192,12 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         scoopBuckets = new(service, runner);
     }
 
+    private readonly ManagerUpdateCheck updateCheck = new();
+
+    /// <summary>The manager's health, plus whether a newer release of it exists. The lookup is a single redirect and its failure leaves the health alone.</summary>
+    private async Task<ManagerStatus> CheckManagerAsync(ManagerKind kind) =>
+        await updateCheck.WithAvailableAsync(await health.CheckAsync(kind, token: lifetime.Token), lifetime.Token);
+
     private bool quietRefreshing;
 
     /// <param name="quiet">Re-reads the managers and what is installed without locking anything: no "checking" overlay, and installing and queueing stay available.
@@ -192,7 +211,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         Detecting = true;
         try
         {
-            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => health.CheckAsync(x.Kind, token: lifetime.Token))));
+            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => CheckManagerAsync(x.Kind))));
             foreach (var status in statuses)
             {
                 var row = Managers.Single(x => x.Definition.Kind == status.Definition.Kind);
@@ -227,7 +246,7 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         try
         {
             service.ClearSearchCache();
-            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => health.CheckAsync(x.Kind, token: lifetime.Token))));
+            var statuses = await Task.WhenAll(ManagerDefinition.All.Select(x => Task.Run(() => CheckManagerAsync(x.Kind))));
             foreach (var status in statuses)
             {
                 var row = Managers.Single(x => x.Definition.Kind == status.Definition.Kind);
@@ -288,20 +307,27 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
         }
     }
 
-    public async Task RecoverAsync(ManagerRow row)
+    public Task RecoverAsync(ManagerRow row) => SetUpAsync(row, false);
+
+    /// <summary>Brings a working manager to its newest release. Shares everything with a repair: the lock on other work, the progress on the row, the log and the re-read of what is installed.</summary>
+    public Task UpdateManagerAsync(ManagerRow row) => row.UpdateVisibility == Visibility.Visible ? SetUpAsync(row, true) : Task.CompletedTask;
+
+    private async Task SetUpAsync(ManagerRow row, bool update)
     {
         if (Busy || Detecting || inventoryChecking) return;
+        var noun = update ? "update" : "setup";
         CancelSearch();
         Recovering = true; row.Busy = true;
         foreach (var manager in Managers) manager.CanRecover = false;
         foreach (var package in Packages) package.CanInstall = false;
         RecoveryMessage = row.Progress = $"Checking {row.Name}…"; RecoveryDetail = "";
-        log.Write(ActivityLevel.Info, ActivityArea.Managers, $"{row.Name} setup started");
+        log.Write(ActivityLevel.Info, ActivityArea.Managers, update ? $"{row.Name} update started" : $"{row.Name} setup started", update && row.Status is { } started ? $"{started.Version} → {started.AvailableVersion}" : null);
         try
         {
             var progress = new Progress<string>(message => { if (Recovering) RecoveryMessage = row.Progress = message; });
-            var result = await recovery.RecoverAsync(row.Definition.Kind, progress, lifetime.Token);
-            row.Update(result.Status);
+            var result = update ? await recovery.UpdateAsync(row.Definition.Kind, progress, lifetime.Token) : await recovery.RecoverAsync(row.Definition.Kind, progress, lifetime.Token);
+            // Whether a newer release still exists is asked again: an update that worked clears it, one that did not leaves the button where it was.
+            row.Update(await updateCheck.WithAvailableAsync(result.Status, lifetime.Token));
             RecoveryDetail = result.Status.Detail + (result.LogDirectory is null ? "" : "\n\nDetails and backups: " + result.LogDirectory);
             if (result.Success)
             {
@@ -311,11 +337,11 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
             }
             RecoveryMessage = result.Message;
             // A failed attempt that changed nothing (declined, restricted, offline) is a warning; one that changed things and failed is an error.
-            if (result.Success) log.Write(ActivityLevel.Success, ActivityArea.Managers, result.Changed ? $"{row.Name} setup finished" : $"{row.Name} checked, no changes needed", result.LogDirectory is null ? null : "Backups and details: " + result.LogDirectory);
-            else log.Write(result.Changed ? ActivityLevel.Error : ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} setup failed", result.Message + "\n" + result.Status.Detail + (result.LogDirectory is null ? "" : "\nBackups and details: " + result.LogDirectory));
+            if (result.Success) log.Write(ActivityLevel.Success, ActivityArea.Managers, update ? result.Message : result.Changed ? $"{row.Name} setup finished" : $"{row.Name} checked, no changes needed", result.LogDirectory is null ? null : "Backups and details: " + result.LogDirectory);
+            else log.Write(result.Changed ? ActivityLevel.Error : ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} {noun} failed", result.Message + "\n" + result.Status.Detail + (result.LogDirectory is null ? "" : "\nBackups and details: " + result.LogDirectory));
         }
-        catch (OperationCanceledException) { RecoveryMessage = "Setup was interrupted. Check the manager before retrying."; log.Write(ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} setup was interrupted", "Check the manager before retrying."); }
-        catch (Exception ex) { RecoveryMessage = "Setup could not be completed."; RecoveryDetail = ex.Message; log.Write(ActivityLevel.Error, ActivityArea.Managers, $"{row.Name} setup failed", ex.ToString()); }
+        catch (OperationCanceledException) { RecoveryMessage = update ? "The update was interrupted. Check the manager before retrying." : "Setup was interrupted. Check the manager before retrying."; log.Write(ActivityLevel.Warning, ActivityArea.Managers, $"{row.Name} {noun} was interrupted", "Check the manager before retrying."); }
+        catch (Exception ex) { RecoveryMessage = update ? "The update could not be completed." : "Setup could not be completed."; RecoveryDetail = ex.Message; log.Write(ActivityLevel.Error, ActivityArea.Managers, $"{row.Name} {noun} failed", ex.ToString()); }
         finally
         {
             Recovering = false; row.Busy = false; row.Progress = "";
@@ -429,5 +455,5 @@ public sealed class WorkspaceViewModel : ObservableState, IDisposable
     private void UpdateErrors() => Errors = string.Join("\n", new[] { sourceErrors, inventoryErrors }.Where(x => x.Length > 0));
 
 
-    public void Dispose() { queue.StateChanged -= QueueChanged; lifetime.Cancel(); searchCancellation?.Cancel(); lifetime.Dispose(); searchCancellation?.Dispose(); }
+    public void Dispose() { queue.StateChanged -= QueueChanged; lifetime.Cancel(); searchCancellation?.Cancel(); lifetime.Dispose(); searchCancellation?.Dispose(); updateCheck.Dispose(); }
 }

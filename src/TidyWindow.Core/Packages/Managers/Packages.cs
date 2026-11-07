@@ -21,7 +21,8 @@ public sealed record ManagerDefinition(ManagerKind Kind, string Name, string Des
     ];
 }
 
-public sealed record ManagerStatus(ManagerDefinition Definition, ManagerHealth Health, string Version, string? Executable, string Detail, ManagerProblem Problem = ManagerProblem.None);
+/// <param name="AvailableVersion">The newest release of the manager itself when it is newer than <paramref name="Version"/>, or null: up to date, not known, or not looked up. It never affects <paramref name="Health"/>.</param>
+public sealed record ManagerStatus(ManagerDefinition Definition, ManagerHealth Health, string Version, string? Executable, string Detail, ManagerProblem Problem = ManagerProblem.None, string? AvailableVersion = null);
 public sealed record Package(ManagerKind Manager, string Id, string Name, string Version, string Source)
 {
     public string Key => $"{Manager}:{Id}";
