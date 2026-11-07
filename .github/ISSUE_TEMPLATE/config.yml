@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Cosmos-0118/TidyWindow/security/advisories/new
+    about: Report security problems privately. Please do not open a public issue for them.
+  - name: Read the documentation
+    url: https://github.com/Cosmos-0118/TidyWindow/tree/main/docs
+    about: Research notes that explain what each tool changes and why.

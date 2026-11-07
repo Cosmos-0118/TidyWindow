@@ -25,7 +25,7 @@ See what will change **before** it runs, with saved originals for the changes yo
 **[✨ Features](#features)** &nbsp;·&nbsp;
 **[🛡️ Safety](#built-to-be-trusted)** &nbsp;·&nbsp;
 **[🛠️ Build](#build-from-source)** &nbsp;·&nbsp;
-**[🐞 Report a bug](https://github.com/Cosmos-0118/TidyWindow/issues)**
+**[🐞 Report a bug](https://github.com/Cosmos-0118/TidyWindow/issues/new/choose)**
 
 <br />
 
@@ -332,9 +332,11 @@ The research notes explain what each tool changes, the evidence behind it and wh
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. [Open an issue](https://github.com/Cosmos-0118/TidyWindow/issues) with the page you were using, your Windows version and what you expected to happen. Review logs before sharing them: the account name is replaced by `%USERPROFILE%`, but package names, other local paths and, for a crash, the stack trace can still appear.
+Bug reports, ideas and pull requests are welcome. [Open an issue](https://github.com/Cosmos-0118/TidyWindow/issues/new/choose) with the page you were using, your Windows version and what you expected to happen. Review logs before sharing them: the account name is replaced by `%USERPROFILE%`, but package names, other local paths and, for a crash, the stack trace can still appear.
 
-For code changes, run the tests above and keep catalog entries tied to documented Windows behavior. Research notes are part of the project: explaining why a change should exist matters as much as implementing it.
+For code changes, run the tests above and keep catalog entries tied to documented Windows behavior. Research notes are part of the project: explaining why a change should exist matters as much as implementing it. [CONTRIBUTING.md](CONTRIBUTING.md) has the full guide.
+
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately as described in [SECURITY.md](SECURITY.md), not in a public issue. [ACCESSIBILITY.md](ACCESSIBILITY.md) describes what the app supports and how to report a barrier.
 
 If TidyWindow saved you time, a ⭐ on the repo helps others find it.
 
