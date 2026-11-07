@@ -16,8 +16,9 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
     public bool HasDetail => Entry.Detail is not null;
     public Visibility DetailVisibility => HasDetail && expanded ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ChevronVisibility => HasDetail ? Visibility.Visible : Visibility.Collapsed;
-    public string CopyGlyph => copied ? "" : "";
-    public string Chevron => expanded ? "" : "";
+    // Segoe Fluent Icons code points, written as escapes: the raw private-use characters are invisible and were once lost in an edit.
+    public string CopyGlyph => copied ? "" : ""; // CheckMark : Copy
+    public string Chevron => expanded ? "" : ""; // ChevronUp : ChevronDown
     public string Exact => Entry.Time.ToLocalTime().ToString("F");
     public string Meta => string.Join(" · ", new[] { Entry.Level is ActivityLevel.Warning or ActivityLevel.Error ? Entry.Level.ToString() : "", Entry.Area.ToString(), Stamp(Entry.Time), Entry.Count > 1 ? $"{Entry.Count} times" : "" }.Where(x => x.Length > 0));
     public Brush DotBrush => BrushCache.Rgb(Entry.Level switch

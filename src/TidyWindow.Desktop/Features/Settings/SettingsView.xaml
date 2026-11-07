@@ -95,8 +95,35 @@
       <StackPanel Spacing="12" Padding="20,14" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,1,0,0" Visibility="{Binding ActionsVisibility}">
        <StackPanel Spacing="8" Visibility="{Binding ProgressVisibility}">
         <TextBlock Text="{Binding ProgressTitle}" FontSize="12" />
-        <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadPercent}" IsIndeterminate="{Binding DownloadIndeterminate}" AutomationProperties.Name="Download progress" />
-        <TextBlock Text="{Binding DownloadProgressText}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+        <!-- The fill is sized from code-behind (DownloadFraction × track width); a soft highlight sweeps across it while data arrives. -->
+        <Grid x:Name="DownloadTrack" Height="8" CornerRadius="4" Background="{ThemeResource BadgeBrush}" SizeChanged="DownloadTrackSizeChanged" AutomationProperties.Name="Download progress">
+         <Border x:Name="DownloadFill" Width="0" CornerRadius="4" HorizontalAlignment="Left">
+          <Border.Background>
+           <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="{ThemeResource LoadingAccentStart}" Offset="0" />
+            <GradientStop Color="{ThemeResource LoadingAccentEnd}" Offset="1" />
+           </LinearGradientBrush>
+          </Border.Background>
+          <Border CornerRadius="4">
+           <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+             <LinearGradientBrush.RelativeTransform><TranslateTransform x:Name="ShimmerShift" X="-0.6" /></LinearGradientBrush.RelativeTransform>
+             <GradientStop Color="#00FFFFFF" Offset="0.35" />
+             <GradientStop Color="#66FFFFFF" Offset="0.5" />
+             <GradientStop Color="#00FFFFFF" Offset="0.65" />
+            </LinearGradientBrush>
+           </Border.Background>
+          </Border>
+         </Border>
+        </Grid>
+        <Grid ColumnSpacing="12">
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+         <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="{Binding DownloadPercentText}" FontFamily="{StaticResource MonoFont}" FontSize="12" FontWeight="SemiBold" MinWidth="34" />
+          <TextBlock Text="{Binding DownloadProgressText}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" />
+         </StackPanel>
+         <TextBlock Grid.Column="1" Text="{Binding DownloadPaceText}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Right" />
+        </Grid>
        </StackPanel>
        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding ActionButtonsVisibility}">
         <Button Click="InstallClick" Visibility="{Binding InstallerPrimaryVisibility}" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Update to the latest release">
@@ -135,24 +162,35 @@
 
     <Border Style="{StaticResource Card}" Padding="0">
      <StackPanel>
-      <Grid Padding="20,20,20,16" ColumnSpacing="14">
+      <!-- The whole header opens and closes the card; the GitHub link beside it is a separate button, since a button cannot sit inside a button. -->
+      <Grid ColumnSpacing="8" Padding="0,0,20,0">
        <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
        </Grid.ColumnDefinitions>
-       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-        <FontIcon Glyph="&#xE7C3;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-       </Border>
-       <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-        <TextBlock Text="Release notes" Style="{StaticResource SectionTitle}" />
-        <TextBlock Text="Changes and fixes from recent GitHub releases." Style="{StaticResource Muted}" FontSize="12" />
-       </StackPanel>
-       <Button Grid.Column="2" Click="ReleasesClick" Padding="14,7" VerticalAlignment="Center" AutomationProperties.Name="All releases on GitHub">
+       <Button Click="ReleasesToggleClick" Background="Transparent" BorderThickness="0" CornerRadius="0" Padding="20,20,12,20" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Release notes">
+        <Grid ColumnSpacing="14">
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+         </Grid.ColumnDefinitions>
+         <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
+          <FontIcon Glyph="&#xE7C3;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+         </Border>
+         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="Release notes" Style="{StaticResource SectionTitle}" TextAlignment="Left" />
+          <TextBlock Text="Changes and fixes from recent GitHub releases." Style="{StaticResource Muted}" FontSize="12" TextAlignment="Left" />
+         </StackPanel>
+         <FontIcon Grid.Column="2" Glyph="{Binding ReleasesChevron}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+        </Grid>
+       </Button>
+       <Button Grid.Column="1" Click="ReleasesClick" Padding="14,7" VerticalAlignment="Center" AutomationProperties.Name="All releases on GitHub">
         <TextBlock Text="All releases on GitHub" FontSize="12" />
        </Button>
       </Grid>
 
+      <StackPanel Visibility="{Binding ReleasesBodyVisibility}">
       <StackPanel Visibility="{Binding ReleasesLoadingVisibility}" Orientation="Horizontal" Spacing="10" Padding="20,0,20,20">
        <ProgressRing IsActive="True" Width="14" Height="14" />
        <TextBlock Text="Checking GitHub…" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
@@ -194,36 +232,6 @@
         </DataTemplate>
        </ItemsControl.ItemTemplate>
       </ItemsControl>
-     </StackPanel>
-    </Border>
-
-    <Border Style="{StaticResource Card}" Padding="20">
-     <StackPanel Spacing="14">
-      <Grid ColumnSpacing="14">
-       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="*" />
-       </Grid.ColumnDefinitions>
-       <Border Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource LineBrush}" Background="{ThemeResource CanvasBrush}" VerticalAlignment="Top">
-        <FontIcon Glyph="&#xE8B7;" FontSize="16" Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-       </Border>
-       <StackPanel Grid.Column="1" Spacing="4">
-        <TextBlock Text="Logs folder" Style="{StaticResource SectionTitle}" />
-        <TextBlock Text="{Binding LogSummary}" Style="{StaticResource Muted}" FontSize="12" />
-        <TextBlock Text="Activity worth keeping is saved as activity.jsonl. The Windows account name is replaced with %USERPROFILE%. Package names and paths can still appear, so review a log before you share it." Style="{StaticResource Muted}" FontSize="12" />
-       </StackPanel>
-      </Grid>
-      <Border Background="{ThemeResource CanvasBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="12,8">
-       <TextBlock Text="{Binding LogFolder}" FontFamily="{StaticResource MonoFont}" FontSize="12" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
-      </Border>
-      <StackPanel Orientation="Horizontal" Spacing="8">
-       <Button Click="OpenLogsClick" IsEnabled="{Binding CanOpenLogs}" Padding="14,7" AutomationProperties.Name="Open log folder">
-        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE838;" FontSize="12" /><TextBlock Text="Open folder" FontSize="12" /></StackPanel>
-       </Button>
-       <Button Click="CopyPathClick" IsEnabled="{Binding CanOpenLogs}" Padding="14,7" AutomationProperties.Name="Copy log folder path">
-        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock x:Name="CopyPathLabel" Text="Copy path" FontSize="12" /></StackPanel>
-       </Button>
-       <Button Click="ViewLogsClick" Padding="14,7" FontSize="12" Content="View in Logs" AutomationProperties.Name="View logs" />
       </StackPanel>
      </StackPanel>
     </Border>

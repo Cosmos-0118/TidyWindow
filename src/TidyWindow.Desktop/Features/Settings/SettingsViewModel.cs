@@ -55,7 +55,6 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
     private readonly ActivityLog log;
     private readonly ToastCenter toasts;
     private readonly Func<bool> queueHasWork;
-    private readonly Action openLogs;
     private readonly Action<Action> post;
     private readonly AppUpdateService updates;
     private readonly bool installed;
@@ -69,34 +68,22 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
     private string error = "";
     private string note = "";
     private DateTimeOffset? checkedAt;
-    private long downloadReceived;
-    private long? downloadTotal;
-    private double downloadPercent;
+    private readonly DownloadMeter meter = new();
+    private int tickPending;
+    private bool releasesOpen;
 
-    public SettingsViewModel(ActivityLog log, ToastCenter toasts, Func<bool> queueHasWork, Action openLogs, Action<Action> post, AppUpdateService? updates = null)
+    public SettingsViewModel(ActivityLog log, ToastCenter toasts, Func<bool> queueHasWork, Action<Action> post, AppUpdateService? updates = null)
     {
         this.log = log;
         this.toasts = toasts;
         this.queueHasWork = queueHasWork;
-        this.openLogs = openLogs;
         this.post = post;
         this.updates = updates ?? new AppUpdateService();
         installed = this.updates.IsInstalledBuild();
-        log.Written += OnWritten;
-        log.Cleared += OnCleared;
     }
 
     public BulkObservableCollection<ReleaseNoteRow> Releases { get; } = [];
     public bool QueueBusy => queueHasWork();
-    public string? LogPath => log.Folder;
-    public string LogFolder => log.Folder ?? "Not saved to this PC";
-    public bool CanOpenLogs => !string.IsNullOrWhiteSpace(log.Folder);
-    public string LogSummary => log.Count switch
-    {
-        0 => "Nothing has been saved yet.",
-        1 => "1 entry saved here.",
-        _ => $"{log.Count} entries saved here."
-    };
     public string CurrentVersionText => "v" + updates.CurrentVersion;
     public string InstallKind => installed ? "Installed with Setup" : "Portable copy";
     public string LatestVersionText => result?.LatestRelease is { } latest ? "v" + latest.Version : "—";
@@ -139,9 +126,13 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
     public Visibility ActionButtonsVisibility => phase == Phase.Idle && result?.UpdateAvailable == true ? Visibility.Visible : Visibility.Collapsed;
     public string ReleasePageUrl => result?.LatestRelease?.HtmlUrl is { Length: > 0 } url ? url : SettingsLinks.ReleasesUrl;
     public string ProgressTitle => downloadingZip ? "Downloading the portable ZIP…" : "Downloading the installer…";
-    public double DownloadPercent => downloadPercent;
-    public bool DownloadIndeterminate => downloadTotal is not > 0;
-    public string DownloadProgressText => downloadTotal is > 0 ? $"{Format(downloadReceived)} of {Format(downloadTotal.Value)}" : $"{Format(downloadReceived)} downloaded";
+    public double DownloadFraction => meter.Fraction;
+    public bool DownloadIndeterminate => meter.Indeterminate;
+    public string DownloadProgressText => meter.Progress();
+    public string DownloadPaceText => meter.Pace();
+    public string DownloadPercentText => meter.Percent();
+    public string ReleasesChevron => releasesOpen ? "" : "";
+    public Visibility ReleasesBodyVisibility => releasesOpen ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ReleasesLoadingVisibility => phase == Phase.Checking && Releases.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ReleasesEmptyVisibility => phase != Phase.Checking && Releases.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ReleasesListVisibility => Releases.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -183,7 +174,12 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
 
     public void CancelDownload() => download?.Cancel();
 
-    public void OpenLogs() => openLogs();
+    public void ToggleReleases()
+    {
+        releasesOpen = !releasesOpen;
+        Changed(nameof(ReleasesChevron));
+        Changed(nameof(ReleasesBodyVisibility));
+    }
 
     public void Report(string title, string detail)
     {
@@ -196,8 +192,6 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
     {
         if (disposed) return;
         disposed = true;
-        log.Written -= OnWritten;
-        log.Cleared -= OnCleared;
         lifetime.Cancel();
         download?.Cancel();
     }
@@ -213,13 +207,14 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         phase = Phase.Downloading;
         error = "";
         note = "";
-        downloadReceived = 0;
-        downloadTotal = asset.SizeBytes > 0 ? asset.SizeBytes : null;
-        downloadPercent = 0;
+        meter.Reset(asset.SizeBytes > 0 ? asset.SizeBytes : null);
         Notify();
+        using var animation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        _ = AnimateAsync(animation.Token);
         // Without a checksum from the release the download is checked by its size and file type only, which is worth knowing when something goes wrong later.
         if (asset.Sha256 is null) log.Write(ActivityLevel.Warning, ActivityArea.App, "The update's checksum was not published", $"GitHub lists no SHA-256 for {asset.Name}, so the download is checked by size and file type only.");
-        var progress = new Progress<DownloadProgress>(ApplyProgress);
+        // Not Progress<T>: that posts every report to the UI thread, hundreds a second. The meter just takes the number; the timer below draws it.
+        var progress = new DirectProgress(report => meter.Report(report.BytesReceived, report.TotalBytes));
         try
         {
             var path = zip
@@ -248,12 +243,51 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
             post(() => FailDownload(ex, "The update could not be downloaded."));
             return null;
         }
+        finally { animation.Cancel(); }
+    }
+
+    private sealed class DirectProgress(Action<DownloadProgress> report) : IProgress<DownloadProgress>
+    {
+        public void Report(DownloadProgress value) => report(value);
+    }
+
+    /// <summary>Redraws the download numbers about thirty times a second until the download ends.</summary>
+    private async Task AnimateAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(33));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var last = TimeSpan.Zero;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                var now = clock.Elapsed;
+                var step = (now - last).TotalSeconds;
+                last = now;
+                // A busy UI thread skips frames rather than queueing them.
+                if (Interlocked.Exchange(ref tickPending, 1) == 1) continue;
+                post(() => { Interlocked.Exchange(ref tickPending, 0); Tick(step); });
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void Tick(double seconds)
+    {
+        if (disposed || phase != Phase.Downloading) return;
+        meter.Tick(seconds);
+        Changed(nameof(DownloadFraction));
+        Changed(nameof(DownloadIndeterminate));
+        Changed(nameof(DownloadProgressText));
+        Changed(nameof(DownloadPaceText));
+        Changed(nameof(DownloadPercentText));
     }
 
     private void Apply(UpdateCheckResult next)
     {
         if (disposed) return;
         var hadRows = Releases.Count > 0;
+        // Every release starts collapsed; a refresh keeps whichever ones the person had opened.
         var open = Releases.Where(x => x.IsExpanded).Select(x => x.Tag).ToHashSet(StringComparer.OrdinalIgnoreCase);
         result = next;
         phase = Phase.Idle;
@@ -264,7 +298,7 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         Releases.Reset(next.RecentReleases.Select(release =>
         {
             var current = release.Version == next.CurrentVersion;
-            var expanded = hadRows ? open.Contains(release.TagName) : release.TagName == latest;
+            var expanded = hadRows && open.Contains(release.TagName);
             return new ReleaseNoteRow(release, current, release.TagName == latest && !current, expanded);
         }));
         Notify();
@@ -311,28 +345,6 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         Notify();
     }
 
-    private void ApplyProgress(DownloadProgress progress)
-    {
-        if (disposed) return;
-        downloadReceived = progress.BytesReceived;
-        downloadTotal = progress.TotalBytes;
-        downloadPercent = progress.Percent ?? 0;
-        Changed(nameof(DownloadPercent));
-        Changed(nameof(DownloadIndeterminate));
-        Changed(nameof(DownloadProgressText));
-    }
-
-    private void OnWritten(ActivityEntry _) => post(NotifyLog);
-    private void OnCleared() => post(NotifyLog);
-
-    private void NotifyLog()
-    {
-        if (disposed) return;
-        Changed(nameof(LogSummary));
-        Changed(nameof(LogFolder));
-        Changed(nameof(CanOpenLogs));
-    }
-
     private void Notify()
     {
         if (disposed) return;
@@ -343,9 +355,8 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
             nameof(NormalDetailVisibility), nameof(ErrorVisibility), nameof(CheckingVisibility), nameof(CheckVisibility), nameof(CancelVisibility),
             nameof(ProgressVisibility), nameof(DownloadText), nameof(InstallerPrimaryVisibility), nameof(InstallerSecondaryVisibility),
             nameof(ZipVisibility), nameof(ReleasePageVisibility), nameof(ActionsVisibility), nameof(ActionButtonsVisibility), nameof(ReleasePageUrl), nameof(ProgressTitle),
-            nameof(DownloadPercent), nameof(DownloadIndeterminate), nameof(DownloadProgressText),
-            nameof(ReleasesLoadingVisibility), nameof(ReleasesEmptyVisibility), nameof(ReleasesListVisibility), nameof(ReleasesEmptyTitle), nameof(ReleasesEmptyDetail),
-            nameof(LogSummary), nameof(LogFolder), nameof(CanOpenLogs)
+            nameof(DownloadFraction), nameof(DownloadIndeterminate), nameof(DownloadProgressText), nameof(DownloadPaceText), nameof(DownloadPercentText),
+            nameof(ReleasesLoadingVisibility), nameof(ReleasesEmptyVisibility), nameof(ReleasesListVisibility), nameof(ReleasesEmptyTitle), nameof(ReleasesEmptyDetail)
         }) Changed(name);
     }
 
@@ -358,11 +369,4 @@ public sealed class SettingsViewModel : ObservableState, IDisposable
         InvalidDataException { Message.Length: > 0 } unusable => unusable.Message,
         _ => "The update information could not be read. Try again in a moment."
     };
-
-    private static string Format(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
-        return $"{bytes / 1024d / 1024d:0.#} MB";
-    }
 }

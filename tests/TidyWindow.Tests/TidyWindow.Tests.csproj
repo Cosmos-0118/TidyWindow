@@ -17,5 +17,6 @@
     <Compile Include="../../src/TidyWindow.Desktop/Shell/ToastItem.cs" Link="Desktop/ToastItem.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Shell/ToastCenter.cs" Link="Desktop/ToastCenter.cs" />
     <Compile Include="../../src/TidyWindow.Desktop/Features/Logs/LogsViewModel.cs" Link="Desktop/LogsViewModel.cs" />
+    <Compile Include="../../src/TidyWindow.Desktop/Features/Settings/DownloadMeter.cs" Link="Desktop/DownloadMeter.cs" />
   </ItemGroup>
 </Project>

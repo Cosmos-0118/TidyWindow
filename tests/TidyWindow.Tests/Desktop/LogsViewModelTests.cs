@@ -98,6 +98,22 @@ public sealed class LogsViewModelTests
     }
 
     [Fact]
+    public void EachRowHasAVisibleCopyIconThatTurnsIntoATickWhenCopied()
+    {
+        using var model = new LogsViewModel(Seeded(1), ui.Enqueue);
+        var row = model.Rows[0];
+        // A blank glyph renders as an empty, invisible button.
+        Assert.Equal("", row.CopyGlyph);
+        row.SetCopied(true);
+        Assert.Equal("", row.CopyGlyph);
+        row.SetCopied(false);
+        Assert.Equal("", row.CopyGlyph);
+        Assert.NotEqual(row.Chevron, ToggledChevron(row));
+    }
+
+    private static string ToggledChevron(LogRow row) { row.Toggle(); return row.Chevron; }
+
+    [Fact]
     public void ClearingTheLogEmptiesTheList()
     {
         var log = Seeded(10);
