@@ -236,3 +236,40 @@ An outside review of the three Network fixes was checked claim by claim on this 
 - After the adapters restart, Wi-Fi came back in a few seconds, and the new IP address then took 43 seconds to arrive on this router.
 - A stopped fix is reported as failed with "Stopped ...", as for the other tabs; the services and the address were back afterwards in every stop test.
 - **The registry alone is enough for the proxy.** With only `ProxyEnable`, `ProxyServer` and `AutoConfigURL` written, .NET's system proxy followed them at once. A proxy script that cannot be reached is ignored by the system proxy, so the test used a reachable local one.
+
+## Devices tab review (7 November 2026)
+
+An outside review of the six Devices fixes was checked claim by claim on this PC (Windows 11 build 26300, a desktop with a USB Bluetooth radio, no camera) and every fix was then run for real as administrator. The Devices tab now has ten fixes; the catalog has 34.
+
+### Built
+
+- **Clear stuck print jobs on a frozen print service.** Reproduced by freezing the `spoolsv.exe` process (`NtSuspendProcess`) with a real queued job (a printer on an unreachable port): the old `net stop spooler` ended after 30 seconds with exit code 2, which the fix accepted, the queue was emptied, and the start step also ended with 2, so the same frozen process went on running (the next test's job numbers kept counting up). The step is now one PowerShell step: it asks the service to stop in a background job (`Stop-Service` blocks for about a minute on a service that does not answer, and so does `Remove-Job` while it waits, so the job is removed last), gives it 15 seconds, then ends `spoolsv.exe`. The new run took 17 seconds, the print service came back as a new process and the queue was emptied. If the process cannot be ended the fix fails and nothing is deleted. The start step is a native service step and reports a service that is turned off.
+- **A real bug the review did not mention: Restart sound services left the Realtek audio service stopped.** `RtkAudioUniversalService` depends on Windows Audio and starts automatically, so stopping Windows Audio stopped it and starting Windows Audio did not bring it back (reproduced with the old build). The shared start script now also starts the dependent services that are set to Automatic and stopped; this applies to every fix that starts a service, and a dependent that fails to start never fails the step. Tested: the Realtek service came back in all three runs, also when a stop was requested half way.
+- **Bluetooth.** *Restart Bluetooth* and the Bluetooth option of *Restart sound services* now include `BTAGService` and `BthAvctpSvc` (stopped first, started last; a turned-off one is a warning, since the Quiet page can turn them off). *Restart Bluetooth* has an option (off) that turns the Bluetooth radio off and on (`Disable-PnpDevice`/`Enable-PnpDevice` on the Bluetooth device whose instance does not begin with `BTH`, which are the paired devices): the RZ616 adapter came back in 4 seconds and nothing was unpaired. All three end with a hardware scan.
+- **Restart sound services** ends with a hardware scan so an HDMI or USB audio device that vanished after sleep is found again.
+- **Restart the camera service** also restarts `FrameServerMonitor`, and has an option (off) to turn the camera device off and on.
+- **Rescan hardware** now lists any device that reports an error afterward, with Windows' own explanation.
+- **Find devices with problems.** The review said the Meaning column printed the same number as Code. It does not: in `Get-PnpDevice` `ConfigManagerErrorCode` is an enum, so the column printed names such as `CM_PROB_DISABLED`, which is no better for a person. The module already has `ProblemDescription`, Device Manager's own (and translated) sentence, for example "This device is disabled. (Code 22)." The report now prints name, class, status, that sentence and the instance id, so two "USB Root Hub" lines can be told apart.
+- **New: Restart devices with problems.** Switches off and on again the present devices with code 10, 31, 39, 41 or 43, only for USB, Bluetooth, audio, camera, input, ports and similar classes; display, disk, storage, system, processor and network devices are never touched. Devices that are switched off (code 22) are left alone unless the option is ticked, because they are often switched off on purpose. The disable/enable pair is in a `finally` block and the step cannot be stopped half way, so a device is never left off.
+- **New: Stop USB devices cutting out.** Turns off USB selective suspend (plugged in and on battery) for the power plan in use and applies it, and restarts USB devices that report an error. The guard allows only that setting, only `SCHEME_CURRENT`, and only the value 0. Checked live: 1/1 before, 0/0 after, put back to 1/1.
+- **New: Restart scanner and photo import** (`stisvc`, `ShellHWDetection`) and **Restart game controller services** (`GameInputSvc`, `hidserv`), each ending with a hardware scan.
+- The `net.exe` steps of the Devices tab are gone for the same reason as in the Windows tab.
+
+### Checked and not built
+
+- **Emptying subfolders of `spool\PRINTERS`.** No evidence: the folder only held `.SPL`, `.SHD` and `.TMP` files, and the review gave no case. Recursive deletes are not worth adding without one.
+- **The review's reason why the old print fix fails** (the files being held open). Not what happened here: `spoolsv.exe` opens them without blocking deletion, so the `.SPL` file was deleted even from a frozen service. The damage was that the stuck process was never replaced.
+- **Restarting `BluetoothUserService`.** It depends on `bthserv`, is a per-user service and starts when it is needed.
+- **`WiaRpc`** is not touched; on this PC it is turned off, and `stisvc` is the service scanners use.
+- **The review's wish to bounce all Camera/Image devices as part of the default run.** It is an option, off, because the camera drops and every app using it loses it.
+
+### What running them for real found (7 November 2026, as administrator, through the real runner and executor)
+
+- A first version of the new print step looked fine in tests and still took 60 seconds: `Stop-Service -NoWait` and the status query block while Windows waits for the frozen service, and Windows ends the process itself after about a minute. Running it for real against a frozen service is what showed that.
+- **My own test script mangled double quotes** when it started `powershell.exe -Command` with a multi-line script (Windows PowerShell 5.1 passes arguments to programs badly). The app starts PowerShell with an argument list and was not affected; the test was redone with `-File`.
+- Stops requested half way: the stop requested at the second step of *Restart sound services* and at the adapter step of *Restart Bluetooth* still ran every start step, and the services and adapter were running afterwards.
+- `PP*.TMP` files in the print queue belong to the program that is printing; they are reported as "in use and left as they are", which is correct.
+
+### Not run on this PC
+
+A real camera (this PC has none; the empty case printed "No camera was found."), a device that really reports code 10, 31, 39, 41 or 43 (that cannot be made on purpose: the restart branch was run on a switched-off COM port with the code list changed to 22 in a copy of the script), a Bluetooth headset connected during the restart, and any second Windows machine.

@@ -332,13 +332,20 @@
       "scope": "machine",
       "icon": "E749",
       "summary": "For a printer that says “printing” forever, or documents that cannot be cancelled. Stops the print service, empties the print queue and starts it again.",
-      "effect": "All waiting print jobs are cancelled. Printers and their drivers are not touched.",
-      "duration": "A few seconds",
+      "effect": "All waiting print jobs are cancelled. Printers and their drivers are not touched. If the print service is stuck and will not stop, it is ended, which Windows then starts again by itself.",
+      "duration": "A few seconds, or a minute if the print service is stuck",
       "sources": ["Microsoft Support: Printer spooler troubleshooting (clear the PRINTERS folder)"],
       "steps": [
-        { "title": "Stop the print service", "file": "net.exe", "args": ["stop", "spooler", "/y"], "ok": [0, 2], "minutes": 3 },
+        {
+          "title": "Stop the print service (end it if it is stuck)",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $service = Microsoft.PowerShell.Management\\Get-Service -Name spooler -ErrorAction SilentlyContinue\n  if (-not $service) { 'The print service is not on this PC, so there is nothing to stop.'; exit 4 }\n  $job = $null\n  if ($service.Status -ne 'Stopped') {\n    # The stop request runs in its own job: it blocks for about a minute when the service does not answer, and the process is ended after 15 seconds instead.\n    $job = Microsoft.PowerShell.Core\\Start-Job -ScriptBlock { Microsoft.PowerShell.Management\\Stop-Service -Name spooler -Force -WarningAction SilentlyContinue }\n    $limit = [DateTime]::UtcNow.AddSeconds(15)\n    while ((Microsoft.PowerShell.Management\\Get-Process -Name spoolsv -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $limit) {\n      if ($job.State -eq 'Failed') {\n        $problem = $job.ChildJobs[0].JobStateInfo.Reason.Message\n        'Windows would not stop the print service: ' + $problem\n        if ($problem -match 'Cannot open|denied') { 'This needs administrator rights.'; exit 1 }\n        break\n      }\n      Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1\n    }\n  }\n  if (-not (Microsoft.PowerShell.Management\\Get-Process -Name spoolsv -ErrorAction SilentlyContinue)) {\n    if ($job) { Microsoft.PowerShell.Core\\Remove-Job -Job $job -Force -ErrorAction SilentlyContinue }\n    'The print service is stopped.'; exit 0\n  }\n  'The print service did not stop within 15 seconds, so it is being ended. Windows starts it again in a few seconds.'\n  Microsoft.PowerShell.Management\\Stop-Process -Name spoolsv -Force\n  $limit = [DateTime]::UtcNow.AddSeconds(15)\n  while ((Microsoft.PowerShell.Management\\Get-Process -Name spoolsv -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $limit) { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1 }\n  if (Microsoft.PowerShell.Management\\Get-Process -Name spoolsv -ErrorAction SilentlyContinue) { 'The print service is still running after being ended.'; exit 1 }\n  # Removed last: with a service that does not answer, the job is still waiting for it until its process is gone.\n  if ($job) { Microsoft.PowerShell.Core\\Remove-Job -Job $job -Force -ErrorAction SilentlyContinue }\n  'The print service was ended.'\n} catch { 'Could not stop the print service: ' + $_.Exception.Message; exit 1 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "ok": [0, 4]
+        },
         { "title": "Empty the print queue", "kind": "deleteFiles", "path": "%SystemRoot%\\System32\\spool\\PRINTERS", "patterns": ["*"], "warn": [1], "optional": true },
-        { "title": "Start the print service", "file": "net.exe", "args": ["start", "spooler"], "ok": [0, 2], "minutes": 3, "always": true }
+        { "title": "Start the print service", "kind": "startService", "service": "spooler", "minutes": 3, "ok": [0, 4], "always": true }
       ]
     },
     {
@@ -347,20 +354,25 @@
       "group": "devices",
       "scope": "machine",
       "icon": "E767",
-      "summary": "For no sound, crackling, or a speaker or headset that Windows does not see. Restarts the services that run audio.",
-      "effect": "Sound stops for a few seconds, and apps playing audio may need to be restarted.",
+      "summary": "For no sound, crackling, or a speaker or headset that Windows does not see. Restarts the services that run audio and asks Windows to look for the audio devices again.",
+      "effect": "Sound stops for a few seconds, and apps playing audio may need to be restarted. Audio helper services that stopped with Windows Audio (such as the Realtek one) are started again.",
       "duration": "A few seconds",
       "sources": ["Microsoft Support: Fix sound or audio problems"],
       "options": [
-        { "id": "bluetooth", "label": "Also restart Bluetooth support", "detail": "Bluetooth devices disconnect for a moment and reconnect by themselves." }
+        { "id": "bluetooth", "label": "Also restart Bluetooth support", "detail": "Includes the services for Bluetooth headsets and their buttons. Bluetooth devices disconnect for a moment and reconnect by themselves." }
       ],
       "steps": [
-        { "title": "Stop Windows Audio", "file": "net.exe", "args": ["stop", "audiosrv", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Stop Windows Audio Endpoint Builder", "file": "net.exe", "args": ["stop", "AudioEndpointBuilder", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Stop Bluetooth Support", "file": "net.exe", "args": ["stop", "bthserv", "/y"], "ok": [0, 2], "minutes": 3, "when": "bluetooth" },
-        { "title": "Start Windows Audio Endpoint Builder", "file": "net.exe", "args": ["start", "AudioEndpointBuilder"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Windows Audio", "file": "net.exe", "args": ["start", "audiosrv"], "ok": [0, 2], "minutes": 3, "always": true },
-        { "title": "Start Bluetooth Support", "file": "net.exe", "args": ["start", "bthserv"], "ok": [0, 2], "minutes": 3, "always": true, "when": "bluetooth" }
+        { "title": "Stop Windows Audio", "kind": "stopService", "service": "audiosrv", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Windows Audio Endpoint Builder", "kind": "stopService", "service": "AudioEndpointBuilder", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Bluetooth Audio Gateway", "kind": "stopService", "service": "BTAGService", "minutes": 3, "ok": [0, 4], "when": "bluetooth" },
+        { "title": "Stop Bluetooth AVCTP Service", "kind": "stopService", "service": "BthAvctpSvc", "minutes": 3, "ok": [0, 4], "when": "bluetooth" },
+        { "title": "Stop Bluetooth Support", "kind": "stopService", "service": "bthserv", "minutes": 3, "ok": [0, 4], "when": "bluetooth" },
+        { "title": "Start Windows Audio Endpoint Builder", "kind": "startService", "service": "AudioEndpointBuilder", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Windows Audio", "kind": "startService", "service": "audiosrv", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Bluetooth Support", "kind": "startService", "service": "bthserv", "minutes": 3, "ok": [0, 4], "always": true, "when": "bluetooth" },
+        { "title": "Start Bluetooth AVCTP Service", "kind": "startService", "service": "BthAvctpSvc", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3], "when": "bluetooth" },
+        { "title": "Start Bluetooth Audio Gateway", "kind": "startService", "service": "BTAGService", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3], "when": "bluetooth" },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true }
       ]
     },
     {
@@ -369,13 +381,31 @@
       "group": "devices",
       "scope": "machine",
       "icon": "E702",
-      "summary": "For Bluetooth headphones, a mouse or a keyboard that shows as connected but does nothing, or will not pair. Restarts the Bluetooth service.",
-      "effect": "Bluetooth devices disconnect for a moment and reconnect by themselves. Nothing is unpaired.",
+      "summary": "For Bluetooth headphones, a mouse or a keyboard that shows as connected but does nothing, or will not pair. Restarts the Bluetooth service and the two services for Bluetooth audio and headset buttons.",
+      "effect": "Bluetooth devices disconnect for a moment and reconnect by themselves. Nothing is unpaired. With the adapter option the Bluetooth radio is switched off and on, which also takes a few seconds.",
       "duration": "A few seconds",
       "sources": ["Microsoft Support: Fix Bluetooth problems in Windows"],
+      "options": [
+        { "id": "adapter", "label": "Also turn the Bluetooth adapter off and on", "detail": "Use if Bluetooth vanished after sleep or Device Manager shows a warning on the adapter. Paired devices stay paired." }
+      ],
       "steps": [
-        { "title": "Stop Bluetooth Support", "file": "net.exe", "args": ["stop", "bthserv", "/y"], "ok": [0, 2], "minutes": 3 },
-        { "title": "Start Bluetooth Support", "file": "net.exe", "args": ["start", "bthserv"], "ok": [0, 2], "minutes": 3, "always": true }
+        { "title": "Stop Bluetooth Audio Gateway", "kind": "stopService", "service": "BTAGService", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Bluetooth AVCTP Service", "kind": "stopService", "service": "BthAvctpSvc", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Bluetooth Support", "kind": "stopService", "service": "bthserv", "minutes": 3, "ok": [0, 4] },
+        {
+          "title": "Turn the Bluetooth adapter off and on",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $found = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Class -eq 'Bluetooth' -and $_.InstanceId -notlike 'BTH*' })\n  if ($found.Count -eq 0) { 'No Bluetooth adapter was found.'; exit 0 }\n  $failed = 0\n  foreach ($device in $found) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    \"Turning $name off and on\"\n    try {\n      try { PnpDevice\\Disable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n      finally { PnpDevice\\Enable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop }\n      $limit = [DateTime]::UtcNow.AddSeconds(10)\n      do { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1; $now = PnpDevice\\Get-PnpDevice -InstanceId $device.InstanceId } while ($now.Status -ne 'OK' -and [DateTime]::UtcNow -lt $limit)\n      if ($now.Status -eq 'OK') { $name + ' works again.' } else { $name + ' reports ' + $now.Status + ' after being switched on.'; $failed++ }\n    } catch { $failed++; \"Could not restart ${name}: \" + $_.Exception.Message }\n  }\n  if ($failed -gt 0) { exit 1 }\n} catch { 'Could not restart the device: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "uninterruptible": true,
+          "when": "adapter"
+        },
+        { "title": "Start Bluetooth Support", "kind": "startService", "service": "bthserv", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Bluetooth AVCTP Service", "kind": "startService", "service": "BthAvctpSvc", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3] },
+        { "title": "Start Bluetooth Audio Gateway", "kind": "startService", "service": "BTAGService", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3] },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true }
       ]
     },
     {
@@ -384,12 +414,21 @@
       "group": "devices",
       "scope": "machine",
       "icon": "E772",
-      "summary": "For a USB device, drive or dock that was plugged in but does not show up. Asks Windows to look for hardware changes, like Device Manager's Scan button.",
-      "effect": "Nothing is removed or changed; devices Windows finds are set up as usual.",
+      "summary": "For a USB device, drive or dock that was plugged in but does not show up. Asks Windows to look for hardware changes, like Device Manager’s Scan button, and then lists any device that reports an error.",
+      "effect": "Nothing is removed or changed; devices Windows finds are set up as usual. It finishes with a warning when a device reports an error, so you can see which one in the output.",
       "duration": "A few seconds",
-      "sources": ["Microsoft Learn: PnPUtil /scan-devices"],
+      "sources": ["Microsoft Learn: PnPUtil /scan-devices; Get-PnpDevice"],
       "steps": [
-        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3 }
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3 },
+        {
+          "title": "Check which devices report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 3\n  $bad = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($bad.Count -eq 0) { 'No device reports a problem.'; exit 0 }\n  \"$($bad.Count) device(s) report a problem:\"\n  foreach ($device in $bad) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    ''\n    $name + '  [' + $device.Class + ', ' + $device.Status + ']'\n    if ([int]$device.ConfigManagerErrorCode -ne 0) { '  ' + $device.ProblemDescription } else { '  Windows reports the status ' + $device.Status + '.' }\n    '  ' + $device.InstanceId\n  }\n  exit 1\n} catch { 'Could not read the devices: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        }
       ]
     },
     {
@@ -740,14 +779,29 @@
       "group": "devices",
       "scope": "machine",
       "icon": "E722",
-      "summary": "For a webcam that says “in use by another app” or “no camera found”, often after a video call ended badly. Restarts the service that shares the camera between apps and looks for the camera again.",
-      "effect": "Any app using the camera loses it and may need to be reopened. Nothing is changed or removed.",
+      "summary": "For a webcam that says “in use by another app” or “no camera found”, often after a video call ended badly. Restarts the services that share the camera between apps and looks for the camera again.",
+      "effect": "Any app using the camera loses it and may need to be reopened. Nothing is changed or removed. With the device option the camera itself is switched off and on.",
       "duration": "A few seconds",
       "sources": ["Microsoft Support: Camera does not work in Windows (Windows Camera Frame Server)"],
+      "options": [
+        { "id": "device", "label": "Also turn the camera off and on", "detail": "Use if the camera still says “no camera found” (0xA00F4244) after the services restart." }
+      ],
       "steps": [
-        {"title": "Stop the Windows Camera Frame Server", "file": "net.exe", "args": ["stop", "FrameServer", "/y"], "ok": [0, 2], "minutes": 3},
-        {"title": "Start the Windows Camera Frame Server", "file": "net.exe", "args": ["start", "FrameServer"], "ok": [0, 2], "minutes": 3, "always": true},
-        {"title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true}
+        { "title": "Stop the Windows Camera Frame Server Monitor", "kind": "stopService", "service": "FrameServerMonitor", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop the Windows Camera Frame Server", "kind": "stopService", "service": "FrameServer", "minutes": 3, "ok": [0, 4] },
+        {
+          "title": "Turn the camera off and on",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $found = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Class -eq 'Camera' -or $_.Class -eq 'Image' })\n  if ($found.Count -eq 0) { 'No camera was found.'; exit 0 }\n  $failed = 0\n  foreach ($device in $found) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    \"Turning $name off and on\"\n    try {\n      try { PnpDevice\\Disable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n      finally { PnpDevice\\Enable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop }\n      $limit = [DateTime]::UtcNow.AddSeconds(10)\n      do { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1; $now = PnpDevice\\Get-PnpDevice -InstanceId $device.InstanceId } while ($now.Status -ne 'OK' -and [DateTime]::UtcNow -lt $limit)\n      if ($now.Status -eq 'OK') { $name + ' works again.' } else { $name + ' reports ' + $now.Status + ' after being switched on.'; $failed++ }\n    } catch { $failed++; \"Could not restart ${name}: \" + $_.Exception.Message }\n  }\n  if ($failed -gt 0) { exit 1 }\n} catch { 'Could not restart the device: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "uninterruptible": true,
+          "when": "device"
+        },
+        { "title": "Start the Windows Camera Frame Server", "kind": "startService", "service": "FrameServer", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start the Windows Camera Frame Server Monitor", "kind": "startService", "service": "FrameServerMonitor", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3] },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true }
       ]
     },
     {
@@ -756,19 +810,143 @@
       "group": "devices",
       "scope": "user",
       "icon": "E9D9",
-      "summary": "For a USB, Bluetooth, audio or other device that Device Manager marks with a yellow warning, or that stopped working after sleep. Lists every device that reports an error and its code.",
-      "effect": "Nothing is changed; this only reads and reports. It finishes with a warning when it finds devices, so you can see them in the output. Use Rescan hardware, reinstall the driver from the maker, or look the code up in Device Manager.",
+      "summary": "For a USB, Bluetooth, audio or other device that Device Manager marks with a yellow warning, or that stopped working after sleep. Lists every device that reports an error, what Windows says about it and where it is.",
+      "effect": "Nothing is changed; this only reads and reports. It finishes with a warning when it finds devices, so you can see them in the output. Reset problem devices can restart them; for a missing driver, install it from the maker.",
       "duration": "A few seconds",
-      "sources": ["Microsoft Learn: Get-PnpDevice"],
+      "sources": ["Microsoft Learn: Get-PnpDevice (ProblemDescription is Device Manager’s own wording)"],
       "steps": [
         {
           "title": "List devices that report a problem",
           "file": "powershell.exe",
-          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $bad = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 }); if ($bad.Count -eq 0) { 'No device reports a problem.' } else { \"$($bad.Count) device(s) report a problem:\"; $bad | Microsoft.PowerShell.Utility\\Select-Object FriendlyName, Class, Status, @{ Name = 'Code'; Expression = { [int]$_.ConfigManagerErrorCode } }, @{ Name = 'Meaning'; Expression = { \"$($_.ConfigManagerErrorCode)\" } } | Microsoft.PowerShell.Utility\\Format-Table -AutoSize | Microsoft.PowerShell.Utility\\Out-String -Width 160; exit 1 }"],
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n\n  $bad = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($bad.Count -eq 0) { 'No device reports a problem.'; exit 0 }\n  \"$($bad.Count) device(s) report a problem:\"\n  foreach ($device in $bad) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    ''\n    $name + '  [' + $device.Class + ', ' + $device.Status + ']'\n    if ([int]$device.ConfigManagerErrorCode -ne 0) { '  ' + $device.ProblemDescription } else { '  Windows reports the status ' + $device.Status + '.' }\n    '  ' + $device.InstanceId\n  }\n  exit 1\n} catch { 'Could not read the devices: ' + $_.Exception.Message; exit 2 }"],
           "encoding": "utf8",
           "minutes": 3,
           "warn": [1]
         }
+      ]
+    },
+    {
+      "id": "reset-problem-devices",
+      "name": "Restart devices with problems",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E895",
+      "summary": "For a USB, Bluetooth, audio, camera or input device with a yellow warning in Device Manager after sleep or a crash (code 10, 31, 39, 41 or 43). Switches each such device off and on again, then rescans.",
+      "effect": "Only devices that report an error are touched, and only USB, Bluetooth, audio, camera, input and similar devices; display, disk, system and network devices are never restarted here. A device that needs a driver or a restart is listed and left alone. Devices you switched off yourself stay off unless you tick the option.",
+      "risk": "careful",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: Disable-PnpDevice and Enable-PnpDevice; Device Manager error codes"],
+      "options": [
+        { "id": "disabled", "label": "Also switch on devices that are switched off", "detail": "Code 22. Leave this off if you turned a device off on purpose, such as a touchpad or a Bluetooth radio." }
+      ],
+      "steps": [
+        {
+          "title": "Switch on devices that are switched off",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $classes = 'USB', 'Bluetooth', 'Camera', 'Image', 'MEDIA', 'AudioEndpoint', 'HIDClass', 'Keyboard', 'Mouse', 'Ports', 'WPD', 'Biometric', 'SmartCardReader'\n  $off = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { [int]$_.ConfigManagerErrorCode -eq 22 -and $classes -contains $_.Class })\n  if ($off.Count -eq 0) { 'No device of these kinds is switched off.'; exit 0 }\n  $failed = 0\n  foreach ($device in $off) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    try { PnpDevice\\Enable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop; $name + ' was switched on.' }\n    catch { $failed++; \"Could not switch on ${name}: \" + $_.Exception.Message }\n  }\n  if ($failed -gt 0) { exit 1 }\n} catch { 'Could not switch devices on: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "uninterruptible": true,
+          "when": "disabled"
+        },
+        {
+          "title": "Restart devices that report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $classes = 'USB', 'Bluetooth', 'Camera', 'Image', 'MEDIA', 'AudioEndpoint', 'HIDClass', 'Keyboard', 'Mouse', 'Ports', 'WPD', 'Biometric', 'SmartCardReader'\n  $codes = 10, 31, 39, 41, 43\n  $problems = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($problems.Count -eq 0) { 'No device reports a problem, so there is nothing to restart.'; exit 0 }\n  $failed = 0; $restarted = 0\n  foreach ($device in $problems) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    $code = [int]$device.ConfigManagerErrorCode\n    if ($code -eq 22) { $name + ': switched off (code 22). Left as it is; tick the option to turn it on.'; continue }\n    if ($classes -notcontains $device.Class) { $name + ': devices of the kind ' + $device.Class + ' are not restarted here. ' + $device.ProblemDescription; continue }\n    if ($codes -notcontains $code) { $name + ': restarting does not help with this. ' + $device.ProblemDescription; continue }\n    \"Restarting $name\"\n    try {\n      try { PnpDevice\\Disable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n      finally { PnpDevice\\Enable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop }\n      $limit = [DateTime]::UtcNow.AddSeconds(10)\n      do { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1; $now = PnpDevice\\Get-PnpDevice -InstanceId $device.InstanceId } while ($now.Status -ne 'OK' -and [DateTime]::UtcNow -lt $limit)\n      if ($now.Status -eq 'OK') { $name + ' works again.'; $restarted++ } else { $name + ' still reports a problem: ' + $now.ProblemDescription; $failed++ }\n    } catch { $failed++; \"Could not restart ${name}: \" + $_.Exception.Message }\n  }\n  if ($restarted -eq 0 -and $failed -eq 0) { 'No device was restarted.' }\n  if ($failed -gt 0) { exit 1 }\n} catch { 'Could not restart devices: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "uninterruptible": true
+        },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true },
+        {
+          "title": "Check which devices still report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 3\n  $bad = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($bad.Count -eq 0) { 'No device reports a problem.'; exit 0 }\n  \"$($bad.Count) device(s) report a problem:\"\n  foreach ($device in $bad) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    ''\n    $name + '  [' + $device.Class + ', ' + $device.Status + ']'\n    if ([int]$device.ConfigManagerErrorCode -ne 0) { '  ' + $device.ProblemDescription } else { '  Windows reports the status ' + $device.Status + '.' }\n    '  ' + $device.InstanceId\n  }\n  exit 1\n} catch { 'Could not read the devices: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "fix-usb-dropouts",
+      "name": "Stop USB devices cutting out",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E772",
+      "summary": "For a USB mouse, keyboard, headset, DAC or drive that disconnects and reconnects by itself, or does not wake after sleep. Turns off USB power saving in the power plan in use and restarts USB devices that report an error.",
+      "effect": "USB selective suspend is turned off, plugged in and on battery, for the power plan in use only; a laptop on battery then uses a little more power. To turn it back on: Control Panel > Power Options > Change plan settings > Change advanced power settings > USB settings. Restarting a USB device that reports an error can make what is plugged into it reconnect.",
+      "risk": "careful",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: powercfg (/setacvalueindex, /setdcvalueindex, /setactive); USB selective suspend"],
+      "options": [
+        { "id": "suspend", "label": "Turn off USB power saving (selective suspend)", "detail": "The usual cause of USB devices that drop out or do not wake. Uses a little more power on battery.", "default": true },
+        { "id": "controllers", "label": "Restart USB devices that report an error", "detail": "Hubs, controllers and devices with a code 10, 31, 39, 41 or 43 in Device Manager.", "default": true }
+      ],
+      "steps": [
+        { "title": "Show the USB power saving setting now", "file": "powercfg.exe", "args": ["/query", "SCHEME_CURRENT", "2a737441-1930-4402-8d77-b2bebba308a3", "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"], "minutes": 2, "optional": true, "when": "suspend" },
+        { "title": "Turn off USB power saving when plugged in", "file": "powercfg.exe", "args": ["/setacvalueindex", "SCHEME_CURRENT", "2a737441-1930-4402-8d77-b2bebba308a3", "48e6b7a6-50f5-4782-a5d4-53bb8f07e226", "0"], "minutes": 2, "when": "suspend" },
+        { "title": "Turn off USB power saving on battery", "file": "powercfg.exe", "args": ["/setdcvalueindex", "SCHEME_CURRENT", "2a737441-1930-4402-8d77-b2bebba308a3", "48e6b7a6-50f5-4782-a5d4-53bb8f07e226", "0"], "minutes": 2, "when": "suspend" },
+        { "title": "Apply the power plan", "file": "powercfg.exe", "args": ["/setactive", "SCHEME_CURRENT"], "minutes": 2, "when": "suspend" },
+        {
+          "title": "Restart USB devices that report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  $classes = 'USB'\n  $codes = 10, 31, 39, 41, 43\n  $problems = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($problems.Count -eq 0) { 'No device reports a problem, so there is nothing to restart.'; exit 0 }\n  $failed = 0; $restarted = 0\n  foreach ($device in $problems) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    $code = [int]$device.ConfigManagerErrorCode\n    if ($code -eq 22) { $name + ': switched off (code 22). Left as it is; tick the option to turn it on.'; continue }\n    if ($classes -notcontains $device.Class) { $name + ': devices of the kind ' + $device.Class + ' are not restarted here. ' + $device.ProblemDescription; continue }\n    if ($codes -notcontains $code) { $name + ': restarting does not help with this. ' + $device.ProblemDescription; continue }\n    \"Restarting $name\"\n    try {\n      try { PnpDevice\\Disable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop; Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 2 }\n      finally { PnpDevice\\Enable-PnpDevice -InstanceId $device.InstanceId -Confirm:$false -ErrorAction Stop }\n      $limit = [DateTime]::UtcNow.AddSeconds(10)\n      do { Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 1; $now = PnpDevice\\Get-PnpDevice -InstanceId $device.InstanceId } while ($now.Status -ne 'OK' -and [DateTime]::UtcNow -lt $limit)\n      if ($now.Status -eq 'OK') { $name + ' works again.'; $restarted++ } else { $name + ' still reports a problem: ' + $now.ProblemDescription; $failed++ }\n    } catch { $failed++; \"Could not restart ${name}: \" + $_.Exception.Message }\n  }\n  if ($restarted -eq 0 -and $failed -eq 0) { 'No device was restarted.' }\n  if ($failed -gt 0) { exit 1 }\n} catch { 'Could not restart devices: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 3,
+          "optional": true,
+          "uninterruptible": true,
+          "when": "controllers"
+        },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true },
+        {
+          "title": "Check which devices report a problem",
+          "file": "powershell.exe",
+          "args": ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'\ntry {\n  Microsoft.PowerShell.Utility\\Start-Sleep -Seconds 3\n  $bad = @(PnpDevice\\Get-PnpDevice -PresentOnly | Microsoft.PowerShell.Core\\Where-Object { $_.Status -in 'Error', 'Degraded' -or [int]$_.ConfigManagerErrorCode -ne 0 })\n  if ($bad.Count -eq 0) { 'No device reports a problem.'; exit 0 }\n  \"$($bad.Count) device(s) report a problem:\"\n  foreach ($device in $bad) {\n    $name = $device.FriendlyName; if (-not $name) { $name = $device.InstanceId }\n    ''\n    $name + '  [' + $device.Class + ', ' + $device.Status + ']'\n    if ([int]$device.ConfigManagerErrorCode -ne 0) { '  ' + $device.ProblemDescription } else { '  Windows reports the status ' + $device.Status + '.' }\n    '  ' + $device.InstanceId\n  }\n  exit 1\n} catch { 'Could not read the devices: ' + $_.Exception.Message; exit 2 }"],
+          "encoding": "utf8",
+          "minutes": 2,
+          "optional": true,
+          "warn": [1]
+        }
+      ]
+    },
+    {
+      "id": "restart-scanner",
+      "name": "Restart scanner and photo import",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E749",
+      "summary": "For a scanner that Windows Fax and Scan or Photos says it cannot find, or a phone or camera whose photos will not import. Restarts the Windows Image Acquisition service and the one that notices new hardware, then looks for hardware again.",
+      "effect": "Scanning and import apps lose their connection and may need to be reopened. AutoPlay notices pause for a moment. Nothing is changed or removed.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Support: Fix scanner problems in Windows (Windows Image Acquisition)"],
+      "steps": [
+        { "title": "Stop Windows Image Acquisition", "kind": "stopService", "service": "stisvc", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Shell Hardware Detection", "kind": "stopService", "service": "ShellHWDetection", "minutes": 3, "ok": [0, 4] },
+        { "title": "Start Shell Hardware Detection", "kind": "startService", "service": "ShellHWDetection", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Windows Image Acquisition", "kind": "startService", "service": "stisvc", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3] },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true }
+      ]
+    },
+    {
+      "id": "restart-controllers",
+      "name": "Restart game controller services",
+      "group": "devices",
+      "scope": "machine",
+      "icon": "E7FC",
+      "summary": "For an Xbox, PlayStation or USB controller that lights up when plugged in but is not found by games, often after an update or after switching controllers. Restarts the services that pass controller input to games and looks for hardware again.",
+      "effect": "Controllers and keyboard media keys pause for a second or two. Mouse and keyboard keep working. Games may need to be restarted to see the controller.",
+      "duration": "A few seconds",
+      "sources": ["Microsoft Learn: Microsoft GameInput; Human Interface Device Service"],
+      "steps": [
+        { "title": "Stop Microsoft GameInput", "kind": "stopService", "service": "GameInputSvc", "minutes": 3, "ok": [0, 4] },
+        { "title": "Stop Human Interface Device Service", "kind": "stopService", "service": "hidserv", "minutes": 3, "ok": [0, 4] },
+        { "title": "Start Human Interface Device Service", "kind": "startService", "service": "hidserv", "minutes": 3, "ok": [0, 4], "always": true },
+        { "title": "Start Microsoft GameInput", "kind": "startService", "service": "GameInputSvc", "minutes": 3, "ok": [0, 4], "always": true, "warn": [3] },
+        { "title": "Scan for hardware changes", "file": "pnputil.exe", "args": ["/scan-devices"], "minutes": 3, "optional": true }
       ]
     },
     {

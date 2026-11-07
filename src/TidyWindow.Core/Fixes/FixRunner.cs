@@ -386,19 +386,28 @@ public static class FixSupport
         try {
           $service = Microsoft.PowerShell.Management\Get-Service -Name '__NAME__' -ErrorAction SilentlyContinue
           if (-not $service) { '__NAME__ is not on this PC, so there is nothing to start.'; exit __MISSING__ }
-          if ($service.Status -eq 'Running') { "$($service.DisplayName) is already running."; exit 0 }
-          if ($service.StartType -eq 'Disabled') { "$($service.DisplayName) is turned off (its startup type is Disabled), so Windows cannot start it. Something else on this PC turned it off. Set its startup type to Manual or Automatic in Services, then run this fix again."; exit __DISABLED__ }
-          $limit = [DateTime]::UtcNow.AddSeconds(75); $tries = 0; $problem = ''; $denied = $false
-          do {
-            if ($service.Status -eq 'Stopped' -and $tries -lt 3) {
-              $tries++
-              try { Microsoft.PowerShell.Management\Start-Service -Name '__NAME__' -WarningAction SilentlyContinue }
-              catch { $inner = $_.Exception; while ($inner.InnerException) { $inner = $inner.InnerException }; $problem = $inner.Message; if ($inner -is [System.ComponentModel.Win32Exception] -and $inner.NativeErrorCode -eq 5) { $denied = $true } }
+          if ($service.Status -eq 'Running') { "$($service.DisplayName) is already running." }
+          else {
+            if ($service.StartType -eq 'Disabled') { "$($service.DisplayName) is turned off (its startup type is Disabled), so Windows cannot start it. Something else on this PC turned it off. Set its startup type to Manual or Automatic in Services, then run this fix again."; exit __DISABLED__ }
+            $limit = [DateTime]::UtcNow.AddSeconds(75); $tries = 0; $problem = ''; $denied = $false
+            do {
+              if ($service.Status -eq 'Stopped' -and $tries -lt 3) {
+                $tries++
+                try { Microsoft.PowerShell.Management\Start-Service -Name '__NAME__' -WarningAction SilentlyContinue }
+                catch { $inner = $_.Exception; while ($inner.InnerException) { $inner = $inner.InnerException }; $problem = $inner.Message; if ($inner -is [System.ComponentModel.Win32Exception] -and $inner.NativeErrorCode -eq 5) { $denied = $true } }
+              }
+              $service.Refresh()
+              if ($service.Status -ne 'Running') { Microsoft.PowerShell.Utility\Start-Sleep -Seconds 2; $service.Refresh() }
+            } while ($service.Status -ne 'Running' -and -not $denied -and [DateTime]::UtcNow -lt $limit)
+            if ($service.Status -eq 'Running') { "$($service.DisplayName) is running." } elseif ($denied) { "Windows refused to start __NAME__ ($problem). This needs administrator rights."; exit 1 } else { "Could not start __NAME__ within a minute. $problem"; exit 1 }
+          }
+          # Stopping a service stops the services that depend on it too, and starting it does not bring them back. The ones Windows starts by itself at boot are started again.
+          foreach ($dependent in $service.DependentServices) {
+            if ($dependent.StartType -eq 'Automatic' -and $dependent.Status -eq 'Stopped') {
+              try { Microsoft.PowerShell.Management\Start-Service -Name $dependent.Name -WarningAction SilentlyContinue; "$($dependent.DisplayName) was started again." }
+              catch { "Could not start $($dependent.DisplayName): " + $_.Exception.Message }
             }
-            $service.Refresh()
-            if ($service.Status -ne 'Running') { Microsoft.PowerShell.Utility\Start-Sleep -Seconds 2; $service.Refresh() }
-          } while ($service.Status -ne 'Running' -and -not $denied -and [DateTime]::UtcNow -lt $limit)
-          if ($service.Status -eq 'Running') { "$($service.DisplayName) is running." } elseif ($denied) { "Windows refused to start __NAME__ ($problem). This needs administrator rights."; exit 1 } else { "Could not start __NAME__ within a minute. $problem"; exit 1 }
+          }
         } catch { 'Could not start __NAME__: ' + $_.Exception.Message; exit 1 }
         """;
 

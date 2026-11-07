@@ -133,7 +133,8 @@ public static partial class FixGuard
     private static readonly HashSet<string> Services = new(StringComparer.OrdinalIgnoreCase)
     {
         "spooler", "audiosrv", "AudioEndpointBuilder", "bthserv", "w32time", "WSearch", "bits", "wuauserv", "cryptsvc", "UsoSvc",
-        "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub", "SSDPSRV", "upnphost", "WlanSvc", "NlaSvc"
+        "FontCache", "FontCache3.0.0.0", "FrameServer", "fdPHost", "FDResPub", "SSDPSRV", "upnphost", "WlanSvc", "NlaSvc",
+        "BTAGService", "BthAvctpSvc", "FrameServerMonitor", "stisvc", "ShellHWDetection", "GameInputSvc", "hidserv"
     };
 
     private static readonly string[][] AllowedNetsh =
@@ -156,7 +157,17 @@ public static partial class FixGuard
     private static readonly string[][] AllowedWinmgmt = [["/verifyrepository"], ["/salvagerepository"], ["/resyncperf"]];
 
     // The read-only reports, and putting the power plans back to Windows' own. Nothing that changes how the PC sleeps or what may wake it.
-    private static readonly string[][] AllowedPowercfg = [["/requests"], ["/lastwake"], ["/availablesleepstates"], ["/devicequery", "wake_armed"], ["-restoredefaultschemes"]];
+    private static readonly string[][] AllowedPowercfg =
+    [
+        ["/requests"], ["/lastwake"], ["/availablesleepstates"], ["/devicequery", "wake_armed"], ["-restoredefaultschemes"],
+        // USB selective suspend (USB settings > USB selective suspend setting) of the plan in use: read it, turn it off plugged in and on battery, apply it.
+        ["/query", "SCHEME_CURRENT", UsbSubgroup, UsbSelectiveSuspend],
+        ["/setacvalueindex", "SCHEME_CURRENT", UsbSubgroup, UsbSelectiveSuspend, "0"],
+        ["/setdcvalueindex", "SCHEME_CURRENT", UsbSubgroup, UsbSelectiveSuspend, "0"],
+        ["/setactive", "SCHEME_CURRENT"]
+    ];
+
+    private const string UsbSubgroup = "2a737441-1930-4402-8d77-b2bebba308a3", UsbSelectiveSuspend = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226";
 
     // Clearing the NetBIOS name cache is the only thing nbtstat may do. -RR, which sends release packets to a WINS server, is not.
     private static readonly string[][] AllowedNbtstat = [["-R"]];
