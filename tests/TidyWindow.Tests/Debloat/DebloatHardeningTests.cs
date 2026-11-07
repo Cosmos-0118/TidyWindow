@@ -77,9 +77,10 @@ public sealed class DebloatProcessHardeningTests
         if (!OperatingSystem.IsWindows()) return;
         var cmd = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "cmd.exe");
         // start /b leaves a child that inherits the output pipes and lives on for a while after cmd itself has ended.
+        // The grace has to be long enough for a busy CI runner to deliver "done", yet shorter than the ~7 s the ping lives, so the test still proves it is not waited for.
         var timer = Stopwatch.StartNew();
 
-        var result = DebloatProcess.Run(cmd, ["/d", "/c", "start /b cmd /d /c ping -n 8 127.0.0.1 & echo done"], TimeSpan.FromSeconds(60), grace: TimeSpan.FromSeconds(1));
+        var result = DebloatProcess.Run(cmd, ["/d", "/c", "start /b cmd /d /c ping -n 8 127.0.0.1 & echo done"], TimeSpan.FromSeconds(60), grace: TimeSpan.FromSeconds(3));
 
         Assert.False(result.TimedOut);
         Assert.Equal(0, result.ExitCode);

@@ -114,11 +114,11 @@ public sealed class ScoutInputHardeningTests : IDisposable
         Assert.Equal(Path.Combine(root, "moved", "deep", "leaf.txt"), Assert.Single(found.Entries).FullPath);
     }
 
-    // Waits for the watcher to deliver, with a generous bound; the outcome never depends on how quickly it does.
+    // Waits for the watcher to deliver, with a generous bound (30 s, as a loaded CI runner can be slow to deliver file events); the outcome never depends on how quickly it does.
     private async Task<ScoutResult> Until(ScoutFolderIndex index, Func<ScoutResult, bool> ready)
     {
         ScoutResult result = null!;
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < 300; i++)
         {
             result = await index.SearchAsync(new("leaf", root), null, CancellationToken.None);
             if (ready(result)) return result;
