@@ -9,8 +9,11 @@ public enum ActionOutcome { Completed, RestartRequired, Unverified, Failed }
 /// <summary>Where an installed app came from. WinGet also lists what it did not install: registry programs and Store apps, which it can still uninstall.</summary>
 public enum AppOrigin { Package, WindowsProgram, StoreApp }
 public sealed record ManagedPackage(ManagerKind Manager, string Id, string Name, string Version,
-    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "", string Source = "", string? StoreVersion = null)
+    string? AvailableVersion = null, bool Global = false, bool Held = false, string Note = "", string Source = "", string? StoreVersion = null,
+    IReadOnlyList<InstalledCopy>? Copies = null, InstalledCopy? OnlyCopy = null, bool AllCopies = false)
 {
+    /// <summary>The package is installed more than once (two versions, or 32-bit and 64-bit), which WinGet will not choose between.</summary>
+    public bool HasCopies => Copies is { Count: > 1 };
     /// <summary>A newer version the Microsoft Store lists that WinGet does not know of. Nothing can queue an update for it, so it is shown, not acted on.</summary>
     public bool HasStoreUpdate => StoreVersion is { Length: > 0 } && AvailableVersion is null && !Held;
     /// <summary>Something newer exists, whether TidyWindow can install it or only point to where it can be installed.</summary>
@@ -21,7 +24,12 @@ public sealed record ManagedPackage(ManagerKind Manager, string Id, string Name,
         : Id.StartsWith(@"ARP\", StringComparison.Ordinal) ? AppOrigin.WindowsProgram
         : Id.StartsWith(@"MSIX\", StringComparison.Ordinal) ? AppOrigin.StoreApp : AppOrigin.Package;
     public bool Updatable => Origin == AppOrigin.Package;
+    /// <summary>The version, only when it is a plain version WinGet can match with <c>--version</c>: not "Unknown", not a cut-off cell (…), not a range (&lt; 1.2).</summary>
+    public static string? UsableVersion(string? version) =>
+        version?.Trim() is { Length: > 0 and <= 64 } v && !v.Equals("Unknown", StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(v, @"^[0-9A-Za-z][0-9A-Za-z._+\-]*$") ? v : null;
 }
+/// <summary>One of several installed copies of a package, as WinGet lists it.</summary>
+public sealed record InstalledCopy(string Name, string Version);
 public sealed record ManagedInventory(ManagerKind Manager, IReadOnlyList<ManagedPackage> Packages, string? Error = null, string? UpdateError = null);
 public sealed record PackageActionResult(ActionOutcome Outcome, string Message, string Detail);
 
@@ -51,7 +59,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             {
                 var inventory = await packages.ReadInstalledAsync(manager, token, windowsApps: true).ConfigureAwait(false);
                 if (inventory.Error is not null) return new(kind, [], inventory.Error);
-                installed = inventory.Apps.Select(x => new ManagedPackage(kind, x.Id!, x.Name, x.Version, Source: x.Source))
+                installed = inventory.Apps.Select(x => new ManagedPackage(kind, x.Id!, x.Name, x.Version, Source: x.Source, Copies: x.Copies))
                     .Where(x => !InstallationOutput.IsPlatformComponent(x)).ToArray();
             }
             if (!checkUpdates || installed.Count == 0) return new(kind, installed);
@@ -131,7 +139,10 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
     }
 
     /// <param name="withoutSource">For a WinGet uninstall, leaves out <c>--source</c> so WinGet works from what is installed on this PC, not from its catalog.</param>
-    public CommandSpec ActionCommand(ManagerStatus manager, ManagedPackage app, PackageAction action, bool interactive = false, bool withoutSource = false)
+    /// <param name="version">For a WinGet uninstall, adds <c>--version</c>: which of several installed versions goes.</param>
+    /// <param name="allVersions">For a WinGet uninstall, adds <c>--all-versions</c>: every installed copy goes.</param>
+    /// <param name="productCode">For a WinGet uninstall, names one installed copy by the key of its list entry. WinGet then needs no package id, which is the only way to pick between copies that have the same version.</param>
+    public CommandSpec ActionCommand(ManagerStatus manager, ManagedPackage app, PackageAction action, bool interactive = false, bool withoutSource = false, string? version = null, bool allVersions = false, string? productCode = null)
     {
         if (manager.Health != ManagerHealth.Ready || manager.Executable is null || manager.Definition.Kind != app.Manager)
             throw new InvalidOperationException("The package manager is unavailable. Check Overview.");
@@ -145,8 +156,13 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             : app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase) ? ["--source", "msstore"] : ["--source", "winget"];
         string[] args = app.Manager switch
         {
+            ManagerKind.Winget when uninstall && productCode is not null && Regex.IsMatch(productCode, @"^[\w{}.() \-]{1,128}$") =>
+                ["uninstall", "--product-code", productCode, "--accept-source-agreements", .. (interactive ? new[] { "--interactive" } : ["--disable-interactivity"])],
             ManagerKind.Winget => uninstall
-                ? ["uninstall", "--id", app.Id, "--exact", .. winget, "--accept-source-agreements", "--disable-interactivity"]
+                ? ["uninstall", "--id", app.Id, "--exact", .. winget,
+                    .. (!allVersions && ManagedPackage.UsableVersion(version) is { } pinned ? new[] { "--version", pinned } : []),
+                    .. (allVersions ? new[] { "--all-versions" } : []),
+                    "--accept-source-agreements", .. (interactive ? new[] { "--interactive" } : ["--disable-interactivity"])]
                 : ["upgrade", "--id", app.Id, "--exact", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"],
             ManagerKind.Chocolatey => [uninstall ? "uninstall" : "upgrade", app.Id, "--yes", "--no-progress"],
             _ => app.Global ? [uninstall ? "uninstall" : "update", app.Id, "--global"] : [uninstall ? "uninstall" : "update", app.Id]
@@ -181,7 +197,21 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             if (current is null) return new(ActionOutcome.Unverified, "This app is no longer listed", "Refresh the list before trying again. No command was started.");
             if (action == PackageAction.Update && app.AvailableVersion is { Length: > 0 } target && current.Version == target)
                 return new(ActionOutcome.Completed, $"{app.Name} is already up to date", "The queued target version is already installed. No update was started.");
-            var command = Launchable(ActionCommand(manager, current, action, interactive) with { Progress = progress }, manager);
+            // Several installed copies of one package: the person chose which go (see the Installed page), and that decides how WinGet is told.
+            string? version = null, productCode = null; var allCopies = false; InstalledCopy? onlyCopy = null;
+            if (action == PackageAction.Uninstall && app.Manager == ManagerKind.Winget && current.HasCopies)
+            {
+                if (app.AllCopies) allCopies = true;
+                else if (app.OnlyCopy is { } only)
+                {
+                    onlyCopy = only;
+                    if (current.Copies!.Count(c => PackageOutputParser.SameVersion(c.Version, only.Version)) == 1 && ManagedPackage.UsableVersion(only.Version) is { } unique) version = unique;
+                    else if (recovery?.CopyProductCode(only) is { } code) productCode = code;
+                    else return new(ActionOutcome.Failed, $"Couldn’t tell which copy of {app.Name} to remove",
+                        $"{only.Name} can’t be told apart from the other copy by version, and Windows’ list of programs has no single entry for it. Nothing was uninstalled. Remove it from Windows’ Installed apps.");
+                }
+            }
+            var command = Launchable(ActionCommand(manager, current, action, interactive, false, version, allCopies, productCode) with { Progress = progress }, manager);
             // With recovery, the ladder owns asking for administrator rights, so the first try is a plain run.
             var ladder = action == PackageAction.Uninstall ? recovery : null;
             var result = app.Manager == ManagerKind.Winget && ladder is null ? await InstallFailure.RunAsync(runner, command, app.Name, token, locator).ConfigureAwait(false) : await runner.RunAsync(command, token).ConfigureAwait(false);
@@ -189,7 +219,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             var entryRemoved = false;
             Task<CommandResult> Rerun(UninstallRecovery.Variant variant)
             {
-                var again = Launchable(ActionCommand(manager, current, action, false, variant.WithoutSource) with { Progress = progress }, manager);
+                var again = Launchable(ActionCommand(manager, current, action, variant.Interactive, variant.WithoutSource, version, allCopies, productCode) with { Progress = progress }, manager);
                 if (variant.Elevated && !again.Elevate)
                 {
                     // Nothing starts when the program must not be given administrator rights, the same way nothing starts when the prompt is declined; the ladder reads the reason from the error text.
@@ -219,7 +249,12 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             packages.ClearSearchCache();
             if (result.ExitCode is 1641 or 3010) return new(ActionOutcome.RestartRequired, $"{app.Name}: restart required", detail + "\nRestart Windows to finish applying the change.");
             ManagedPackage? Find(ManagedInventory x) => x.Packages.FirstOrDefault(p => p.Key.Equals(app.Key, StringComparison.OrdinalIgnoreCase));
-            Func<ManagedInventory, bool> settled = x => action == PackageAction.Uninstall ? Find(x) is null : Find(x) is { } now && now.Version != current.Version;
+            // After one copy of several is removed, the others stay listed under the same id: only the copy that was chosen must be gone.
+            bool Gone(ManagedPackage? p) => p is null || onlyCopy is not null
+                && !(p.Copies ?? [new InstalledCopy(p.Name, p.Version)]).Any(c => c.Name == onlyCopy.Name && PackageOutputParser.SameVersion(c.Version, onlyCopy.Version));
+            if (allCopies) detail += $"\nAll {current.Copies!.Count} installed copies of {app.Name} were removed.";
+            else if (onlyCopy is not null) detail += $"\nOnly “{onlyCopy.Name}” was removed; the other {(current.Copies!.Count == 2 ? "copy was" : "copies were")} kept.";
+            Func<ManagedInventory, bool> settled = x => action == PackageAction.Uninstall ? Gone(Find(x)) : Find(x) is { } now && now.Version != current.Version;
             var after = await ReadSettledAsync(manager, settled, token).ConfigureAwait(false);
             if (action == PackageAction.Uninstall && app.Manager == ManagerKind.Winget && after.Error is null && !settled(after) && LateVerifyDelays.Count > 0)
             {
@@ -229,7 +264,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
             }
             var remaining = Find(after);
             if (after.Error is not null) return new(ActionOutcome.Unverified, "The manager finished; verification failed", detail + "\n" + after.Error);
-            var verified = action == PackageAction.Uninstall ? remaining is null : remaining is not null && remaining.Version != current.Version;
+            var verified = action == PackageAction.Uninstall ? Gone(remaining) : remaining is not null && remaining.Version != current.Version;
             // Scoop prints "ERROR … still running" and exits 0. A manager that says success while the app is still installed has failed in everything but its exit code.
             if (!verified && ladder is not null && app.Manager != ManagerKind.Winget && remaining is not null)
             {
@@ -245,7 +280,7 @@ public sealed class InstallationService(PackageService packages, ICommandRunner 
                 }
             }
             if (verified && entryRemoved) detail += "\nThe program itself was already gone from this PC. Only its leftover entry in Windows’ list was removed.";
-            return verified ? new(ActionOutcome.Completed, $"{app.Name} {(action == PackageAction.Update ? "updated" : "uninstalled")}", detail)
+            return verified ? new(ActionOutcome.Completed, $"{(onlyCopy?.Name ?? app.Name)} {(action == PackageAction.Update ? "updated" : "uninstalled")}", detail)
                 : new(ActionOutcome.Unverified, action == PackageAction.Update ? $"{app.Name}: no version change detected" : $"{app.Name} is still listed", detail + "\nFollow any installer window, then refresh. The manager’s exit code alone does not confirm the change.");
         }
         finally { packages.OperationGate.Release(); }

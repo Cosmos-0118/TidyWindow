@@ -57,10 +57,25 @@ public static partial class InstallFailure
         {
             var meaning = Installer.TryGetValue(code, out var text) ? text : null;
             var shown = inner.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? inner.Groups[1].Value : code.ToString();
-            var reason = $"The {(uninstall ? "uninstaller" : "installer")} started but reported error {shown}" + (meaning is null ? "." : $" ({meaning}).");
+            var reason = $"The {(uninstall ? "uninstaller" : "installer")} started but reported error {shown}" + (meaning is null ? "." : $" ({meaning}).")
+                + (meaning is null && uninstall ? " That is the app’s own uninstaller failing, not WinGet: it often needs its own window, or the app is still open." : "");
             return known is null ? reason : known + " " + reason;
         }
-        return known;
+        return MultipleVersions(result)
+            ? "More than one version of this app is installed, and WinGet won’t choose between them."
+            : known;
+    }
+
+    /// <summary>
+    /// WinGet refused to uninstall because several installed versions match and no <c>--version</c> or <c>--all-versions</c> was given. It says so before any uninstaller runs.
+    /// The sentence is translated, the two switch names are not, so they are what is matched.
+    /// </summary>
+    public static bool MultipleVersions(CommandResult result)
+    {
+        if (result.ExitCode == 0) return false;
+        var text = PackageOutputParser.Clean(result.Output + "\n" + result.Error);
+        return text.Contains("--all-versions", StringComparison.OrdinalIgnoreCase) && text.Contains("--version", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Multiple versions of this package are installed", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>The code the installer or uninstaller itself reported, as WinGet prints it, or null when the output does not say.</summary>

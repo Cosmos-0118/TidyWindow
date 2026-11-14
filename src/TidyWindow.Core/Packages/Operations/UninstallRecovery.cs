@@ -56,7 +56,7 @@ public sealed partial record NativeUninstall(string FileName, IReadOnlyList<stri
             return new(program, [.. arguments, .. new[] { "/uninstall", "/quiet", "/norestart" }.Where(x => !Has(x))], "WiX Burn", machine);
         if (name.Equals("Update.exe", StringComparison.OrdinalIgnoreCase) && Has("--uninstall"))
             return new(program, Has("-s") ? arguments : [.. arguments, "-s"], "Squirrel", machine);
-        if (NsisUninstaller().IsMatch(name) && readHead(program, 2_000_000).Contains("Nullsoft", StringComparison.Ordinal))
+        if (NsisUninstaller().IsMatch(name) && readHead(program, 2_000_000) is var head && (head.Contains("Nullsoft", StringComparison.Ordinal) || head.Contains("NSIS Error", StringComparison.Ordinal)))
             return new(program, Has("/S") ? arguments : [.. arguments, "/S"], "NSIS", machine);
         return null;
     }
@@ -177,7 +177,7 @@ public sealed record UninstallLadderResult(CommandResult Result, IReadOnlyList<s
 public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host, ICommandRunner runner, RepairService? repair = null)
 {
     /// <summary>How a retried WinGet command differs from the first one.</summary>
-    public sealed record Variant(bool Elevated = false, bool WithoutSource = false);
+    public sealed record Variant(bool Elevated = false, bool WithoutSource = false, bool Interactive = false);
 
     public TimeSpan BusyWait { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan BusyPoll { get; init; } = TimeSpan.FromSeconds(2);
@@ -192,6 +192,18 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
     public Func<ManagedPackage, string?> ManagedFolder { get; init; } = ScoopFolder;
     /// <summary>Remove-AppxPackage only works in Windows PowerShell 5.1; PowerShell 7 loads the module through a layer that fails.</summary>
     public string WindowsPowerShell { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+
+    /// <summary>
+    /// The key of the Windows list entry that is one installed copy of an app, which WinGet takes as a product code. Null when no single entry is that copy:
+    /// a bundle and the package inside it list under the same name, and the bundle (not a Windows Installer package) is the one WinGet lists.
+    /// </summary>
+    public string? CopyProductCode(InstalledCopy copy)
+    {
+        var found = Safe(() => system.Entries().Where(x => !x.IsUpdate && x.Name.Trim().Equals(copy.Name.Trim(), StringComparison.OrdinalIgnoreCase)).ToList());
+        if (found is null or { Count: 0 }) return null;
+        if (found.Count > 1) found = found.Where(x => !x.WindowsInstaller).ToList();
+        return found.Count == 1 ? found[0].KeyName : null;
+    }
 
     private static string? ScoopFolder(ManagedPackage app)
     {
@@ -233,7 +245,7 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
         {
             Say(progress, what);
             var next = await rerun(variant).ConfigureAwait(false);
-            var how = $"{(variant.Elevated ? " as administrator" : "")}{(variant.WithoutSource ? " without naming a WinGet source" : "")}";
+            var how = $"{(variant.Elevated ? " as administrator" : "")}{(variant.WithoutSource ? " without naming a WinGet source" : "")}{(variant.Interactive ? " with the uninstaller’s own window" : "")}";
             trail.Add(NotStarted(next) ? $"Did not run the uninstall again{how}: {next.Error.Trim()}" : $"Ran the uninstall again{how}; it returned {next.ExitCode}.");
             return variant.Elevated ? Keep(result, next) : next;
         }
@@ -244,6 +256,14 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
             var inner = InstallFailure.InnerExitCode(result) ?? InstallFailure.ManagerExitCode(result);
             var code = winget ? unchecked((uint)result.ExitCode) : 0u;
             if (inner is 1602 or 1223 || code == 0x8A15010C || result.Error.Contains("declined", StringComparison.OrdinalIgnoreCase)) break;
+
+            // 0. WinGet refused before any uninstaller ran because several installed copies match. Nothing below fits that, and which copy goes is the person's choice (the Installed page asks).
+            if (winget && InstallFailure.MultipleVersions(result))
+            {
+                trail.Add("This app is installed more than once and WinGet would not choose. Uninstall it from the Installed page again to pick which copy to remove.");
+                break;
+            }
+
             var folder = entry is not null ? Safe(() => ProgramFolder(entry)) : Safe(() => ManagedFolder(app) is { } own && system.FolderExists(own) ? own : null);
             var machine = entry is not null ? InstallRepair.IsMachine(entry.Key) : app.Id.StartsWith(@"ARP\User\", StringComparison.OrdinalIgnoreCase) ? false : (bool?)null;
 
@@ -329,6 +349,14 @@ public sealed class UninstallRecovery(IInstallSystem system, IUninstallHost host
                 if (!Succeeded(direct) && !direct.Error.Contains("declined", StringComparison.OrdinalIgnoreCase))
                     direct = direct with { Output = (direct.Output + $"\nUninstaller failed with exit code: {direct.ExitCode}").Trim() };
                 result = direct;
+                continue;
+            }
+
+            // 7. Last resort: the app's own uninstaller started and failed even run silently, which usually means it needs its own window. WinGet opens it once.
+            if (winget && app.Origin != AppOrigin.StoreApp && !variant.Interactive && inner is not null && !NotStarted(result) && tried.Add("interactive"))
+            {
+                variant = variant with { Interactive = true };
+                result = await Again($"{app.Name}’s uninstaller failed silently. Opening its own window…").ConfigureAwait(false);
                 continue;
             }
             break;

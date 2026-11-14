@@ -384,10 +384,11 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException) { }
     }
 
-    public void QueueAction(InstalledRow row, PackageAction action)
+    /// <param name="package">The row's package with the person's choice of installed copies on it, when it is installed more than once.</param>
+    public void QueueAction(InstalledRow row, PackageAction action, ManagedPackage? package = null)
     {
         if (!row.CanAct || action == PackageAction.Update && !row.CanUpdate) return;
-        queue.Enqueue([PackageOperation.Manage(row.Package, action)]);
+        queue.Enqueue([PackageOperation.Manage(package ?? row.Package, action)]);
         row.IsSelected = false;
     }
     public void QueueSelected(PackageAction action)
