@@ -49,8 +49,13 @@ public sealed class PackageService(ICommandRunner runner, IExecutableLocator loc
             if (kind == ManagerKind.Scoop && result.ExitCode == 1 && result.Output.Contains("There aren't any apps installed", StringComparison.OrdinalIgnoreCase)) return new(kind, []);
             if (result.ExitCode != 0) return new(kind, [], Failure(result));
             // Inventory must not inherit the search result cap: an installed app can be row 61+.
-            var apps = PackageOutputParser.Parse(kind, result.Output, int.MaxValue, windowsApps)
-                .Select(x => new InstalledApp(kind, x.Id, x.Name, x.Version, x.Source)).ToArray();
+            // One row per package, but a package installed more than once (two versions, or 32-bit and 64-bit) keeps the list of its copies.
+            var apps = PackageOutputParser.ParseAll(kind, result.Output, windowsApps).GroupBy(x => x.Key).Select(group =>
+            {
+                var first = group.First();
+                var copies = group.Select(x => new InstalledCopy(x.Name, x.Version)).ToArray();
+                return new InstalledApp(kind, first.Id, first.Name, first.Version, first.Source, group.Count() > 1 ? copies : null);
+            }).ToArray();
             var clean = PackageOutputParser.Clean(result.Output);
             // WinGet's words for "none" differ by the language of Windows, so there a run that succeeded with no rows is an empty list unless the output is laid out as a table that could not be read.
             if (apps.Length == 0 && !string.IsNullOrWhiteSpace(clean) && (kind != ManagerKind.Winget || PackageOutputParser.LooksLikeTable(clean)) &&

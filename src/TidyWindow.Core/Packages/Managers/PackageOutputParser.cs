@@ -61,7 +61,11 @@ public static partial class PackageOutputParser
     public static bool IsSafeInstalledId(string id) => IsSafeId(id) || IsWindowsId(id);
 
     /// <param name="windowsApps">Keep the apps WinGet found on the PC but did not install (registry programs and Store apps), and read each row's source.</param>
-    public static IReadOnlyList<Package> Parse(ManagerKind manager, string output, int limit = 60, bool windowsApps = false)
+    public static IReadOnlyList<Package> Parse(ManagerKind manager, string output, int limit = 60, bool windowsApps = false) =>
+        ParseAll(manager, output, windowsApps).DistinctBy(x => x.Key).Take(limit).ToArray();
+
+    /// <summary>Every row, including each of several installed copies of one package (WinGet lists them under the same id).</summary>
+    public static IReadOnlyList<Package> ParseAll(ManagerKind manager, string output, bool windowsApps = false)
     {
         var lines = Clean(output).Split('\n').Select(x => x.TrimEnd('\r')).ToArray();
         var result = new List<Package>();
@@ -100,7 +104,7 @@ public static partial class PackageOutputParser
                 break;
             }
         }
-        return result.DistinctBy(x => x.Key).Take(limit).ToArray();
+        return result;
     }
 
     // WinGet aligns output in terminal cells, not UTF-16 offsets (e.g. CJK names).

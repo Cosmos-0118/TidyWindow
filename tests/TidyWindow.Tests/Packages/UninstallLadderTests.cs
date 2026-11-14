@@ -47,13 +47,15 @@ public sealed class UninstallLadderTests : IDisposable
     {
         public List<CommandSpec> Commands { get; } = [];
         public Func<bool> Listed = () => true;
+        /// <summary>What the list shows while the app is listed, when it is more than the one row <see cref="Table"/> makes.</summary>
+        public Func<string>? Rows;
         public string Id = "PuTTY.PuTTY", Source = "winget";
         public Action<CommandSpec>? OnRun;
         public Task<CommandResult> RunAsync(CommandSpec command, CancellationToken cancellationToken = default)
         {
             Commands.Add(command);
             if (command.Arguments.Count > 0 && command.Arguments[0] == "list")
-                return Task.FromResult(new CommandResult(0, Listed() ? Table(Id, Source) : "Name  Id  Version  Source\n" + new string('-', 40) + "\n", ""));
+                return Task.FromResult(new CommandResult(0, Listed() ? Rows?.Invoke() ?? Table(Id, Source) : "Name  Id  Version  Source\n" + new string('-', 40) + "\n", ""));
             var attempt = Commands.Count(x => x.Arguments.Count > 0 && x.Arguments[0] == "uninstall" || x.FileName != "winget.exe" && x.Arguments.Count > 0 && x.Arguments[0] != "list");
             OnRun?.Invoke(command);
             return Task.FromResult(uninstall(command, attempt));
@@ -672,4 +674,114 @@ public sealed class UninstallLadderTests : IDisposable
 
     [Fact]
     public void ARepairKeepsAProgramsRecordWhenAskedToOnlyRestoreIt() => Assert.True(new RepairOptions(RestoreOnly: true).RestoreOnly);
+
+    // ---- Several installed versions, and an uninstaller that only works with its window ----
+
+    private static CommandResult Several() => new(unchecked((int)0x8A150010), "Multiple versions of this package are installed. Either refine the search, pass the `--version` argument to select one, or pass the `--all-versions` flag to uninstall all of them.", "");
+
+    private static string TwoCopies(string first, string firstVersion, string second, string secondVersion)
+    {
+        string[][] rows = [["Name", "Id", "Version", "Source"], [first, "PuTTY.PuTTY", firstVersion, "winget"], [second, "PuTTY.PuTTY", secondVersion, "winget"]];
+        int[] widths = [Math.Max(first.Length, second.Length) + 2, 16, 12, 8];
+        string Row(string[] cells) => string.Concat(cells.Select((c, i) => c.PadRight(widths[i]))).TrimEnd();
+        return Row(rows[0]) + "\n" + new string('-', widths.Sum()) + "\n" + Row(rows[1]) + "\n" + Row(rows[2]) + "\n";
+    }
+
+    private static UninstallEntry Listing(string key, string name, bool windowsInstaller = true) =>
+        new(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" + key, name, "8.0.34", "Microsoft", "", "", "", "", windowsInstaller, false, false, false);
+
+    [Fact]
+    public async Task WithoutAChoiceSeveralCopiesAreNeverGuessedAt()
+    {
+        var runner = new Winget((_, _) => Several()) { Rows = () => TwoCopies("PuTTY (x64)", "0.83", "PuTTY (x86)", "0.83") };
+        var host = new Host();
+        var result = await Service(runner, Pc(), host).RunAsync(Ready(), Putty, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        Assert.Single(runner.Uninstalls);
+        Assert.DoesNotContain("--all-versions", runner.Uninstalls.Single().Arguments);
+        Assert.DoesNotContain("--version", runner.Uninstalls.Single().Arguments);
+        Assert.Contains("installed more than once", result.Detail);
+        Assert.Empty(host.ClosedIn);
+    }
+
+    [Fact]
+    public async Task RemovingAllCopiesSaysAllVersionsFromTheFirstCommand()
+    {
+        var uninstalled = false;
+        var runner = new Winget((command, _) => { uninstalled = command.Arguments.Contains("--all-versions"); return uninstalled ? new(0, "Successfully uninstalled", "") : Several(); })
+        { Listed = () => !uninstalled, Rows = () => TwoCopies("PuTTY (x64)", "0.83", "PuTTY (x86)", "0.83") };
+        var result = await Service(runner, Pc(), new Host()).RunAsync(Ready(), Putty with { AllCopies = true }, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Completed, result.Outcome);
+        Assert.Single(runner.Uninstalls);
+        Assert.Contains("All 2 installed copies", result.Detail);
+    }
+
+    [Fact]
+    public async Task OneCopyWithItsOwnVersionIsChosenByVersionAndTheOtherIsKept()
+    {
+        var uninstalled = false;
+        var runner = new Winget((command, _) => { uninstalled = command.Arguments.Contains("--version"); return uninstalled ? new(0, "Successfully uninstalled", "") : Several(); })
+        { Rows = () => uninstalled ? Table(Putty.Id, "winget").Replace(Name, "PuTTY 2").Replace("0.83.0.0", "2.0") : TwoCopies("PuTTY 1", "1.0", "PuTTY 2", "2.0") };
+        var result = await Service(runner, Pc(), new Host()).RunAsync(Ready(), Putty with { OnlyCopy = new("PuTTY 1", "1.0") }, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Completed, result.Outcome);
+        var command = runner.Uninstalls.Single();
+        Assert.Equal("1.0", command.Arguments[command.Arguments.ToList().IndexOf("--version") + 1]);
+        Assert.Contains("Only “PuTTY 1” was removed", result.Detail);
+    }
+
+    [Fact]
+    public async Task OneOfTwoCopiesWithTheSameVersionIsChosenByItsListEntry()
+    {
+        var uninstalled = false;
+        var runner = new Winget((command, _) => { uninstalled = command.Arguments.Contains("--product-code"); return uninstalled ? new(0, "Successfully uninstalled", "") : Several(); })
+        { Rows = () => uninstalled ? Table(Putty.Id, "winget").Replace(Name, "PuTTY (x64)") : TwoCopies("PuTTY (x64)", "0.83.0.0", "PuTTY (x86)", "0.83.0.0") };
+        // The 32-bit copy is listed twice, as a bundle and as the package inside it: WinGet lists the bundle.
+        var pc = Pc(Listing("{AAAA0000-0000-0000-0000-00000000000X}", "PuTTY (x64)"), Listing("{BBBB-package}", "PuTTY (x86)"), Listing("{CCCC-bundle}", "PuTTY (x86)", windowsInstaller: false));
+        var result = await Service(runner, pc, new Host()).RunAsync(Ready(), Putty with { OnlyCopy = new("PuTTY (x86)", "0.83.0.0") }, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Completed, result.Outcome);
+        var command = runner.Uninstalls.Single();
+        Assert.Equal("{CCCC-bundle}", command.Arguments[command.Arguments.ToList().IndexOf("--product-code") + 1]);
+        Assert.DoesNotContain("--id", command.Arguments);
+    }
+
+    [Fact]
+    public async Task ACopyThatCannotBeToldApartIsNotGuessedAt()
+    {
+        var runner = new Winget((_, _) => Several()) { Rows = () => TwoCopies("PuTTY (x64)", "0.83.0.0", "PuTTY (x86)", "0.83.0.0") };
+        var result = await Service(runner, Pc(), new Host()).RunAsync(Ready(), Putty with { OnlyCopy = new("PuTTY (x86)", "0.83.0.0") }, PackageAction.Uninstall);
+        Assert.Equal(ActionOutcome.Failed, result.Outcome);
+        Assert.Empty(runner.Uninstalls);
+    }
+
+    [Theory]
+    [InlineData("Unknown")]
+    [InlineData("< 1.2")]
+    [InlineData("1.2…")]
+    [InlineData("")]
+    public void AVersionWinGetCouldNotReadIsNeverPassedAsAnArgument(string version)
+    {
+        Assert.Null(ManagedPackage.UsableVersion(version));
+        var service = new InstallationService(new PackageService(new Winget((_, _) => new(0, "", "")), new Locator()), new Winget((_, _) => new(0, "", "")), new Locator());
+        Assert.DoesNotContain("--version", service.ActionCommand(Ready(), Putty, PackageAction.Uninstall, version: version).Arguments);
+    }
+
+    [Fact]
+    public async Task AnUninstallerThatFailsForAnUnknownReasonIsOpenedWithItsOwnWindowExactlyOnce()
+    {
+        var runner = new Winget((command, _) => command.Arguments.Contains("--interactive") ? new(0, "Successfully uninstalled", "") : Fail(4362266));
+        var result = await Service(runner, Pc(), new Host()).RunAsync(Ready(), Putty, PackageAction.Uninstall);
+        Assert.Single(runner.Uninstalls, x => x.Arguments.Contains("--interactive"));
+        Assert.DoesNotContain("--disable-interactivity", runner.Uninstalls.Last().Arguments);
+        Assert.Contains("own window", result.Detail);
+        var failed = Fail(4362266);
+        Assert.Contains("own uninstaller failing", InstallFailure.Explain(failed, uninstall: true));
+    }
+
+    [Fact]
+    public async Task ACancelledUninstallerIsNeverReopened()
+    {
+        var runner = new Winget((_, _) => Fail(1602));
+        await Service(runner, Pc(), new Host()).RunAsync(Ready(), Putty, PackageAction.Uninstall);
+        Assert.DoesNotContain(runner.Uninstalls, x => x.Arguments.Contains("--interactive"));
+    }
 }

@@ -5,7 +5,7 @@ using Microsoft.Win32;
 
 namespace TidyWindow.Next.Core;
 
-public sealed record InstalledApp(ManagerKind? Manager, string? Id, string Name, string Version, string Source = "");
+public sealed record InstalledApp(ManagerKind? Manager, string? Id, string Name, string Version, string Source = "", IReadOnlyList<InstalledCopy>? Copies = null);
 public sealed record CoverageReport(int Total, int Listed, IReadOnlyList<string> Missing)
 {
     public double Percent => Total == 0 ? 100 : 100.0 * Listed / Total;

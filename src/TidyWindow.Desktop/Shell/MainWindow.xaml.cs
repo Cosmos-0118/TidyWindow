@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private readonly PathDoctorViewModel paths;
     private readonly RepairViewModel repair;
     private readonly ToastCenter toasts;
+    private readonly UacNotifier uac;
     private readonly RepairSession repairSession;
     private readonly StartupViewModel startup;
     private readonly StartupSession startupSession;
@@ -213,8 +214,10 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnClosing;
         // A toast waits while the window is not in use, so it cannot come and go unseen; and the stack never grows taller than the window.
         Activated += (_, e) => toasts.Attentive = e.WindowActivationState != WindowActivationState.Deactivated;
+        // Work that stops for a Windows permission prompt nobody has seen is announced, in the app or at the corner of the screen.
+        uac = new UacNotifier(toasts, log, () => operationQueue.HasWork, Post);
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -900,10 +903,10 @@ public sealed partial class MainWindow : Window
         var rows = installations.Selected.ToArray();
         if (rows.Length == 0) return;
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.ActualTheme, Title = $"Uninstall {rows.Length} apps?",
-            Content = new ScrollViewer { MaxHeight = 300, Content = new TextBlock { Text = "Save your work and close these apps. Each will be uninstalled in order.\n\n" + string.Join("\n", rows.Select(x => $"{x.Name} · {x.Source}")), TextWrapping = TextWrapping.Wrap } },
+            Content = new ScrollViewer { MaxHeight = 300, Content = new TextBlock { Text = "Save your work and close these apps. Each will be uninstalled in order.\n\n" + string.Join("\n", rows.Select(x => $"{x.Name} · {x.Source}" + (x.Package.HasCopies ? $" · all {x.Package.Copies!.Count} installed copies" : ""))), TextWrapping = TextWrapping.Wrap } },
             PrimaryButtonText = "Queue uninstalls", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
-            operationQueue.Enqueue(rows.Where(x => x.CanAct).Select(x => PackageOperation.Manage(x.Package, PackageAction.Uninstall)));
+            operationQueue.Enqueue(rows.Where(x => x.CanAct).Select(x => PackageOperation.Manage(x.Package.HasCopies ? x.Package with { AllCopies = true } : x.Package, PackageAction.Uninstall)));
     }, "queueing the uninstalls");
     private void RemoveQueuedClick(object sender, RoutedEventArgs e) { if (sender is FrameworkElement { DataContext: QueueRow row }) operationQueue.Cancel(row); }
     private void StopRunningClick(object sender, RoutedEventArgs e) => Run(async () =>
@@ -974,6 +977,25 @@ public sealed partial class MainWindow : Window
             Content = new TextBlock { Text = $"This removes {row.Name} using {row.Package.ManagerName}{(row.Package.Global ? " for all users" : "")}. Save your work and close the app first.\n\nThe app’s uninstaller may ask for administrator permission. Personal settings are handled by the uninstaller; Scoop’s persistent data is kept.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
             PrimaryButtonText = "Uninstall", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
         };
+        if (row.Package.HasCopies)
+        {
+            // WinGet will not choose between several installed copies, so the person does, before anything is queued.
+            var copies = row.Package.Copies!;
+            var choices = new RadioButtons { SelectedIndex = 0, MaxWidth = 440 };
+            choices.Items.Add($"Remove all {copies.Count} copies");
+            var single = copies.Where(c => copies.Count(o => o.Name == c.Name && o.Version == c.Version) == 1).ToList();
+            foreach (var copy in single) choices.Items.Add($"Remove only {copy.Name} {(copy.Version.Length > 0 && !copy.Name.Contains(copy.Version) ? copy.Version : "")}".TrimEnd());
+            dialog.Title = $"{row.Name} is installed {copies.Count} times";
+            dialog.Content = new StackPanel { Spacing = 12, Children =
+            {
+                new TextBlock { Text = "Several copies of this app are installed (for example different versions, or 32-bit and 64-bit). Choose what to remove. Save your work and close the app first.", TextWrapping = TextWrapping.Wrap, MaxWidth = 440 },
+                choices
+            } };
+            if (await ShowDialogAsync(dialog) != ContentDialogResult.Primary) return;
+            var picked = choices.SelectedIndex;
+            installations.QueueAction(row, PackageAction.Uninstall, picked <= 0 ? row.Package with { AllCopies = true } : row.Package with { OnlyCopy = single[picked - 1] });
+            return;
+        }
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary) installations.QueueAction(row, PackageAction.Uninstall);
     }, "queueing the uninstall");
     private void LogsClick(object sender, RoutedEventArgs e) => ShowPage(Page.Logs);
