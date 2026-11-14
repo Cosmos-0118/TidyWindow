@@ -14,6 +14,11 @@ namespace Microsoft.UI
 namespace Microsoft.UI.Xaml
 {
     public enum Visibility { Visible, Collapsed }
+    public readonly record struct Thickness(double Left, double Top, double Right, double Bottom)
+    {
+        public Thickness(double uniform) : this(uniform, uniform, uniform, uniform) { }
+        public Thickness(double horizontal, double vertical) : this(horizontal, vertical, horizontal, vertical) { }
+    }
 }
 
 namespace Microsoft.UI.Xaml.Media

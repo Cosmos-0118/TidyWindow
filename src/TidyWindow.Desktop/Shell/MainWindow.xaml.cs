@@ -893,6 +893,13 @@ public sealed partial class MainWindow : Window
     private void ResultsListLoaded(object sender, RoutedEventArgs e) => ListLane.Attach(ResultsList, ResultsHeader);
     private void InstalledRowRealized(ListViewBase sender, ContainerContentChangingEventArgs args)
     { if (!args.InRecycleQueue && args.Item is InstalledRow row) installations.Realized(row); }
+    // The failure is in the Logs; open them already narrowed to this app so its entry is the one on screen.
+    private void FailedStatusClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: InstalledRow row }) return;
+        LogLevelFilter.SelectedIndex = 0; LogAreaFilter.SelectedIndex = 0; LogSearch.Text = row.Name;
+        ShowPage(Page.Logs);
+    }
     private void UpdateInstalledClick(object sender, RoutedEventArgs e)
     { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
     private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);
