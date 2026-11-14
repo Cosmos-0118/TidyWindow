@@ -349,10 +349,6 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(InstalledFilter, wrapSearch ? 0 : 1);
         Grid.SetColumnSpan(InstalledFilter, wrapSearch ? 2 : 1);
         InstalledFilterColumn.Width = wrapSearch ? new GridLength(0) : GridLength.Auto;
-        var wrapSelection = Root.ActualWidth < 900;
-        Grid.SetRow(SelectionActions, wrapSelection ? 1 : 0);
-        Grid.SetColumn(SelectionActions, wrapSelection ? 0 : 1);
-        Grid.SetColumnSpan(SelectionActions, wrapSelection ? 2 : 1);
         Grid.SetColumnSpan(LogSearch, wrapSearch ? 2 : 1);
         Grid.SetRow(LogSelects, wrapSearch ? 1 : 0);
         Grid.SetColumn(LogSelects, wrapSearch ? 0 : 1);
@@ -892,6 +888,8 @@ public sealed partial class MainWindow : Window
         installedFilterTimer.Stop();
         installedFilterTimer.Start();
     }
+    private void InstalledListLoaded(object sender, RoutedEventArgs e) => ListLane.Attach(InstalledList, InstalledHeader);
+    private void ResultsListLoaded(object sender, RoutedEventArgs e) => ListLane.Attach(ResultsList, ResultsHeader);
     private void InstalledRowRealized(ListViewBase sender, ContainerContentChangingEventArgs args)
     { if (!args.InRecycleQueue && args.Item is InstalledRow row) installations.Realized(row); }
     private void UpdateInstalledClick(object sender, RoutedEventArgs e)

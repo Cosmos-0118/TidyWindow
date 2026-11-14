@@ -172,7 +172,6 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
     /// <summary>While apps are being removed the remove button asks to stop. It stops between apps, never part-way through one, so nothing is left half removed.</summary>
     public bool CanStop => removing && !stopRequested;
     public bool CanRemoveOrStop => CanRemove || CanStop;
-    public string SelectedText => SelectedCount switch { 0 => "Nothing selected", 1 => "1 selected", var n => $"{n:N0} selected" };
     public string RemoveLabel => removing ? (stopRequested ? "Stopping…" : "Stop after this one") : SelectedCount switch { 0 => "Remove selected", 1 => "Remove 1", var n => $"Remove {n:N0}" };
     public bool CanSuggest => !Busy && all.Any(x => x.Entry.Item.Recommended && x.Entry.CanRemove && !x.Selected);
 
@@ -208,7 +207,7 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     private void SelectionChanged()
     {
-        foreach (var name in new[] { nameof(SelectedCount), nameof(HasSelection), nameof(CanRemove), nameof(CanRemoveOrStop), nameof(CanSuggest), nameof(SelectedText), nameof(RemoveLabel) }) Changed(name);
+        foreach (var name in new[] { nameof(SelectedCount), nameof(HasSelection), nameof(CanRemove), nameof(CanRemoveOrStop), nameof(CanSuggest), nameof(RemoveLabel) }) Changed(name);
     }
 
     public async Task ScanAsync()

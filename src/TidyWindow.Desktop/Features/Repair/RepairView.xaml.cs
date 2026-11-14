@@ -74,6 +74,7 @@ public sealed partial class RepairView : UserControl
         if (await Confirm($"Remove {model.SelectedCount:N0} for good?", note + "They will be deleted and cannot be put back afterwards.")) await model.ResolveSelectedAsync(keep: false);
     }
 
+    private void SelectAllShownClick(object sender, RoutedEventArgs e) { if (Model is { } model) model.AllShownSelected = !model.AllShownSelected; }
     private void ClearSelectionClick(object sender, RoutedEventArgs e) { Model?.ClearSelection(); }
     private void ClearUndoSearchClick(object sender, RoutedEventArgs e) => Model?.UndoState.Clear();
     private void ClearQuarantineSearchClick(object sender, RoutedEventArgs e) => Model?.QuarantineState.Clear();

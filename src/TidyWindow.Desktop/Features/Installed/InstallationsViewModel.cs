@@ -437,22 +437,19 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public bool CanSelect => Rows.Any(x => x.CanAct);
     public bool CanUpdateSelected => Selected.Any(x => x.CanUpdate);
     public bool CanUninstallSelected => Selected.Count > 0;
-    public string SelectionLabel
+    public int SelectedCount => Selected.Count;
+    /// <summary>Apps ticked earlier and hidden by the search are still part of what the buttons act on, so say so.</summary>
+    public int HiddenSelectedCount
     {
         get
         {
-            var selected = Selected;
-            if (selected.Count == 0) return "";
-            // Apps ticked earlier and hidden by the search are still part of what the buttons act on, so say so.
             var shown = Rows.ToHashSet();
-            var hidden = selected.Count(x => !shown.Contains(x));
-            return hidden == 0 ? $"{selected.Count} selected" : $"{selected.Count} selected · {hidden} hidden";
+            return Selected.Count(x => !shown.Contains(x));
         }
     }
-    public Visibility ClearSelectionVisibility => all.Any(x => x.IsSelected && x.CanAct) ? Visibility.Visible : Visibility.Collapsed;
     private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     { if (!selecting && e.PropertyName == nameof(InstalledRow.IsSelected)) NotifySelection(); }
     private void NotifySelection()
-    { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectionLabel), nameof(ClearSelectionVisibility) }) Changed(name); }
+    { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectedCount), nameof(HiddenSelectedCount) }) Changed(name); }
     public void Dispose() { IconService.DarkChanged -= ReloadIcons; queue.StateChanged -= NotifyState; workspace.PropertyChanged -= WorkspaceChanged; lifetime.Cancel(); lifetime.Dispose(); }
 }

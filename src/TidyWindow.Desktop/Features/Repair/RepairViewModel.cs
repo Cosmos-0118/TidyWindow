@@ -545,16 +545,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     public int SelectedCount => allQuarantine.Count(x => x.IsSelected);
     public int HiddenSelectedCount => allQuarantine.Count(x => x.IsSelected && !shownQuarantine.Contains(x));
     public Visibility SelectionVisibility => SelectedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public string SelectionText
-    {
-        get
-        {
-            var selected = SelectedCount;
-            var hidden = HiddenSelectedCount;
-            return (selected == 1 ? "1 selected" : $"{selected:N0} selected") + (hidden > 0 ? $" · {hidden:N0} hidden by search" : "");
-        }
-    }
-    public Visibility SelectAllShownVisibility => shownQuarantine.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    public bool CanSelectShown => shownQuarantine.Count > 1;
+    public Visibility SelectAllShownVisibility => CanSelectShown ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>The row holding the tick and the bulk actions takes room only while it has something to show, so a short list sits right under its search.</summary>
     public Visibility SelectionRowVisibility => SelectionVisibility == Visibility.Visible || SelectAllShownVisibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -574,7 +566,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     private void SelectionChanged()
     {
         if (bulkSelecting) return;
-        Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(SelectionText)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility)); Changed(nameof(SelectionRowVisibility));
+        Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility)); Changed(nameof(CanSelectShown)); Changed(nameof(HiddenSelectedCount)); Changed(nameof(SelectionRowVisibility));
     }
 
     /// <summary>Clears every tick, including those on items a search is hiding.</summary>
