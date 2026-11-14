@@ -265,13 +265,12 @@ public sealed class TuneViewModel(ITuneSystem system, IReadOnlyList<TuneItem> ca
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(TuneRow row) => TuneSearch.Matches(row.Entry, words);
         bool Wanted(TuneRow row) => filter switch { TuneFilter.On => row.Enabled, TuneFilter.Off => !row.Enabled, _ => true };
         var group = tab switch { TuneTab.Speed => TuneGroup.Speed, TuneTab.Cleaner => TuneGroup.Cleaner, _ => TuneGroup.Comfort };
         var inTab = tab == TuneTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What can still be switched on comes first, so there is something to do at the top; what is already on follows, A to Z.
-        var shown = inTab.Where(Matches).Where(Wanted).OrderBy(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        // A search then puts the best match first and leaves ties in that order.
+        var shown = SmartSearch.Rank(inTab.Where(Wanted).OrderBy(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList(), query, x => TuneSearch.Fields(x.Entry));
         if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {

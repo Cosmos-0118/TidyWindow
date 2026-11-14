@@ -897,6 +897,7 @@ public sealed partial class MainWindow : Window
     private void UpdateInstalledClick(object sender, RoutedEventArgs e)
     { if (sender is FrameworkElement { DataContext: InstalledRow row }) installations.QueueAction(row, PackageAction.Update); }
     private void SelectAllInstalledClick(object sender, RoutedEventArgs e) => installations.SelectAll(installations.AllSelected != true);
+    private void ClearInstalledSelectionClick(object sender, RoutedEventArgs e) => installations.ClearSelection();
     private void UpdateSelectedClick(object sender, RoutedEventArgs e) => installations.QueueSelected(PackageAction.Update);
     private void UninstallSelectedClick(object sender, RoutedEventArgs e) => Run(async () =>
     {

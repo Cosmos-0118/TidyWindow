@@ -250,14 +250,16 @@ public sealed class DebloatViewModel(IDebloatSystem system, IReadOnlyList<Debloa
 
     private void ApplyFilter(bool keepPosition = false)
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(DebloatRow row) => words.All(w =>
-            row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) ||
-            row.Summary.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Packages.Any(p => p.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase)));
         var group = tab switch { DebloatTab.Microsoft => DebloatGroup.Microsoft, DebloatTab.Promoted => DebloatGroup.Promoted, DebloatTab.Ai => DebloatGroup.Ai, DebloatTab.Manufacturer => DebloatGroup.Manufacturer, _ => DebloatGroup.Components };
         var inTab = tab == DebloatTab.Removed ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What is suggested comes first, then A to Z; a locked row goes last, since there is nothing to do with it.
-        var shown = inTab.Where(Matches).OrderBy(x => x.Entry.CanRemove ? 0 : 1).ThenByDescending(x => x.Entry.Item.Recommended).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        // A search then puts the best match first and leaves ties in that order.
+        var shown = SmartSearch.Rank(inTab.OrderBy(x => x.Entry.CanRemove ? 0 : 1).ThenByDescending(x => x.Entry.Item.Recommended).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList(), query, x =>
+        {
+            var fields = new List<SearchField> { new(x.Name, 4), new(x.Sub, 2), new(x.Summary, 1.5) };
+            fields.AddRange(x.Entry.Packages.Select(p => new SearchField(p.Name, 1)));
+            return fields;
+        });
         if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {

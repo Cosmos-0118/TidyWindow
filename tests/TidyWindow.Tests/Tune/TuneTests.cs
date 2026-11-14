@@ -242,7 +242,10 @@ public sealed class TuneCatalogTests
         // The effect text is searched too, and every word has to match somewhere.
         Assert.Contains("sticky-keys-prompt", Find("accessibility", "Flags"));
         Assert.DoesNotContain("sticky-keys-prompt", Find("accessibility", "Hiberboot"));
-        Assert.Empty(Find("nothing-called-this"));
+        // Words are matched one by one, so a made-up word is used here: "nothing-called-this" is three ordinary words that the descriptions really do contain.
+        Assert.Empty(Find("nothingcalledthis"));
+        // A misspelling still finds it.
+        Assert.Contains("fast-startup-off", Find("Hiberbot"));
         Assert.Equal(entries.Count, Find().Count());
     }
 

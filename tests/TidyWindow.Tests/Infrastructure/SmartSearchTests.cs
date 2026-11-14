@@ -18,6 +18,36 @@ public sealed class SmartSearchTests
 
     private static List<string> Find(string query) => SmartSearch.Rank(Things, query, x => [new(x.Name, 3), new(x.About, 1)]).Select(x => x.Name).ToList();
 
+    private static readonly string[] Apps = ["Microsoft Edge", "Visual Studio Code", "Google Chrome", "Mozilla Firefox", "7-Zip", "Notepad++"];
+
+    private static List<string> FindApp(string query, bool related = false) => SmartSearch.Rank(Apps, query, x => [new(x, 4)], related).ToList();
+
+    [Fact]
+    public void ListsOfNamesCanTurnRelatedWordsOff()
+    {
+        // "store" is related to "microsoft" in the catalogs of fixes, but on a list of app names it must not find every Microsoft app.
+        Assert.Contains("Microsoft Edge", SmartSearch.Rank(Apps, "store", x => [new(x, 4)], related: true));
+        Assert.Empty(FindApp("store"));
+    }
+
+    [Theory]
+    [InlineData("vsc", "Visual Studio Code")]
+    [InlineData("chrom", "Google Chrome")]
+    [InlineData("firefx", "Mozilla Firefox")]
+    [InlineData("crhome", "Google Chrome")]
+    [InlineData("notepad", "Notepad++")]
+    [InlineData("zip", "7-Zip")]
+    [InlineData("code visual", "Visual Studio Code")]
+    public void AppNamesAreFoundByInitialsPartsAndTypos(string query, string expected) => Assert.Contains(expected, FindApp(query));
+
+    [Fact]
+    public void ARowThatKeepsItsPreparedWordsIsRankedTheSameWay()
+    {
+        var prepared = Apps.ToDictionary(x => x, x => new SmartSearch.Prepared([new(x, 4)]));
+        Assert.Equal(FindApp("co"), SmartSearch.RankPrepared(Apps, "co", x => prepared[x], related: false));
+        Assert.Equal(Apps, SmartSearch.RankPrepared(Apps, "  ", x => prepared[x]));
+    }
+
     [Fact]
     public void AnEmptyQueryKeepsEverythingInItsOwnOrder()
     {
