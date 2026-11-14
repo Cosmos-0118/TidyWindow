@@ -377,7 +377,19 @@
           </Grid>
           <TextBlock Grid.Column="2" Text="{Binding Source}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
           <TextBlock Grid.Column="3" Text="{Binding Version}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
-          <TextBlock Grid.Column="4" Text="{Binding Available}" Visibility="{Binding WideVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          <TextBlock Grid.Column="4" Text="{Binding Available}" Visibility="{Binding AvailableVisibility}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" local:TrimTip.Enabled="True" />
+          <Button Grid.Column="4" Visibility="{Binding FailedVisibility}" Click="FailedStatusClick" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="0" MinWidth="0" MinHeight="0" UseSystemFocusVisuals="True" ToolTipService.ToolTip="Open the Logs to see why this failed" AutomationProperties.Name="Failed. Open the Logs">
+           <Button.Template><ControlTemplate TargetType="Button">
+            <Border x:Name="Root" Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}" BorderBrush="{ThemeResource SystemFillColorCriticalBrush}" BorderThickness="1" CornerRadius="999" Padding="8,3,10,3">
+             <StackPanel Orientation="Horizontal" Spacing="6" AutomationProperties.AccessibilityView="Raw">
+              <FontIcon Glyph="&#xEA39;" FontSize="13" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="Failed" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
+              <FontIcon Glyph="&#xE76C;" FontSize="9" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
+             </StackPanel>
+             <VisualStateManager.VisualStateGroups><VisualStateGroup x:Name="CommonStates"><VisualState x:Name="Normal" /><VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="Root.Opacity" Value="0.8" /></VisualState.Setters></VisualState><VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Root.Opacity" Value="0.6" /></VisualState.Setters></VisualState></VisualStateGroup></VisualStateManager.VisualStateGroups>
+            </Border>
+           </ControlTemplate></Button.Template>
+          </Button>
           <Grid Grid.Column="5" ColumnSpacing="8" VerticalAlignment="Center">
            <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="76" /></Grid.ColumnDefinitions>
            <Button Content="Update" Visibility="{Binding UpdateVisibility}" IsEnabled="{Binding CanUpdate}" Click="UpdateInstalledClick" FontSize="12" Padding="10,6" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding UpdateName}" ToolTipService.ToolTip="{Binding UpdateDetail}" />
@@ -613,31 +625,44 @@
       <ListView ItemsSource="{Binding Rows}" Visibility="{Binding ListVisibility}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Log entries">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
-        <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,2">
-         <Grid ColumnSpacing="4">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <Button Grid.Column="1" Click="CopyEntryClick" Margin="0,6,8,0" VerticalAlignment="Top" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0" ToolTipService.ToolTip="Copy this entry" AutomationProperties.Name="Copy this entry">
-           <FontIcon Glyph="{Binding CopyGlyph}" FontSize="13" />
-          </Button>
-         <StackPanel>
-          <Button Click="LogRowClick" Background="Transparent" BorderThickness="0" Padding="12,11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="6" AutomationProperties.Name="{Binding Message}">
-           <Grid ColumnSpacing="12">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <Ellipse Width="7" Height="7" Fill="{Binding DotBrush}" VerticalAlignment="Top" Margin="0,5,0,0" AutomationProperties.AccessibilityView="Raw" />
-            <StackPanel Grid.Column="1" Spacing="3">
-             <TextBlock Text="{Binding Message}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" TextAlignment="Left" />
-             <TextBlock Text="{Binding Meta}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Left" ToolTipService.ToolTip="{Binding Exact}" />
-            </StackPanel>
-            <FontIcon Grid.Column="2" Glyph="{Binding Chevron}" Visibility="{Binding ChevronVisibility}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,4,0,0" />
+        <Border Margin="0,4">
+         <Border Background="{Binding CardBrush}" BorderBrush="{Binding CardBorder}" BorderThickness="1" CornerRadius="8">
+          <StackPanel>
+           <Grid>
+            <Button Click="LogRowClick" Background="Transparent" BorderThickness="0" Padding="16,12,16,12" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="8" AutomationProperties.Name="{Binding Message}">
+             <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel Spacing="4" Margin="0,0,56,0">
+               <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,2" AutomationProperties.AccessibilityView="Raw">
+                <FontIcon Glyph="{Binding BadgeGlyph}" FontSize="14" Foreground="{Binding DotBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding DotBrush}" VerticalAlignment="Center" />
+                <Border Visibility="{Binding CountVisibility}" Background="{Binding IconBrush}" CornerRadius="4" Padding="5,0,5,1" VerticalAlignment="Center"><TextBlock Text="{Binding CountText}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding DotBrush}" /></Border>
+               </StackPanel>
+               <TextBlock Text="{Binding Message}" Style="{StaticResource ItemTitle}" TextWrapping="Wrap" TextAlignment="Left" />
+               <StackPanel Orientation="Horizontal" ToolTipService.ToolTip="{Binding Exact}">
+                <TextBlock Text="{Binding Meta}" FontSize="12" Foreground="{ThemeResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Left" VerticalAlignment="Center" />
+               </StackPanel>
+              </StackPanel>
+              <FontIcon Grid.Column="1" Glyph="{Binding Chevron}" Visibility="{Binding ChevronVisibility}" FontSize="11" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+             </Grid>
+            </Button>
+            <Button Click="CopyEntryClick" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,8,0" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0" ToolTipService.ToolTip="Copy this entry" AutomationProperties.Name="Copy this entry">
+             <FontIcon Glyph="{Binding CopyGlyph}" FontSize="13" />
+            </Button>
            </Grid>
-          </Button>
-          <Border Visibility="{Binding DetailVisibility}" Background="{ThemeResource BadgeBrush}" CornerRadius="6" Padding="10,8" Margin="32,0,12,10">
-           <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <TextBlock Text="{Binding Detail}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-           </ScrollViewer>
-          </Border>
-         </StackPanel>
-         </Grid>
+           <StackPanel Visibility="{Binding DetailVisibility}" Spacing="8" Margin="16,0,16,14">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+             <Border Visibility="{Binding SourceVisibility}" Background="{Binding ChipBrush}" CornerRadius="999" Padding="10,3"><TextBlock Text="{Binding Source}" FontSize="11" IsTextSelectionEnabled="True" /></Border>
+             <Border Visibility="{Binding ExitCodeVisibility}" Background="{Binding ChipBrush}" CornerRadius="999" Padding="10,3"><TextBlock Text="{Binding ExitCode}" FontSize="11" FontFamily="Consolas" Foreground="{Binding DotBrush}" IsTextSelectionEnabled="True" /></Border>
+            </StackPanel>
+            <Border Visibility="{Binding OutputVisibility}" Background="{Binding OutputBrush}" BorderBrush="{Binding CardBorder}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+             <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <TextBlock Text="{Binding Output}" FontFamily="Consolas" FontSize="12" LineHeight="18" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+             </ScrollViewer>
+            </Border>
+           </StackPanel>
+          </StackPanel>
+         </Border>
         </Border>
        </DataTemplate></ListView.ItemTemplate>
       </ListView>

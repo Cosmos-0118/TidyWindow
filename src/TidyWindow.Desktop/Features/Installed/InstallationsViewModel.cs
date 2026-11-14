@@ -58,6 +58,10 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     private string queueStatus = "";
     public string Available => queueStatus.Length > 0 ? queueStatus : Package.Held ? "Pinned" : Package.AvailableVersion ?? (Package.HasStoreUpdate ? $"{Package.StoreVersion} · Store" : Package.Note.Length > 0 ? "Needs attention" : "—");
     public string CompactDetail => $"{(Publisher.Length > 0 ? Publisher + " · " : "")}{Source} · {Version}" + (queueStatus.Length > 0 ? $" · {queueStatus}" : Package.Held ? " · Pinned" : Package.AvailableVersion is { } latest ? $" → {latest}" : Package.HasStoreUpdate ? $" → {Package.StoreVersion} (Store)" : Package.Note.Length > 0 ? $" · {Package.Note}" : "");
+    /// <summary>The last queued action on this app failed. The list shows a red segment that opens the Logs instead of plain text.</summary>
+    public bool Failed { get; private set; }
+    public Visibility FailedVisibility => Failed ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AvailableVisibility => Failed || Compact ? Visibility.Collapsed : Visibility.Visible;
     public bool CanUpdate => CanAct && Package.AvailableVersion is not null && !Package.Held;
     public void SetQueueEntry(QueueEntry? entry)
     {
@@ -74,7 +78,7 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     private bool canAct;
     public bool CanAct { get => canAct; set { if (Set(ref canAct, value)) Changed(nameof(CanUpdate)); } }
     private bool compact;
-    public bool Compact { get => compact; set { if (Set(ref compact, value)) { Changed(nameof(MetadataWidth)); Changed(nameof(NameWidth)); Changed(nameof(ColumnGap)); Changed(nameof(WideVisibility)); Changed(nameof(CompactVisibility)); } } }
+    public bool Compact { get => compact; set { if (Set(ref compact, value)) { Changed(nameof(MetadataWidth)); Changed(nameof(NameWidth)); Changed(nameof(ColumnGap)); Changed(nameof(WideVisibility)); Changed(nameof(CompactVisibility)); Changed(nameof(FailedVisibility)); Changed(nameof(AvailableVisibility)); } } }
     public GridLength NameWidth => new(Compact ? 1 : 2.5, GridUnitType.Star);
     public GridLength MetadataWidth => Compact ? new(0) : new(1, GridUnitType.Star);
     public double ColumnGap => Compact ? 4 : 16;

@@ -20,7 +20,30 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
     public string CopyGlyph => copied ? "" : ""; // CheckMark : Copy
     public string Chevron => expanded ? "" : ""; // ChevronUp : ChevronDown
     public string Exact => Entry.Time.ToLocalTime().ToString("F");
-    public string Meta => string.Join(" · ", new[] { Entry.Level is ActivityLevel.Warning or ActivityLevel.Error ? Entry.Level.ToString() : "", Entry.Area.ToString(), Stamp(Entry.Time), Entry.Count > 1 ? $"{Entry.Count} times" : "" }.Where(x => x.Length > 0));
+    public string Meta => string.Join(" · ", new[] { Entry.Area.ToString(), Stamp(Entry.Time) });
+
+    // Every entry is a card: the level sets its colour, icon and label, and the most serious ones are the loudest.
+    public string Label => Entry.Level.ToString();
+    public string CountText => $"×{Entry.Count}";
+    public Visibility CountVisibility => Entry.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    // Info / CompletedSolid / Warning / ErrorBadge in Segoe Fluent Icons.
+    public string BadgeGlyph => Entry.Level switch { ActivityLevel.Success => "\uE930", ActivityLevel.Warning => "\uE7BA", ActivityLevel.Error => "\uEA39", _ => "\uE946" };
+    public Brush CardBrush => Tone(light ? (0xF7F7F8, 0xF2FAF5, 0xFDF6E9, 0xFDF2F1) : (0x1E1E21, 0x1A2620, 0x2A2216, 0x2B1B1A));
+    public Brush CardBorder => Tone(light ? (0xE4E4E7, 0xC9E6D4, 0xEED9AE, 0xF3CBC8) : (0x2F2F34, 0x2B4A38, 0x57431F, 0x5C2C29));
+    public Brush IconBrush => Tone(light ? (0xE9E9EC, 0xD9EFE2, 0xF9E6BE, 0xFBDAD7) : (0x2E2E33, 0x25402F, 0x473618, 0x4A2321));
+    public Brush ChipBrush => Tone(light ? (0xEDEDF0, 0xE3F2E9, 0xF8EBCF, 0xFAE3E1) : (0x2A2A2E, 0x22362B, 0x3A2E19, 0x3A2220));
+    public Brush OutputBrush => BrushCache.Rgb(light ? 0xFFFFFF : 0x161616);
+
+    // The first line of an update or install failure is "Manager · package id", then "Exit code: n", then the reason and the manager's output.
+    public string Source => Lines().FirstOrDefault(x => x.Contains(" · ") && !x.StartsWith("Exit code", StringComparison.OrdinalIgnoreCase)) ?? "";
+    public string ExitCode => Lines().FirstOrDefault(x => x.StartsWith("Exit code:", StringComparison.OrdinalIgnoreCase))?["Exit code:".Length..].Trim() is { Length: > 0 } code ? "Exit " + code : "";
+    public Visibility SourceVisibility => Source.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ExitCodeVisibility => ExitCode.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string Output => string.Join("\n", Lines().Where(x => x != Source && !x.StartsWith("Exit code:", StringComparison.OrdinalIgnoreCase)));
+    public Visibility OutputVisibility => Output.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private IEnumerable<string> Lines() => Detail.Split('\n').Select(x => x.TrimEnd()).Where(x => x.Length > 0);
+    private SolidColorBrush Tone((int Info, int Success, int Warning, int Error) c) => BrushCache.Rgb(Entry.Level switch { ActivityLevel.Success => c.Success, ActivityLevel.Warning => c.Warning, ActivityLevel.Error => c.Error, _ => c.Info });
     public Brush DotBrush => BrushCache.Rgb(Entry.Level switch
     {
         ActivityLevel.Success => light ? 0x1C703F : 0xA4E8C1,
@@ -31,11 +54,11 @@ public sealed class LogRow(ActivityEntry entry, bool lightTheme) : ObservableSta
 
     public void Toggle() { if (!HasDetail) return; expanded = !expanded; Changed(nameof(DetailVisibility)); Changed(nameof(Chevron)); }
     public void SetCopied(bool value) { copied = value; Changed(nameof(CopyGlyph)); }
-    public void SetLightTheme(bool value) { light = value; Changed(nameof(DotBrush)); }
+    public void SetLightTheme(bool value) { light = value; foreach (var name in new[] { nameof(DotBrush), nameof(CardBrush), nameof(CardBorder), nameof(IconBrush), nameof(ChipBrush), nameof(OutputBrush) }) Changed(name); }
     public void Update(ActivityEntry value)
     {
         Entry = value;
-        foreach (var name in new[] { nameof(Message), nameof(Detail), nameof(HasDetail), nameof(DetailVisibility), nameof(ChevronVisibility), nameof(Chevron), nameof(Exact), nameof(Meta), nameof(DotBrush) }) Changed(name);
+        foreach (var name in new[] { nameof(Message), nameof(Detail), nameof(HasDetail), nameof(DetailVisibility), nameof(ChevronVisibility), nameof(Chevron), nameof(Exact), nameof(Meta), nameof(DotBrush), nameof(CountText), nameof(CountVisibility), nameof(Source), nameof(ExitCode), nameof(SourceVisibility), nameof(ExitCodeVisibility), nameof(Output), nameof(OutputVisibility) }) Changed(name);
     }
     // Screen readers announce a list item by its string form.
     public override string ToString() => $"{Entry.Level}: {Message}. {Meta}";
