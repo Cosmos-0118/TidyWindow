@@ -280,14 +280,14 @@
          <ProgressRing Width="14" Height="14" IsActive="True" Visibility="{Binding SourceBusyVisibility}" VerticalAlignment="Center" />
          <TextBlock Text="{Binding SourceStatus}" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
-        <Border Visibility="{Binding ResultsHeaderVisibility}" Height="36" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0">
+        <Border x:Name="ResultsHeader" Visibility="{Binding ResultsHeaderVisibility}" Height="36" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0">
          <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="100" /><ColumnDefinition Width="85" /></Grid.ColumnDefinitions>
           <TextBlock Text="Name" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="Version" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
           <TextBlock Grid.Column="2" Text="Source" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
          </Grid>
         </Border>
-        <ListView Grid.Row="2" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
+        <ListView x:Name="ResultsList" Loaded="ResultsListLoaded" Grid.Row="2" ItemsSource="{Binding Packages}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Package search results">
          <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /></Style></ListView.ItemContainerStyle>
          <ListView.ItemTemplate><DataTemplate>
           <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,14">
@@ -338,23 +338,18 @@
        <ProgressBar IsIndeterminate="True" />
        <TextBlock Text="Checking for changes. You can keep updating and uninstalling meanwhile." FontSize="12" Foreground="{ThemeResource MutedBrush}" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
-      <Grid ColumnSpacing="12" RowSpacing="8">
-       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-       <StackPanel Orientation="Horizontal" Spacing="10">
-        <CheckBox x:Name="SelectAllInstalled" Content="Select all" IsThreeState="True" IsChecked="{Binding AllSelected, Mode=OneWay}" IsEnabled="{Binding CanSelect}" Click="SelectAllInstalledClick" FontSize="12" AutomationProperties.Name="Select all visible installed apps" />
-        <TextBlock Text="{Binding SelectionLabel}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
-        <HyperlinkButton Content="Clear" Click="ClearInstalledSelectionClick" Visibility="{Binding ClearSelectionVisibility}" FontSize="12" Padding="4,0" VerticalAlignment="Center" AutomationProperties.Name="Clear the selection" />
-       </StackPanel>
-       <StackPanel x:Name="SelectionActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <Button Content="Update selected" Click="UpdateSelectedClick" IsEnabled="{Binding CanUpdateSelected}" FontSize="12" Padding="10,6" />
-        <Button Content="Uninstall selected" Click="UninstallSelectedClick" IsEnabled="{Binding CanUninstallSelected}" FontSize="12" Padding="10,6" />
-       </StackPanel>
-      </Grid>
+      <local:SelectionBar x:Name="InstalledSelection" IsAllSelected="{Binding AllSelected}" CanSelect="{Binding CanSelect}" Count="{Binding SelectedCount}" HiddenCount="{Binding HiddenSelectedCount}" SelectAllClick="SelectAllInstalledClick" ClearClick="ClearInstalledSelectionClick">
+       <local:SelectionBar.Actions>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+         <Button Content="Update selected" Click="UpdateSelectedClick" IsEnabled="{Binding CanUpdateSelected}" FontSize="12" Padding="10,6" />
+         <Button Content="Uninstall selected" Click="UninstallSelectedClick" IsEnabled="{Binding CanUninstallSelected}" FontSize="12" Padding="10,6" />
+        </StackPanel>
+       </local:SelectionBar.Actions>
+      </local:SelectionBar>
      </StackPanel>
      <Grid Grid.Row="3">
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-      <Border Visibility="{Binding TableHeaderVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0" Height="34">
+      <Border x:Name="InstalledHeader" Visibility="{Binding TableHeaderVisibility}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,0" Height="34">
        <Grid ColumnSpacing="16">
         <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="2.5*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="156" /></Grid.ColumnDefinitions>
         <TextBlock Grid.Column="1" Text="App" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
@@ -363,7 +358,7 @@
         <TextBlock Grid.Column="4" Text="Available" Style="{StaticResource ColumnLabel}" VerticalAlignment="Center" />
        </Grid>
       </Border>
-      <ListView Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" ContainerContentChanging="InstalledRowRealized" AutomationProperties.Name="Installed packages">
+      <ListView x:Name="InstalledList" Loaded="InstalledListLoaded" Grid.Row="1" ItemsSource="{Binding Rows}" SelectionMode="None" IsItemClickEnabled="False" Padding="0,0,0,12" HorizontalContentAlignment="Stretch" ContainerContentChanging="InstalledRowRealized" AutomationProperties.Name="Installed packages">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="IsTabStop" Value="False" /></Style></ListView.ItemContainerStyle>
        <ListView.ItemTemplate><DataTemplate>
         <Border BorderBrush="{ThemeResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,12" MinHeight="68">

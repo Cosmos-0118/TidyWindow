@@ -103,24 +103,26 @@
    </StackPanel>
   </Grid>
 
-  <!-- Search, selection and the remove button -->
-  <Grid Grid.Row="2" ColumnSpacing="12" Margin="0,0,0,16" Visibility="{Binding ListVisibility}">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="360" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-   <TextBox x:Name="SearchBox" PlaceholderText="Search apps" TextChanged="QueryChanged" AutomationProperties.Name="Search apps" VerticalAlignment="Center" />
-   <TextBlock Grid.Column="1" Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" TextWrapping="NoWrap" />
-   <TextBlock Grid.Column="3" Text="{Binding SelectedText}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" TextWrapping="NoWrap" />
-   <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-    <Button Click="SuggestClick" IsEnabled="{Binding CanSuggest}" Padding="12,7" AutomationProperties.Name="Select the suggested apps" ToolTipService.ToolTip="Ticks apps almost nobody uses. Anything marked Careful is never ticked.">
-     <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE762;" FontSize="12" /><TextBlock Text="Select suggested" FontSize="12" /></StackPanel>
-    </Button>
-    <Button Click="ClearClick" IsEnabled="{Binding HasSelection}" Padding="12,7" AutomationProperties.Name="Clear the selection">
-     <TextBlock Text="Clear" FontSize="12" />
-    </Button>
-   </StackPanel>
-   <Button Grid.Column="5" Click="RemoveClick" IsEnabled="{Binding CanRemoveOrStop}" Style="{StaticResource AccentButtonStyle}" Padding="14,7" AutomationProperties.Name="Remove the selected apps">
-    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock Text="{Binding RemoveLabel}" FontSize="12" /></StackPanel>
-   </Button>
-  </Grid>
+  <!-- Search on top; below it the selection bar with the actions for the ticked apps -->
+  <StackPanel Grid.Row="2" Spacing="10" Margin="0,0,0,16" Visibility="{Binding ListVisibility}">
+   <Grid ColumnSpacing="12">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="360" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+    <TextBox x:Name="SearchBox" PlaceholderText="Search apps" TextChanged="QueryChanged" AutomationProperties.Name="Search apps" VerticalAlignment="Center" />
+    <TextBlock Grid.Column="1" Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" TextWrapping="NoWrap" />
+   </Grid>
+   <local:SelectionBar ShowSelectAll="False" ActionsAlwaysShown="True" Count="{Binding SelectedCount}" ClearClick="ClearClick">
+    <local:SelectionBar.Actions>
+     <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button Click="SuggestClick" IsEnabled="{Binding CanSuggest}" Padding="12,7" AutomationProperties.Name="Select the suggested apps" ToolTipService.ToolTip="Ticks apps almost nobody uses. Anything marked Careful is never ticked.">
+       <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE762;" FontSize="12" /><TextBlock Text="Select suggested" FontSize="12" /></StackPanel>
+      </Button>
+      <Button Click="RemoveClick" IsEnabled="{Binding CanRemoveOrStop}" Style="{StaticResource AccentButtonStyle}" Padding="14,7" AutomationProperties.Name="Remove the selected apps">
+       <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="12" /><TextBlock Text="{Binding RemoveLabel}" FontSize="12" /></StackPanel>
+      </Button>
+     </StackPanel>
+    </local:SelectionBar.Actions>
+   </local:SelectionBar>
+  </StackPanel>
 
   <ScrollViewer Grid.Row="3" Style="{StaticResource PageScrollViewerStyle}" VerticalScrollBarVisibility="Auto" IsTabStop="False">
    <Grid>
