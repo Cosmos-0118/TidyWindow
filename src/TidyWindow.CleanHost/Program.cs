@@ -13,4 +13,6 @@ return args.Length > 0 && args[0] == TidyWindow.Next.Core.RepairHost.Command
     ? await TidyWindow.Next.Core.DebloatHost.RunAsync(args)
     : args.Length > 0 && args[0] == TidyWindow.Next.Core.MachinePathHost.Command
     ? await TidyWindow.Next.Core.MachinePathHost.RunAsync(args)
+    : args.Length > 0 && args[0] == TidyWindow.Next.Core.FontHost.Command
+    ? await TidyWindow.Next.Core.FontHost.RunAsync(args)
     : await TidyWindow.Next.Core.SystemCleanHost.RunAsync(args);

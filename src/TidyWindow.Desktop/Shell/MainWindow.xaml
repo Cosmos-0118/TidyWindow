@@ -242,6 +242,7 @@
               <FontIcon Glyph="&#xE7BA;" FontSize="13" Foreground="{ThemeResource WarnBrush}" Visibility="{Binding PendingVisibility}" VerticalAlignment="Center" ToolTipService.ToolTip="Not done yet" AutomationProperties.Name="Not done yet" />
              </StackPanel>
              <TextBlock Text="{Binding Detail}" Style="{StaticResource RowSub}" TextWrapping="Wrap" TextTrimming="None" />
+             <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" IsIndeterminate="{Binding ProgressIndeterminate}" Visibility="{Binding ProgressVisibility}" Height="4" MinHeight="4" Margin="0,4,0,0" CornerRadius="2" IsTabStop="False" AutomationProperties.Name="Progress" />
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
              <Button Content="{Binding Secondary}" IsEnabled="{Binding CanSecondary}" Visibility="{Binding SecondaryVisibility}" Tag="secondary" Click="TerminalActClick" FontSize="12" Padding="12,6" AutomationProperties.Name="{Binding SecondaryName}" />

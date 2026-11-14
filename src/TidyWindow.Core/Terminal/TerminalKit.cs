@@ -8,11 +8,30 @@ public sealed record TerminalTool(string WingetId, string Name, string Command, 
     public Package ToPackage() => new(ManagerKind.Winget, WingetId, Name, "", "winget");
 }
 
+/// <summary>One face of the terminal font: <paramref name="File"/> is its name in the archive and in the Fonts folder, <paramref name="Registration"/> the name it is registered under.</summary>
+public sealed record FontFile(string File, string Registration);
+
 /// <summary>What the "Configure your terminal" setup installs and writes. The files are the ones the setup applies; they are embedded so nothing is downloaded to apply them.</summary>
 public static class TerminalKit
 {
     public const string FontFace = "CaskaydiaCove NFM";
-    public const string FontPage = "https://github.com/ryanoasis/nerd-fonts/releases/latest";
+    /// <summary>
+    /// The font is downloaded from a fixed release and accepted only if it matches this checksum, so what gets installed machine-wide is exactly
+    /// the file that was reviewed, whatever the network or the download host returns. Moving to a newer Nerd Fonts release means changing both.
+    /// </summary>
+    public const string FontUrl = "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/CascadiaCode.zip";
+    public const string FontSha256 = "1298bf92698afa06185cf1d05e6ae05f2d8a1e8c3cb45ddf4c3035168ab342a1";
+    public const long FontMaxBytes = 80L * 1024 * 1024;
+    /// <summary>The size of the package, for a progress bar when the server does not say how large the download is.</summary>
+    public const long FontApproxBytes = 56_585_471;
+    /// <summary>The four faces Windows Terminal needs (regular, bold, italic, bold italic): the archive's file name and the name Windows lists the face under.</summary>
+    public static IReadOnlyList<FontFile> FontFiles { get; } =
+    [
+        new("CaskaydiaCoveNerdFontMono-Regular.ttf", "CaskaydiaCove NFM Regular (TrueType)"),
+        new("CaskaydiaCoveNerdFontMono-Bold.ttf", "CaskaydiaCove NFM Bold (TrueType)"),
+        new("CaskaydiaCoveNerdFontMono-Italic.ttf", "CaskaydiaCove NFM Italic (TrueType)"),
+        new("CaskaydiaCoveNerdFontMono-BoldItalic.ttf", "CaskaydiaCove NFM Bold Italic (TrueType)")
+    ];
     public const string SchemeName = "Catppuccin Mocha";
     /// <summary>The id Windows Terminal gives PowerShell 7. It is the same on every PC, because it is derived from the profile's name.</summary>
     public const string PowerShell7ProfileId = "{574e775e-4f2a-5b96-ac1e-a2962a402336}";
