@@ -272,16 +272,18 @@ public sealed class BackgroundViewModel(IBackgroundSystem system, IReadOnlyList<
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(BackgroundRow row) => words.All(w =>
-            row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) ||
-            row.Entry.Item.Summary.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Item.Processes.Any(p => p.Contains(w, StringComparison.CurrentCultureIgnoreCase)) ||
-            row.Entry.Targets.Any(t => t.Target.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase)));
         bool Wanted(BackgroundRow row) => filter switch { BackgroundFilter.Running => row.Entry.Running, BackgroundFilter.On => row.Enabled, BackgroundFilter.Off => !row.Enabled, _ => true };
         var group = tab switch { BackgroundTab.Telemetry => BackgroundGroup.Telemetry, BackgroundTab.Ai => BackgroundGroup.Ai, _ => BackgroundGroup.Optional };
         var inTab = tab == BackgroundTab.Changes ? [] : all.Where(x => x.Entry.Item.Group == group);
         // What is still active comes first, running before idle, then A to Z.
-        var shown = inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenByDescending(x => x.Entry.Running).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        // A search then puts the best match first and leaves ties in that order.
+        var shown = SmartSearch.Rank(inTab.Where(Wanted).OrderByDescending(x => x.Enabled).ThenByDescending(x => x.Entry.Running).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList(), query, x =>
+        {
+            var fields = new List<SearchField> { new(x.Name, 4), new(x.Sub, 2), new(x.Entry.Item.Summary, 1.5) };
+            fields.AddRange(x.Entry.Item.Processes.Select(p => new SearchField(p, 1.5)));
+            fields.AddRange(x.Entry.Targets.Select(t => new SearchField(t.Target.Name, 1)));
+            return fields;
+        });
         if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {

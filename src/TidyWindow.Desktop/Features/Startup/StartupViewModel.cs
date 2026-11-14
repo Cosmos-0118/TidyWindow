@@ -262,12 +262,12 @@ public sealed class StartupViewModel(IStartupSystem system, StartupService servi
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool Matches(StartupRow row) => words.All(w => row.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase) || row.Entry.Command.Contains(w, StringComparison.CurrentCultureIgnoreCase));
         bool Wanted(StartupRow row) => filter switch { StartupFilter.On => row.Enabled, StartupFilter.Off => !row.Enabled, _ => true };
         var inTab = tab switch { StartupTab.Apps => Apps(), StartupTab.Background => Background(), StartupTab.Protected => Locked(), _ => [] };
         // What still starts comes first, then A to Z.
-        var shown = inTab.Where(Matches).Where(Wanted).OrderByDescending(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        // A search then puts the best match first and leaves ties in that order. Names of programs, so words that merely mean the same are not used.
+        var shown = SmartSearch.Rank(inTab.Where(Wanted).OrderByDescending(x => x.Enabled).ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList(), query,
+            x => [new(x.Name, 4), new(x.Sub, 2), new(x.Entry.Command, 1)], related: false);
         if (keepPosition) Rows.Sync(shown, x => x.Id); else Rows.Reset(shown);
         foreach (var name in new[]
         {

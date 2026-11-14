@@ -69,10 +69,12 @@ public sealed partial class RepairView : UserControl
     private async void RemoveSelectedClick(object sender, RoutedEventArgs e)
     {
         if (Model is not { } model || model.SelectedCount == 0) return;
-        if (await Confirm($"Remove {model.SelectionText.Replace(" selected", "")} for good?", "They will be deleted and cannot be put back afterwards.")) await model.ResolveSelectedAsync(keep: false);
+        var hidden = model.HiddenSelectedCount;
+        var note = hidden > 0 ? $"{hidden:N0} of them {(hidden == 1 ? "is" : "are")} hidden by your search. " : "";
+        if (await Confirm($"Remove {model.SelectedCount:N0} for good?", note + "They will be deleted and cannot be put back afterwards.")) await model.ResolveSelectedAsync(keep: false);
     }
 
-    private void ClearSelectionClick(object sender, RoutedEventArgs e) { if (Model is { } model) model.AllShownSelected = false; }
+    private void ClearSelectionClick(object sender, RoutedEventArgs e) { Model?.ClearSelection(); }
     private void ClearUndoSearchClick(object sender, RoutedEventArgs e) => Model?.UndoState.Clear();
     private void ClearQuarantineSearchClick(object sender, RoutedEventArgs e) => Model?.QuarantineState.Clear();
     // A tap anywhere on a row opens or closes it; the buttons and the tick box inside keep doing their own job.

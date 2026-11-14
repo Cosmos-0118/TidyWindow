@@ -289,13 +289,15 @@ public sealed record TuneScanResult(IReadOnlyList<TuneEntry> Entries, int NotOnT
 /// <summary>The search box: every word must be found somewhere in what a person could reasonably look for, including the registry key and value names.</summary>
 public static class TuneSearch
 {
-    public static bool Matches(TuneEntry entry, IReadOnlyList<string> words) => words.All(word => Has(entry, word));
+    public static bool Matches(TuneEntry entry, IReadOnlyList<string> words) => words.Count == 0 || SmartSearch.Score(string.Join(' ', words), Fields(entry)) > 0;
 
-    private static bool Has(TuneEntry entry, string word)
+    /// <summary>Where a word may be found, the name counting most: what the tweak is called, what it does, and the registry key and value it changes.</summary>
+    public static IReadOnlyList<SearchField> Fields(TuneEntry entry)
     {
-        bool In(string text) => text.Contains(word, StringComparison.CurrentCultureIgnoreCase);
         var item = entry.Item;
-        return In(item.Name) || In(item.Topic) || In(item.Summary) || In(item.Effect) || entry.Targets.Any(t => In(t.Target.Name) || In(t.Target.Key));
+        var fields = new List<SearchField>(4 + entry.Targets.Count * 2) { new(item.Name, 4), new(item.Topic, 2), new(item.Summary, 1.5), new(item.Effect, 1) };
+        foreach (var t in entry.Targets) { fields.Add(new(t.Target.Name, 1)); fields.Add(new(t.Target.Key, 1)); }
+        return fields;
     }
 }
 

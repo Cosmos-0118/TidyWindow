@@ -31,8 +31,12 @@ public sealed class InstalledRow(ManagedPackage package) : ObservableState
     {
         if (found == publisher) return;
         publisher = found;
+        search = null;
         foreach (var name in new[] { nameof(Publisher), nameof(Subtitle), nameof(CompactDetail) }) Changed(name);
     }
+    private SmartSearch.Prepared? search;
+    /// <summary>What the search box looks in, split into words once per row (and again when the publisher turns up) instead of once per keystroke. The name counts most.</summary>
+    internal SmartSearch.Prepared Search => search ??= new([new(Name, 4), new(Publisher, 2), new(Package.Id, 1.5), new(Package.ManagerName, 0.6), new(Source, 0.4)]);
     /// <summary>The line under the name: who made it, then what the package manager calls it. Windows programs and Store apps have no package name worth showing.</summary>
     public string Subtitle => (Publisher.Length > 0, Package.Origin == AppOrigin.Package) switch
     {
@@ -158,7 +162,8 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 index.TryGetValue(PackageOperation.Resource(row.Package.Manager, row.Package.Id, row.Package.Global), out var entry);
                 row.SetQueueEntry(entry);
                 row.CanAct = !Refreshing && !row.FromSnapshot && workspace.CanQueue && entry?.State is not (QueueItemState.Waiting or QueueItemState.Running);
-                if (!row.CanAct) row.IsSelected = false;
+                // Only an app that is now queued loses its tick. One that is merely not actionable for a moment (the managers are being checked) keeps it.
+                if (entry?.State is QueueItemState.Waiting or QueueItemState.Running) row.IsSelected = false;
             }
         }
         finally { selecting = false; }
@@ -168,12 +173,14 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     internal void ApplyLayout(AdaptiveLayout layout) { compact = layout.CompactResults; foreach (var row in all) row.Compact = compact; Changed(nameof(TableHeaderVisibility)); }
     // While true, selection changes are batched: one notification at the end instead of one per row.
     private bool selecting;
-    public void Filter(string text, bool onlyUpdates) { ClearSelection(); query = text.Trim(); updatesOnly = onlyUpdates; ApplyFilter(); }
-    private void ClearSelection()
+    // What is ticked stays ticked while the list is searched or filtered: the person is hunting for the next app to add, not starting over.
+    public void Filter(string text, bool onlyUpdates) { query = text.Trim(); updatesOnly = onlyUpdates; ApplyFilter(); }
+    public void ClearSelection()
     {
         selecting = true;
         try { foreach (var row in all) row.IsSelected = false; }
         finally { selecting = false; }
+        NotifySelection();
     }
     /// <summary>Puts <see cref="all"/> in the order the page shows: apps with an update first, then by name. Done once per read, not once per keystroke in the search box.</summary>
     private void SortAll()
@@ -186,9 +193,10 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var shown = all.Where(x => (!updatesOnly || x.Package.HasUpdateInfo) &&
-            (query.Length == 0 || x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Package.ManagerName.Contains(query, StringComparison.OrdinalIgnoreCase) || x.Source.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
+        // Forgiving search (typos, part of a name, "vsc" for Visual Studio Code), best match first. The page's own order only breaks ties, and without a search it is untouched.
+        // Words that mean the same thing are not used here: on a list of app names, "store" must not find everything Microsoft made.
+        var candidates = all.Where(x => !updatesOnly || x.Package.HasUpdateInfo);
+        var shown = SmartSearch.RankPrepared(candidates, query, x => x.Search, related: false).ToArray();
         // A new filter starts the list over (one reset instead of clearing and re-adding every row, which would re-measure on each step).
         if (keepPosition) Rows.Sync(shown, x => x.Package.Key); else Rows.Reset(shown);
         foreach (var name in new[] { nameof(EmptyVisibility), nameof(EmptyTitle), nameof(EmptyDetail), nameof(TableHeaderVisibility) }) Changed(name);
@@ -306,7 +314,15 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
                 package = package with { AvailableVersion = before.Package.AvailableVersion, StoreVersion = before.Package.StoreVersion, Held = package.Held || before.Package.Held, Note = before.Package.Note.Length > 0 ? before.Package.Note : package.Note };
             if (previous.TryGetValue(package.Key, out var old) && old.Package == package && reused.Add(old)) { old.FromSnapshot = false; current.Add(old); continue; }
             // The saved list is only a first guess: a row that is not confirmed by the first real answer is a new row, not the saved one.
-            current.Add(MakeRow(package));
+            var made = MakeRow(package);
+            // A row rebuilt because its update information changed is still the same app: it keeps the person's tick.
+            if (previous.TryGetValue(package.Key, out var was) && was.IsSelected)
+            {
+                selecting = true;
+                try { made.IsSelected = true; }
+                finally { selecting = false; }
+            }
+            current.Add(made);
         }
         Drop(all.Where(x => x.Package.Manager == inventory.Manager && !reused.Contains(x)).ToList());
         all.RemoveAll(x => x.Package.Manager == inventory.Manager);
@@ -393,10 +409,10 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     }
     public void QueueSelected(PackageAction action)
     {
-        var selected = Rows.Where(x => x.IsSelected && x.CanAct && (action != PackageAction.Update || x.CanUpdate)).ToArray();
+        var selected = Selected.Where(x => action != PackageAction.Update || x.CanUpdate).ToArray();
         queue.Enqueue(selected.Select(x => PackageOperation.Manage(x.Package, action)));
         selecting = true;
-        try { foreach (var row in Rows) row.IsSelected = false; }
+        try { foreach (var row in all) row.IsSelected = false; }
         finally { selecting = false; }
         NotifySelection();
     }
@@ -407,7 +423,8 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
         finally { selecting = false; }
         NotifySelection();
     }
-    public IReadOnlyList<InstalledRow> Selected => Rows.Where(x => x.IsSelected && x.CanAct).ToArray();
+    /// <summary>Everything ticked, including apps a search is hiding right now.</summary>
+    public IReadOnlyList<InstalledRow> Selected => all.Where(x => x.IsSelected && x.CanAct).ToArray();
     public bool? AllSelected
     {
         get
@@ -420,10 +437,22 @@ public sealed class InstallationsViewModel : ObservableState, IDisposable
     public bool CanSelect => Rows.Any(x => x.CanAct);
     public bool CanUpdateSelected => Selected.Any(x => x.CanUpdate);
     public bool CanUninstallSelected => Selected.Count > 0;
-    public string SelectionLabel => Selected.Count == 0 ? "" : $"{Selected.Count} selected";
+    public string SelectionLabel
+    {
+        get
+        {
+            var selected = Selected;
+            if (selected.Count == 0) return "";
+            // Apps ticked earlier and hidden by the search are still part of what the buttons act on, so say so.
+            var shown = Rows.ToHashSet();
+            var hidden = selected.Count(x => !shown.Contains(x));
+            return hidden == 0 ? $"{selected.Count} selected" : $"{selected.Count} selected · {hidden} hidden";
+        }
+    }
+    public Visibility ClearSelectionVisibility => all.Any(x => x.IsSelected && x.CanAct) ? Visibility.Visible : Visibility.Collapsed;
     private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     { if (!selecting && e.PropertyName == nameof(InstalledRow.IsSelected)) NotifySelection(); }
     private void NotifySelection()
-    { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectionLabel) }) Changed(name); }
+    { foreach (var name in new[] { nameof(AllSelected), nameof(CanSelect), nameof(CanUpdateSelected), nameof(CanUninstallSelected), nameof(SelectionLabel), nameof(ClearSelectionVisibility) }) Changed(name); }
     public void Dispose() { IconService.DarkChanged -= ReloadIcons; queue.StateChanged -= NotifyState; workspace.PropertyChanged -= WorkspaceChanged; lifetime.Cancel(); lifetime.Dispose(); }
 }

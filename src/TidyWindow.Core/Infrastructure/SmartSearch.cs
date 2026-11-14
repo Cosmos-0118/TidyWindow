@@ -92,28 +92,47 @@ public static class SmartSearch
         ["ram"] = ["memory"]
     };
 
+    /// <summary>The words of an item's searchable text, split and stemmed once so a search box does not redo that for every keystroke. Keep one per item.</summary>
+    public sealed class Prepared
+    {
+        internal readonly (string[] Words, double Weight, string Joined)[] Fields;
+        public Prepared(IReadOnlyList<SearchField> fields) =>
+            Fields = fields.Where(f => !string.IsNullOrWhiteSpace(f.Text)).Select(f => { var words = Words(f.Text); return (words, f.Weight, string.Join(' ', words)); }).ToArray();
+    }
+
     /// <summary>How well the text answers the query: 0 when it does not, and larger the better. An empty query matches everything.</summary>
-    public static double Score(string query, IReadOnlyList<SearchField> fields) => Score(Tokens(query), query, fields);
+    /// <param name="related">Whether a word may also find the words people use for the same thing ("wifi" finds network). Turn it off for lists of names, where it only adds noise.</param>
+    public static double Score(string query, IReadOnlyList<SearchField> fields, bool related = true) => Score(Tokens(query), query, new Prepared(fields), related);
+
+    public static double Score(string query, Prepared index, bool related = true) => Score(Tokens(query), query, index, related);
 
     /// <summary>The items that answer the query, best first and otherwise in their original order. All of them when the query is empty.</summary>
-    public static List<T> Rank<T>(IEnumerable<T> items, string query, Func<T, IReadOnlyList<SearchField>> fields)
+    public static List<T> Rank<T>(IEnumerable<T> items, string query, Func<T, IReadOnlyList<SearchField>> fields, bool related = true)
     {
         var tokens = Tokens(query);
         if (tokens.Count == 0) return items.ToList();
-        return items.Select(item => (Item: item, Score: Score(tokens, query, fields(item)))).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Select(x => x.Item).ToList();
+        return items.Select(item => (Item: item, Score: Score(tokens, query, new Prepared(fields(item)), related))).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Select(x => x.Item).ToList();
+    }
+
+    /// <summary>Like <c>Rank</c>, for items that keep their own <see cref="Prepared"/> between searches.</summary>
+    public static List<T> RankPrepared<T>(IEnumerable<T> items, string query, Func<T, Prepared> prepared, bool related = true)
+    {
+        var tokens = Tokens(query);
+        if (tokens.Count == 0) return items.ToList();
+        return items.Select(item => (Item: item, Score: Score(tokens, query, prepared(item), related))).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Select(x => x.Item).ToList();
     }
 
     public static bool IsEmpty(string query) => Tokens(query).Count == 0;
 
-    private static double Score(List<string> tokens, string query, IReadOnlyList<SearchField> fields)
+    private static double Score(List<string> tokens, string query, Prepared index, bool related)
     {
         if (tokens.Count == 0) return 1;
-        var prepared = fields.Where(f => !string.IsNullOrWhiteSpace(f.Text)).Select(f => (Words: Words(f.Text), f.Weight, Joined: string.Join(' ', Words(f.Text)))).ToList();
+        var prepared = index.Fields;
         var total = 0.0;
         foreach (var token in tokens)
         {
             var best = 0.0;
-            foreach (var (words, weight, _) in prepared) best = Math.Max(best, Best(token, words) * weight);
+            foreach (var (words, weight, _) in prepared) best = Math.Max(best, Best(token, words, related) * weight);
             if (best == 0) return 0;
             total += best;
         }
@@ -125,10 +144,10 @@ public static class SmartSearch
         return total;
     }
 
-    private static double Best(string token, string[] words)
+    private static double Best(string token, string[] words, bool related)
     {
         var best = Match(token, words);
-        if (best >= 1) return best;
+        if (best >= 1 || !related) return best;
         if (Related.TryGetValue(token, out var others) || Related.TryGetValue(Unstem(token), out others))
             foreach (var other in others) best = Math.Max(best, 0.7 * Match(Stem(other), words));
         return best;
@@ -154,7 +173,20 @@ public static class SmartSearch
             if (joined == token) best = Math.Max(best, 0.95);
             else if (token.Length >= 3 && joined.StartsWith(token, StringComparison.Ordinal)) best = Math.Max(best, 0.8);
         }
+        // The first letters of consecutive words ("vsc" for Visual Studio Code). Only in short text such as a name: in a long description it would find things by chance.
+        if (token.Length >= 3 && best < 0.75 && words.Length <= 6 && IsInitials(token, words)) best = 0.75;
         return best;
+    }
+
+    private static bool IsInitials(string token, string[] words)
+    {
+        for (var start = 0; start + token.Length <= words.Length; start++)
+        {
+            var i = 0;
+            while (i < token.Length && words[start + i].Length > 0 && words[start + i][0] == token[i]) i++;
+            if (i == token.Length) return true;
+        }
+        return false;
     }
 
     // A close misspelling, or the letters of the word in order. Short words are never guessed at: "net" must not become "set".
@@ -181,18 +213,27 @@ public static class SmartSearch
     /// <summary>Optimal string alignment distance (a swap of two neighbouring letters counts once), or a number above the limit when it is further than that.</summary>
     private static int Distance(string a, string b, int limit)
     {
-        if (Math.Abs(a.Length - b.Length) > limit) return limit + 1;
-        var d = new int[a.Length + 1, b.Length + 1];
-        for (var i = 0; i <= a.Length; i++) d[i, 0] = i;
-        for (var j = 0; j <= b.Length; j++) d[0, j] = j;
+        if (Math.Abs(a.Length - b.Length) > limit || b.Length > 256) return limit + 1;
+        Span<int> beforePrevious = stackalloc int[b.Length + 1];
+        Span<int> previous = stackalloc int[b.Length + 1];
+        Span<int> current = stackalloc int[b.Length + 1];
+        for (var j = 0; j <= b.Length; j++) previous[j] = j;
         for (var i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+            var smallest = i;
             for (var j = 1; j <= b.Length; j++)
             {
                 var cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
-                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+                current[j] = Math.Min(Math.Min(previous[j] + 1, current[j - 1] + 1), previous[j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) current[j] = Math.Min(current[j], beforePrevious[j - 2] + 1);
+                if (current[j] < smallest) smallest = current[j];
             }
-        return d[a.Length, b.Length];
+            if (smallest > limit) return limit + 1;
+            previous.CopyTo(beforePrevious);
+            current.CopyTo(previous);
+        }
+        return previous[b.Length];
     }
 
     private static List<string> Tokens(string query) => Words(query).Distinct().ToList();

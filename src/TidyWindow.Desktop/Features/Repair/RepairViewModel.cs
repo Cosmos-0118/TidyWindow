@@ -318,8 +318,8 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     /// <param name="keepPosition">The list is being refreshed under the person, not re-filtered by them: change only the rows that differ, so the scroll position stays.</param>
     private void ApplyFilter(bool keepPosition = false)
     {
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var shown = words.Length == 0 ? allPrograms : allPrograms.Where(x => words.All(w => x.Name.Contains(w, StringComparison.CurrentCultureIgnoreCase) || x.Sub.Contains(w, StringComparison.CurrentCultureIgnoreCase))).ToList();
+        // Best match first; names of programs, so words that merely mean the same are not used.
+        var shown = SmartSearch.Rank(allPrograms, query, x => [new(x.Name, 4), new(x.Sub, 2)], related: false);
         if (keepPosition) Programs.Sync(shown, x => x.Entry.Key); else Programs.Reset(shown);
         Changed(nameof(NoProgramsVisibility)); Changed(nameof(NoProgramsTitle)); Changed(nameof(NoProgramsDetail));
     }
@@ -509,8 +509,7 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
     private void ApplyQuarantine()
     {
         var shown = allQuarantine.Where(x => quarantineState.Matches(x.Entry)).ToList();
-        // Something that is selected but filtered out is no longer in front of the person, so it is not part of what they act on.
-        foreach (var hidden in allQuarantine.Where(x => x.IsSelected && !shown.Contains(x)).ToList()) hidden.IsSelected = false;
+        // What was ticked stays ticked while the list is searched: the count says how many of them the search is hiding.
         shownQuarantine = shown;
         QuarantineList.Sync(ArchiveList.Build(shown, quarantineState.Sort, DateTimeOffset.Now, x => x.Item.Created, x => Math.Max(x.Bytes, 0), x => x.Name,
             group => group.Sum(x => Math.Max(x.Bytes, 0)) is var total and > 0 ? QuarantineRow.Format(total) : ""), RowKey);
@@ -543,9 +542,18 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
 
     // ---- Choosing things in the quarantine ----
 
-    public int SelectedCount => shownQuarantine.Count(x => x.IsSelected);
+    public int SelectedCount => allQuarantine.Count(x => x.IsSelected);
+    public int HiddenSelectedCount => allQuarantine.Count(x => x.IsSelected && !shownQuarantine.Contains(x));
     public Visibility SelectionVisibility => SelectedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public string SelectionText => SelectedCount == 1 ? "1 selected" : $"{SelectedCount:N0} selected";
+    public string SelectionText
+    {
+        get
+        {
+            var selected = SelectedCount;
+            var hidden = HiddenSelectedCount;
+            return (selected == 1 ? "1 selected" : $"{selected:N0} selected") + (hidden > 0 ? $" · {hidden:N0} hidden by search" : "");
+        }
+    }
     public Visibility SelectAllShownVisibility => shownQuarantine.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>The row holding the tick and the bulk actions takes room only while it has something to show, so a short list sits right under its search.</summary>
     public Visibility SelectionRowVisibility => SelectionVisibility == Visibility.Visible || SelectAllShownVisibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
@@ -569,7 +577,16 @@ public sealed class RepairViewModel(IInstallSystem system, RepairService service
         Changed(nameof(SelectedCount)); Changed(nameof(SelectionVisibility)); Changed(nameof(SelectionText)); Changed(nameof(AllShownSelected)); Changed(nameof(SelectAllShownVisibility)); Changed(nameof(SelectionRowVisibility));
     }
 
-    public Task ResolveSelectedAsync(bool keep) => ResolveAsync(shownQuarantine.Where(x => x.IsSelected).ToList(), keep);
+    /// <summary>Clears every tick, including those on items a search is hiding.</summary>
+    public void ClearSelection()
+    {
+        bulkSelecting = true;
+        try { foreach (var row in allQuarantine) row.IsSelected = false; }
+        finally { bulkSelecting = false; }
+        SelectionChanged();
+    }
+
+    public Task ResolveSelectedAsync(bool keep) => ResolveAsync(allQuarantine.Where(x => x.IsSelected).ToList(), keep);
 
     /// <summary>Keeps (puts back where it was) or removes for good the chosen things from the quarantine.</summary>
     public async Task ResolveAsync(IReadOnlyList<QuarantineRow> rows, bool keep)

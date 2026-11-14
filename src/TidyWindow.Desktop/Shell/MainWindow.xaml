@@ -344,6 +344,7 @@
        <StackPanel Orientation="Horizontal" Spacing="10">
         <CheckBox x:Name="SelectAllInstalled" Content="Select all" IsThreeState="True" IsChecked="{Binding AllSelected, Mode=OneWay}" IsEnabled="{Binding CanSelect}" Click="SelectAllInstalledClick" FontSize="12" AutomationProperties.Name="Select all visible installed apps" />
         <TextBlock Text="{Binding SelectionLabel}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+        <HyperlinkButton Content="Clear" Click="ClearInstalledSelectionClick" Visibility="{Binding ClearSelectionVisibility}" FontSize="12" Padding="4,0" VerticalAlignment="Center" AutomationProperties.Name="Clear the selection" />
        </StackPanel>
        <StackPanel x:Name="SelectionActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <Button Content="Update selected" Click="UpdateSelectedClick" IsEnabled="{Binding CanUpdateSelected}" FontSize="12" Padding="10,6" />
