@@ -28,6 +28,25 @@ public sealed class TerminalRow(string title, string glyph) : ObservableState
     public string ActionName => $"{action}: {Title}";
     public string SecondaryName => $"{secondary}: {Title}";
 
+    private bool progressShown, progressIndeterminate;
+    private double progressValue;
+    public Visibility ProgressVisibility => progressShown ? Visibility.Visible : Visibility.Collapsed;
+    public bool ProgressIndeterminate => progressIndeterminate;
+    public double ProgressValue => progressValue;
+
+    /// <summary>Shows the bar: filled to <paramref name="percent"/>, or running without an end when it cannot be said how far along the work is.</summary>
+    internal void ShowProgress(int? percent)
+    {
+        progressShown = true; progressIndeterminate = percent is null; progressValue = percent ?? 0;
+        Changed(nameof(ProgressVisibility)); Changed(nameof(ProgressIndeterminate)); Changed(nameof(ProgressValue));
+    }
+
+    internal void HideProgress()
+    {
+        progressShown = false; progressIndeterminate = false; progressValue = 0;
+        Changed(nameof(ProgressVisibility)); Changed(nameof(ProgressIndeterminate)); Changed(nameof(ProgressValue));
+    }
+
     internal Func<Task>? Run { get; set; }
     internal Func<Task>? RunSecondary { get; set; }
 }
@@ -42,19 +61,19 @@ public sealed class TerminalViewModel : ObservableState, IDisposable
     private readonly ToastCenter toasts;
     private readonly Func<bool> wingetReady;
     private readonly Func<string, string, string, Task<bool>> confirm;
-    private readonly Func<string, Task> open;
+    private readonly FontSession fonts;
     private readonly CancellationTokenSource lifetime = new();
     private TerminalStatus? status;
     private bool busy;
     private string message = "", detail = "";
     private InfoBarSeverity severity = InfoBarSeverity.Informational;
 
-    public TerminalViewModel(TerminalSetup setup, ICommandRunner runner, OperationQueueViewModel queue, ActivityLog log, ToastCenter toasts, Func<bool> wingetReady, Func<string, string, string, Task<bool>> confirm, Func<string, Task> open)
+    public TerminalViewModel(TerminalSetup setup, ICommandRunner runner, OperationQueueViewModel queue, ActivityLog log, ToastCenter toasts, Func<bool> wingetReady, Func<string, string, string, Task<bool>> confirm, FontSession fonts)
     {
-        this.setup = setup; this.runner = runner; this.queue = queue; this.log = log; this.toasts = toasts; this.wingetReady = wingetReady; this.confirm = confirm; this.open = open;
+        this.setup = setup; this.runner = runner; this.queue = queue; this.log = log; this.toasts = toasts; this.wingetReady = wingetReady; this.confirm = confirm; this.fonts = fonts;
         Apps = new("Command-line apps", "") { Run = InstallAppsAsync, RunSecondary = RemoveAppsAsync };
         Module = new("Fuzzy search for PowerShell", "") { Run = InstallModuleAsync, RunSecondary = RemoveModuleAsync };
-        Font = new("Nerd Font", "") { Run = GetFontAsync };
+        Font = new("Nerd Font", "") { Run = InstallFontAsync, RunSecondary = RemoveFontAsync };
         Look = new("Colours, prompt and shortcuts", "") { Run = ApplyAsync, RunSecondary = RestoreAsync };
         Rows = [Apps, Module, Font, Look];
         Apply(null);
@@ -110,11 +129,13 @@ public sealed class TerminalViewModel : ObservableState, IDisposable
         Module.CanSecondary = !busy && value.ModuleAdded && pwsh;
 
         Font.Good = value.Font;
-        Font.Detail = value.Font
+        Font.Detail = busy && working == nameof(Font) ? fontStep : value.Font
             ? $"{TerminalKit.FontFace} is installed, so the icons in the prompt and file lists will draw."
-            : $"The icons need {TerminalKit.FontFace}. Download CascadiaCode.zip, select the CaskaydiaCoveNerdFontMono files, right-click and choose Install for all users.";
-        Font.Action = value.Font ? "" : "Download font";
-        Font.CanAct = !value.Font;
+            : $"The icons need {TerminalKit.FontFace}. Installing downloads it, checks it, and asks Windows for permission once to install it for everyone on this PC, which Windows Terminal needs.";
+        Font.Action = value.Font ? "" : busy && working == nameof(Font) ? "Installing…" : "Install font";
+        Font.CanAct = !busy && !value.Font;
+        Font.Secondary = value.FontAdded ? "Uninstall" : "";
+        Font.CanSecondary = !busy && value.FontAdded;
 
         Look.Good = value.LookApplied;
         Look.Detail = value.LookApplied ? "Applied: PowerShell profile, Starship prompt and Windows Terminal theme."
@@ -128,6 +149,7 @@ public sealed class TerminalViewModel : ObservableState, IDisposable
     }
 
     private string working = "";
+    private string fontStep = "";
 
     private async Task InstallAppsAsync()
     {
@@ -177,7 +199,40 @@ public sealed class TerminalViewModel : ObservableState, IDisposable
         finally { Busy = false; working = ""; await RefreshAsync(); }
     }
 
-    private Task GetFontAsync() => open(TerminalKit.FontPage);
+    private async Task InstallFontAsync()
+    {
+        if (busy || status is null || status.Font) return;
+        if (!await confirm($"Install {TerminalKit.FontFace}?",
+            "This downloads the Caskaydia Cove Nerd Font (about 55 MB) from its official GitHub release and checks it against a fixed checksum before anything is installed. Windows then asks for administrator permission once, because Windows Terminal only reliably sees fonts installed for everyone on the PC.\n\nOnly the four Mono font files are added, and Uninstall removes just those.", "Install")) return;
+        // Remembered only when it was missing before, so a font the person already had is never offered for removal.
+        await RunFontAsync(progress => fonts.InstallAsync(null, progress, lifetime.Token), "Nerd Font", ok => setup.RememberFont(true));
+    }
+
+    private async Task RemoveFontAsync()
+    {
+        if (busy) return;
+        if (!await confirm($"Uninstall {TerminalKit.FontFace}?", "This removes the four font files this setup installed, for everyone on this PC. Windows asks for administrator permission. Icons in the prompt draw as empty boxes until a Nerd Font is installed again.", "Uninstall")) return;
+        await RunFontAsync(progress => fonts.RemoveAsync(null, progress, lifetime.Token), "Nerd Font removal", ok => setup.RememberFont(false));
+    }
+
+    /// <summary>Runs a font change with a progress bar on its row: running without an end while Windows asks for permission, then filling as the helper reports.</summary>
+    private async Task RunFontAsync(Func<IProgress<FontProgress>, Task<TerminalResult>> run, string what, Action<TerminalResult> onSuccess)
+    {
+        // Made here, on the interface thread, so the helper's updates arrive on it.
+        var progress = new Progress<FontProgress>(step =>
+        {
+            if (working != nameof(Font)) return;   // an update that arrives after the work has ended must not bring the bar back
+            fontStep = step.Step; Font.Detail = step.Step; Font.ShowProgress(step.Percent);
+        });
+        working = nameof(Font); fontStep = "Waiting for Windows permission…"; Font.ShowProgress(null); Busy = true;
+        try
+        {
+            var result = await run(progress);
+            if (result.Ok) onSuccess(result);
+            Report(result, what);
+        }
+        finally { Font.HideProgress(); fontStep = ""; Busy = false; working = ""; await RefreshAsync(); }
+    }
 
     private async Task ApplyAsync()
     {

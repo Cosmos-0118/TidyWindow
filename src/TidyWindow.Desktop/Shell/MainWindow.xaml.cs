@@ -90,7 +90,8 @@ public sealed partial class MainWindow : Window
         model = new(packages, log, operationQueue);
         // The terminal look is optional and only touches files in the person's own profile; installing its apps goes through the same queue as everything else.
         terminal = new(new TerminalSetup(TerminalPaths.ForCurrentUser()), runner, operationQueue, log, toasts,
-            () => model.Managers.Any(x => x.Definition.Kind == ManagerKind.Winget && x.Status?.Health == ManagerHealth.Ready), ConfirmAsync, OpenLinkAsync);
+            () => model.Managers.Any(x => x.Definition.Kind == ManagerKind.Winget && x.Status?.Health == ManagerHealth.Ready), ConfirmAsync,
+            FontSession.Elevated(Path.Combine(AppContext.BaseDirectory, "CleanHost", "TidyWindow.CleanHost.exe")));
         installations = new(management, model, log, operationQueue, snapshot: new InstalledSnapshot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "installed-apps.json")));
         var scoutHost = Path.Combine(AppContext.BaseDirectory, "ScoutHost", "TidyWindow.SearchHost.exe");
         // Two long-running helpers: quick exact searches, and a separate one for slower near-match searches that can be stopped without disturbing typing.

@@ -27,7 +27,7 @@ public sealed record TerminalPaths(string Profile, string Starship, IReadOnlyLis
     }
 }
 
-public sealed record TerminalStatus(IReadOnlyList<TerminalTool> Missing, IReadOnlyList<TerminalTool> Added, bool ModuleAdded, bool PsFzf, bool Font, bool ProfileApplied, bool StarshipApplied, bool TerminalFound, bool TerminalApplied, DateTimeOffset? RestorePoint)
+public sealed record TerminalStatus(IReadOnlyList<TerminalTool> Missing, IReadOnlyList<TerminalTool> Added, bool ModuleAdded, bool PsFzf, bool Font, bool FontAdded, bool ProfileApplied, bool StarshipApplied, bool TerminalFound, bool TerminalApplied, DateTimeOffset? RestorePoint)
 {
     public int ToolCount => TerminalKit.Tools.Count;
     public bool AllTools => Missing.Count == 0;
@@ -55,7 +55,7 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
     /// <param name="pending">WinGet ids that are waiting in the install queue, so an install that has not finished is not mistaken for one that failed.</param>
     public TerminalStatus Inspect(Func<string, bool>? pending = null)
     {
-        var (added, module) = ReadInstalled(pending ?? (_ => false));
+        var (added, module, fontAdded) = ReadInstalled(pending ?? (_ => false));
         var found = paths.TerminalSettings.Where(File.Exists).ToList();
         var folders = paths.TerminalSettings.Where(x => Directory.Exists(Path.GetDirectoryName(x))).ToList();
         return new(
@@ -64,6 +64,7 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
             module,
             paths.PsFzfFolders.Any(Directory.Exists),
             fontInstalled(),
+            fontAdded,
             SameText(paths.Profile, TerminalKit.Profile),
             SameText(paths.Starship, TerminalKit.Starship),
             folders.Count > 0,
@@ -83,6 +84,8 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
             string merged;
             try { merged = Merge(File.Exists(settings) ? File.ReadAllText(settings) : "{}"); }
             catch (JsonException ex) { return new(false, "Windows Terminal's settings could not be read, so nothing was changed.", settings + "\n" + ex.Message); }
+            // A file that would leave Windows Terminal pointing at a profile it does not have is never written.
+            if (Problem(ParseOrNull(merged)) is { } flaw) return new(false, "The Windows Terminal settings would not have been valid, so nothing was changed.", settings + "\n" + flaw);
             if (!File.Exists(settings) || !Equivalent(File.ReadAllText(settings), merged)) plan.Add((settings, merged));
         }
         if (plan.Count == 0) return new(true, "Your terminal already looks like this. Nothing was changed.");
@@ -93,6 +96,13 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
         try
         {
             foreach (var (path, text) in plan) Write(path, text);
+            // What was written is read back and judged the way Windows Terminal will read it; if it does not hold up, the earlier files return.
+            foreach (var (path, _) in plan.Where(x => targets.Contains(x.Path)))
+            {
+                if (Problem(ParseOrNull(File.ReadAllText(path))) is not { } flaw) continue;
+                var undone = Undo(point);
+                return new(false, "The Windows Terminal settings did not check out after they were written, so your earlier files were put back." + (undone.Ok ? "" : " Some files may need to be restored by hand."), path + "\n" + flaw + (undone.Ok ? "" : "\n" + undone.Detail));
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -109,7 +119,7 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
     // ── What the setup installed, so it can be taken away again ──
     // Only programs that were missing when the setup queued them are remembered; anything already on the PC is never offered for removal.
     private string InstalledFile => Path.Combine(paths.Backups, "installed.json");
-    private sealed record InstalledRecord(List<string> Tools, bool Module);
+    private sealed record InstalledRecord(List<string> Tools, bool Module, bool Font = false);
 
     private InstalledRecord LoadInstalled()
     {
@@ -131,14 +141,18 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
         SaveInstalled(record);
     }
 
-    private (IReadOnlyList<TerminalTool> Tools, bool Module) ReadInstalled(Func<string, bool> pending)
+    /// <summary>Remembers that the setup installed the font (it was missing), or forgets it after the font was removed.</summary>
+    public void RememberFont(bool installed) => SaveInstalled(LoadInstalled() with { Font = installed });
+
+    private (IReadOnlyList<TerminalTool> Tools, bool Module, bool Font) ReadInstalled(Func<string, bool> pending)
     {
         var record = LoadInstalled();
         // What is gone (removed by hand, or an install that failed) is forgotten, so it is never offered for removal later when something else puts it back.
         var kept = record.Tools.Where(id => TerminalKit.Tools.FirstOrDefault(t => t.WingetId.Equals(id, StringComparison.OrdinalIgnoreCase)) is { } tool && (pending(id) || commandExists(tool.Command))).ToList();
         var module = record.Module && paths.PsFzfFolders.Any(Directory.Exists);
-        if (kept.Count != record.Tools.Count || module != record.Module) SaveInstalled(new(kept, module));
-        return (kept.Select(id => TerminalKit.Tools.First(t => t.WingetId.Equals(id, StringComparison.OrdinalIgnoreCase))).Where(t => commandExists(t.Command)).ToList(), module);
+        var font = record.Font && fontInstalled();
+        if (kept.Count != record.Tools.Count || module != record.Module || font != record.Font) SaveInstalled(new(kept, module, font));
+        return (kept.Select(id => TerminalKit.Tools.First(t => t.WingetId.Equals(id, StringComparison.OrdinalIgnoreCase))).Where(t => commandExists(t.Command)).ToList(), module, font);
     }
 
     /// <summary>Puts back the files as they were before the last <see cref="Apply"/> that changed anything.</summary>
@@ -197,12 +211,21 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
             root[list] = existing;
         }
         // Older files keep the profiles as a bare list; the settings for every profile live beside it.
-        var profiles = root["profiles"] switch { JsonObject o => o, JsonArray a => new JsonObject { ["list"] = a.DeepClone() }, _ => new JsonObject() };
+        var profiles = root["profiles"] switch { JsonObject o => o, JsonArray a => new JsonObject { ["list"] = a.DeepClone() }, null => new JsonObject(), _ => throw new JsonException("The profiles are not a list or an object.") };
         var defaults = profiles["defaults"] as JsonObject ?? new JsonObject();
         foreach (var (key, value) in kit["defaults"]!.AsObject()) defaults[key] = value!.DeepClone();
         profiles["defaults"] = defaults;
         root["profiles"] = profiles;
-        if (commandExists("pwsh")) root["defaultProfile"] = TerminalKit.PowerShell7ProfileId;
+        // Windows Terminal only accepts a default profile it has. Installing PowerShell 7 does not always make it add one, so the profile is
+        // written here first, and the default is only set when PowerShell 7 is really on this PC.
+        if (commandExists("pwsh"))
+        {
+            var list = profiles["list"] switch { JsonArray a => a, null => new JsonArray(), _ => throw new JsonException("The profile list is not a list.") };
+            if (!list.Any(x => string.Equals(x?["guid"]?.GetValue<string>(), TerminalKit.PowerShell7ProfileId, StringComparison.OrdinalIgnoreCase)))
+                list.Add(new JsonObject { ["guid"] = TerminalKit.PowerShell7ProfileId, ["name"] = "PowerShell", ["commandline"] = "pwsh.exe", ["hidden"] = false });
+            profiles["list"] = list;
+            root["defaultProfile"] = TerminalKit.PowerShell7ProfileId;
+        }
         return root.ToJsonString(Pretty);
     }
 
@@ -216,12 +239,29 @@ public sealed class TerminalSetup(TerminalPaths paths, Func<string, bool>? comma
     {
         try
         {
-            var root = JsonNode.Parse(File.ReadAllText(settingsPath), null, Lenient);
-            return root?["profiles"]?["defaults"]?["colorScheme"]?.GetValue<string>() == TerminalKit.SchemeName
-                && root["theme"]?.GetValue<string>() == TerminalKit.SchemeName
-                && root["schemes"] is JsonArray schemes && schemes.Any(x => x?["name"]?.GetValue<string>() == TerminalKit.SchemeName);
+            return Problem(ParseOrNull(File.ReadAllText(settingsPath))) is null;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException) { return false; }
+    }
+
+    private static JsonNode? ParseOrNull(string text)
+    {
+        try { return JsonNode.Parse(text, null, Lenient); }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>Why these settings would not give the look, or null when they would. A default profile that is not in the list counts: that is what Windows Terminal reports as an error.</summary>
+    private static string? Problem(JsonNode? root)
+    {
+        if (root is not JsonObject settings) return "The settings are not a JSON object.";
+        if (settings["theme"]?.GetValue<string>() != TerminalKit.SchemeName || settings["profiles"]?["defaults"]?["colorScheme"]?.GetValue<string>() != TerminalKit.SchemeName)
+            return $"The {TerminalKit.SchemeName} theme is not set.";
+        if (settings["schemes"] is not JsonArray schemes || !schemes.Any(x => x?["name"]?.GetValue<string>() == TerminalKit.SchemeName))
+            return $"The {TerminalKit.SchemeName} colour scheme is missing.";
+        if (string.Equals(settings["defaultProfile"]?.GetValue<string>(), TerminalKit.PowerShell7ProfileId, StringComparison.OrdinalIgnoreCase)
+            && !(settings["profiles"]?["list"] is JsonArray list && list.Any(x => string.Equals(x?["guid"]?.GetValue<string>(), TerminalKit.PowerShell7ProfileId, StringComparison.OrdinalIgnoreCase))))
+            return $"The default profile {TerminalKit.PowerShell7ProfileId} (PowerShell 7) is not in the profile list.";
+        return null;
     }
 
     // ── Backups ──────────────────────────────────────────────────
@@ -365,19 +405,18 @@ public static class CommandPath
 
 public static class WindowsFonts
 {
-    /// <summary>Whether a Caskaydia Cove Nerd Font Mono is installed, for this account or for everyone.</summary>
+    /// <summary>
+    /// Whether a Caskaydia Cove Nerd Font Mono is installed for everyone on this PC. A font installed for one account only does not count:
+    /// Windows Terminal often cannot see those, or loses them after a restart.
+    /// </summary>
     public static bool HasCaskaydia()
     {
         if (!OperatingSystem.IsWindows()) return false;
-        foreach (var (hive, key) in new[] { (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"), (Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts") })
+        try
         {
-            try
-            {
-                using var fonts = hive.OpenSubKey(key);
-                if (fonts?.GetValueNames().Any(x => x.Contains("Caskaydia", StringComparison.OrdinalIgnoreCase) && x.Contains("Mono", StringComparison.OrdinalIgnoreCase) || x.Contains("CaskaydiaCove NFM", StringComparison.OrdinalIgnoreCase)) == true) return true;
-            }
-            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { }
+            using var fonts = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts");
+            return fonts?.GetValueNames().Any(x => x.Contains("Caskaydia", StringComparison.OrdinalIgnoreCase) && x.Contains("Mono", StringComparison.OrdinalIgnoreCase) || x.Contains("CaskaydiaCove NFM", StringComparison.OrdinalIgnoreCase)) == true;
         }
-        return false;
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return false; }
     }
 }
