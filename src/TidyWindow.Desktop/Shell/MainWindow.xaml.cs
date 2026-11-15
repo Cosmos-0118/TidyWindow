@@ -11,7 +11,7 @@ namespace TidyWindow.Next.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Crashes, Queue, Logs, Settings }
+    private enum Page { Overview, Install, Installed, Scout, Cleanup, Paths, Repair, Startup, Quiet, Tune, Debloat, Fixes, Unstick, Lab, Crashes, Health, Queue, Logs, Settings }
     private readonly ActivityLog log;
     private readonly WorkspaceViewModel model;
     private readonly LogsViewModel logs;
@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
     private readonly UnstickViewModel unstick;
     private readonly LabViewModel lab;
     private readonly CrashesViewModel crashes;
+    private readonly HealthViewModel health;
     private readonly SettingsViewModel settings;
     private readonly TerminalViewModel terminal;
     private readonly PathFinder pathFinder;
@@ -143,6 +144,8 @@ public sealed partial class MainWindow : Window
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
         // Crash records are read from Windows' own event log when the page opens or is refreshed, and a short while after launch to show whether anything is new. Nothing watches the log.
         crashes = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Crashes"), new WindowsEventSource(), log, toasts);
+        // Health only reads from the hardware's own drivers, when the person asks, so there is nothing to elevate and nothing runs in the background.
+        health = new(new WindowsBatteryReader(), PowerSource.HasBattery(), log);
         unstick = new(new UnstickRunner(new WindowsUnstickSystem(), (run, progress, token) => fixService.RunAsync(run, progress, token)), log, toasts);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
@@ -157,6 +160,7 @@ public sealed partial class MainWindow : Window
         LabPage.DataContext = lab;
         CrashesPage.DataContext = crashes;
         CrashesNav.DataContext = crashes;
+        HealthPage.DataContext = health;
         PathsPage.DataContext = paths;
         logs = new(log, Post);
         settings = new(log, toasts, () => operationQueue.HasWork, Post);
@@ -218,7 +222,7 @@ public sealed partial class MainWindow : Window
         // Work that stops for a Windows permission prompt nobody has seen is announced, in the app or at the corner of the screen.
         uac = new UacNotifier(toasts, log, () => operationQueue.HasWork, Post);
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); health.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -521,7 +525,7 @@ public sealed partial class MainWindow : Window
 
     private UIElement PageElement(Page value) => value switch
     {
-        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Crashes => CrashesPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
+        Page.Install => InstallPage, Page.Installed => InstalledPage, Page.Scout => ScoutPage, Page.Cleanup => CleanupPage, Page.Paths => PathsPage, Page.Repair => RepairPage, Page.Startup => StartupPage, Page.Quiet => QuietPage, Page.Tune => TunePage, Page.Debloat => DebloatPage, Page.Fixes => FixesPage, Page.Unstick => UnstickPage, Page.Lab => LabPage, Page.Crashes => CrashesPage, Page.Health => HealthPage, Page.Queue => QueuePage, Page.Logs => LogsPage, Page.Settings => SettingsPage, _ => OverviewPage
     };
 
     private bool pageShown;
@@ -575,7 +579,7 @@ public sealed partial class MainWindow : Window
     private Brush navSelected = BrushCache.Transparent, navPrimary = BrushCache.Transparent, navMuted = BrushCache.Transparent, navAccent = BrushCache.Transparent;
     private void UpdateNavSelection()
     {
-        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (CrashesNav, Page.Crashes), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
+        foreach (var (button, target) in new[] { (OverviewNav, Page.Overview), (InstallNav, Page.Install), (InstalledNav, Page.Installed), (ScoutNav, Page.Scout), (CleanupNav, Page.Cleanup), (PathsNav, Page.Paths), (RepairNav, Page.Repair), (StartupNav, Page.Startup), (QuietNav, Page.Quiet), (TuneNav, Page.Tune), (DebloatNav, Page.Debloat), (FixesNav, Page.Fixes), (UnstickNav, Page.Unstick), (LabNav, Page.Lab), (CrashesNav, Page.Crashes), (HealthNav, Page.Health), (QueueButton, Page.Queue), (LogsNav, Page.Logs), (SettingsNav, Page.Settings) })
         {
             var active = page == target;
             button.Background = active ? navSelected : BrushCache.Transparent;
@@ -685,6 +689,13 @@ public sealed partial class MainWindow : Window
             await crashes.CheckQuietlyAsync();
         }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash records could not be checked at startup", ex.Message); }
+    }
+
+    private void HealthClick(object sender, RoutedEventArgs e)
+    {
+        ShowPage(Page.Health);
+        // Leaving and coming back always starts at the list of devices, not wherever the details were left.
+        health.ShowDevices();
     }
 
     private void LabClick(object sender, RoutedEventArgs e)

@@ -77,6 +77,9 @@
        <Border Background="{ThemeResource WarnSoftBrush}" CornerRadius="8" Padding="6,0" VerticalAlignment="Center" Visibility="{Binding UnseenVisibility}"><TextBlock Text="{Binding UnseenText}" FontSize="11" Foreground="{ThemeResource WarnBrush}" /></Border>
       </StackPanel>
      </Button>
+     <Button x:Name="HealthNav" Style="{StaticResource NavButton}" Click="HealthClick" AutomationProperties.Name="Health">
+      <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xEB51;" FontSize="15" /><TextBlock x:Name="HealthLabel" Text="Health" FontSize="13" /></StackPanel>
+     </Button>
      <Button x:Name="QueueButton" Style="{StaticResource NavButton}" Click="QueueClick" AutomationProperties.Name="Queue">
       <StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE8FD;" FontSize="15" /><TextBlock x:Name="QueueLabel" Text="{Binding Label}" FontSize="13" /></StackPanel>
      </Button>
@@ -523,6 +526,7 @@
     <local:SettingsView x:Name="SettingsPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:LabView x:Name="LabPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <local:CrashesView x:Name="CrashesPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+    <local:HealthView x:Name="HealthPage" Visibility="Collapsed" HorizontalAlignment="Stretch" />
     <Grid x:Name="QueuePage" Visibility="Collapsed" HorizontalAlignment="Stretch" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
      <Grid ColumnSpacing="12">
