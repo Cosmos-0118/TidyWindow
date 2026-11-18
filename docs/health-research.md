@@ -1,6 +1,6 @@
 # Health: how worn a battery is, and where the numbers come from
 
-Research and implementation decision, 16 November 2026. The Health page lists the hardware in this PC and says how each part is doing. Battery is the first device. The page reads when the person asks, changes nothing and runs nothing in the background.
+Research and implementation decision, 16 November 2026. The Health tab in Overview lists the hardware in this PC and says how each part is doing. Battery is the first device. The tab reads when the person asks, changes nothing and runs nothing in the background.
 
 ## What battery health means
 

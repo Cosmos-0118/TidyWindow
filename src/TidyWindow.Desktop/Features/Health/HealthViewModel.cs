@@ -152,7 +152,7 @@ public sealed class HealthViewModel : ObservableState, IDisposable
 
     public void OpenDetails() { if (Battery.HasReading) ShowingDetails = true; }
 
-    /// <summary>Back to the list of devices. Also what opening Health from the sidebar does.</summary>
+    /// <summary>Back to the list of devices. Also what opening Overview's Health tab does.</summary>
     public void ShowDevices() => ShowingDetails = false;
 
     // ---- Reading ----

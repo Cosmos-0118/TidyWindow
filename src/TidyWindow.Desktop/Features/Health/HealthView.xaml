@@ -120,7 +120,6 @@
 
   <!-- The device list's header -->
   <StackPanel Spacing="4" Visibility="{Binding ListVisibility}">
-   <TextBlock Text="Health" Style="{StaticResource PageTitle}" />
    <TextBlock Text="Check how the hardware in this PC is holding up." Style="{StaticResource Muted}" />
   </StackPanel>
 
