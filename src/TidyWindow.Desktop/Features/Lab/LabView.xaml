@@ -262,13 +262,12 @@
         <StackPanel Grid.Column="1" Spacing="6">
          <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="Power plan" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
-          <Border Style="{StaticResource Tag}">
-           <StackPanel Orientation="Horizontal" Spacing="7">
-            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerFastVisibility}" Fill="{ThemeResource GoodBrush}" />
-            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerNormalVisibility}" Fill="{ThemeResource MutedBrush}" />
-            <TextBlock Text="{Binding PowerName}" FontSize="11" />
-           </StackPanel>
-          </Border>
+          <!-- State reads as a dot and a word, like the rest of the app (Unstick, Fixes), not as a boxed pill. -->
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" AutomationProperties.Name="{Binding PowerName}">
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerFastVisibility}" Fill="{ThemeResource GoodBrush}" />
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding PowerNormalVisibility}" Fill="{ThemeResource MutedBrush}" />
+           <TextBlock Text="{Binding PowerName}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+          </StackPanel>
          </StackPanel>
          <TextBlock Text="{Binding PowerText}" Style="{StaticResource PartNote}" />
          <TextBlock Visibility="{Binding PowerWarningVisibility}" Text="{Binding PowerWarning}" FontSize="12" Foreground="{ThemeResource WarnBrush}" TextWrapping="Wrap" />
@@ -287,13 +286,11 @@
         <StackPanel Grid.Column="1" Spacing="6">
          <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="Memory integrity" Style="{StaticResource ItemTitle}" VerticalAlignment="Center" />
-          <Border Style="{StaticResource Tag}">
-           <StackPanel Orientation="Horizontal" Spacing="7">
-            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOnVisibility}" Fill="{ThemeResource GoodBrush}" />
-            <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOffVisibility}" Fill="{ThemeResource WarnBrush}" />
-            <TextBlock Text="{Binding MemoryIntegrityState}" FontSize="11" />
-           </StackPanel>
-          </Border>
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" AutomationProperties.Name="{Binding MemoryIntegrityState}">
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOnVisibility}" Fill="{ThemeResource GoodBrush}" />
+           <Ellipse Style="{StaticResource StateDot}" Visibility="{Binding MemoryOffVisibility}" Fill="{ThemeResource WarnBrush}" />
+           <TextBlock Text="{Binding MemoryIntegrityState}" FontSize="12" Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center" />
+          </StackPanel>
          </StackPanel>
          <TextBlock Text="{Binding MemoryIntegrityText}" Style="{StaticResource PartNote}" />
         </StackPanel>
