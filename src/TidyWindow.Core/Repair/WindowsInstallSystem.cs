@@ -440,6 +440,46 @@ public sealed partial class WindowsInstallSystem : IInstallSystem
         return found;
     }
 
+    public IReadOnlyList<string> OrphanProgramFolders()
+    {
+        // While Visual Studio is being installed or changed, its folder is full and not yet registered.
+        if (InstallerBusy() || new[] { "vs_installer", "vs_installershell", "setup", "vs_setup_bootstrapper", "devenv" }.Any(x => Process.GetProcessesByName(x).Length > 0)) return [];
+        var records = VisualStudioRecords();
+        if (records is null) return [];
+        // The Programs list is not asked: a half-removed Visual Studio keeps its "Visual Studio Community" entry there, and its installer goes by its own instance records alone.
+        var found = new List<string>();
+        foreach (var root in new[] { Environment.GetEnvironmentVariable("ProgramFiles"), Environment.GetEnvironmentVariable("ProgramFiles(x86)") }.Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var studio = Path.Combine(root!, "Microsoft Visual Studio");
+            try
+            {
+                foreach (var folder in Directory.EnumerateDirectories(studio).SelectMany(version => Directory.EnumerateDirectories(version)))
+                {
+                    if (RepairFolders.Classify(folder) != FolderKind.ProgramFolder || (new DirectoryInfo(folder).Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                    if (!Directory.EnumerateFileSystemEntries(folder).Any()) continue;
+                    if (records.Contains(folder, StringComparison.OrdinalIgnoreCase) || records.Contains(folder.Replace("\\", "\\\\"), StringComparison.OrdinalIgnoreCase)) continue;
+                    found.Add(folder);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        }
+        return found;
+    }
+
+    /// <summary>Everything Visual Studio's installer has saved about the instances it has set up (their paths included), or null when it cannot be read, so that nothing is ever called leftover on a guess.</summary>
+    private static string? VisualStudioRecords()
+    {
+        var text = new StringBuilder();
+        foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) })
+        {
+            var instances = Path.Combine(root, "Microsoft", "VisualStudio", "Packages", "_Instances");
+            if (!Directory.Exists(instances)) continue;
+            try { foreach (var file in Directory.EnumerateFiles(instances, "state*.json", SearchOption.AllDirectories)) text.AppendLine(File.ReadAllText(file)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        }
+        return text.ToString();
+    }
+
     public string? RollbackFolder()
     {
         var path = Path.Combine((Environment.GetEnvironmentVariable("SystemDrive") ?? "C:") + @"\", "Config.Msi");

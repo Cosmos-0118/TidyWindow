@@ -45,6 +45,9 @@ public static partial class RepairFolders
         "dotnet", "Reference Assemblies", "MSBuild", "Uninstall Information", "Package Cache", "Microsoft Update Health Tools", "Windows Kits", "Application Verifier"
     ];
 
+    [GeneratedRegex(@"^\d{1,4}$")]
+    private static partial Regex VersionFolder();
+
     private static string? Env(string name) => Environment.GetEnvironmentVariable(name);
 
     private static string? Clean(string? path)
@@ -80,6 +83,9 @@ public static partial class RepairFolders
             if (Is(parent, root)) return Shared.Contains(name, StringComparer.OrdinalIgnoreCase) ? FolderKind.None : FolderKind.ProgramFolder;
             // A vendor folder holding the program's own ("Geeks3D\FurMark2_x64"): the vendor folder may not be a shared one.
             if (Path.GetDirectoryName(parent) is { } grandparent && Is(grandparent, root) && !Shared.Contains(Path.GetFileName(parent), StringComparer.OrdinalIgnoreCase) && !Shared.Contains(name, StringComparer.OrdinalIgnoreCase)) return FolderKind.ProgramFolder;
+            // A Visual Studio instance ("Microsoft Visual Studio\18\Community"): the Visual Studio Installer refuses to install into one that is not empty.
+            if (Path.GetDirectoryName(parent) is { } studio && Path.GetFileName(studio).Equals("Microsoft Visual Studio", StringComparison.OrdinalIgnoreCase)
+                && Is(Path.GetDirectoryName(studio), root) && VersionFolder().IsMatch(Path.GetFileName(parent))) return FolderKind.ProgramFolder;
         }
         return FolderKind.None;
     }
