@@ -256,6 +256,15 @@ public sealed class LiveRepairTests(ITestOutputHelper output)
     }
 
     [LiveFact]
+    public void VisualStudioFoldersItsInstallerHasNoRecordOfAreFoundOnThisPc()
+    {
+        var found = new WindowsInstallSystem().OrphanProgramFolders();
+        output.WriteLine($"{found.Count} Visual Studio folders without a record:");
+        foreach (var folder in found) output.WriteLine($"  {folder}  [{RepairFolders.Classify(folder)}, {(RepairFolders.IsMachine(folder) ? "admin" : "user")}, {FolderSize.Of(folder) / 1048576} MB]");
+        Assert.All(found, folder => Assert.Equal(FolderKind.ProgramFolder, RepairFolders.Classify(folder)));
+    }
+
+    [LiveFact]
     public void TheInstallerLeftoversOnThisPcAreFoundAndEveryOneIsInsideWhatARepairMaySetAside()
     {
         var system = new WindowsInstallSystem();
