@@ -41,7 +41,7 @@
   "groups": {
     "packages": ["Packages"],
     "repair": ["Repair", "Icons"],
-    "system": ["Startup", "Background", "Lab", "Unstick", "Tune"],
+    "system": ["Startup", "Background", "Lab", "Health", "Unstick", "Tune"],
     "files": ["Cleanup", "Scout", "Paths", "Debloat"],
     "app": ["Infrastructure", "Crashes", "Terminal", "Updates", "Desktop", "Fixes"]
   },
@@ -53,6 +53,7 @@
     "Debloat": { "dependsOn": ["Infrastructure", "Packages", "Repair", "Startup"] },
     "Desktop": { "source": ["src/TidyWindow.Desktop/**"], "dependsOn": ["Infrastructure"] },
     "Fixes": { "dependsOn": ["Infrastructure", "Packages", "Tune"] },
+    "Health": { "dependsOn": ["Lab"] },
     "Icons": { "dependsOn": ["Repair", "Startup"] },
     "Infrastructure": { "dependsOn": ["Packages", "Debloat"] },
     "Lab": { "dependsOn": ["Fixes"] },

@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
     private readonly UnstickViewModel unstick;
     private readonly LabViewModel lab;
     private readonly CrashesViewModel crashes;
+    private readonly HealthViewModel health;
     private readonly SettingsViewModel settings;
     private readonly TerminalViewModel terminal;
     private readonly PathFinder pathFinder;
@@ -143,6 +144,8 @@ public sealed partial class MainWindow : Window
         tune = new(tuneSystem, tuneCatalog, new TuneManager(new LocalTuneChanger(tuneSystem, new WindowsTuneWriter(), tuneCatalog), tuneSession, () => tuneSession.OpenAsync(), tuneHistory), log, toasts, ExplorerShell.RestartAsync);
         // Crash records are read from Windows' own event log when the page opens or is refreshed, and a short while after launch to show whether anything is new. Nothing watches the log.
         crashes = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow.Next", "Crashes"), new WindowsEventSource(), log, toasts);
+        // Health only reads from the hardware's own drivers, when the person asks, so there is nothing to elevate and nothing runs in the background.
+        health = new(new WindowsBatteryReader(), PowerSource.HasBattery(), log);
         unstick = new(new UnstickRunner(new WindowsUnstickSystem(), (run, progress, token) => fixService.RunAsync(run, progress, token)), log, toasts);
         CleanupPage.DataContext = cleanup;
         RepairPage.DataContext = repair;
@@ -157,6 +160,7 @@ public sealed partial class MainWindow : Window
         LabPage.DataContext = lab;
         CrashesPage.DataContext = crashes;
         CrashesNav.DataContext = crashes;
+        HealthPage.DataContext = health;
         PathsPage.DataContext = paths;
         logs = new(log, Post);
         settings = new(log, toasts, () => operationQueue.HasWork, Post);
@@ -218,7 +222,7 @@ public sealed partial class MainWindow : Window
         // Work that stops for a Windows permission prompt nobody has seen is announced, in the app or at the corner of the screen.
         uac = new UacNotifier(toasts, log, () => operationQueue.HasWork, Post);
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); health.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -685,6 +689,19 @@ public sealed partial class MainWindow : Window
             await crashes.CheckQuietlyAsync();
         }
         catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Crash records could not be checked at startup", ex.Message); }
+    }
+
+    private void OverviewTabChecked(object sender, RoutedEventArgs e)
+    {
+        // The initially checked tab can fire while InitializeComponent is still building the content.
+        if (ManagersSection is null || TerminalScroll is null || HealthPage is null || OverviewRefresh is null) return;
+        if (sender is not RadioButton { Tag: string tab }) return;
+        ManagersSection.Visibility = tab == "Managers" ? Visibility.Visible : Visibility.Collapsed;
+        TerminalScroll.Visibility = tab == "Terminal" ? Visibility.Visible : Visibility.Collapsed;
+        HealthPage.Visibility = tab == "Health" ? Visibility.Visible : Visibility.Collapsed;
+        OverviewRefresh.Visibility = tab == "Managers" ? Visibility.Visible : Visibility.Collapsed;
+        if (tab == "Health") health.ShowDevices();
+        if (tab == "Terminal" && initialized) Run(terminal.RefreshAsync, "checking the terminal setup");
     }
 
     private void LabClick(object sender, RoutedEventArgs e)

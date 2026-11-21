@@ -158,6 +158,7 @@ Each release also carries `SHA256SUMS.txt` and a build attestation that records 
         <li><b>Repair</b>: recover installs and uninstalls blocked by a cancelled or crashed installer, with backups of removed data.</li>
         <li><b>Crashes</b>: see which apps crash or freeze most and what failed, with typo-forgiving search such as <code>app:chrome since:7d</code>.</li>
         <li><b>Lab</b>: compare a 15-second performance check with the previous one, switch power plans or change one app's priority for a while.</li>
+        <li><b>Overview → Health</b>: check how worn the laptop battery is, from what it holds now against when it was new, with the details one click away.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -203,7 +204,7 @@ Each release also carries `SHA256SUMS.txt` and a build attestation that records 
 
 | Tool | What you can do |
 | --- | --- |
-| **Overview** | Check WinGet, Chocolatey and Scoop, with setup help. Optionally set up a themed PowerShell 7 and Windows Terminal (Catppuccin Mocha, Starship prompt, fuzzy search); files are backed up first and each step can be undone. |
+| **Overview** | Three tabs: **Package managers** checks WinGet, Chocolatey and Scoop, with setup help; **Configure your terminal** optionally sets up a themed PowerShell 7 and Windows Terminal (Catppuccin Mocha, Starship prompt, fuzzy search), with backups and undo; **Health** checks how the hardware is doing. |
 | **Install Hub** | Search all package sources together, see what is installed and review an install before it starts. |
 | **Installed** | Browse installed packages, check versions, update, uninstall or hold. |
 | **Scout** | Find files and folders by name or path, filter by type or location, copy a path or open its folder. |
@@ -218,6 +219,7 @@ Each release also carries `SHA256SUMS.txt` and a build attestation that records 
 | **Unstick** | One-press restarts for File Explorer, Start, search, the clipboard, notifications and more, plus hardware restarts that ask for administrator permission once. |
 | **Lab** | Compare a 15-second performance check with the previous one, switch power plans or temporarily change one app's priority. |
 | **Crashes** | See which apps crash or freeze most and which Windows problems (blue screens, failing services, driver resets) happened. Reads Windows' own records only when opened. |
+| **Health (Overview tab)** | Battery shows how much charge it can still hold compared with when it was new, with capacity, wear and cycle count under View details. Reads only when you ask. |
 | **Queue** | Follow installs, updates and uninstalls from every page, one operation at a time. |
 | **Logs** | Review outcomes and problems that need attention, without a stream of routine activity. |
 
@@ -329,6 +331,7 @@ The research notes explain what each tool changes, the evidence behind it and wh
 | [Unstick](docs/unstick-research.md) | The instant restarts and why each is safe, what was left out, and what was checked on a real PC. |
 | [Crashes](docs/crashes-research.md) | Where Windows keeps crash records, what is left out, how a scan stays cheap, and the search syntax. |
 | [Lab](docs/lab-research.md) | What the performance check measures and how comparisons work. |
+| [Health](docs/health-research.md) | How battery health is worked out, where Windows keeps the numbers, and what a battery that does not report them looks like. |
 
 ## Contributing
 
