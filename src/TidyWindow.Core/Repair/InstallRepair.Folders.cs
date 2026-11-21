@@ -13,6 +13,17 @@ public static partial class InstallRepair
             RepairLevel.Recommended, [], Folders: folders, MachineFolders: folders.Any(x => RepairFolders.IsMachine(x)));
     }
 
+    /// <summary>A Visual Studio folder whose installation was removed or cut short, with its files still there. The Visual Studio Installer stops with "cannot be installed to a nonempty directory".</summary>
+    private static IEnumerable<RepairFinding> OrphanedProgramFindings(IInstallSystem system)
+    {
+        var folders = system.OrphanProgramFolders();
+        if (folders.Count == 0) yield break;
+        yield return new("program-folders", RepairKind.InstallerFiles, folders.Count == 1 ? "Leftover Visual Studio folder blocks installing it again" : $"{folders.Count} leftover Visual Studio folders block installing it again",
+            "Visual Studio has no record of these folders, so it cannot be repaired or removed, yet its installer refuses to install into a folder that is not empty. They are set aside, not deleted, so Undo can put them back. Review them first: they can be several gigabytes.",
+            string.Join(", ", folders.Take(3)) + (folders.Count > 3 ? $" and {folders.Count - 3} more" : ""),
+            RepairLevel.Review, [], Folders: folders, MachineFolders: folders.Any(x => RepairFolders.IsMachine(x)));
+    }
+
     /// <summary>The product codes a removed program was registered under: what its installer-cache folders are named after. A Burn bundle is named by its own entry key.</summary>
     public static IReadOnlyList<string> CodesOf(UninstallEntry? entry, MsiProduct? product, bool bundle)
     {

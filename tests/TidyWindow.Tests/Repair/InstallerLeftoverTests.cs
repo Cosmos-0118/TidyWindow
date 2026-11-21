@@ -65,7 +65,12 @@ public sealed class InstallerLeftoverTests : IDisposable
     [InlineData(@"C:\Program Files\Ghost App", FolderKind.ProgramFolder)]
     [InlineData(@"C:\Program Files (x86)\Geeks3D\FurMark2_x64", FolderKind.ProgramFolder)]
     [InlineData(@"C:\Users\me\AppData\Local\Programs\Python\Python312", FolderKind.ProgramFolder)]
+    [InlineData(@"C:\Program Files\Microsoft Visual Studio\18\Community", FolderKind.ProgramFolder)]
+    [InlineData(@"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools", FolderKind.ProgramFolder)]
     // What is shared, or is not a program's own, is refused whatever it is asked for.
+    [InlineData(@"C:\Program Files\Microsoft Visual Studio\18\Community\Common7", FolderKind.None)]
+    [InlineData(@"C:\Program Files\Microsoft Visual Studio\Installer\Community", FolderKind.None)]
+    [InlineData(@"C:\Program Files\Other Vendor\18\Community", FolderKind.None)]
     [InlineData(@"C:\Program Files", FolderKind.None)]
     [InlineData(@"C:\Program Files\Common Files", FolderKind.None)]
     [InlineData(@"C:\Program Files\WindowsApps", FolderKind.None)]
@@ -282,6 +287,25 @@ public sealed class InstallerLeftoverTests : IDisposable
     }
 
     // ---- Finding the ones already left behind ----
+
+    [Fact]
+    public async Task AVisualStudioFolderItsInstallerNoLongerKnowsIsOfferedForReviewAndSetAsideWithUndo()
+    {
+        var folder = Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles") ?? @"C:\Program Files", "Microsoft Visual Studio", "18", "Community");
+        var pc = new FakePc { ProgramOrphans = [folder] };
+        var finding = Assert.Single(InstallRepair.Scan(pc).Findings, x => x.Id == "program-folders");
+        Assert.Equal(RepairLevel.Review, finding.Level);
+        Assert.True(finding.NeedsAdmin);
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { folder };
+        var service = Service(pc, new MemoryFolders([]), new MemoryFolders(present));
+
+        var outcome = await service.FixAsync([finding], "Removed leftovers");
+
+        Assert.Equal(RepairStatus.Fixed, Assert.Single(outcome.Results!).Status);
+        Assert.Empty(present);
+        Assert.True((await service.UndoAsync(outcome.Batch!)).Complete);
+        Assert.Contains(folder, present);
+    }
 
     [Fact]
     public async Task IconFoldersOfProgramsWindowsInstallerHasNeverHeardOfAreOfferedAndSetAsideTogether()

@@ -110,10 +110,11 @@ public sealed class FakePc : IInstallSystem
     public Dictionary<string, string[]> FolderFiles = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FilesIn(string folder) => FolderFiles.GetValueOrDefault(folder) ?? [];
     public Dictionary<string, string[]> Icons = new(StringComparer.OrdinalIgnoreCase), Caches = new(StringComparer.OrdinalIgnoreCase);
-    public string[] Orphans = [];
+    public string[] Orphans = [], ProgramOrphans = [];
     public string? RollbackPath;
     public IReadOnlyList<string> InstallerLeftovers(string code, bool packageCache) => [.. Icons.GetValueOrDefault(code) ?? [], .. packageCache ? Caches.GetValueOrDefault(code) ?? [] : []];
     public IReadOnlyList<string> OrphanInstallerFolders() => Orphans;
+    public IReadOnlyList<string> OrphanProgramFolders() => ProgramOrphans;
     public string? RollbackFolder() => RollbackPath;
 }
 

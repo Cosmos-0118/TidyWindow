@@ -98,6 +98,8 @@ public interface IInstallSystem
     IReadOnlyList<string> InstallerLeftovers(string code, bool packageCache) => [];
     /// <summary>Icon folders under C:\Windows\Installer (and the per-user one) whose product Windows Installer has no record of anywhere, and that have not changed for two days.</summary>
     IReadOnlyList<string> OrphanInstallerFolders() => [];
+    /// <summary>Visual Studio instance folders (Program Files\Microsoft Visual Studio\18\Community) that hold files but that Visual Studio has no record of: its installer refuses to install into them.</summary>
+    IReadOnlyList<string> OrphanProgramFolders() => [];
     /// <summary>The hidden C:\Config.Msi where an install that was cut short left its rollback files; null when it is not there.</summary>
     string? RollbackFolder() => null;
 }
@@ -144,6 +146,7 @@ public static partial class InstallRepair
         {
             findings.AddRange(StaleShortcutFindings(system));
             findings.AddRange(OrphanedInstallerFindings(system));
+            findings.AddRange(OrphanedProgramFindings(system));
         }
         return new(entries, products, findings);
     }
