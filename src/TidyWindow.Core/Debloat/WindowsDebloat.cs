@@ -61,6 +61,7 @@ internal static class DebloatProcess
 
     public static Result Run(string file, IEnumerable<string> arguments, TimeSpan timeout, TimeSpan? grace = null)
     {
+        using var lease = ChildProcesses.Begin();
         using var process = Process.Start(StartInfo(file, arguments)) ?? throw new InvalidOperationException($"{Path.GetFileName(file)} could not be started.");
         var output = new StringBuilder();
         var errors = new StringBuilder();

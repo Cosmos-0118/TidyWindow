@@ -59,7 +59,7 @@ public partial class App : Application
     /// <summary>Brings the open window forward, restoring it first if it was minimized. Safe to call from any thread, and does nothing before the window exists.</summary>
     internal static void ShowRunningWindow() => interfaceQueue?.TryEnqueue(() =>
     {
-        if (Current is not App { window: { } open }) return;
+        if (Current is not App { window: { } open } || open is MainWindow { IsClosing: true }) return;
         if (open.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter) presenter.Restore();
         open.AppWindow.Show();
         open.Activate();
