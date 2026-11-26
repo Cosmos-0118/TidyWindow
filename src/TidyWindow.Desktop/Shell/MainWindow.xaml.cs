@@ -218,7 +218,7 @@ public sealed partial class MainWindow : Window
         // Work that stops for a Windows permission prompt nobody has seen is announced, in the app or at the corner of the screen.
         uac = new UacNotifier(toasts, log, () => operationQueue.HasWork, Post);
         Root.SizeChanged += (_, e) => ToastScroll.MaxHeight = Math.Max(120, e.NewSize.Height - 32);
-        Closed += (_, _) => { initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose(); };
+        Closed += (_, _) => Release();
     }
 
     /// <summary>The window that is open, for a page that needs <see cref="ShowDialogAsync"/>, <see cref="Post"/> or <see cref="Run"/>; null once it has closed.</summary>
@@ -1144,7 +1144,14 @@ public sealed partial class MainWindow : Window
         // The window stays until the work has been brought to a safe stop; the waiting dialog has the one way out.
         if (finishingForClose) { args.Cancel = true; return; }
         var running = RunningWork();
-        if (running.Count == 0) return;
+        if (running.Count == 0)
+        {
+            // Nothing to warn about, but the window still does not just vanish: programs started for searches and checks are ended and waited for first, out of sight.
+            args.Cancel = true;
+            finishingForClose = true;
+            Run(CloseQuietlyAsync, "closing TidyWindow");
+            return;
+        }
         args.Cancel = true;
         if (closingDialog) return;
         closingDialog = true;
@@ -1254,10 +1261,48 @@ public sealed partial class MainWindow : Window
                 }
                 finally { operationQueue.Refreshed -= Update; }
             }
+            await ReleaseAndDrainAsync();
             closeConfirmed = true;
             Close();
         }
         finally { finishingForClose = false; }
+    }
+
+    /// <summary>True from the moment closing has begun, while the hidden window waits for the last programs to end.</summary>
+    internal bool IsClosing => finishingForClose || closeConfirmed;
+
+    private async Task CloseQuietlyAsync()
+    {
+        try { await ReleaseAndDrainAsync(); }
+        finally { finishingForClose = false; }
+        closeConfirmed = true;
+        Close();
+    }
+
+    /// <summary>
+    /// Hides the window, stops everything the pages are doing and waits (at most a few seconds) for the programs they started to be ended. A program
+    /// left to the operating system when the process exits is cut off mid-write, and PowerShell reports the broken pipe as an error.
+    /// </summary>
+    private async Task ReleaseAndDrainAsync()
+    {
+        try { AppWindow.Hide(); } catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException) { }
+        Release();
+        try
+        {
+            if (!await ChildProcesses.WaitIdleAsync(TimeSpan.FromSeconds(8)))
+                log.Write(ActivityLevel.Warning, ActivityArea.App, "A program was still ending when TidyWindow closed", $"{ChildProcesses.Active} program(s) did not end within 8 seconds and were left to Windows.");
+        }
+        catch (Exception ex) { log.Write(ActivityLevel.Warning, ActivityArea.App, "Waiting for programs to end failed", ex.ToString()); }
+    }
+
+    private bool released;
+
+    /// <summary>Stops and disposes everything the window owns. Safe to call twice: the shutdown calls it first, and the window's Closed event calls it again.</summary>
+    private void Release()
+    {
+        if (released) return;
+        released = true;
+        initialized = false; Open = null; scoutStatusTimer.Stop(); SystemUi.Unwatch(SystemColorsChanged); operationQueue.StateChanged -= QueueStateChanged; operationQueue.Dispose(); scout.Dispose(); cleanup.Dispose(); paths.Dispose(); repair.Dispose(); repairSession.Dispose(); startup.Dispose(); startupSession.Dispose(); quiet.Dispose(); quietSession.Dispose(); tune.Dispose(); tuneSession.Dispose(); debloat.Dispose(); debloatSession.Dispose(); fixes.Dispose(); fixSession.Dispose(); unstick.Dispose(); lab.Dispose(); crashes.Dispose(); settings.Dispose(); terminal.Dispose(); uac.Dispose(); toasts.Dispose(); installations.Dispose(); logs.Dispose(); model.Dispose();
     }
 }
 

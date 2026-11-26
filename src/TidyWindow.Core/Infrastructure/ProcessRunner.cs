@@ -34,6 +34,8 @@ public sealed class ProcessRunner(TimeSpan? pipeGrace = null) : ICommandRunner
             // Get-AuthenticodeSignature vanish). Give it Windows' own folders, which are also the only ones an administrator-owned run should trust.
             if (string.Equals(command.FileName, ElevatedProgram.WindowsPowerShell, StringComparison.OrdinalIgnoreCase)) start.Environment["PSModulePath"] = DebloatProcess.SystemModulePath;
         }
+        // Held until the program has ended and been reaped, so closing the app can wait for a cancelled run to finish ending it.
+        using var lease = ChildProcesses.Begin();
         using var process = new Process { StartInfo = start };
         if (command.Elevate) Report(command, new("Approve the Windows administrator prompt. Output will appear in the separate administrator window; it cannot be captured by this launch method.", CommandOutputKind.Notice));
         else if (command.MayShowInstaller) Report(command, new("Follow any installer or Windows permission window that opens. The queue waits for this command to finish.", CommandOutputKind.Notice));

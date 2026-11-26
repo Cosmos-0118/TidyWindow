@@ -617,6 +617,7 @@ public sealed class FixStepExecutor(TimeSpan? pipeGrace = null) : IFixStepExecut
         }
         if (powershell) start.Environment["PSModulePath"] = ModulePath();
         start.Environment["NO_COLOR"] = "1";
+        using var lease = ChildProcesses.Begin();
         using var process = new Process { StartInfo = start };
         await Task.Run(process.Start, cancellationToken).ConfigureAwait(false);
         using var drain = new CancellationTokenSource();

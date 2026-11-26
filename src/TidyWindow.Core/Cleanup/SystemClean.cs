@@ -42,6 +42,7 @@ public sealed class WindowsSystemTools : ISystemTools
     {
         var start = new ProcessStartInfo(fileName) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        using var lease = ChildProcesses.Begin();
         using var process = Process.Start(start) ?? throw new InvalidOperationException($"{fileName} could not be started.");
         // Output is always drained so a chatty tool never blocks on a full pipe; the exit code is what decides success.
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
